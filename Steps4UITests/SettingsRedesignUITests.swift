@@ -54,6 +54,45 @@ final class SettingsRedesignUITests: XCTestCase {
         capture(app, name: "Appearance visual style availability")
     }
 
+    func testAppearancePalettePreviewRespondsAndFamiliesStayReachable() {
+        let app = launchSettings()
+        openSettingsDestination("settings.destination.appearance", in: app)
+        #if DEBUG
+        app.buttons["settings.appearance.style.editorial"].tap()
+        #endif
+        let preview = app.descendants(matching: .any)["settings.appearance.preview"]
+        let all = app.buttons["modernPalette.all"]
+        reveal(all, in: app)
+        all.tap()
+        app.buttons["modernPalette.pastel"].tap()
+        Thread.sleep(forTimeInterval: 1)
+        let pastel = preview.screenshot().pngRepresentation
+        capture(app, name: "Appearance · Pastel")
+        all.tap()
+        let neon = app.buttons["modernPalette.neon"]
+        reveal(neon, in: app)
+        neon.tap()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertNotEqual(pastel, preview.screenshot().pngRepresentation,
+                          "The rendered canvas must change when the color family changes")
+        capture(app, name: "Appearance · Neon")
+        let winter = app.buttons["modernPalette.winter"]
+        reveal(winter, in: app)
+        XCTAssertTrue(winter.isHittable)
+        XCTAssertTrue(preview.isHittable, "Preview must remain visible while browsing families")
+        let theme = app.segmentedControls["settings.appearance.interfaceTheme"]
+        theme.buttons["Dark"].tap()
+        XCTAssertTrue(theme.buttons["Dark"].waitForExistence(timeout: 3))
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(theme.buttons["Dark"].isSelected)
+        capture(app, name: "Appearance · Dark")
+        theme.buttons["Light"].tap()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(theme.buttons["Light"].isSelected)
+        capture(app, name: "Appearance · Light")
+        XCTAssertTrue(app.buttons["settings.appearance.apply"].isEnabled)
+    }
+
     func testCombinedDailyAccentScreensAndRotation() {
         XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }

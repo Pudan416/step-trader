@@ -10,18 +10,26 @@ struct SettingsAppearancePreview: View {
         CanvasVisualStyle.currentStyle(storedRaw: styleOverride?.rawValue ?? draft.canvasStyle)
     }
 
+    /// Use the shipping canvas recipe, not the fixed editorial review sample.
+    /// The stable day and events keep geometry unchanged while comparing colors.
+    static func sceneInput(categories: String, dayKey: String = AppModel.dayKey(for: .now)) -> DayObjectSceneInput {
+        let selection = ModernPaletteSelection.decode(categories)
+        let events = ["walk", "rest", "create", "connect", "read"]
+        let recipe = NativeAtlasRecipe.make(dayKey: dayKey, paletteCategories: selection)
+            .reconciled(eventIDs: events)
+        return DayObjectSceneInput(
+            dayKey: dayKey, identity: "primary-canvas", eventIDs: events,
+            motionEnergy: 0.7, visualClarity: 0.8, canvasCoverage: .fullCanvas,
+            paletteCategories: selection, usesEditorialField: true,
+            nativeAtlasRecipe: recipe
+        )
+    }
+
     var body: some View {
         Group {
             if style == .editorial {
                 DayObjectsView(
-                    sceneInput: DayObjectSceneInput(
-                        dayKey: "settings-preview", identity: "settings-preview",
-                        eventIDs: ["walk", "rest", "create", "connect", "read"],
-                        motionEnergy: 0.7, visualClarity: 0.8,
-                        canvasCoverage: .fullCanvas,
-                        paletteCategories: ModernPaletteSelection.decode(draft.categories),
-                        usesEditorialField: true
-                    ),
+                    sceneInput: Self.sceneInput(categories: draft.categories),
                     isAnimating: false
                 )
             } else {

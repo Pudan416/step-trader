@@ -50,7 +50,10 @@ struct SettingsAppearancePage: View {
         nonmutating set { draft.fills = newValue }
     }
 
-    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var systemColorScheme
+    private var theme: AppTheme {
+        AppTheme.normalized(rawValue: draft.interfaceTheme).isLight(in: systemColorScheme) ? .daylight : .night
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isCanvasIngredientsExpanded = false
@@ -127,20 +130,21 @@ struct SettingsAppearancePage: View {
         ZStack {
             SettingsDetailBackground(model: model)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Picker("Appearance", selection: $draft.interfaceTheme) {
-                        Text("System").tag(AppTheme.system.rawValue)
-                        Text("Light").tag(AppTheme.daylight.rawValue)
-                        Text("Dark").tag(AppTheme.night.rawValue)
-                    }
-                    .pickerStyle(.segmented)
+            VStack(spacing: 16) {
+                Picker("Appearance", selection: $draft.interfaceTheme) {
+                    Text("System").tag(AppTheme.system.rawValue)
+                    Text("Light").tag(AppTheme.daylight.rawValue)
+                    Text("Dark").tag(AppTheme.night.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .accessibilityIdentifier("settings.appearance.interfaceTheme")
+
+                canvasAppearancePreview
                     .padding(.horizontal, 16)
-                    .accessibilityIdentifier("settings.appearance.interfaceTheme")
 
-                    canvasAppearancePreview
-                        .padding(.horizontal, 16)
-
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
                     #if DEBUG
                     if selectedCanvasStyle == .editorial {
                         modernPaletteCategoriesSection
@@ -162,13 +166,14 @@ struct SettingsAppearancePage: View {
                                 canvasIngredientsDisclosure
                             }
                             .transition(.opacity)
-                        }
-                    }
+                            }
+                }
                     #else
                     modernPaletteCategoriesSection
                     #endif
+                    }
                 }
-                .padding(.bottom, 80)
+                .padding(.bottom, 16)
                 .motionAnimation(
                     .spring(response: 0.3, dampingFraction: 0.8),
                     value: appearanceMode,
@@ -181,7 +186,9 @@ struct SettingsAppearancePage: View {
                 )
             }
         }
-        .overlay { }
+        .environment(\.appTheme, theme)
+        .environment(\.resolvedAppTheme, theme == .daylight ? .daylight : .night)
+        .preferredColorScheme(AppTheme.normalized(rawValue: draft.interfaceTheme).colorScheme)
         .settingsDetailPage(title: String(localized: "Appearance", comment: "Settings section title"))
         .tint(theme.adaptivePrimaryText)
         .navigationBarBackButtonHidden(true)
@@ -257,13 +264,13 @@ struct SettingsAppearancePage: View {
             }
             #endif
             SettingsAppearancePreview(draft: draft)
-                .frame(height: 180)
+                .frame(height: dynamicTypeSize.isAccessibilitySize ? 100 : 140)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .contentShape(Rectangle())
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Canvas appearance preview")
                 .accessibilityIdentifier("settings.appearance.preview")
-            Text("Applies to today and future days.")
+            Text("Sample canvas · Colors update as you choose.")
                 .font(.geist(.caption))
                 .foregroundStyle(theme.textSecondary)
         }
@@ -576,19 +583,18 @@ struct SettingsAppearancePage: View {
             sectionLabel(String(localized: "Color families"))
                 .padding(.horizontal, 16)
 
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    modernPaletteAllChip
-                    ForEach(ModernPaletteCategory.allCases, id: \.rawValue) { category in
-                        modernPaletteCategoryChip(category)
-                    }
-                }
+            modernPaletteAllChip
                 .padding(.horizontal, 16)
-                .padding(.vertical, 4)
-            }
-            .scrollIndicators(.hidden)
 
-            Text("A new palette each day.")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 10) {
+                ForEach(ModernPaletteCategory.allCases, id: \.rawValue) { category in
+                    modernPaletteCategoryChip(category)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            Text("Choose one or more families. A new palette each day, starting today.")
                 .font(.geist(.caption))
                 .foregroundStyle(theme.textSecondary)
                 .padding(.horizontal, 16)
@@ -635,42 +641,36 @@ struct SettingsAppearancePage: View {
         isSelected: Bool,
         colors: [String]
     ) -> some View {
-        HStack(spacing: 6) {
-            if colors.isEmpty {
-                Image(systemName: "circle.grid.2x2.fill")
-                    .font(.geist(size: 10, weight: .semibold))
-            } else {
-                HStack(spacing: -3) {
-                    ForEach(Array(colors.prefix(4).enumerated()), id: \.offset) { _, hex in
-                        Circle()
-                            .fill(Color(hex: hex))
-                            .frame(width: 12, height: 12)
-                            .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 0.5))
+        VStack(alignment: .leading, spacing: 8) {
+            if !colors.isEmpty {
+                HStack(spacing: 0) {
+                    ForEach(Array(colors.enumerated()), id: \.offset) { _, hex in
+                        Rectangle().fill(Color(hex: hex))
                     }
                 }
+                .frame(height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .accessibilityHidden(true)
             }
-
-            Text(title)
-                .font(.geist(.caption).weight(isSelected ? .bold : .medium))
-
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.geist(size: 9, weight: .bold))
+            HStack {
+                Text(title)
+                    .font(.geist(.subheadline).weight(isSelected ? .semibold : .regular))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18))
+                    .accessibilityHidden(true)
             }
         }
-        .foregroundStyle(isSelected ? theme.accentColor : theme.textSecondary)
-        .padding(.horizontal, 10)
-        .frame(minHeight: 44)
-        .background(
-            Capsule()
-                .fill(isSelected ? theme.accentColor.opacity(0.12) : theme.adaptivePrimaryText.opacity(0.05))
-        )
+        .foregroundStyle(theme.adaptivePrimaryText)
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .background(theme.backgroundColor.opacity(isSelected ? 0.8 : 0.45),
+                    in: RoundedRectangle(cornerRadius: 12))
         .overlay {
-            Capsule()
-                .strokeBorder(
-                    isSelected ? theme.accentColor : theme.adaptivePrimaryText.opacity(0.08),
-                    lineWidth: isSelected ? 1.5 : 0.5
-                )
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(isSelected ? theme.adaptivePrimaryText : theme.adaptiveDividerColor,
+                              lineWidth: isSelected ? 1.5 : 0.5)
         }
     }
 
