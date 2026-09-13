@@ -1230,18 +1230,6 @@ struct OnboardingStoriesView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .padding(.horizontal, 12)
-                        .background(Circle().fill(.black).padding(2))
-                                        .offset(x: 4, y: -4)
-                                }
-                            }
-                            
-                            Text(app.name)
-                                .font(.geist(11, weight: .light, relativeTo: .caption))
-                                .foregroundStyle(isSelected ? .white : .white.opacity(0.4))
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 14)
                                 .fill(isSelected ? Color.white.opacity(0.08) : Color.white.opacity(0.04))
