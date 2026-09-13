@@ -1,0 +1,48 @@
+[
+  {
+    "style": "Regular",
+    "changed_characters": [
+      "e",
+      "е",
+      "ё",
+      "n",
+      "h",
+      "m",
+      "r",
+      "g",
+      "к",
+      "G",
+      "&",
+      "@",
+      "f",
+      "t"
+    ],
+    "safety_pair_adjustments": 0,
+    "glyphs": 173,
+    "characters": 163,
+    "tabular_advance": 743
+  },
+  {
+    "style": "Bold",
+    "changed_characters": [
+      "e",
+      "е",
+      "ё",
+      "n",
+      "h",
+      "m",
+      "r",
+      "g",
+      "к",
+      "G",
+      "&",
+      "@",
+      "f",
+      "t"
+    ],
+    "safety_pair_adjustments": 0,
+    "glyphs": 173,
+    "characters": 163,
+    "tabular_advance": 791
+  }
+]

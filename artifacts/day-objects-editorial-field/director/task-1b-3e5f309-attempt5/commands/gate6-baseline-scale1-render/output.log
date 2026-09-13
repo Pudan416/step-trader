@@ -1,0 +1,49 @@
+Building for debugging...
+[0/9] Write sources
+[2/9] Write editorial-field-render-entitlement.plist
+[3/9] Write sources
+[5/9] Write swift-version--58304C5D6DBC2206.txt
+[7/16] Compiling EditorialFieldCore SceneRecipe.swift
+[8/16] Compiling EditorialFieldCore EditorialGrammar.swift
+[9/16] Compiling EditorialFieldCore CompositionPlanner.swift
+[10/16] Compiling EditorialFieldCore CorpusManifest.swift
+[11/16] Compiling EditorialFieldCore SeedDerivation.swift
+[12/16] Emitting module EditorialFieldCore
+[13/16] Compiling EditorialFieldCore MaterialDNA.swift
+[14/19] Compiling EditorialFieldRender MaterialRenderer.swift
+[15/19] Compiling EditorialFieldRender NeutralRenderer.swift
+[16/19] Emitting module EditorialFieldRender
+[17/22] Compiling EditorialFieldEvidence EvidencePackage.swift
+[18/22] Compiling EditorialFieldEvidence MaterialEvidencePackage.swift
+[19/22] Emitting module EditorialFieldEvidence
+[20/24] Emitting module editorial_field_render
+[21/24] Compiling editorial_field_render main.swift
+[21/24] Write Objects.LinkFileList
+[22/24] Linking editorial-field-render
+[23/24] Applying editorial-field-render
+Build of product 'editorial-field-render' complete! (9.31s)
+material evidence: /Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-task1b-baseline-attempt5-622b7b5/artifacts/day-objects-editorial-field/material/baseline-622b7b5-attempt5/scale1
+material fixtures: 27
+core PNG views: 54
+artifact records: 258
+composition approval SHA-256: c4f4c95c2431701587a3c366dcc4d82ae21b9a5735d840a995a0aae52346124c
+composition recipes SHA-256: 7faef26a612768b67b73b520c7889e569594516bde3745f8a75b4ff2a24aeccd
+package SHA-256: c5fcd68d43b57443c56a7b9934566baf178ed46c5c2ef53d18b90b76b6ba1c51
+      248.82 real       232.51 user         5.64 sys
+           767066112  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1493571  page reclaims
+                 594  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 489  voluntary context switches
+               83914  involuntary context switches
+       3703245567732  instructions retired
+        755423244298  cycles elapsed
+           709674232  peak memory footprint

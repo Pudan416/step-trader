@@ -31,6 +31,7 @@ final class AppModel: ObservableObject {
     let subscriptionStore: SubscriptionStore
 
     private var cancellables = Set<AnyCancellable>()
+    private var localPurchaseStateTask: Task<Void, Never>?
     private var sleepRefetchTask: Task<Void, Never>?
     /// In-flight `recalculateDailyEnergy` Task spawned from the steps/sleep
     /// Combine sink (§3.5). Cancelled on next fire and on `deinit` so a stale
@@ -292,15 +293,17 @@ final class AppModel: ObservableObject {
     }
 
     func checkDayBoundary() {
-        // Throttle: foreground/timer/significant-time-change can fan out 4× rapid calls.
-        // First call does the work; subsequent calls within 1s become no-ops (the body is
-        // idempotent — once the day key is updated, re-running adds no value). 1s is short
-        // enough to never miss a real day change (those happen at midnight, not in 1s bursts).
-        if let last = lastDayBoundaryCheck, Date.now.timeIntervalSince(last) < 1.0 { return }
-        lastDayBoundaryCheck = Date.now
-
-        let currentKey = Self.dayKey(for: Date.now)
+        let now = Date.now
+        let currentKey = Self.dayKey(for: now)
         let dayChanged = currentKey != lastDayKey
+        let anchor = UserDefaults.stepsTrader().object(forKey: SharedKeys.dailyEnergyAnchor) as? Date
+        let needsReset = anchor.map { !isSameCustomDay($0, now) } ?? false
+        // Coalesce duplicate checks only within the same day. A timer firing
+        // immediately before the cutoff cannot suppress the foreground reset.
+        if !dayChanged, !needsReset,
+           let last = lastDayBoundaryCheck, now.timeIntervalSince(last) < 1.0 { return }
+        lastDayBoundaryCheck = now
+
         if dayChanged {
             lastDayKey = currentKey
         }
@@ -341,6 +344,7 @@ final class AppModel: ObservableObject {
             defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
             defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
             defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+            defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
 
             #if canImport(DeviceActivity)
             DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])
@@ -452,6 +456,28 @@ final class AppModel: ObservableObject {
     }
 
     
+    /// Shared by foreground startup and app-hosted widget actions. A cold widget
+    /// action needs local balances/groups, not a network or HealthKit refresh.
+    /// Reuse the same load so startup cannot overwrite an in-flight purchase.
+    func prepareLocalPurchaseState() async {
+        if let task = localPurchaseStateTask {
+            await task.value
+            return
+        }
+        let task = Task { @MainActor in
+            await self.userEconomyStore.loadAppStepsSpentToday()
+            await self.userEconomyStore.loadAppStepsSpentLifetime()
+            self.blockingStore.loadTicketGroups()
+            self.loadAppUnlockSettings()
+            self.loadDayPassGrants()
+            self.loadDailyEnergyState()
+            self.loadSavedRoutines()
+            self.loadSpentStepsBalance()
+        }
+        localPurchaseStateTask = task
+        await task.value
+    }
+
     func bootstrap(requestPermissions: Bool) async {
         AppLogger.app.debug("🚀 Bootstrapping AppModel...")
         isBootstrapping = true
@@ -460,20 +486,7 @@ final class AppModel: ObservableObject {
         let diagG = UserDefaults.stepsTrader()
         AppLogger.energy.debug("📊 BOOTSTRAP RAW UD: spentStepsToday=\(diagG.integer(forKey: SharedKeys.spentStepsToday)), baseEnergyToday=\(diagG.integer(forKey: SharedKeys.baseEnergyToday)), stepsBalance=\(diagG.integer(forKey: SharedKeys.stepsBalance)), anchor=\(String(describing: diagG.object(forKey: SharedKeys.dailyEnergyAnchor)))")
 
-        // 1. Load data from stores
-        await userEconomyStore.loadAppStepsSpentToday()
-        await userEconomyStore.loadAppStepsSpentLifetime()
-        blockingStore.loadTicketGroups()
-        loadAppUnlockSettings()
-        loadDayPassGrants()
-        
-        // 1.5 Restore daily energy state and spent balance so colors counts persist across restarts
-        loadDailyEnergyState()
-        AppLogger.energy.debug("📊 AFTER loadDailyEnergyState: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
-
-        loadSavedRoutines()
-        loadSpentStepsBalance()
-        AppLogger.energy.debug("📊 AFTER loadSpentStepsBalance: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
+        await prepareLocalPurchaseState()
 
         // 1.6 On a genuine fresh install / data loss, restore from Supabase.
         //
@@ -524,7 +537,7 @@ final class AppModel: ObservableObject {
             needsHealthKitAuthorization = true
             do {
                 try await blockingStore.requestAuthorization()
-                await requestNotificationPermission()
+                try await requestNotificationPermission()
             } catch {
                 AppLogger.app.debug("Bootstrap permission request failed: \(error.localizedDescription)")
             }
@@ -614,10 +627,17 @@ final class AppModel: ObservableObject {
 
 // MARK: - Permissions helpers
 extension AppModel {
-    func requestNotificationPermission() async {
-        do { try await notificationService.requestPermission() }
-        catch { AppLogger.app.debug("Notification permission failed: \(error.localizedDescription)") }
-        await refreshNotificationAuthorizationStatus()
+    func requestNotificationPermission() async throws {
+        do {
+            try await notificationService.requestPermission()
+            await refreshNotificationAuthorizationStatus()
+        } catch {
+            AppLogger.notifications.error(
+                "Notification permission failed: \(error.localizedDescription)"
+            )
+            await refreshNotificationAuthorizationStatus()
+            throw error
+        }
     }
 
     func refreshNotificationAuthorizationStatus() async {
@@ -627,9 +647,11 @@ extension AppModel {
 
     /// True when one or more permissions needed for the full experience are missing.
     var hasPermissionIssues: Bool {
-        let healthMissing = !healthStore.hasStepsData && !healthStore.hasSleepData
         let familyMissing = !blockingStore.isAuthorized
-        let notifMissing = notificationAuthorizationStatus != .authorized
-        return healthMissing || familyMissing || notifMissing
+        let notifications = SettingsPermissionPresentation.notifications(
+            status: notificationAuthorizationStatus,
+            remindersEnabled: SettingsPermissionPresentation.remindersEnabled(in: UserDefaults.stepsTrader())
+        )
+        return familyMissing || notifications.contributesToWarning
     }
 }

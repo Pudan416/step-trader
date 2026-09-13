@@ -184,7 +184,7 @@ Three single-value keys become one multi-select over
 Categories supplied 60 of the 100 daily points, 20 each. Replacement:
 
 ```
-happenings = min(additions × 10, 60)
+happenings = min(additions × 6, 60)
 day    = steps(20) + sleep(20) + happenings(60) = 100
 ```
 
@@ -193,7 +193,7 @@ The 100 ceiling is deliberately unchanged — onboarding has a slide built on it
 In `AppModel+DailyEnergy`: delete `bodyPointsToday`, `mindPointsToday`,
 `heartPointsToday`; add `happeningPointsToday`.
 
-Additions past the sixth still land on the canvas and still increment
+Additions past the tenth still land on the canvas and still increment
 `useCount`. They stop earning. Do not block them.
 
 ---
@@ -332,8 +332,9 @@ Rewrite `DailyEnergyLogicTests` and `EnergyRecalcTests` — both assert the old
 five-part 100-point formula.
 
 - [ ] Adding a happening takes one tap from the canvas
+- [ ] All 10 configured happenings can be added to the canvas in one day
 - [ ] `happeningPointsToday` caps at 60 regardless of addition count
-- [ ] A day of 2 happenings + full steps + full sleep totals 60, not 100
+- [ ] A day of 2 happenings + full steps + full sleep totals 52, not 100
 - [ ] Palette order is stable across repeated opens within one `dayKey`
 - [ ] Palette order re-ranks after `dayKey` rolls over, at the user's configured day end
 - [ ] A mid-day creation appears without reordering anything on screen

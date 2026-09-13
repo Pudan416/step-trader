@@ -1,0 +1,32 @@
+#pragma once
+#include "MetalShapeBasic.metalh"
+#include "MetalShapeGenome.metalh"
+#include "MetalShapeSnowflake.metalh"
+#include "MetalShapeWindflower.metalh"
+#include "MetalShapeConcaveSquare.metalh"
+#include "MetalShapeSoftClover.metalh"
+
+static float metalShapeDistance(float2 point, constant MetalShapeGenomeUniforms &g) {
+    float2 p = point - g.anisotropyOffset.zw;
+    const float angle = -g.transform.x;
+    const float c = cos(angle), s = sin(angle);
+    p = float2(p.x * c - p.y * s, p.x * s + p.y * c);
+    p /= clamp(g.anisotropyOffset.xy, float2(0.82), float2(1.18));
+    if (g.metadata.x == 1u) return metalShapeLegacyDistance(p, g.metadata.y, g.metadata.z);
+    const float theta = atan2(p.y, p.x);
+    if (g.metadata.x == 2u) return length(p) - metalShapeSnowflakeRadius(theta, g);
+    if (g.metadata.x == 3u) return length(p) - metalShapeWindflowerRadius(theta, g);
+    if (g.metadata.x == 4u) return length(p) - metalShapeConcaveSquareRadius(theta, g);
+    if (g.metadata.x == 5u) return length(p) - metalShapeSoftCloverRadius(theta, g);
+    return length(p) - metalShapeGenomeRadius(theta, g);
+}
+
+static float metalShapeSoftCoverage(
+    float2 p,
+    constant MetalShapeGenomeUniforms &g,
+    float softness
+) {
+    const float distance = metalShapeDistance(p, g);
+    const float edge = max(max(fwidth(distance), 0.0025), softness);
+    return smoothstep(edge, -edge, distance);
+}

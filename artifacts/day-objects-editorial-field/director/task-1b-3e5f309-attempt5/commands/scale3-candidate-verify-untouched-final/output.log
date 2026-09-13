@@ -1,0 +1,22 @@
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'editorial-field-render' complete! (0.10s)
+verified material package SHA-256: 5a0c7a2251b1e9119155afc31049e51d280d8e76956a9113b469acc279487f57
+      630.36 real       622.81 user         7.12 sys
+          1813708800  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1677891  page reclaims
+                1154  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 376  voluntary context switches
+              103171  involuntary context switches
+      10374238449994  instructions retired
+       2017786617421  cycles elapsed
+          1761036688  peak memory footprint

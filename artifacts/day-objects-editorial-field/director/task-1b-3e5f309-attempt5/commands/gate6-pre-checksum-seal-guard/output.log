@@ -1,0 +1,24 @@
+SEAL label=scale1-candidate file_count=261 recursive_sha256=35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0
+SEAL label=scale1-rerender file_count=261 recursive_sha256=35d5f7e2b640e010b9e0726237801bc26135b39aff1479a2dd06cd8bf29656c0
+SEAL label=scale3-candidate file_count=261 recursive_sha256=fc20e175697d53e0ccdb113db3ebb778c5d3d8e25f047ccdffe34f453228fd4b
+SEAL label=scale3-rerender file_count=261 recursive_sha256=fc20e175697d53e0ccdb113db3ebb778c5d3d8e25f047ccdffe34f453228fd4b
+SEAL label=baseline-scale1 file_count=261 recursive_sha256=ae826bea53f1415a1c881029d54a05ac82d6c43099c2a59f87884fe34fe56f2d
+SEAL_GUARD: PASS
+        0.78 real         0.42 user         0.15 sys
+           163102720  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               14903  page reclaims
+                 285  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1021  voluntary context switches
+                 194  involuntary context switches
+          5428428994  instructions retired
+          1823559496  cycles elapsed
+            63963904  peak memory footprint

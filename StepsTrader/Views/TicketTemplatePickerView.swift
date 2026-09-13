@@ -1,173 +1,71 @@
 import SwiftUI
+import FamilyControls
 
-// MARK: - Ticket Template Picker
-struct TicketTemplatePickerView: View {
-    @ObservedObject var model: AppModel
-    let onTemplateSelected: (String) -> Void
-    let onCustomSelected: () -> Void
+/// Selection stays local until Save. Cancel (including swipe dismissal) never
+/// creates a group or changes an existing one.
+struct NewAppGroupSheet: View {
+    let onSave: (FamilyActivitySelection, String) -> Void
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.appTheme) private var theme
-    
-    private struct Template {
-        let bundleId: String
-        let name: String
-        let imageName: String
-    }
-    
-    @MainActor private static var imageCache: [String: UIImage] = [:]
+    @State private var selection: FamilyActivitySelection
+    @State private var name: String
+    @State private var showName = false
+    @FocusState private var nameFocused: Bool
 
-    @MainActor private static func resolvedTemplateImage(_ name: String) -> UIImage? {
-        if let cached = imageCache[name] { return cached }
-        let img = UIImage(named: name)
-            ?? UIImage(named: name.lowercased())
-            ?? UIImage(named: name.capitalized)
-        if let img { imageCache[name] = img }
-        return img
+    init(selection: FamilyActivitySelection = FamilyActivitySelection(), name: String = "",
+         onSave: @escaping (FamilyActivitySelection, String) -> Void) {
+        _selection = State(initialValue: selection)
+        _name = State(initialValue: name)
+        self.onSave = onSave
     }
 
-    private static let allTemplates: [Template] = {
-        let bundleIds = [
-            "com.burbn.instagram", "com.zhiliaoapp.musically", "com.google.ios.youtube",
-            "com.toyopagroup.picaboo", "com.reddit.Reddit", "com.atebits.Tweetie2",
-            "com.facebook.Facebook", "com.linkedin.LinkedIn",
-            "com.pinterest", "ph.telegra.Telegraph", "net.whatsapp.WhatsApp"
-        ]
-        return bundleIds.compactMap { bid in
-            TargetResolver.imageName(for: bid).map { imageName in
-                Template(bundleId: bid, name: TargetResolver.displayName(for: bid), imageName: imageName)
-            }
-        }
-    }()
-    
-    private var availableTemplates: [Template] {
-        let usedTemplateApps = Set(model.blockingStore.ticketGroups.compactMap { $0.templateApp })
-        return Self.allTemplates.filter { !usedTemplateApps.contains($0.bundleId) }
-    }
-    
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    Button {
-                        onCustomSelected()
-                    } label: {
-                        HStack(spacing: 14) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: "plus")
-                                    .font(.system(size: 18, weight: .ultraLight))
-                                    .foregroundStyle(Color.primary.opacity(0.6))
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(String(localized: "Custom Apps", comment: "TemplatePicker – custom apps option title"))
-                                    .font(.system(size: 15, weight: .regular, design: .rounded))
-                                    .foregroundStyle(.primary)
-                                Text(String(localized: "Choose your own apps", comment: "TemplatePicker – custom apps subtitle"))
-                                    .font(.system(size: 12, weight: .light, design: .rounded))
-                                    .foregroundStyle(Color.primary.opacity(0.4))
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .ultraLight))
-                                .foregroundStyle(Color.primary.opacity(0.3))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
-                        )
+            FamilyActivityPicker(selection: $selection)
+                .navigationTitle(String(localized: "Select Apps"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(String(localized: "Cancel")) { dismiss() }
                     }
-                    .buttonStyle(.plain)
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(String(localized: "Templates", comment: "TemplatePicker – section header"))
-                            .font(.system(size: 14, weight: .light, design: .rounded))
-                            .foregroundStyle(Color.primary.opacity(0.4))
-                            .padding(.horizontal, 4)
-                        
-                        if availableTemplates.isEmpty {
-                            Text(String(localized: "All templates in use", comment: "TemplatePicker – empty state when all used"))
-                                .font(.system(size: 13, weight: .light, design: .rounded))
-                                .foregroundStyle(Color.primary.opacity(0.3))
-                                .padding(.vertical, 20)
-                        } else {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 10),
-                                GridItem(.flexible(), spacing: 10),
-                                GridItem(.flexible(), spacing: 10)
-                            ], spacing: 10) {
-                                ForEach(availableTemplates, id: \.bundleId) { template in
-                                    templateCard(template: template)
-                                }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(String(localized: "Done")) {
+                            if selection.isSingleApplication || !trimmedName.isEmpty {
+                                save()
+                            } else {
+                                showName = true
                             }
                         }
+                        .disabled(!selection.hasGroupTargets)
+                        .accessibilityIdentifier("feed.selection.done")
                     }
                 }
-                .padding()
-            }
-            .background(theme.backgroundColor)
-            .navigationTitle(String(localized: "New Feed", comment: "TemplatePicker – navigation title"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Cancel", comment: "TemplatePicker – dismiss button")) {
-                        dismiss()
+                .navigationDestination(isPresented: $showName) {
+                    Form {
+                        TextField(String(localized: "e.g. Social, Games…"), text: $name)
+                            .focused($nameFocused)
+                            .submitLabel(.done)
+                            .onSubmit { if !trimmedName.isEmpty { save() } }
+                            .accessibilityLabel(String(localized: "Name your feed"))
+                            .accessibilityIdentifier("feed.name")
                     }
+                    .navigationTitle(String(localized: "Name your feed"))
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(String(localized: "Create")) { save() }
+                                .disabled(trimmedName.isEmpty)
+                        }
+                    }
+                    .onAppear { nameFocused = true }
                 }
-            }
         }
     }
-    
-    private func templateCard(template: Template) -> some View {
-        Button {
-            onTemplateSelected(template.bundleId)
-        } label: {
-            VStack(spacing: 8) {
-                let uiImage = Self.resolvedTemplateImage(template.imageName)
-                ZStack {
-                    Circle()
-                        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.7)
-                        .frame(width: 38, height: 38)
-                    if let uiImage {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 30, height: 30)
-                            .clipShape(Circle())
-                    } else {
-                        Image(systemName: "app")
-                            .font(.system(size: 16, weight: .ultraLight))
-                            .foregroundStyle(Color.primary.opacity(0.3))
-                    }
-                }
 
-                Text(template.name)
-                    .font(.system(size: 11, weight: .light, design: .rounded))
-                    .foregroundStyle(Color.primary.opacity(0.7))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.7)
-            )
-        }
-        .buttonStyle(.plain)
+    private func save() {
+        guard selection.hasGroupTargets,
+              selection.isSingleApplication || !trimmedName.isEmpty else { return }
+        onSave(selection, trimmedName)
+        dismiss()
     }
-}
-
-#Preview {
-    TicketTemplatePickerView(
-        model: DIContainer.shared.makeAppModel(),
-        onTemplateSelected: { _ in },
-        onCustomSelected: {}
-    )
 }

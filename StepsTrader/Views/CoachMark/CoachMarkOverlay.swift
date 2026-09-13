@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CoachMarkOverlay: View {
+    @Environment(\.canvasChromePalette) private var palette
     var manager: CoachMarkManager
     let anchors: [CoachMarkAnchor]
 
@@ -83,17 +84,16 @@ struct CoachMarkOverlay: View {
 
             VStack(spacing: 20) {
                 Text(manager.tooltip(for: step))
-                    .font(.systemSerif(17, weight: .light, relativeTo: .body))
-                    .italic()
-                    .foregroundStyle(.white.opacity(0.85))
+                    .font(.geist(17, weight: .medium, relativeTo: .body))
+                    .foregroundStyle(palette.textColor)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
 
                 HStack(spacing: 16) {
                     Button { manager.skipAll() } label: {
                         Text("skip all")
-                            .font(.systemSerif(15, weight: .light, relativeTo: .subheadline))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .font(.geist(15, weight: .medium, relativeTo: .subheadline))
+                            .foregroundStyle(palette.secondaryColor)
                     }
 
                     Spacer()
@@ -101,11 +101,11 @@ struct CoachMarkOverlay: View {
                     if step.hasNextButton {
                         Button { manager.advance() } label: {
                             Text(step == .allSet ? "done" : "next")
-                                .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
-                                .foregroundStyle(.black)
+                                .font(.geist(15, weight: .semibold, relativeTo: .subheadline))
+                                .foregroundStyle(palette.onAccentColor)
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 10)
-                                .background(AppColors.brandAccent)
+                                .background(palette.accentColor)
                                 .clipShape(Capsule())
                         }
                     }
@@ -115,11 +115,7 @@ struct CoachMarkOverlay: View {
             .frame(maxWidth: 320)
             .background(
                 RoundedRectangle(cornerRadius: 24)
-                    .fill(Color(.systemBackground).opacity(0.12))
-                    .background(
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(.ultraThinMaterial)
-                    )
+                    .fill(palette.surfaceColor)
                     .clipShape(RoundedRectangle(cornerRadius: 24))
             )
             .scaleEffect(appearAnimation ? 1 : 0.9)
@@ -132,9 +128,8 @@ struct CoachMarkOverlay: View {
     private func tooltipCardContent(step: CoachMarkStep) -> some View {
         VStack(spacing: 14) {
             Text(manager.tooltip(for: step))
-                .font(.systemSerif(16, weight: .light, relativeTo: .body))
-                .italic()
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.geist(16, weight: .medium, relativeTo: .body))
+                .foregroundStyle(palette.textColor)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -142,8 +137,8 @@ struct CoachMarkOverlay: View {
             HStack(spacing: 12) {
                 Button { manager.skipAll() } label: {
                     Text("skip all")
-                        .font(.systemSerif(14, weight: .light, relativeTo: .caption))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .font(.geist(14, weight: .medium, relativeTo: .caption))
+                        .foregroundStyle(palette.secondaryColor)
                 }
 
                 Spacer()
@@ -151,11 +146,11 @@ struct CoachMarkOverlay: View {
                 if step.hasNextButton {
                     Button { manager.advance() } label: {
                         Text("next")
-                            .font(.systemSerif(15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundStyle(.black)
+                            .font(.geist(15, weight: .semibold, relativeTo: .subheadline))
+                            .foregroundStyle(palette.onAccentColor)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 8)
-                            .background(AppColors.brandAccent)
+                            .background(palette.accentColor)
                             .clipShape(Capsule())
                     }
                 }
@@ -165,11 +160,7 @@ struct CoachMarkOverlay: View {
         .frame(maxWidth: 320)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemBackground).opacity(0.1))
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(.ultraThinMaterial)
-                )
+                .fill(palette.surfaceColor)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
         )
         .scaleEffect(appearAnimation ? 1 : 0.95)
@@ -178,7 +169,10 @@ struct CoachMarkOverlay: View {
 
     @ViewBuilder
     private func tooltipCard(step: CoachMarkStep, cutoutRect: CGRect?, containerSize: CGSize) -> some View {
-        if let cutoutRect {
+        if let cutoutRect, step == .tapPlusButton {
+            CanvasAnchoredHint(text: manager.tooltip(for: step), target: cutoutRect,
+                               containerWidth: containerSize.width, onDismiss: manager.skipAll)
+        } else if let cutoutRect {
             let placement = bestPlacement(cutout: cutoutRect, container: containerSize)
             placedTooltip(step: step, placement: placement, cutout: cutoutRect, containerSize: containerSize)
         } else {
@@ -244,6 +238,7 @@ private func bestPlacement(cutout: CGRect, container: CGSize, margin: CGFloat = 
 // MARK: - Sheet Overlay (used inside CategoryDetailView sheet)
 
 struct CoachMarkSheetOverlay: View {
+    @Environment(\.canvasChromePalette) private var palette
     var manager: CoachMarkManager
     let anchors: [CoachMarkAnchor]
 
@@ -306,28 +301,23 @@ struct CoachMarkSheetOverlay: View {
     private func sheetTooltipContent(step: CoachMarkStep) -> some View {
         VStack(spacing: 12) {
             Text(manager.tooltip(for: step))
-                .font(.systemSerif(15, weight: .light, relativeTo: .body))
-                .italic()
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.geist(15, weight: .medium, relativeTo: .body))
+                .foregroundStyle(palette.textColor)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button { manager.skipAll() } label: {
                 Text("skip all")
-                    .font(.systemSerif(13, weight: .light, relativeTo: .caption))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.geist(13, weight: .medium, relativeTo: .caption))
+                    .foregroundStyle(palette.secondaryColor)
             }
         }
         .padding(18)
         .frame(maxWidth: 300)
         .background(
             RoundedRectangle(cornerRadius: 18)
-                .fill(Color(.systemBackground).opacity(0.1))
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(.ultraThinMaterial)
-                )
+                .fill(palette.surfaceColor)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
         )
         .scaleEffect(appearAnimation ? 1 : 0.95)

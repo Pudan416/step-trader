@@ -1,0 +1,5 @@
+label=gates2-5-enumerator-self-test
+expected_exit=zero
+working_directory=/Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-task1b-attempt5-3e5f309
+source_commit=3e5f3095167889b3a9ae5a8145ef0103489e6e3c
+command=swift artifacts/day-objects-editorial-field/director/task-1b-3e5f309-attempt5/audit/gates2-5/enumerator-self-test.swift artifacts/day-objects-editorial-field/director/task-1b-3e5f309-attempt5/audit/gates2-5/enumerator-self-test-fixture

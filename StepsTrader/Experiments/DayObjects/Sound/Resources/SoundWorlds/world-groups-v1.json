@@ -1,0 +1,629 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "id": "acoustic.sparse",
+      "masterMakeupDB": 3.28,
+      "reverbSendScale": 1.0,
+      "world": "feltAndWood",
+      "mood": "sparse",
+      "harmonyRecipeIDs": [
+        "acoustic.harmony.felt-haze",
+        "acoustic.harmony.muted-strings",
+        "acoustic.harmony.prepared-mallet",
+        "acoustic.harmony.air-reed"
+      ],
+      "bassRecipeIDs": [
+        "acoustic.bass.round-felt-sub",
+        "acoustic.bass.hollow-wood",
+        "acoustic.bass.muted-string",
+        "acoustic.bass.soft-reed"
+      ],
+      "leadRecipeIDs": [
+        "acoustic.lead.breath-reed",
+        "acoustic.lead.tape-whistle",
+        "acoustic.lead.bowed-thread",
+        "acoustic.lead.soft-wah"
+      ],
+      "drumKitID": "acoustic.skin-and-wood",
+      "happeningRecipeIDs": [
+        4,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        16,
+        17,
+        18,
+        24,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        39,
+        40
+      ],
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
+    },
+    {
+      "id": "acoustic.moving",
+      "masterMakeupDB": 4.92,
+      "reverbSendScale": 0.548,
+      "world": "feltAndWood",
+      "mood": "moving",
+      "harmonyRecipeIDs": [
+        "acoustic.harmony.felt-haze",
+        "acoustic.harmony.muted-strings",
+        "acoustic.harmony.prepared-mallet",
+        "acoustic.harmony.air-reed"
+      ],
+      "bassRecipeIDs": [
+        "acoustic.bass.round-felt-sub",
+        "acoustic.bass.hollow-wood",
+        "acoustic.bass.muted-string",
+        "acoustic.bass.soft-reed"
+      ],
+      "leadRecipeIDs": [
+        "acoustic.lead.breath-reed",
+        "acoustic.lead.tape-whistle",
+        "acoustic.lead.bowed-thread",
+        "acoustic.lead.soft-wah"
+      ],
+      "drumKitID": "acoustic.brushed-room",
+      "happeningRecipeIDs": [
+        4,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        16,
+        17,
+        18,
+        24,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        39,
+        40
+      ],
+      "guestRecipeIDs": [
+        "industrial.lead.silver-wire"
+      ]
+    },
+    {
+      "id": "acoustic.strange",
+      "masterMakeupDB": 4.01,
+      "reverbSendScale": 0.389,
+      "world": "feltAndWood",
+      "mood": "strange",
+      "harmonyRecipeIDs": [
+        "acoustic.harmony.felt-haze",
+        "acoustic.harmony.muted-strings",
+        "acoustic.harmony.prepared-mallet",
+        "acoustic.harmony.air-reed"
+      ],
+      "bassRecipeIDs": [
+        "acoustic.bass.round-felt-sub",
+        "acoustic.bass.hollow-wood",
+        "acoustic.bass.muted-string",
+        "acoustic.bass.soft-reed"
+      ],
+      "leadRecipeIDs": [
+        "acoustic.lead.breath-reed",
+        "acoustic.lead.tape-whistle",
+        "acoustic.lead.bowed-thread",
+        "acoustic.lead.soft-wah"
+      ],
+      "drumKitID": "acoustic.prepared-table",
+      "happeningRecipeIDs": [
+        4,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        16,
+        17,
+        18,
+        24,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        39,
+        40
+      ],
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
+    },
+    {
+      "id": "living.sparse",
+      "masterMakeupDB": 9.52,
+      "reverbSendScale": 1.0,
+      "world": "livingField",
+      "mood": "sparse",
+      "harmonyRecipeIDs": [
+        "living.harmony.wind-canopy",
+        "living.harmony.water-drone",
+        "living.harmony.moss-choir",
+        "living.harmony.bell-mist"
+      ],
+      "bassRecipeIDs": [
+        "living.bass.earth-sub",
+        "living.bass.root-pulse",
+        "living.bass.tide-bed",
+        "living.bass.hollow-stone"
+      ],
+      "leadRecipeIDs": [
+        "living.lead.bird-reed",
+        "living.lead.leaf-flute",
+        "living.lead.dew-bell",
+        "living.lead.water-whistle"
+      ],
+      "drumKitID": "living.seed-shaker",
+      "happeningRecipeIDs": [
+        4,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        16,
+        17,
+        18,
+        24,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        39,
+        40
+      ],
+      "guestRecipeIDs": [
+        "acoustic.lead.breath-reed"
+      ]
+    },
+    {
+      "id": "living.moving",
+      "masterMakeupDB": 8.41,
+      "reverbSendScale": 0.757,
+      "world": "livingField",
+      "mood": "moving",
+      "harmonyRecipeIDs": [
+        "living.harmony.wind-canopy",
+        "living.harmony.water-drone",
+        "living.harmony.moss-choir",
+        "living.harmony.bell-mist"
+      ],
+      "bassRecipeIDs": [
+        "living.bass.earth-sub",
+        "living.bass.root-pulse",
+        "living.bass.tide-bed",
+        "living.bass.hollow-stone"
+      ],
+      "leadRecipeIDs": [
+        "living.lead.bird-reed",
+        "living.lead.leaf-flute",
+        "living.lead.dew-bell",
+        "living.lead.water-whistle"
+      ],
+      "drumKitID": "living.rain-pulse",
+      "happeningRecipeIDs": [
+        4,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        16,
+        17,
+        18,
+        24,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        39,
+        40
+      ],
+      "guestRecipeIDs": [
+        "electric.lead.verbacious"
+      ]
+    },
+    {
+      "id": "living.strange",
+      "masterMakeupDB": 4.41,
+      "reverbSendScale": 0.475,
+      "world": "livingField",
+      "mood": "strange",
+      "harmonyRecipeIDs": [
+        "living.harmony.wind-canopy",
+        "living.harmony.water-drone",
+        "living.harmony.moss-choir",
+        "living.harmony.bell-mist"
+      ],
+      "bassRecipeIDs": [
+        "living.bass.earth-sub",
+        "living.bass.root-pulse",
+        "living.bass.tide-bed",
+        "living.bass.hollow-stone"
+      ],
+      "leadRecipeIDs": [
+        "living.lead.bird-reed",
+        "living.lead.leaf-flute",
+        "living.lead.dew-bell",
+        "living.lead.water-whistle"
+      ],
+      "drumKitID": "living.stone-breath",
+      "happeningRecipeIDs": [
+        4,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        16,
+        17,
+        18,
+        24,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        39,
+        40
+      ],
+      "guestRecipeIDs": [
+        "acoustic.lead.breath-reed"
+      ]
+    },
+    {
+      "id": "industrial.sparse",
+      "masterMakeupDB": 3.88,
+      "reverbSendScale": 0.232,
+      "world": "metalAndCurrent",
+      "mood": "sparse",
+      "harmonyRecipeIDs": [
+        "industrial.harmony.bowed-steel",
+        "industrial.harmony.machine-choir",
+        "industrial.harmony.current-drone",
+        "industrial.harmony.cold-plate"
+      ],
+      "bassRecipeIDs": [
+        "industrial.bass.deep-current",
+        "industrial.bass.bassliner",
+        "industrial.bass.low-motor",
+        "industrial.bass.sine-foundry"
+      ],
+      "leadRecipeIDs": [
+        "industrial.lead.silver-wire",
+        "industrial.lead.diode-cry",
+        "industrial.lead.current-needle",
+        "industrial.lead.resonant-metal"
+      ],
+      "drumKitID": "industrial.plate-and-piston",
+      "happeningRecipeIDs": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        8,
+        13,
+        14,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        35,
+        36,
+        37,
+        38,
+        41,
+        42
+      ],
+      "guestRecipeIDs": [
+        "electric.lead.verbacious"
+      ]
+    },
+    {
+      "id": "industrial.moving",
+      "masterMakeupDB": 0.80,
+      "reverbSendScale": 0.893,
+      "world": "metalAndCurrent",
+      "mood": "moving",
+      "harmonyRecipeIDs": [
+        "industrial.harmony.bowed-steel",
+        "industrial.harmony.machine-choir",
+        "industrial.harmony.current-drone",
+        "industrial.harmony.cold-plate"
+      ],
+      "bassRecipeIDs": [
+        "industrial.bass.deep-current",
+        "industrial.bass.bassliner",
+        "industrial.bass.low-motor",
+        "industrial.bass.sine-foundry"
+      ],
+      "leadRecipeIDs": [
+        "industrial.lead.silver-wire",
+        "industrial.lead.diode-cry",
+        "industrial.lead.current-needle",
+        "industrial.lead.resonant-metal"
+      ],
+      "drumKitID": "industrial.foundry-pulse",
+      "happeningRecipeIDs": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        8,
+        13,
+        14,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        35,
+        36,
+        37,
+        38,
+        41,
+        42
+      ],
+      "guestRecipeIDs": [
+        "acoustic.lead.breath-reed"
+      ]
+    },
+    {
+      "id": "industrial.strange",
+      "masterMakeupDB": 2.98,
+      "reverbSendScale": 0.298,
+      "world": "metalAndCurrent",
+      "mood": "strange",
+      "harmonyRecipeIDs": [
+        "industrial.harmony.bowed-steel",
+        "industrial.harmony.machine-choir",
+        "industrial.harmony.current-drone",
+        "industrial.harmony.cold-plate"
+      ],
+      "bassRecipeIDs": [
+        "industrial.bass.deep-current",
+        "industrial.bass.bassliner",
+        "industrial.bass.low-motor",
+        "industrial.bass.sine-foundry"
+      ],
+      "leadRecipeIDs": [
+        "industrial.lead.silver-wire",
+        "industrial.lead.diode-cry",
+        "industrial.lead.current-needle",
+        "industrial.lead.resonant-metal"
+      ],
+      "drumKitID": "industrial.wire-ritual",
+      "happeningRecipeIDs": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        8,
+        13,
+        14,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        35,
+        36,
+        37,
+        38,
+        41,
+        42
+      ],
+      "guestRecipeIDs": [
+        "electric.lead.verbacious"
+      ]
+    },
+    {
+      "id": "electric.sparse",
+      "masterMakeupDB": 3.42,
+      "reverbSendScale": 1.0,
+      "world": "electricDream",
+      "mood": "sparse",
+      "harmonyRecipeIDs": [
+        "electric.harmony.analog-cloud",
+        "electric.harmony.neon-poly",
+        "electric.harmony.fm-haze",
+        "electric.harmony.arpeggio-bed"
+      ],
+      "bassRecipeIDs": [
+        "electric.bass.round-analog",
+        "electric.bass.electric-pulse",
+        "electric.bass.fm-sub",
+        "electric.bass.velvet-sequence"
+      ],
+      "leadRecipeIDs": [
+        "electric.lead.verbacious",
+        "electric.lead.prism-fm",
+        "electric.lead.soft-sync",
+        "electric.lead.neon-wah"
+      ],
+      "drumKitID": "electric.soft-machine",
+      "happeningRecipeIDs": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        8,
+        13,
+        14,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        35,
+        36,
+        37,
+        38,
+        41,
+        42
+      ],
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
+    },
+    {
+      "id": "electric.moving",
+      "masterMakeupDB": 5.60,
+      "reverbSendScale": 0.389,
+      "world": "electricDream",
+      "mood": "moving",
+      "harmonyRecipeIDs": [
+        "electric.harmony.analog-cloud",
+        "electric.harmony.neon-poly",
+        "electric.harmony.fm-haze",
+        "electric.harmony.arpeggio-bed"
+      ],
+      "bassRecipeIDs": [
+        "electric.bass.round-analog",
+        "electric.bass.electric-pulse",
+        "electric.bass.fm-sub",
+        "electric.bass.velvet-sequence"
+      ],
+      "leadRecipeIDs": [
+        "electric.lead.verbacious",
+        "electric.lead.prism-fm",
+        "electric.lead.soft-sync",
+        "electric.lead.neon-wah"
+      ],
+      "drumKitID": "electric.neon-drum",
+      "happeningRecipeIDs": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        8,
+        13,
+        14,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        35,
+        36,
+        37,
+        38,
+        41,
+        42
+      ],
+      "guestRecipeIDs": [
+        "industrial.lead.silver-wire"
+      ]
+    },
+    {
+      "id": "electric.strange",
+      "masterMakeupDB": 4.71,
+      "reverbSendScale": 0.369,
+      "world": "electricDream",
+      "mood": "strange",
+      "harmonyRecipeIDs": [
+        "electric.harmony.analog-cloud",
+        "electric.harmony.neon-poly",
+        "electric.harmony.fm-haze",
+        "electric.harmony.arpeggio-bed"
+      ],
+      "bassRecipeIDs": [
+        "electric.bass.round-analog",
+        "electric.bass.electric-pulse",
+        "electric.bass.fm-sub",
+        "electric.bass.velvet-sequence"
+      ],
+      "leadRecipeIDs": [
+        "electric.lead.verbacious",
+        "electric.lead.prism-fm",
+        "electric.lead.soft-sync",
+        "electric.lead.neon-wah"
+      ],
+      "drumKitID": "electric.circuit-dust",
+      "happeningRecipeIDs": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        8,
+        13,
+        14,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        35,
+        36,
+        37,
+        38,
+        41,
+        42
+      ],
+      "guestRecipeIDs": [
+        "living.lead.bird-reed"
+      ]
+    }
+  ]
+}

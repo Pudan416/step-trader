@@ -1,0 +1,1174 @@
+{
+  "breadth" : [
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 0,
+      "reduceMotion" : false,
+      "seed" : 1612052424515492083,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 1,
+      "reduceMotion" : true,
+      "seed" : 11154729244141354478,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 2,
+      "reduceMotion" : false,
+      "seed" : 2440890826682767589,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 3,
+      "reduceMotion" : true,
+      "seed" : 4252333746721226202,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 4,
+      "reduceMotion" : false,
+      "seed" : 18373866469865252394,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 5,
+      "reduceMotion" : true,
+      "seed" : 7479491137834673588,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 6,
+      "reduceMotion" : true,
+      "seed" : 13055084160803594050,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 7,
+      "reduceMotion" : false,
+      "seed" : 15575039812687928232,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 8,
+      "reduceMotion" : true,
+      "seed" : 13549638178566396628,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 9,
+      "reduceMotion" : false,
+      "seed" : 10204364386044217361,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 10,
+      "reduceMotion" : true,
+      "seed" : 8218615278489109398,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "breadth"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 11,
+      "reduceMotion" : false,
+      "seed" : 1939359117579385755,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "breadth"
+    }
+  ],
+  "canonicalEventIDs" : [
+    "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+    "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+    "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+    "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+    "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+    "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+    "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+    "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+    "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+    "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+  ],
+  "continuity" : {
+    "background" : "cool",
+    "collision" : 0,
+    "index" : 0,
+    "reduceMotion" : false,
+    "seed" : 5211325511773202532,
+    "sleep" : "normal",
+    "stages" : [
+      {
+        "actorCount" : 1,
+        "eventIDs" : [
+          "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+        ],
+        "stage" : 0
+      },
+      {
+        "actorCount" : 2,
+        "eventIDs" : [
+          "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+          "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+        ],
+        "stage" : 1
+      },
+      {
+        "actorCount" : 3,
+        "eventIDs" : [
+          "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+          "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+          "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+        ],
+        "stage" : 2
+      },
+      {
+        "actorCount" : 5,
+        "eventIDs" : [
+          "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+          "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+          "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+          "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+          "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+        ],
+        "stage" : 3
+      },
+      {
+        "actorCount" : 7,
+        "eventIDs" : [
+          "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+          "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+          "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+          "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+          "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+          "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+          "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+        ],
+        "stage" : 4
+      },
+      {
+        "actorCount" : 10,
+        "eventIDs" : [
+          "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+          "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+          "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+          "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+          "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+          "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+          "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+          "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+          "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+          "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+        ],
+        "stage" : 5
+      },
+      {
+        "actorCount" : 5,
+        "eventIDs" : [
+          "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+          "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+          "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+          "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+          "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+        ],
+        "stage" : 6
+      }
+    ],
+    "steps" : "normal",
+    "suite" : "continuity"
+  },
+  "nonce" : "day-objects-editorial-field-visible-v1",
+  "phases" : [
+    0,
+    0.25,
+    0.5,
+    0.75
+  ],
+  "specificationCommit" : "8a8539a77ce704fcc688ebe8cb98d78e2a0f80dd",
+  "stress" : [
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 0,
+      "reduceMotion" : true,
+      "seed" : 14580536009561772462,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 1,
+      "reduceMotion" : false,
+      "seed" : 14826539325316483980,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 2,
+      "reduceMotion" : false,
+      "seed" : 12982720407192049794,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 3,
+      "reduceMotion" : true,
+      "seed" : 673133699622256053,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 4,
+      "reduceMotion" : false,
+      "seed" : 18039372616831890158,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 5,
+      "reduceMotion" : false,
+      "seed" : 1059749877327794556,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 6,
+      "reduceMotion" : true,
+      "seed" : 6441152705132416165,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 7,
+      "reduceMotion" : false,
+      "seed" : 13131592421085327092,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 8,
+      "reduceMotion" : false,
+      "seed" : 6202101677069888131,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 9,
+      "reduceMotion" : true,
+      "seed" : 2441220329444573647,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 10,
+      "reduceMotion" : false,
+      "seed" : 9670352046467112179,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 11,
+      "reduceMotion" : false,
+      "seed" : 13941364441093105566,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 12,
+      "reduceMotion" : true,
+      "seed" : 8919070067859387370,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 13,
+      "reduceMotion" : false,
+      "seed" : 11845740193564638236,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 14,
+      "reduceMotion" : false,
+      "seed" : 11554124620597181903,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 15,
+      "reduceMotion" : true,
+      "seed" : 7632914065760731221,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 16,
+      "reduceMotion" : false,
+      "seed" : 17556941386512920426,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 17,
+      "reduceMotion" : false,
+      "seed" : 4500904508382204150,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 18,
+      "reduceMotion" : true,
+      "seed" : 3183885715155405613,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 19,
+      "reduceMotion" : false,
+      "seed" : 16520459648517542763,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 20,
+      "reduceMotion" : false,
+      "seed" : 14364485687192415493,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 21,
+      "reduceMotion" : true,
+      "seed" : 14312886963979063401,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 22,
+      "reduceMotion" : false,
+      "seed" : 13010403733881578891,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 23,
+      "reduceMotion" : false,
+      "seed" : 15361122908382694494,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 24,
+      "reduceMotion" : true,
+      "seed" : 17399037404730861696,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 25,
+      "reduceMotion" : false,
+      "seed" : 17435743687320953540,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 26,
+      "reduceMotion" : false,
+      "seed" : 9224922583634434134,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 27,
+      "reduceMotion" : true,
+      "seed" : 12858203194587305852,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 28,
+      "reduceMotion" : false,
+      "seed" : 13036949805646904549,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 29,
+      "reduceMotion" : false,
+      "seed" : 4750878188592800418,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 30,
+      "reduceMotion" : true,
+      "seed" : 12682136587233999183,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 31,
+      "reduceMotion" : false,
+      "seed" : 16599962821095965515,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 32,
+      "reduceMotion" : false,
+      "seed" : 5866871900448157644,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 33,
+      "reduceMotion" : true,
+      "seed" : 11688754399840908012,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 34,
+      "reduceMotion" : false,
+      "seed" : 5327385926425461912,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 35,
+      "reduceMotion" : false,
+      "seed" : 14262347711234945380,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 36,
+      "reduceMotion" : true,
+      "seed" : 10981387027247754932,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 37,
+      "reduceMotion" : false,
+      "seed" : 7495700548390161233,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 38,
+      "reduceMotion" : false,
+      "seed" : 2843747098680286249,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 39,
+      "reduceMotion" : true,
+      "seed" : 15160310662504887169,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 40,
+      "reduceMotion" : false,
+      "seed" : 8334171271094254165,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 41,
+      "reduceMotion" : false,
+      "seed" : 4509347585047925039,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 1,
+      "background" : "light",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801"
+      ],
+      "index" : 42,
+      "reduceMotion" : true,
+      "seed" : 14681384685759681947,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 2,
+      "background" : "dark",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02"
+      ],
+      "index" : 43,
+      "reduceMotion" : false,
+      "seed" : 80959424161646901,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 3,
+      "background" : "warm",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03"
+      ],
+      "index" : 44,
+      "reduceMotion" : false,
+      "seed" : 5712069330874886597,
+      "sleep" : "normal",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 5,
+      "background" : "cool",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405"
+      ],
+      "index" : 45,
+      "reduceMotion" : true,
+      "seed" : 5214857447887275678,
+      "sleep" : "low",
+      "steps" : "low",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 7,
+      "background" : "saturated",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07"
+      ],
+      "index" : 46,
+      "reduceMotion" : false,
+      "seed" : 5527126318490700787,
+      "sleep" : "normal",
+      "steps" : "normal",
+      "suite" : "stress"
+    },
+    {
+      "actorCount" : 10,
+      "background" : "lowContrast",
+      "collision" : 0,
+      "eventIDs" : [
+        "0A9B16D9-07B5-4D12-9C2F-6CFEF7AD0801",
+        "1BE8C246-8DD2-4D68-B4C0-4E8F24A85E02",
+        "2C9F4B58-ABF5-4F7E-8CA9-6D415C7B3D03",
+        "3D247E01-C609-43C1-A5B2-3E0D9CF8B504",
+        "4E6B83FD-19A8-4AA2-91FC-D297E6C15405",
+        "5FA2D140-7C0E-45B9-BE3D-8124A937EF06",
+        "60D319B7-3E21-4E8A-879F-5C6B24FA0A07",
+        "71E4AC82-5F36-4B19-9D48-A7C2E60B1D08",
+        "82F5B06C-6A47-4C2E-8E51-B93D17CA2F09",
+        "9346C9D1-7B58-4D3F-A062-CE4B28D03A10"
+      ],
+      "index" : 47,
+      "reduceMotion" : false,
+      "seed" : 11824933112876080119,
+      "sleep" : "low",
+      "steps" : "normal",
+      "suite" : "stress"
+    }
+  ],
+  "version" : "visible-v1"
+}

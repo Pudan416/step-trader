@@ -336,7 +336,7 @@ struct SpotlightPreview: View {
         VStack(alignment: .leading, spacing: 24) {
 
             Text("Heart — Spotlight")
-                .font(.title3.bold())
+                .font(.geist(.title3).bold())
                 .padding(.horizontal)
 
             LazyVGrid(columns: [
@@ -355,7 +355,7 @@ struct SpotlightPreview: View {
             Divider().padding(.horizontal)
 
             Text("Mind — RectMorph Snowflake")
-                .font(.title3.bold())
+                .font(.geist(.title3).bold())
                 .padding(.horizontal)
 
             LazyVGrid(columns: [
@@ -373,7 +373,7 @@ struct SpotlightPreview: View {
             Divider().padding(.horizontal)
 
             Text("Body — Random")
-                .font(.title3.bold())
+                .font(.geist(.title3).bold())
                 .padding(.horizontal)
 
             LazyVGrid(columns: [
@@ -390,7 +390,7 @@ struct SpotlightPreview: View {
                         )
                         .frame(width: 100, height: 100)
                         Text("\(colors.count)c")
-                            .font(.caption)
+                            .font(.geist(.caption))
                             .foregroundStyle(.tertiary)
                     }
                 }

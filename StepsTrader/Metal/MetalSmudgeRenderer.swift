@@ -53,6 +53,60 @@ struct StrokeSegment {
     let direction: SIMD2<Float>
 }
 
+/// Keeps bends from the input path while bounding work after a delayed frame.
+/// Straight samples merge; bursts simplify the least visible corner first.
+struct SmudgeStrokeAccumulator {
+    private var strokes: [ObjectIdentifier: [StrokeSegment]] = [:]
+    private let maximumSegmentsPerTouch = 4
+
+    var isEmpty: Bool { strokes.isEmpty }
+
+    mutating func enqueue(_ stroke: StrokeSegment, for id: ObjectIdentifier) {
+        var path = strokes[id] ?? []
+        if let last = path.last,
+           simd_distance(last.p1, stroke.p0) < 0.01,
+           simd_dot(last.direction, stroke.direction) > 0.995,
+           Self.cornerError(last, stroke) < 0.75 {
+            path[path.count - 1] = Self.join(last, stroke)
+        } else {
+            path.append(stroke)
+        }
+        while path.count > maximumSegmentsPerTouch {
+            let index = (0..<(path.count - 1)).min {
+                Self.cornerError(path[$0], path[$0 + 1]) < Self.cornerError(path[$1], path[$1 + 1])
+            }!
+            path[index] = Self.join(path[index], path[index + 1])
+            path.remove(at: index + 1)
+        }
+        strokes[id] = path
+    }
+
+    private static func cornerError(_ first: StrokeSegment, _ second: StrokeSegment) -> Float {
+        let vector = second.p1 - first.p0
+        let lengthSquared = simd_length_squared(vector)
+        guard lengthSquared > 0.001 else { return simd_distance(first.p0, first.p1) }
+        let t = min(max(simd_dot(first.p1 - first.p0, vector) / lengthSquared, 0), 1)
+        return simd_distance(first.p1, first.p0 + vector * t)
+    }
+
+    private static func join(_ first: StrokeSegment, _ second: StrokeSegment) -> StrokeSegment {
+        let vector = second.p1 - first.p0
+        let length = simd_length(vector)
+        return StrokeSegment(p0: first.p0, p1: second.p1,
+            radius: max(first.radius, second.radius), strength: second.strength,
+            dragFactor: second.dragFactor,
+            direction: length > 0.001 ? vector / length : second.direction)
+    }
+
+    mutating func drain() -> [StrokeSegment] {
+        let result = strokes.values.flatMap { $0 }
+        strokes.removeAll(keepingCapacity: true)
+        return result
+    }
+
+    mutating func removeAll() { strokes.removeAll(keepingCapacity: true) }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // MARK: - Per-Touch State
 // ════════════════════════════════════════════════════════════════════
@@ -105,6 +159,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     private(set) var isActive = true
 
     var needsSnapshot: Bool { !isBaseInitialized_ }
+    var onEffectSettled: (() -> Void)?
 
     // ── Tuning constants ────────────────────────────────────────────
     private let relaxationTimeout: CFTimeInterval = 4.0
@@ -121,7 +176,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     private let maxDragFactor: Float = 3.5
 
     // ── Stroke queue ────────────────────────────────────────────────
-    private var pendingStrokes: [StrokeSegment] = []
+    private var pendingStrokes = SmudgeStrokeAccumulator()
     private let strokeLock = NSLock()
 
     // ── Multi-touch tracking ────────────────────────────────────────
@@ -242,7 +297,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             pixelFormat: .r32Float,
             width: width, height: height, mipmapped: false
         )
-        desc.usage       = [.shaderRead, .shaderWrite]
+        desc.usage       = [.shaderRead, .shaderWrite, .renderTarget]
         desc.storageMode = .shared
         return device.makeTexture(descriptor: desc)
     }
@@ -270,6 +325,8 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let width  = cgImage.width
         let height = cgImage.height
         ensureTextures(width: width, height: height)
+        // Never overwrite a shared resource that an earlier GPU frame can read.
+        baseTexture = makeSharedTexture(width: width, height: height)
         guard let base = baseTexture else { return }
 
         let bpp = 4
@@ -323,32 +380,29 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
                   destinationOrigin: origin)
 
         blit.endEncoding()
+        // Reset ages on the same queue, ordered before subsequent effect frames.
+        // No CPU/GPU rendezvous in the UI input path.
+        for texture in [ageA, ageB].compactMap({ $0 }) {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = texture
+            pass.colorAttachments[0].loadAction = .clear
+            pass.colorAttachments[0].storeAction = .store
+            pass.colorAttachments[0].clearColor = MTLClearColorMake(99, 0, 0, 0)
+            cb.makeRenderCommandEncoder(descriptor: pass)?.endEncoding()
+        }
         cb.commit()
-        cb.waitUntilCompleted()
-
-        initializeAgeTextures()
 
         useA = true
         isBaseInitialized_ = true
-    }
-
-    private func initializeAgeTextures() {
-        guard let a = ageA, let b = ageB else { return }
-        let w = textureWidth
-        let h = textureHeight
-        let bytesPerRow = w * MemoryLayout<Float>.size
-        var data = [Float](repeating: 99.0, count: w * h)
-        let region = MTLRegionMake2D(0, 0, w, h)
-        a.replace(region: region, mipmapLevel: 0, withBytes: &data, bytesPerRow: bytesPerRow)
-        b.replace(region: region, mipmapLevel: 0, withBytes: &data, bytesPerRow: bytesPerRow)
     }
 
     // ════════════════════════════════════════════════════════════════
     // MARK: - Gesture Input (multi-touch)
     // ════════════════════════════════════════════════════════════════
 
-    func handleTouchBegan(id: ObjectIdentifier, at point: CGPoint, scale: CGFloat) {
-        let now   = CACurrentMediaTime()
+    func handleTouchBegan(id: ObjectIdentifier, at point: CGPoint, scale: CGFloat, timestamp: CFTimeInterval? = nil) {
+        guard isBaseInitialized_ else { return }
+        let now   = timestamp ?? CACurrentMediaTime()
         let pixel = SIMD2<Float>(Float(point.x * scale), Float(point.y * scale))
 
         activeTouches[id] = TouchState(
@@ -373,18 +427,20 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         }
 
         lastStrokeTime = now
-        if lastFrameTime == 0 { lastFrameTime = 0 }
+        // The renderer is paused between gestures. Reset the frame clock so
+        // the first relaxation step never receives the entire idle interval.
+        lastFrameTime = now
         isDistorted = true
     }
 
     func addStrokeSegment(id: ObjectIdentifier,
                           from previous: CGPoint, to current: CGPoint,
-                          scale: CGFloat) {
+                          scale: CGFloat, timestamp: CFTimeInterval? = nil) {
         guard isBaseInitialized_,
               var state = activeTouches[id]
         else { return }
 
-        let now = CACurrentMediaTime()
+        let now = timestamp ?? CACurrentMediaTime()
         let dt  = Float(now - state.previousTime)
         state.previousTime = now
 
@@ -415,7 +471,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         )
 
         strokeLock.lock()
-        pendingStrokes.append(stroke)
+        pendingStrokes.enqueue(stroke, for: id)
         strokeLock.unlock()
 
         lastStrokeTime = now
@@ -429,6 +485,15 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
 
     func setActive(_ active: Bool) {
         isActive = active
+    }
+
+    func invalidateBaseSnapshot() {
+        cancelActiveInteraction()
+        isBaseInitialized_ = false
+        isDistorted = false
+        activeRipples.removeAll()
+        activeTouches.removeAll()
+        lastFrameTime = 0
     }
 
     func cancelActiveInteraction() {
@@ -483,8 +548,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             if stillRelaxing {
                 // 1. Apply pending smudge strokes
                 strokeLock.lock()
-                let strokes = pendingStrokes
-                pendingStrokes.removeAll()
+                let strokes = pendingStrokes.drain()
                 strokeLock.unlock()
 
                 for stroke in strokes {
@@ -537,9 +601,11 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             } else {
                 isDistorted = false
                 isBaseInitialized_ = false
+                lastFrameTime = 0
                 activeRipples.removeAll()
                 activeTouches.removeAll()
                 view.isPaused = true
+                onEffectSettled?()
                 if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: rpd) {
                     encoder.endEncoding()
                 }
@@ -559,14 +625,19 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     // MARK: - Compute Passes
     // ════════════════════════════════════════════════════════════════
 
-    private func applySmudge(_ stroke: StrokeSegment, commandBuffer: MTLCommandBuffer) {
+    func applySmudge(_ stroke: StrokeSegment, commandBuffer: MTLCommandBuffer) {
         guard let input   = currentInteractive,
               let output  = otherInteractive,
               let ageIn   = currentAge,
-              let ageOut  = otherAge,
-              let encoder = commandBuffer.makeComputeCommandEncoder()
+              let ageOut  = otherAge
         else { return }
 
+        let minX = max(0, Int(floor(min(stroke.p0.x, stroke.p1.x) - stroke.radius)))
+        let minY = max(0, Int(floor(min(stroke.p0.y, stroke.p1.y) - stroke.radius)))
+        let maxX = min(textureWidth, Int(ceil(max(stroke.p0.x, stroke.p1.x) + stroke.radius)) + 1)
+        let maxY = min(textureHeight, Int(ceil(max(stroke.p0.y, stroke.p1.y) + stroke.radius)) + 1)
+        guard maxX > minX, maxY > minY else { return }
+        guard let encoder = commandBuffer.makeComputeCommandEncoder() else { return }
         encoder.setComputePipelineState(smudgePipeline)
 
         var params = SmudgeParams(
@@ -583,16 +654,26 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         encoder.setTexture(ageOut, index: 3)
         encoder.setBytes(&params, length: MemoryLayout<SmudgeParams>.stride, index: 0)
 
-        let tgs = MTLSize(width: 16, height: 16, depth: 1)
-        let tgc = MTLSize(
-            width:  (textureWidth  + 15) / 16,
-            height: (textureHeight + 15) / 16,
-            depth: 1
+        var dispatchOrigin = SIMD2<UInt32>(UInt32(minX), UInt32(minY))
+        encoder.setBytes(&dispatchOrigin, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 1)
+        encoder.dispatchThreads(
+            MTLSize(width: maxX - minX, height: maxY - minY, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1)
         )
-        encoder.dispatchThreadgroups(tgc, threadsPerThreadgroup: tgs)
         encoder.endEncoding()
 
-        useA.toggle()
+        // The output is scratch storage. Publish only the region just computed
+        // back to the source; both colors and ages outside it stay untouched.
+        guard let blit = commandBuffer.makeBlitCommandEncoder() else { return }
+        let origin = MTLOrigin(x: minX, y: minY, z: 0)
+        let size = MTLSize(width: maxX - minX, height: maxY - minY, depth: 1)
+        blit.copy(from: output, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: origin, sourceSize: size,
+                  to: input, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
+        blit.copy(from: ageOut, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: origin, sourceSize: size,
+                  to: ageIn, destinationSlice: 0, destinationLevel: 0, destinationOrigin: origin)
+        blit.endEncoding()
     }
 
     private func applyRelaxDiffuse(dt: Float, commandBuffer: MTLCommandBuffer) {

@@ -11,12 +11,14 @@ extension EnvironmentValues {
 
 private struct ThemedModifier: ViewModifier {
     let theme: AppTheme
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         content
-            .environment(\.appTheme, theme)
-            .environment(\.resolvedAppTheme, .night)
-            .preferredColorScheme(.dark)
+            .environment(\.appTheme, theme.isLight(in: colorScheme) ? .daylight : .night)
+            .environment(\.resolvedAppTheme, theme.isLight(in: colorScheme) ? .daylight : .night)
+            .preferredColorScheme(theme.colorScheme)
+            .tint(theme.isLight(in: colorScheme) ? AppColors.accentInk : AppColors.brandAccent)
     }
 }
 

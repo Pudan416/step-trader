@@ -1,0 +1,8 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static float3 metalShapePalette(float t, constant MetalShapeMaterialUniforms &m) {
+    const float first = smoothstep(0.05, 0.52, t);
+    const float second = smoothstep(0.46, 0.96, t);
+    return mix(mix(m.color0.rgb, m.color1.rgb, first), m.color2.rgb, second);
+}

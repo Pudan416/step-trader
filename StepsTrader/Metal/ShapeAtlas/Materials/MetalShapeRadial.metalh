@@ -1,0 +1,14 @@
+#pragma once
+#include "MetalShapePalette.metalh"
+
+static void metalShapeShadeRadial(
+    float2 p,
+    uint material,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color) {
+    const float2 focus = (m.params2.xy - 0.5) * 0.68;
+    const float radial = clamp(length(p - focus) / 1.28, 0.0, 1.0);
+    color = material == 4u
+        ? mix(m.color1.rgb, m.color0.rgb, smoothstep(0.08, 0.96, radial))
+        : metalShapePalette(radial, m);
+}

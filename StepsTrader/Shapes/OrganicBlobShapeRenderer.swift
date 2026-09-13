@@ -90,7 +90,8 @@ enum OrganicBlobShapeRenderer {
         let gradOffsetAngle = styleRng.nextDouble(in: 0...(2 * .pi))
         let gradOffsetFraction = styleRng.nextDouble(in: 0.15...0.35)
 
-        for layer in 0..<layerCount {
+        let layers = spec.kind == .outline ? (layerCount - 1)..<layerCount : 0..<layerCount
+        for layer in layers {
             let layerSeed = baseSeed &+ UInt64(layer) &* seedStride
 
             let cx = Double(elementCenter.x)

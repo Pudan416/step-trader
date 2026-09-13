@@ -1,0 +1,5 @@
+label=scale3-rerender-render
+expected_exit=zero
+working_directory=/Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-task1b-attempt5-3e5f309
+source_commit=3e5f3095167889b3a9ae5a8145ef0103489e6e3c
+command=swift run --package-path Tools/DayObjectsEditorialField editorial-field-render material --manifest Tools/DayObjectsEditorialField/Manifests/visible-v1.json --composition-approval artifacts/day-objects-editorial-field/composition/composition-approved.json --composition-recipes artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json --output artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale3-rerender --source-commit 3e5f3095167889b3a9ae5a8145ef0103489e6e3c --scale 3

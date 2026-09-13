@@ -21,6 +21,18 @@ enum GradientPalette: String, CaseIterable {
         }
     }
 
+    var colorHexes: [String] {
+        switch self {
+        case .warmSunset: ["#FFBF65", "#FD8973", "#003A6C", "#002646"]
+        case .ocean:      ["#7FDBDA", "#3A9FBF", "#1A4B6E", "#0B1E33"]
+        case .aurora:     ["#C4B5FD", "#7C6FBF", "#1F6E5C", "#0F1B2D"]
+        case .dusk:       ["#EEDDC9", "#C0AC98", "#5E7282", "#384856"]
+        case .dawn:       ["#EBBFC8", "#B87A92", "#4A3568", "#181430"]
+        case .ember:      ["#F07838", "#D04428", "#2E1858", "#0C0A22"]
+        case .horizon:    ["#D0A440", "#2898A8", "#105868", "#0A2832"]
+        }
+    }
+
     static func normalized(rawValue: String) -> GradientPalette {
         switch rawValue {
         case "roseGarden": .ocean

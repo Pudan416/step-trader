@@ -1,0 +1,27 @@
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'editorial-field-render' complete! (0.10s)
+error: Material artifact hash mismatch: contact-sheets/material-atlas.png
+Usage:
+  editorial-field-render composition --manifest <path> --output <round-dir> [--source-commit <hash>] [--overlays all|none|crop,overlap,centerOfMass,occupiedBounds]
+  editorial-field-render material --manifest <path> --composition-approval <path> --composition-recipes <path> --output <round-dir> [--source-commit <hash>] [--scale <positive-integer>]
+  editorial-field-render verify --package <round-dir> --expected-source-commit <full-git-object-id>
+  editorial-field-render verify-material --package <round-dir> --composition-approval <path> --composition-recipes <path> --expected-source-commit <full-git-object-id>
+        0.53 real         0.12 user         0.04 sys
+             8519680  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                6784  page reclaims
+                 212  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 359  involuntary context switches
+          1673523983  instructions retired
+           527297808  cycles elapsed
+             3310072  peak memory footprint

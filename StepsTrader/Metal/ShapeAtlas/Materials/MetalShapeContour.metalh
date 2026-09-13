@@ -1,0 +1,12 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static void metalShapeShadeContour(
+    float distance,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color,
+    thread float & alpha) {
+    const float line = 1.0 - smoothstep(0.018, 0.045, abs(distance));
+    alpha = line;
+    color = mix(m.color0.rgb, m.color1.rgb, 0.58);
+}

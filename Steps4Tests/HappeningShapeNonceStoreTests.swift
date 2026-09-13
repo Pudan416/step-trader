@@ -45,7 +45,7 @@ final class HappeningShapeNonceStoreTests: XCTestCase {
         let before = store.nonce(for: "2026-08-10")
         let after = store.reroll(for: "2026-08-10")
 
-        XCTAssertNotEqual(before, after)
+        XCTAssertEqual(after, before &+ 1)
         XCTAssertEqual(store.nonce(for: "2026-08-10"), after)
         XCTAssertEqual(HappeningShapeNonceStore(defaults: defaults).nonce(for: "2026-08-10"), after)
     }

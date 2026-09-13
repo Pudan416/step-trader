@@ -11,7 +11,6 @@ enum TargetResolver {
         let targets: [String]
         let bundleId: String
         let displayName: String
-        let imageName: String
         let scheme: String
         let fallbackSchemes: [String]
         /// Apple-verified Universal Links (https). Preferred over custom schemes when
@@ -28,63 +27,54 @@ enum TargetResolver {
         AppTarget(targets: ["instagram"],
                   bundleId: "com.burbn.instagram",
                   displayName: "Instagram",
-                  imageName: "instagram",
                   scheme: "instagram://",
                   fallbackSchemes: ["instagram://app", "instagram://", "instagram://feed", "instagram://camera"]),
 
         AppTarget(targets: ["tiktok"],
                   bundleId: "com.zhiliaoapp.musically",
                   displayName: "TikTok",
-                  imageName: "tiktok",
                   scheme: "tiktok://",
                   fallbackSchemes: ["tiktok://"]),
 
         AppTarget(targets: ["youtube"],
                   bundleId: "com.google.ios.youtube",
                   displayName: "YouTube",
-                  imageName: "youtube",
                   scheme: "youtube://",
                   fallbackSchemes: ["youtube://"]),
 
         AppTarget(targets: ["telegram"],
                   bundleId: "ph.telegra.Telegraph",
                   displayName: "Telegram",
-                  imageName: "telegram",
                   scheme: "tg://",
                   fallbackSchemes: ["tg://", "telegram://"]),
 
         AppTarget(targets: ["whatsapp"],
                   bundleId: "net.whatsapp.WhatsApp",
                   displayName: "WhatsApp",
-                  imageName: "whatsapp",
                   scheme: "whatsapp://",
                   fallbackSchemes: ["whatsapp://"]),
 
         AppTarget(targets: ["snapchat"],
                   bundleId: "com.toyopagroup.picaboo",
                   displayName: "Snapchat",
-                  imageName: "snapchat",
                   scheme: "snapchat://",
                   fallbackSchemes: ["snapchat://"]),
 
         AppTarget(targets: ["facebook"],
                   bundleId: "com.facebook.Facebook",
                   displayName: "Facebook",
-                  imageName: "facebook",
                   scheme: "fb://",
                   fallbackSchemes: ["fb://", "facebook://"]),
 
         AppTarget(targets: ["linkedin"],
                   bundleId: "com.linkedin.LinkedIn",
                   displayName: "LinkedIn",
-                  imageName: "linkedin",
                   scheme: "linkedin://",
                   fallbackSchemes: ["linkedin://"]),
 
         AppTarget(targets: ["x", "twitter"],
                   bundleId: "com.atebits.Tweetie2",
                   displayName: "X",
-                  imageName: "x",
                   scheme: "twitter://",
                   // `x://` intentionally removed — it's a generic scheme other apps
                   // (e.g. Standoff 2) register, which hijacked the re-open and launched
@@ -95,14 +85,12 @@ enum TargetResolver {
         AppTarget(targets: ["reddit"],
                   bundleId: "com.reddit.Reddit",
                   displayName: "Reddit",
-                  imageName: "reddit",
                   scheme: "reddit://",
                   fallbackSchemes: ["reddit://"]),
 
         AppTarget(targets: ["pinterest"],
                   bundleId: "com.pinterest",
                   displayName: "Pinterest",
-                  imageName: "pinterest",
                   scheme: "pinterest://",
                   fallbackSchemes: ["pinterest://"])
     ]
@@ -141,10 +129,6 @@ enum TargetResolver {
 
     static func displayName(for bundleId: String) -> String {
         bundleToEntry[bundleId]?.displayName ?? bundleId
-    }
-
-    static func imageName(for bundleId: String) -> String? {
-        bundleToEntry[bundleId]?.imageName
     }
 
     static func urlScheme(for target: String) -> String? {

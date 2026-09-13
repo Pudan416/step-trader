@@ -1,0 +1,5 @@
+label=gate6-baseline-checksums
+expected_exit=zero
+working_directory=/Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-task1b-baseline-attempt5-622b7b5
+source_commit=622b7b50e0a4594ab47889a2265748e51e94e523
+command=shasum -a 256 -c artifacts/day-objects-editorial-field/material/baseline-622b7b5-attempt5/scale1/SHA256SUMS

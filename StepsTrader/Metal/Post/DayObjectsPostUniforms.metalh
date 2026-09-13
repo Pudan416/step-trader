@@ -1,0 +1,40 @@
+#pragma once
+#include <metal_stdlib>
+using namespace metal;
+
+struct DayObjectsPostUniforms {
+    float2 resolution;
+    float blurRadiusPixels;
+    float contrast;
+    float saturation;
+    float grainIntensity;
+    float grainPhase;
+    uint grainSeed;
+};
+
+struct DayObjectsGlitchUniforms {
+    float4 levels;
+    float4 rendering;
+    uint4 metadata;
+};
+
+struct DayObjectsGlitchBandUniform {
+    float4 geometry;
+    float4 motion;
+};
+
+static_assert(alignof(DayObjectsPostUniforms) == 8, "Post uniforms require 8-byte alignment");
+static_assert(sizeof(DayObjectsPostUniforms) == 32, "Post uniforms must match Swift's 32-byte stride");
+static_assert(alignof(DayObjectsGlitchUniforms) == 16, "Glitch uniforms require 16-byte alignment");
+static_assert(sizeof(DayObjectsGlitchUniforms) == 48, "Glitch uniforms must match Swift's 48-byte stride");
+static_assert(alignof(DayObjectsGlitchBandUniform) == 16, "Glitch bands require 16-byte alignment");
+static_assert(sizeof(DayObjectsGlitchBandUniform) == 32, "Glitch bands must match Swift's 32-byte stride");
+
+struct DayObjectsPostVertexOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+constant int dayObjectsMaximumBlurRadiusPixels = 32;
+constant uint dayObjectsGlitchBandCapacity = 12;
+constant float dayObjectsTwoPi = 6.28318530718;

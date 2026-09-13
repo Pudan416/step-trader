@@ -1,39 +1,111 @@
 import SwiftUI
 import MetalKit
 
+struct CanvasTouchGestureSample: Equatable, Sendable {
+    let normalizedX: Double
+    let normalizedY: Double
+    let speed: Double
+}
+
+struct SmudgeTouchPathSample: Equatable {
+    let point: CGPoint
+    let speed: CGFloat
+}
+
+/// Time-based low-pass filtering keeps the same feel at 60 and 120 Hz while
+/// preventing a delayed frame from turning into a single hard displacement.
+struct SmudgeTouchPathFilter {
+    static let maximumSpeed: CGFloat = 1_800
+
+    let responseSeconds: TimeInterval
+    private var point: CGPoint?
+    private var time: TimeInterval?
+    private var speed: CGFloat = 0
+    var currentPoint: CGPoint? { point }
+
+    init(responseSeconds: TimeInterval = 0.05) {
+        self.responseSeconds = max(responseSeconds, 0.001)
+    }
+
+    mutating func begin(at point: CGPoint, time: TimeInterval) -> SmudgeTouchPathSample {
+        self.point = point
+        self.time = time
+        speed = 0
+        return SmudgeTouchPathSample(point: point, speed: 0)
+    }
+
+    mutating func move(to rawPoint: CGPoint, time rawTime: TimeInterval) -> SmudgeTouchPathSample {
+        guard let previousPoint = point, let previousTime = time else {
+            return begin(at: rawPoint, time: rawTime)
+        }
+
+        let elapsed = min(max(rawTime - previousTime, 1.0 / 240.0), 1.0 / 30.0)
+        let alpha = CGFloat(1 - exp(-elapsed / responseSeconds))
+        let filteredPoint = CGPoint(
+            x: previousPoint.x + (rawPoint.x - previousPoint.x) * alpha,
+            y: previousPoint.y + (rawPoint.y - previousPoint.y) * alpha
+        )
+        let distance = hypot(filteredPoint.x - previousPoint.x, filteredPoint.y - previousPoint.y)
+        let instantaneousSpeed = min(distance / elapsed, Self.maximumSpeed)
+        speed += (instantaneousSpeed - speed) * alpha
+        point = filteredPoint
+        time = rawTime
+        return SmudgeTouchPathSample(point: filteredPoint, speed: speed)
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // MARK: - SmudgeMTKView  (transparent Metal overlay with multi-touch)
 // ════════════════════════════════════════════════════════════════════
 
 final class SmudgeMTKView: MTKView {
-
-    var onTouchBegan: ((_ id: ObjectIdentifier, _ point: CGPoint) -> Void)?
-    var onTouchMoved: ((_ id: ObjectIdentifier, _ previous: CGPoint, _ current: CGPoint) -> Void)?
+    var onTouchBegan: ((_ id: ObjectIdentifier, _ point: CGPoint, _ timestamp: TimeInterval) -> Void)?
+    var onTouchMoved: ((_ id: ObjectIdentifier, _ previous: CGPoint, _ current: CGPoint, _ timestamp: TimeInterval) -> Void)?
     var onTouchEnded: ((_ id: ObjectIdentifier) -> Void)?
+    var onLayout: (() -> Void)?
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
+    }
+    private var lastSamples: [ObjectIdentifier: (point: CGPoint, time: TimeInterval)] = [:]
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
-            onTouchBegan?(ObjectIdentifier(touch), touch.location(in: self))
+            let id = ObjectIdentifier(touch)
+            let point = touch.location(in: self)
+            lastSamples[id] = (point, touch.timestamp)
+            onTouchBegan?(id, point, touch.timestamp)
+        }
+    }
+
+    private func deliverMovement(_ touch: UITouch, event: UIEvent?) {
+        let id = ObjectIdentifier(touch)
+        for sample in event?.coalescedTouches(for: touch) ?? [touch] {
+            guard let previous = lastSamples[id], sample.timestamp > previous.time else { continue }
+            let point = sample.location(in: self)
+            lastSamples[id] = (point, sample.timestamp)
+            if point != previous.point { onTouchMoved?(id, previous.point, point, sample.timestamp) }
         }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for touch in touches {
-            onTouchMoved?(ObjectIdentifier(touch),
-                          touch.previousLocation(in: self),
-                          touch.location(in: self))
-        }
+        for touch in touches { deliverMovement(touch, event: event) }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
-            onTouchEnded?(ObjectIdentifier(touch))
+            deliverMovement(touch, event: event)
+            let id = ObjectIdentifier(touch)
+            lastSamples.removeValue(forKey: id)
+            onTouchEnded?(id)
         }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
-            onTouchEnded?(ObjectIdentifier(touch))
+            let id = ObjectIdentifier(touch)
+            lastSamples.removeValue(forKey: id)
+            onTouchEnded?(id)
         }
     }
 }
@@ -55,18 +127,14 @@ struct SmudgeOverlayView: UIViewRepresentable {
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
     let isRenderingAllowed: Bool
+    var onGestureBegan: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
+    var onGestureUpdated: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
+    var onGestureEnded: @MainActor () -> Void = {}
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> SmudgeMTKView {
         let view = SmudgeMTKView()
 
-        guard let renderer = context.coordinator.renderer else {
-            view.backgroundColor = .clear
-            return view
-        }
-
-        view.device                  = renderer.device
-        view.delegate                = renderer
         view.preferredFramesPerSecond = 60
         view.colorPixelFormat        = .bgra8Unorm
         view.framebufferOnly         = true
@@ -80,45 +148,62 @@ struct SmudgeOverlayView: UIViewRepresentable {
         view.backgroundColor     = .clear
         view.clearColor          = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
 
-        let scale = view.contentScaleFactor
         let coord = context.coordinator
+        coord.storedConfig = self
         coord.renderingIsAllowed = isRenderingAllowed
-        renderer.setActive(isRenderingAllowed)
 
         // UIKit haptic is correct here: `.sensoryFeedback` is a SwiftUI view
         // modifier and can't attach to UIView touch callbacks. The generator
         // is captured by the closure below, allocated once per representable
         // and reused. (CODE_AUDIT.md §4.1 — exempt by architecture)
-        let touchHaptic = UIImpactFeedbackGenerator(style: .medium)
+        let touchHaptic = UIImpactFeedbackGenerator(style: .soft)
         touchHaptic.prepare()
 
-        view.onTouchBegan = { [weak coord, weak view] id, point in
+        view.onTouchBegan = { [weak coord, weak view] id, point, timestamp in
             guard let coord,
                   coord.renderingIsAllowed,
-                  let view,
-                  let renderer = coord.renderer
+                  let view
             else { return }
-            if renderer.needsSnapshot {
-                coord.snapshotCanvas(scale: scale)
+            coord.whenPrepared { [weak coord, weak view] in
+                guard let coord, let view, let renderer = coord.renderer else { return }
+                let sample = coord.beginTouch(id: id, at: point, timestamp: timestamp)
+                renderer.handleTouchBegan(id: id, at: sample.point, scale: view.contentScaleFactor, timestamp: timestamp)
+                coord.forwardLeadBeginning(id: id, sample: sample, in: view.bounds.size)
+                view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
+                    isRenderingAllowed: coord.renderingIsAllowed,
+                    hasActiveEffect: renderer.isDistorted
+                )
+                touchHaptic.impactOccurred(intensity: 0.35)
             }
-            renderer.handleTouchBegan(id: id, at: point, scale: scale)
-            view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
-                isRenderingAllowed: coord.renderingIsAllowed,
-                hasActiveEffect: renderer.isDistorted
-            )
-            touchHaptic.impactOccurred(intensity: 0.7)
         }
-        view.onTouchMoved = { [weak coord] id, previous, current in
-            guard let coord, coord.renderingIsAllowed else { return }
-            coord.renderer?.addStrokeSegment(id: id, from: previous, to: current, scale: scale)
+        view.onTouchMoved = { [weak coord, weak view] id, previous, current, timestamp in
+            guard let coord, coord.renderingIsAllowed, let view else { return }
+            coord.whenPrepared { [weak coord, weak view] in
+                guard let coord, let view else { return }
+                let movement = coord.moveTouch(id: id, to: current, timestamp: timestamp)
+                coord.renderer?.addStrokeSegment(
+                    id: id,
+                    from: previous,
+                    to: current,
+                    scale: view.contentScaleFactor,
+                    timestamp: timestamp
+                )
+                coord.forwardLeadUpdate(id: id, sample: movement.current, in: view.bounds.size)
+            }
         }
         view.onTouchEnded = { [weak coord] id in
-            guard let coord, coord.renderingIsAllowed else { return }
-            coord.renderer?.handleTouchEnded(id: id)
-            touchHaptic.impactOccurred(intensity: 0.5)
+            guard let coord else { return }
+            coord.whenPrepared { [weak coord] in
+                guard let coord else { return }
+                let endedLead = coord.endTouch(id: id)
+                if endedLead { coord.storedConfig?.onGestureEnded() }
+                guard coord.renderingIsAllowed else { return }
+                coord.renderer?.handleTouchEnded(id: id)
+            }
         }
-
+        view.onLayout = { [weak coord] in coord?.prepareSnapshot() }
         context.coordinator.mtkView = view
+        coord.prepareRenderer()
         return view
     }
 
@@ -134,8 +219,10 @@ struct SmudgeOverlayView: UIViewRepresentable {
         }
 
         renderer.setActive(isRenderingAllowed)
+        coordinator.prepareSnapshot()
         if !isRenderingAllowed {
             renderer.cancelActiveInteraction()
+            coordinator.cancelTouches()
         }
 
         uiView.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
@@ -148,6 +235,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         coordinator.renderingIsAllowed = false
         coordinator.renderer?.cancelActiveInteraction()
         coordinator.renderer?.setActive(false)
+        coordinator.dismantle()
         uiView.isUserInteractionEnabled = false
         uiView.isPaused = true
         uiView.delegate = nil
@@ -158,12 +246,166 @@ struct SmudgeOverlayView: UIViewRepresentable {
     // ────────────────────────────────────────────────────────────────
 
     @MainActor final class Coordinator {
-        let renderer: MetalSmudgeRenderer?
+        private(set) var renderer: MetalSmudgeRenderer?
+        private var rendererPreparation: Task<Void, Never>?
         weak var mtkView: SmudgeMTKView?
         var storedConfig: SmudgeOverlayView?
         var renderingIsAllowed = false
+        private var touchFilters: [ObjectIdentifier: SmudgeTouchPathFilter] = [:]
+        private var leadTouchID: ObjectIdentifier?
+        private var preparation: Task<Void, Never>?
+        private var preparedKey: SnapshotKey?
+        private var pendingInput: [() -> Void] = []
 
-        init() { renderer = MetalSmudgeRenderer.create() }
+        private struct SnapshotKey: Equatable {
+            let steps: Int
+            let sleep: Int
+            let hasSteps: Bool
+            let hasSleep: Bool
+            let size: CGSize
+            let scale: CGFloat
+            let style: String
+            let palette: String
+            let texture: String
+        }
+
+        func whenPrepared(_ action: @escaping () -> Void) {
+            if renderer?.needsSnapshot == false { action() }
+            else {
+                pendingInput.append(action)
+                if renderer == nil { prepareRenderer() }
+                prepareSnapshot()
+            }
+        }
+
+        func prepareSnapshot() {
+            guard renderingIsAllowed, let view = mtkView, let cfg = storedConfig,
+                  let renderer, view.drawableSize.width > 0, view.drawableSize.height > 0 else { return }
+            let key = SnapshotKey(
+                steps: cfg.stepsPoints, sleep: cfg.sleepPoints,
+                hasSteps: cfg.hasStepsData, hasSleep: cfg.hasSleepData,
+                size: view.drawableSize, scale: view.contentScaleFactor,
+                style: UserDefaults.standard.string(forKey: SharedKeys.gradientStyle) ?? GradientStyle.radial.rawValue,
+                palette: UserDefaults.standard.string(forKey: SharedKeys.gradientPalette) ?? GradientPalette.warmSunset.rawValue,
+                texture: UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue
+            )
+            if preparedKey != key {
+                if preparedKey != nil { cancelTouches() }
+                renderer.invalidateBaseSnapshot()
+                // Clear any previous effect before a changed size/health/style snapshot.
+                if view.isPaused { view.draw() }
+                preparedKey = key
+            }
+            guard renderer.needsSnapshot, preparation == nil else { return }
+            preparation = Task { @MainActor [weak self] in
+                await Task.yield()
+                guard !Task.isCancelled, let self else { return }
+                self.preparation = nil
+                guard self.renderingIsAllowed, let view = self.mtkView else { return }
+                self.snapshotCanvas(scale: view.contentScaleFactor)
+                let input = self.pendingInput
+                self.pendingInput.removeAll()
+                if self.renderer?.needsSnapshot == false { input.forEach { $0() } }
+            }
+        }
+
+        func prepareRenderer() {
+            guard renderer == nil, rendererPreparation == nil else { return }
+            rendererPreparation = Task { @MainActor [weak self] in
+                let prepared = await Task.detached(priority: .userInitiated) {
+                    MetalSmudgeRenderer.create()
+                }.value
+                guard !Task.isCancelled, let self else { return }
+                self.rendererPreparation = nil
+                guard let view = self.mtkView else { return }
+                self.renderer = prepared
+                view.device = prepared?.device
+                view.delegate = prepared
+                prepared?.setActive(self.renderingIsAllowed)
+                prepared?.onEffectSettled = { [weak self] in self?.prepareSnapshot() }
+                self.prepareSnapshot()
+            }
+        }
+
+        func dismantle() {
+            rendererPreparation?.cancel()
+            rendererPreparation = nil
+            cancelTouches()
+            renderer?.onEffectSettled = nil
+        }
+
+        func beginTouch(id: ObjectIdentifier, at point: CGPoint, timestamp: TimeInterval) -> SmudgeTouchPathSample {
+            var filter = SmudgeTouchPathFilter()
+            let sample = filter.begin(at: point, time: timestamp)
+            touchFilters[id] = filter
+            return sample
+        }
+
+        func moveTouch(
+            id: ObjectIdentifier,
+            to point: CGPoint,
+            timestamp: TimeInterval
+        ) -> (previous: CGPoint, current: SmudgeTouchPathSample) {
+            guard var filter = touchFilters[id] else {
+                var filter = SmudgeTouchPathFilter()
+                let sample = filter.begin(at: point, time: timestamp)
+                touchFilters[id] = filter
+                return (sample.point, sample)
+            }
+            let previous = filter.currentPoint ?? point
+            let sample = filter.move(to: point, time: timestamp)
+            touchFilters[id] = filter
+            return (previous, sample)
+        }
+
+        func endTouch(id: ObjectIdentifier) -> Bool {
+            touchFilters.removeValue(forKey: id)
+            guard leadTouchID == id else { return false }
+            leadTouchID = nil
+            return true
+        }
+
+        func forwardLeadBeginning(
+            id: ObjectIdentifier,
+            sample: SmudgeTouchPathSample,
+            in size: CGSize
+        ) {
+            guard leadTouchID == nil else { return }
+            leadTouchID = id
+            storedConfig?.onGestureBegan(normalized(sample, in: size))
+        }
+
+        func forwardLeadUpdate(
+            id: ObjectIdentifier,
+            sample: SmudgeTouchPathSample,
+            in size: CGSize
+        ) {
+            guard leadTouchID == id else { return }
+            storedConfig?.onGestureUpdated(normalized(sample, in: size))
+        }
+
+        func cancelTouches() {
+            preparation?.cancel()
+            preparation = nil
+            pendingInput.removeAll()
+            let hadLead = leadTouchID != nil
+            leadTouchID = nil
+            touchFilters.removeAll()
+            if hadLead { storedConfig?.onGestureEnded() }
+        }
+
+        private func normalized(
+            _ sample: SmudgeTouchPathSample,
+            in size: CGSize
+        ) -> CanvasTouchGestureSample {
+            let width = max(size.width, 1)
+            let height = max(size.height, 1)
+            return CanvasTouchGestureSample(
+                normalizedX: Double(min(max(sample.point.x / width, 0), 1)),
+                normalizedY: Double(min(max(sample.point.y / height, 0), 1)),
+                speed: Double(sample.speed / max(width, height))
+            )
+        }
 
         func snapshotCanvas(scale: CGFloat) {
             guard let cfg = storedConfig,
@@ -181,7 +423,8 @@ struct SmudgeOverlayView: UIViewRepresentable {
                 stepsPoints: cfg.stepsPoints,
                 sleepPoints: cfg.sleepPoints,
                 hasStepsData: cfg.hasStepsData,
-                hasSleepData: cfg.hasSleepData
+                hasSleepData: cfg.hasSleepData,
+                fixedTime: .now
             )
             .frame(width: pointW, height: pointH)
 

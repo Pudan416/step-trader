@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nowhere — бесцветное подтверждение и размытие</title>
+<style>
+*{box-sizing:border-box}body{margin:40px auto;max-width:1120px;padding:0 24px 60px;font:16px/1.55 system-ui;background:#f4f2ed;color:#242424}h1{font-size:32px;line-height:1.2}h2{margin-top:44px;font-size:24px}p{max-width:850px}figure{margin:0}figcaption{margin:10px 0}img,video{display:block;width:100%;border-radius:12px}video{max-height:650px;background:#e5e1d8}.states{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.motion{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.strip{margin:18px 0 28px}.note{color:#5c5a54;font-size:14px}a{color:#335645}table{border-collapse:collapse;margin:24px 0}th,td{text-align:left;padding:9px 24px 9px 0;border-bottom:1px solid #d4d0c7}@media(max-width:700px){.states,.motion{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:26px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style></head><body>
+<h1>Бесцветная фигура перед подтверждением</h1>
+<p>Первое нажатие превращает круг в бесцветную фигуру. Она мягко пульсирует, а подпись Add выделена рамкой. Второе нажатие добавляет событие: появляется цвет и галочка. При удалении фигура снова становится бесцветной и пульсирует с подписью Delete.</p>
+<p class="note">Размах пульсации — 2,5% размера за 1,6 секунды. Текст остаётся неподвижным. При включённом Reduce Motion остаётся статичная фигура с подписью в рамке.</p>
+<h2>Движение</h2><div class="motion">
+<figure><figcaption>Ожидание второго нажатия: добавить</figcaption><video controls loop muted playsinline preload="metadata" poster="menu-2-preview.png"><source src="addition-preview.mp4" type="video/mp4"></video></figure>
+<figure><figcaption>Ожидание второго нажатия: удалить</figcaption><video controls loop muted playsinline preload="metadata" poster="menu-4-removal-preview.png"><source src="removal-preview.mp4" type="video/mp4"></video></figure></div>
+<h2>Четыре состояния</h2><div class="states">
+<figure><figcaption>Доступно</figcaption><img src="menu-1-available.png" alt="Меню с бесцветными кругами"></figure>
+<figure><figcaption>Первое нажатие</figcaption><img src="menu-2-preview.png" alt="Бесцветная фигура и подпись Add"></figure>
+<figure><figcaption>Добавлено</figcaption><img src="menu-3-added-color.png" alt="Цветные добавленные фигуры с галочками"></figure>
+<figure><figcaption>Удаление</figcaption><img src="menu-4-removal-preview.png" alt="Бесцветная фигура и подпись Delete"></figure></div>
+<h2>Что изменилось в фигурах</h2>
+<p>Предыдущая правка изменила выбор силуэтов: новые события последовательно получают девять уже существовавших форм. Раньше один день мог ограничиваться одной или двумя повторяющимися формами.</p>
+<p>Направленное размытие доступно четырём из девяти форм. После расширения выбора оно стало попадаться реже. Теперь, когда на холсте уже есть две фигуры, следующая подходящая новая фигура получает размытие, если его ещё нет. Сохранённые фигуры сохраняют свои параметры.</p>
+<table><thead><tr><th>Проверочный день</th><th>Размытых до</th><th>Размытых после</th></tr></thead><tbody><tr><td>10 сентября</td><td>0</td><td>1</td></tr><tr><td>11 сентября</td><td>0</td><td>1</td></tr><tr><td>12 сентября</td><td>1</td><td>2</td></tr></tbody></table>
+<p class="note">В каждой строке — те же десять событий и тот же день. Сравнение с предыдущей правкой меню; первые девять силуэтов уже различались в обеих версиях. На полосках показаны подтверждённые цветные фигуры. Изменился выбор материала для новых добавлений; контуры и настройки самого размытия сохранены.</p>
+<h2>10 сентября</h2><figure class="strip"><figcaption>До этой правки</figcaption><img src="before-native-silhouettes-2026-09-10.png" alt="Материалы до правки"></figure><figure class="strip"><figcaption>После — новые добавления</figcaption><img src="after-native-silhouettes-2026-09-10.png" alt="Материалы после восстановления размытия"></figure>
+<h2>11 сентября</h2><figure class="strip"><figcaption>До этой правки</figcaption><img src="before-native-silhouettes-2026-09-11.png" alt="Материалы до правки"></figure><figure class="strip"><figcaption>После — новые добавления</figcaption><img src="after-native-silhouettes-2026-09-11.png" alt="Материалы после восстановления размытия"></figure>
+<h2>12 сентября</h2><figure class="strip"><figcaption>До этой правки</figcaption><img src="before-native-silhouettes-2026-09-12.png" alt="Материалы до правки"></figure><figure class="strip"><figcaption>После — новые добавления</figcaption><img src="after-native-silhouettes-2026-09-12.png" alt="Материалы после восстановления размытия"></figure>
+<p class="note">Скриншоты и видео получены из приложения в iOS Simulator. Это проверка симулятора; установка и визуальная проверка на физическом устройстве в этой правке не выполнялись.</p>
+<p><a href="after-native-distribution.txt">Точный список форм и материалов после правки</a> · <a href="before-native-distribution.txt">До правки</a> · <a href="../happenings-shapes-menu-2026-09-12/index.html">Предыдущее сравнение силуэтов</a></p></body></html>

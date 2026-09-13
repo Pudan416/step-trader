@@ -27,6 +27,17 @@ enum CanvasColorPalette {
         return candidates[idx]
     }
 
+    /// Every palette happening is shown as a two-colour source and must keep
+    /// that exact pair when it becomes a canvas figure. Unlike the general
+    /// canvas helper above, this deliberately never returns `nil` while a
+    /// distinct palette colour exists.
+    static func happeningGradientSecondColor(seed: UInt64, primary: String) -> String {
+        let candidates = paletteHex.filter { $0.uppercased() != primary.uppercased() }
+        guard !candidates.isEmpty else { return primary }
+        var rng = SeededRNG.derived(from: seed, domain: "happeningGradient")
+        return candidates[rng.nextInt(in: 0...(candidates.count - 1))]
+    }
+
     /// Three distinct hex colors from anywhere in the palette — for ray spotlight fills.
     static func seededColorTriple(seed: UInt64) -> (String, String, String) {
         var rng = SeededRNG(seed: seed)

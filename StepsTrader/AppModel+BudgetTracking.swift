@@ -96,14 +96,31 @@ extension AppModel {
         g.set(newDayStart, forKey: SharedKeys.stepsBalanceAnchor)
         lastDayKey = Self.dayKey(for: now)
 
-        let newExpiry = DayBoundary.nextBoundary(
+        // Preserve usage already counted, and only shorten calendar validity.
+        let newDayEnd = DayBoundary.nextBoundary(
             after: now,
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        for group in ticketGroups where g.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 {
-            g.set(newExpiry, forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+        do {
+            try ShieldRebuildHelper.withUsageBudgetLock {
+                g.synchronize()
+                defer { g.synchronize() }
+                for group in ticketGroups where g.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 {
+                    let expiryKey = SharedKeys.usageBudgetExpiryKey(group.id)
+                    let existing = g.object(forKey: expiryKey) as? Date
+                    g.set(min(existing ?? newDayEnd, newDayEnd), forKey: expiryKey)
+                    if var session = UsageBudgetSession.load(from: g, groupId: group.id) {
+                        session.expiresAt = min(session.expiresAt, newDayEnd)
+                        session.save(to: g, groupId: group.id)
+                    }
+                }
+            }
+        } catch {
+            AppLogger.shield.error("Cannot update budget day boundary: \(error.localizedDescription)")
         }
+
+        ensureUsageBudgetMonitoringForActiveGroups()
 
         // Recompute balance + widgets from the preserved state. spentStepsToday,
         // selections, base energy and the canvas are all left untouched.

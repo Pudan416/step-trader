@@ -1,0 +1,8 @@
+sample_begin
+utc=2026-09-04T00:23:29Z
+vm.swapusage: total = 5120.00M  used = 3463.44M  free = 1656.56M  (encrypted)
+Pages free:                                    77910.
+Pages throttled:                                   0.
+Swapins:                                      489006.
+Swapouts:                                     915659.
+sample_end

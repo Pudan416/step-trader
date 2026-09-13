@@ -1,0 +1,30 @@
+#pragma once
+#include <metal_stdlib>
+using namespace metal;
+
+struct MetalShapeGenomeUniforms {
+    float4 superformula;
+    float4 harmonic0;
+    float4 harmonic1;
+    float4 harmonic2;
+    float4 anisotropyOffset;
+    float4 transform;
+    uint4 metadata;
+    float4 reserved;
+};
+
+struct MetalShapeMaterialUniforms {
+    float4 color0;
+    float4 color1;
+    float4 color2;
+    float4 params0;
+    float4 params1;
+    float4 params2;
+    float4 params3;
+    uint4 metadata;
+};
+
+struct MetalShapeVertexOut {
+    float4 position [[position]];
+    float2 uv;
+};

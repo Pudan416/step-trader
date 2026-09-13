@@ -19,6 +19,10 @@ struct CanvasAnimationOverlay: View {
     var labelColor: Color? = nil
     var hasStepsData: Bool = true
     var hasSleepData: Bool = true
+    var overlayStyleOverride: String? = nil
+    var onGestureBegan: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
+    var onGestureUpdated: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
+    var onGestureEnded: @MainActor () -> Void = {}
 
     @AppStorage(SharedKeys.canvasOverlayStyle, store: UserDefaults.stepsTrader())
     private var styleRaw: String = CanvasOverlayStyle.smudge.rawValue
@@ -28,7 +32,7 @@ struct CanvasAnimationOverlay: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var style: CanvasOverlayStyle {
-        CanvasOverlayStyle(rawValue: styleRaw) ?? .smudge
+        CanvasOverlayStyle(rawValue: overlayStyleOverride ?? styleRaw) ?? .smudge
     }
 
     private var isRenderingAllowed: Bool {
@@ -56,7 +60,10 @@ struct CanvasAnimationOverlay: View {
                 labelColor: labelColor,
                 hasStepsData: hasStepsData,
                 hasSleepData: hasSleepData,
-                isRenderingAllowed: isRenderingAllowed
+                isRenderingAllowed: isRenderingAllowed,
+                onGestureBegan: onGestureBegan,
+                onGestureUpdated: onGestureUpdated,
+                onGestureEnded: onGestureEnded
             )
         case .cosmic:
             ShaderParkOverlayView(isRenderingAllowed: isRenderingAllowed)

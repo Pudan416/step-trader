@@ -1,0 +1,704 @@
+[
+  {
+    "activeRoles" : [
+      "rhythm",
+      "bass",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 1,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 15.811138137040068,
+      "happeningsLeadMaskingScore" : 0.051647553010877326,
+      "harmonyLeadMaskingScore" : 0.05104514783479446,
+      "highBandEnergyRatio" : 0.004979451229652716,
+      "integratedLUFS" : -16.920183022148837,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0.014658156199925259,
+      "layerAudibilityDB" : {
+        "bass" : -1.3661175086544441,
+        "happenings" : -22.517599538845033,
+        "harmony" : -17.731040244886472,
+        "lead" : -15.684488906749642,
+        "rhythm" : -5.636359188770557
+      },
+      "lowBandEnergyRatio" : 0.7756054859942303,
+      "maximumAbsoluteDCOffset" : 2.9539391754945564e-05,
+      "midBandEnergyRatio" : 0.21941506277611705,
+      "reverbTailEnergyRatio" : 0.7190869168569411,
+      "reverbTailEnergyRatioByRole" : {
+        "bass" : 0.03531564274923172,
+        "happenings" : 0.05331105651687266,
+        "harmony" : 0.7190869168569411,
+        "lead" : 0.10009317162444203,
+        "rhythm" : 2.0141603476063307e-06
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "harmony"
+        }
+      ],
+      "transientDensityPerSecond" : 5.791666666666667,
+      "truePeakDBTP" : -2.102744414656752
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "bass" : 1056000,
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "bass",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 2,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 15.225664093314762,
+      "happeningsLeadMaskingScore" : 0.15433862008951355,
+      "harmonyLeadMaskingScore" : 0.058714483629736657,
+      "highBandEnergyRatio" : 0.005582910581034326,
+      "integratedLUFS" : -16.886214097375262,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0.015726459230360368,
+      "layerAudibilityDB" : {
+        "bass" : -20.90378814965645,
+        "happenings" : -22.823126764604424,
+        "harmony" : -9.061502141189068,
+        "lead" : -21.852250650751,
+        "rhythm" : -0.4201886701143586
+      },
+      "lowBandEnergyRatio" : 0.9358499744917373,
+      "maximumAbsoluteDCOffset" : 2.7432925372815417e-05,
+      "midBandEnergyRatio" : 0.05856711492722828,
+      "reverbTailEnergyRatio" : 0.974368973237541,
+      "reverbTailEnergyRatioByRole" : {
+        "bass" : 0.13293319996924585,
+        "happenings" : 0.974368973237541,
+        "harmony" : 0.17599105433072254,
+        "lead" : 0.07177356609393674,
+        "rhythm" : 0.0049715818237781725
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "happenings"
+        }
+      ],
+      "transientDensityPerSecond" : 4.291666666666667,
+      "truePeakDBTP" : -1.321112274751365
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "bass" : 1056000,
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : true,
+    "publicNumber" : 3,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 16.99068217120104,
+      "happeningsLeadMaskingScore" : 0.0375522520021287,
+      "harmonyLeadMaskingScore" : 0.09510231734598032,
+      "highBandEnergyRatio" : 0.00841758805261046,
+      "integratedLUFS" : -17.493529202773157,
+      "issues" : [
+
+      ],
+      "kickBassLowBandCorrelation" : 0,
+      "layerAudibilityDB" : {
+        "bass" : -120,
+        "happenings" : -6.762851465596683,
+        "harmony" : -15.902710600008053,
+        "lead" : -10.415642235822737,
+        "rhythm" : -1.4559389025818572
+      },
+      "lowBandEnergyRatio" : 0.6943620714683428,
+      "maximumAbsoluteDCOffset" : 5.682515141029505e-05,
+      "midBandEnergyRatio" : 0.2972203404790467,
+      "reverbTailEnergyRatio" : 0.157134809861083,
+      "reverbTailEnergyRatioByRole" : {
+        "happenings" : 0.04911499535780146,
+        "harmony" : 0.04859813197473061,
+        "lead" : 0.157134809861083,
+        "rhythm" : 0.0109576149171432
+      },
+      "suggestions" : [
+
+      ],
+      "transientDensityPerSecond" : 2,
+      "truePeakDBTP" : -1.3354132541249824
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "bass",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 4,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 15.733257915626455,
+      "happeningsLeadMaskingScore" : 0.11520238026685925,
+      "harmonyLeadMaskingScore" : 0.04695227986167118,
+      "highBandEnergyRatio" : 0.0069655687867311855,
+      "integratedLUFS" : -17.269554302019625,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0.020007182093351058,
+      "layerAudibilityDB" : {
+        "bass" : -23.003057804908828,
+        "happenings" : -17.57594775189824,
+        "harmony" : -6.7895903105918105,
+        "lead" : -21.568192128444377,
+        "rhythm" : -0.8724363565738602
+      },
+      "lowBandEnergyRatio" : 0.9161007287841716,
+      "maximumAbsoluteDCOffset" : 4.929793597223212e-05,
+      "midBandEnergyRatio" : 0.07693370242909724,
+      "reverbTailEnergyRatio" : 0.5583614785059117,
+      "reverbTailEnergyRatioByRole" : {
+        "bass" : 0.12441721707891738,
+        "happenings" : 0.5583614785059117,
+        "harmony" : 0.12764586459886948,
+        "lead" : 0.05501240289399526,
+        "rhythm" : 0.004917737871134198
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "happenings"
+        }
+      ],
+      "transientDensityPerSecond" : 3.375,
+      "truePeakDBTP" : -1.3181525865269412
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "bass" : 1056000,
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "bass",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 5,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 16.327216724934345,
+      "happeningsLeadMaskingScore" : 0.07293052344243052,
+      "harmonyLeadMaskingScore" : 0.017969554163413348,
+      "highBandEnergyRatio" : 0.006898743804400097,
+      "integratedLUFS" : -17.59889001047982,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0.018865674968776933,
+      "layerAudibilityDB" : {
+        "bass" : -6.264581497170837,
+        "happenings" : -17.41965913449636,
+        "harmony" : -16.68687706189614,
+        "lead" : -17.90158533680176,
+        "rhythm" : -1.006747556007824
+      },
+      "lowBandEnergyRatio" : 0.8338095750849532,
+      "maximumAbsoluteDCOffset" : 9.423697524777877e-05,
+      "midBandEnergyRatio" : 0.1592916811106466,
+      "reverbTailEnergyRatio" : 1.2658849181673475,
+      "reverbTailEnergyRatioByRole" : {
+        "bass" : 0.0653895564564045,
+        "happenings" : 1.2658849181673475,
+        "harmony" : 0.5808928135007051,
+        "lead" : 0.09967433504199875,
+        "rhythm" : 0.004934655269787893
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "harmony"
+        },
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "happenings"
+        }
+      ],
+      "transientDensityPerSecond" : 4.041666666666667,
+      "truePeakDBTP" : -1.4140036868913421
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "bass" : 1056000,
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "bass",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 6,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 16.52740858714316,
+      "happeningsLeadMaskingScore" : 0.020370446125410543,
+      "harmonyLeadMaskingScore" : 0.07351458457661224,
+      "highBandEnergyRatio" : 0.026905223457244252,
+      "integratedLUFS" : -17.43979712422046,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0.0035817796282698665,
+      "layerAudibilityDB" : {
+        "bass" : -7.37418457251157,
+        "happenings" : -3.901130184533111,
+        "harmony" : -19.21898088349259,
+        "lead" : -17.950730894535198,
+        "rhythm" : -2.7691769653424334
+      },
+      "lowBandEnergyRatio" : 0.5116328890124365,
+      "maximumAbsoluteDCOffset" : 4.756899442062388e-05,
+      "midBandEnergyRatio" : 0.46146188753031914,
+      "reverbTailEnergyRatio" : 0.22274827498397773,
+      "reverbTailEnergyRatioByRole" : {
+        "bass" : 0.06421211905751475,
+        "happenings" : 0.0659881492099704,
+        "harmony" : 0.22274827498397773,
+        "lead" : 0.08547195228377602,
+        "rhythm" : 0.0053530726460846055
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -0.11374137491988859,
+          "reverbSendAdjustment" : -0.017061206237983288,
+          "role" : "harmony"
+        }
+      ],
+      "transientDensityPerSecond" : 3.2083333333333335,
+      "truePeakDBTP" : -2.3879105352480696
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "bass" : 1056000,
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "bass",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 7,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 16.123450638427975,
+      "happeningsLeadMaskingScore" : 0.04409585727617858,
+      "harmonyLeadMaskingScore" : 0.16367980510028607,
+      "highBandEnergyRatio" : 0.02631072411039834,
+      "integratedLUFS" : -17.319670396445602,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0.035621723984623724,
+      "layerAudibilityDB" : {
+        "bass" : -24.06682528105057,
+        "happenings" : -16.28523125056614,
+        "harmony" : -13.706217563866126,
+        "lead" : -17.900599378694817,
+        "rhythm" : -0.24275412695337392
+      },
+      "lowBandEnergyRatio" : 0.9079663903783095,
+      "maximumAbsoluteDCOffset" : 7.572570140443343e-05,
+      "midBandEnergyRatio" : 0.06572288551129228,
+      "reverbTailEnergyRatio" : 1.2466597345164374,
+      "reverbTailEnergyRatioByRole" : {
+        "bass" : 0.11656613771210293,
+        "happenings" : 0.31938550538153254,
+        "harmony" : 1.2466597345164374,
+        "lead" : 0.1007685401488032,
+        "rhythm" : 0.004973697176362658
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "harmony"
+        },
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -0.5969275269076626,
+          "reverbSendAdjustment" : -0.08953912903614938,
+          "role" : "happenings"
+        }
+      ],
+      "transientDensityPerSecond" : 0.875,
+      "truePeakDBTP" : -1.3324680034885963
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "bass" : 1056000,
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 8,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 19.05580294482652,
+      "happeningsLeadMaskingScore" : 0.06292992617340684,
+      "harmonyLeadMaskingScore" : 0.005897852421259804,
+      "highBandEnergyRatio" : 0.01805416683162469,
+      "integratedLUFS" : -20.090860363484047,
+      "issues" : [
+        "integratedLoudness",
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0,
+      "layerAudibilityDB" : {
+        "bass" : -120,
+        "happenings" : -18.027218069743228,
+        "harmony" : -35.95554289775775,
+        "lead" : -14.347470310092953,
+        "rhythm" : -0.1923301770713432
+      },
+      "lowBandEnergyRatio" : 0.9189772813868843,
+      "maximumAbsoluteDCOffset" : 4.058178189826666e-05,
+      "midBandEnergyRatio" : 0.0629685517814911,
+      "reverbTailEnergyRatio" : 5.7751995798530364,
+      "reverbTailEnergyRatioByRole" : {
+        "happenings" : 5.7751995798530364,
+        "harmony" : 5.0442645235354176e-05,
+        "lead" : 0.10437571286958013,
+        "rhythm" : 0.003839161591129741
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "happenings"
+        }
+      ],
+      "transientDensityPerSecond" : 2.125,
+      "truePeakDBTP" : -1.329666746751573
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : true,
+    "publicNumber" : 9,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 15.918415465075062,
+      "happeningsLeadMaskingScore" : 0.033379250610661375,
+      "harmonyLeadMaskingScore" : 0.09964249320304584,
+      "highBandEnergyRatio" : 0.00467446185128788,
+      "integratedLUFS" : -17.253882480376415,
+      "issues" : [
+
+      ],
+      "kickBassLowBandCorrelation" : 0,
+      "layerAudibilityDB" : {
+        "bass" : -120,
+        "happenings" : -3.75253763785052,
+        "harmony" : -14.899872607272243,
+        "lead" : -17.18241384876069,
+        "rhythm" : -2.5051015038060607
+      },
+      "lowBandEnergyRatio" : 0.5565829147608059,
+      "maximumAbsoluteDCOffset" : 3.6305944169874004e-05,
+      "midBandEnergyRatio" : 0.4387426233879063,
+      "reverbTailEnergyRatio" : 0.11494554385282062,
+      "reverbTailEnergyRatioByRole" : {
+        "happenings" : 0.03556722953414774,
+        "harmony" : 0.0009185954661003762,
+        "lead" : 0.11494554385282062,
+        "rhythm" : 0.003942804089677958
+      },
+      "suggestions" : [
+
+      ],
+      "transientDensityPerSecond" : 2.5,
+      "truePeakDBTP" : -3.014746221374301
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "bass",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 10,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 16.106896426687833,
+      "happeningsLeadMaskingScore" : 0.03371843188187956,
+      "harmonyLeadMaskingScore" : 0.1356712393268037,
+      "highBandEnergyRatio" : 0.008537915886309812,
+      "integratedLUFS" : -17.713692087875902,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0.011490626184197925,
+      "layerAudibilityDB" : {
+        "bass" : -22.4729155449149,
+        "happenings" : -17.097683130490093,
+        "harmony" : -14.436419491982628,
+        "lead" : -17.140653602484775,
+        "rhythm" : -0.2244733883598286
+      },
+      "lowBandEnergyRatio" : 0.932472634346265,
+      "maximumAbsoluteDCOffset" : 5.026611324978435e-05,
+      "midBandEnergyRatio" : 0.05898944976742511,
+      "reverbTailEnergyRatio" : 1.3777499733223133,
+      "reverbTailEnergyRatioByRole" : {
+        "bass" : 0.07367510257344585,
+        "happenings" : 0.06635800363366319,
+        "harmony" : 1.3777499733223133,
+        "lead" : 0.1055004364561784,
+        "rhythm" : 0.0049713359393032935
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -1,
+          "reverbSendAdjustment" : -0.15,
+          "role" : "harmony"
+        }
+      ],
+      "transientDensityPerSecond" : 0.8333333333333334,
+      "truePeakDBTP" : -1.3122886212657185
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "bass" : 1056000,
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : true,
+    "publicNumber" : 11,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 16.69454933648963,
+      "happeningsLeadMaskingScore" : 0.05301040979633142,
+      "harmonyLeadMaskingScore" : 0.03484583729214706,
+      "highBandEnergyRatio" : 0.002453769345754084,
+      "integratedLUFS" : -17.24956737048627,
+      "issues" : [
+
+      ],
+      "kickBassLowBandCorrelation" : 0,
+      "layerAudibilityDB" : {
+        "bass" : -120,
+        "happenings" : -6.097714949348426,
+        "harmony" : -34.347424184793105,
+        "lead" : -21.1871576108617,
+        "rhythm" : -1.224051069267098
+      },
+      "lowBandEnergyRatio" : 0.7329099503998839,
+      "maximumAbsoluteDCOffset" : 2.8872898454264173e-05,
+      "midBandEnergyRatio" : 0.264636280254362,
+      "reverbTailEnergyRatio" : 0.13250294349170816,
+      "reverbTailEnergyRatioByRole" : {
+        "happenings" : 0.13250294349170816,
+        "harmony" : 0.04944085852701247,
+        "lead" : 0.0868793636815845,
+        "rhythm" : 0.0038957758559404853
+      },
+      "suggestions" : [
+
+      ],
+      "transientDensityPerSecond" : 3.9583333333333335,
+      "truePeakDBTP" : -2.1305403590598324
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  },
+  {
+    "activeRoles" : [
+      "rhythm",
+      "harmony",
+      "happenings",
+      "lead"
+    ],
+    "passes" : false,
+    "publicNumber" : 12,
+    "report" : {
+      "clippedSampleRatio" : 0,
+      "crestFactorDB" : 16.262314711979094,
+      "happeningsLeadMaskingScore" : 0.08441995407911276,
+      "harmonyLeadMaskingScore" : 0.04663157341366734,
+      "highBandEnergyRatio" : 0.011590359682917155,
+      "integratedLUFS" : -17.48129816376625,
+      "issues" : [
+        "excessiveReverbTail"
+      ],
+      "kickBassLowBandCorrelation" : 0,
+      "layerAudibilityDB" : {
+        "bass" : -120,
+        "happenings" : -12.915294316086978,
+        "harmony" : -11.372768094250691,
+        "lead" : -13.03602198928365,
+        "rhythm" : -0.6007654512952696
+      },
+      "lowBandEnergyRatio" : 0.8605380271402223,
+      "maximumAbsoluteDCOffset" : 6.542906561656021e-05,
+      "midBandEnergyRatio" : 0.12787161317686044,
+      "reverbTailEnergyRatio" : 0.3136318062861927,
+      "reverbTailEnergyRatioByRole" : {
+        "happenings" : 0.02564807537975226,
+        "harmony" : 0.3136318062861927,
+        "lead" : 0.1442292535001921,
+        "rhythm" : 0.005539108691578138
+      },
+      "suggestions" : [
+        {
+          "additionalDuckingDB" : 0,
+          "cutoffMultiplier" : 1,
+          "gainAdjustmentDB" : -0.5681590314309634,
+          "reverbSendAdjustment" : -0.0852238547146445,
+          "role" : "harmony"
+        }
+      ],
+      "transientDensityPerSecond" : 1.2916666666666667,
+      "truePeakDBTP" : -1.328772610715592
+    },
+    "seed" : 99,
+    "tailBoundaryFrames" : {
+      "happenings" : 1056000,
+      "harmony" : 1056000,
+      "lead" : 1056000,
+      "rhythm" : 1056000
+    }
+  }
+]

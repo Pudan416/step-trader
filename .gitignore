@@ -141,3 +141,11 @@ output/
 # Local agent workspaces and visual brainstorming state
 .worktrees/
 .superpowers/
+.impeccable/
+
+# Standalone browser projects are kept locally outside the iOS integration PR.
+.sites/
+/canvas-sound-lab/
+/web/shader-roulette/
+/artifacts/chromatic-confluence/
+/DesignReferences/DayObjects/source/random-gradient-circle.html

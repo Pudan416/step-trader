@@ -3,6 +3,7 @@ import StoreKit
 import Combine
 import UserNotifications
 import BackgroundTasks
+import WidgetKit
 
 struct Task7UITestAccessibilityConfiguration: Equatable {
     let dynamicTypeSize: DynamicTypeSize?
@@ -68,6 +69,21 @@ private struct Task7UITestAccessibilityModifier: ViewModifier {
 
 // MARK: - AppDelegate (Remote Notifications)
 class AppDelegate: NSObject, UIApplicationDelegate {
+    static var canvasViewing = false
+
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.canvasViewing ? .allButUpsideDown : .portrait
+    }
+
+    static func allowCanvasRotation(_ enabled: Bool) {
+        guard canvasViewing != enabled else { return }
+        canvasViewing = enabled
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            scene.windows.forEach { $0.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations() }
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: enabled ? .allButUpsideDown : .portrait))
+        }
+    }
+
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
         AppLogger.notifications.debug("📲 APNs token: \(hex)")
@@ -88,13 +104,31 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct StepsTraderApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    var body: some Scene {
+        WindowGroup {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("ui-testing") &&
+                ProcessInfo.processInfo.arguments.contains("ui-testing-ticket-settings") {
+                TicketSettingsUITestFixtureView()
+            } else {
+                StepsTraderProductionRoot()
+            }
+            #else
+            StepsTraderProductionRoot()
+            #endif
+        }
+    }
+}
+
+private struct StepsTraderProductionRoot: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
     @StateObject private var announcementService = AnnouncementService.shared
     @State private var coachMarkManager = CoachMarkManager()
-    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.night.rawValue
+    @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
     /// Single versioned int that replaces the old 4-flag onboarding state machine
     /// (`hasSeenIntro_v3`, `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
     /// `hasMigratedOnboarding_v1`). Migration from those flags happens once on
@@ -107,6 +141,8 @@ struct StepsTraderApp: App {
     /// Currently presented feature tip (wallpaper / widgets nudge), or `nil`.
     /// Driven by `presentFeatureTipIfNeeded()` on scenePhase `.active`.
     @State private var activeFeatureTip: FeatureTip?
+    @State private var pendingWidgetUnlock: (request: WidgetUnlockRequest, receivedAt: Date)?
+    @State private var isProcessingWidgetUnlock = false
 
     /// At most one feature tip per process lifetime — repeated
     /// background→foreground cycles must not stack tips in one session.
@@ -124,6 +160,46 @@ struct StepsTraderApp: App {
     }
 
     init() {
+        let processArguments = ProcessInfo.processInfo.arguments
+
+        if processArguments.contains("ui-testing-me-static-poster") {
+            let dayKey = AppModel.dayKey(for: Date.now)
+            var canvas = DayCanvas(dayKey: dayKey)
+            let fixtureDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+            canvas.elements = [
+                CanvasElement(
+                    id: UUID(uuidString: "A83479D2-BEFA-40C8-AB45-A951FF2A7B0F")!,
+                    kind: .circle,
+                    optionId: "ui-test-static-poster",
+                    label: "Static poster fixture",
+                    hexColor: "#B58AE8",
+                    hexColor2: "#4EC5D4",
+                    size: 0.24,
+                    basePosition: CGPoint(x: 0.5, y: 0.5),
+                    phaseOffset: 0.75,
+                    driftSpeed: 2,
+                    driftAmplitude: 0.12,
+                    pulseFrequency: 2.5,
+                    pulseAmplitude: 0.1,
+                    rotationSpeed: 1,
+                    opacity: 0.9,
+                    createdAt: fixtureDate,
+                    shapeSeed: 42,
+                    lastEditedAt: fixtureDate,
+                    frozenShapeType: .snowflake
+                )
+            ]
+            canvas.sleepPoints = 14
+            canvas.stepsPoints = 16
+            canvas.inkEarned = 30
+            canvas.gradientStyle = GradientStyle.mesh.rawValue
+            canvas.gradientPalette = GradientPalette.aurora.rawValue
+            canvas.hasStepsData = true
+            canvas.hasSleepData = true
+            canvas.lastModified = fixtureDate
+            CanvasStorageService.shared.saveCanvas(canvas)
+        }
+
         // Task 7 screenshot scenarios mutate today's additions. Xcode reuses the
         // installed app container across UI-test methods, so without resetting
         // this fixture-only state an "all used" test empties the palette for
@@ -134,7 +210,25 @@ struct StepsTraderApp: App {
                 for: AppModel.dayKey(for: Date.now)
             )
         }
-        _model = StateObject(wrappedValue: DIContainer.shared.makeAppModel())
+        if processArguments.contains("ui-testing-happening-editor"),
+           processArguments.contains("ui-testing-task7") {
+            let defaults = UserDefaults.stepsTrader()
+            defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            defaults.removeObject(forKey: SharedKeys.happeningCatalog)
+        }
+        if ProcessInfo.processInfo.arguments.contains("ui-testing-settings") {
+            let appearance = UserDefaults.standard
+            appearance.set(CanvasVisualStyle.legacy.rawValue, forKey: SharedKeys.canvasVisualStyle)
+            appearance.set(GradientStyle.radial.rawValue, forKey: SharedKeys.gradientStyle)
+            appearance.set(GradientPalette.warmSunset.rawValue, forKey: SharedKeys.gradientPalette)
+            appearance.set(false, forKey: SharedKeys.dailyRandomThemeEnabled)
+            let defaults = UserDefaults.stepsTrader()
+            defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
+            defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
+            defaults.set(0, forKey: SharedKeys.dayEndHour)
+            defaults.set(0, forKey: SharedKeys.dayEndMinute)
+        }
+        _model = StateObject(wrappedValue: DIContainer.shared.applicationModel)
 
         // Register the MetricKit subscriber early so diagnostics aggregated since
         // the last run (crashes/hangs/exceptions) are delivered and reported.
@@ -154,7 +248,7 @@ struct StepsTraderApp: App {
         standardDefaults.set(nextLaunchCount, forKey: "appLaunchCount")
 
         // Mirror theme to app-group so the wallpaper Shortcut intent can read it reliably.
-        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.night.rawValue
+        let themeRaw = UserDefaults.standard.string(forKey: "appTheme") ?? AppTheme.system.rawValue
         UserDefaults(suiteName: SharedKeys.appGroupId)?.set(themeRaw, forKey: "appTheme")
 
         // NOTE: UINavigationBar / UITabBar appearance proxies were previously
@@ -228,8 +322,36 @@ struct StepsTraderApp: App {
         )
     }
 
-    var body: some Scene {
-        WindowGroup {
+    var body: some View {
+        Group {
+            #if DEBUG
+            // Debug-only shortcut: `-uiLab dayObjects` opens the experiment
+            // straight from launch. Driving the settings path with synthetic
+            // taps is unreliable enough that verifying a shader visually
+            // otherwise costs more than building it.
+            if let lab = ExperimentalLabRoute.current {
+                NavigationStack { lab.view }
+            } else {
+                appBody
+            }
+            #else
+            appBody
+            #endif
+        }
+        .font(AppFonts.body)
+        .modifier(NowhereLaunchPresentation())
+        .modifier(TodayCanvasBackdropHost(model: model))
+        .onOpenURL { handleWidgetOpenApp($0) }
+        .onChange(of: model.didCompleteBootstrap) { _, ready in
+            if ready { processPendingWidgetUnlock() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { processPendingWidgetUnlock() }
+        }
+    }
+
+    @ViewBuilder
+    private var appBody: some View {
             GlassShimmerProvider {
             ZStack {
                 if hasCompletedOnboarding || isUITest {
@@ -312,7 +434,6 @@ struct StepsTraderApp: App {
                 FeatureTipSheet(tip: tip)
             }
             .themed(currentTheme)
-            .tint(currentTheme.accentColor)
             .grayscale(0)
             .environment(coachMarkManager)
             .modifier(
@@ -478,31 +599,95 @@ struct StepsTraderApp: App {
                     }
                 }
             }
-            .onOpenURL { url in
-                handleWidgetOpenApp(url)
-            }
-            .tint(currentTheme.accentColor)
             .background(currentTheme.backgroundColor)
             .preferredColorScheme(currentTheme.colorScheme)
             } // GlassShimmerProvider
-        }
     }
 
     private func handleWidgetOpenApp(_ url: URL) {
+        SharedKeys.recordWidgetInteraction("URL received scheme=\(url.scheme ?? "nil") host=\(url.host ?? "nil") state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+        if url.scheme == "steps-trader", url.host == "unlock" {
+            guard !isProcessingWidgetUnlock, pendingWidgetUnlock == nil,
+                  let request = WidgetUnlockRequest.consume(url, defaults: SharedKeys.appGroupDefaults()) else {
+                SharedKeys.recordWidgetInteraction("unlock URL rejected or already processing", source: "app")
+                return
+            }
+            pendingWidgetUnlock = (request, Date())
+            processPendingWidgetUnlock()
+            return
+        }
         // §5.7: validate `bundleId` against a strict reverse-DNS pattern before
         // looking it up. Caps the input shape to what real bundle IDs look like
         // (`com.example.app`, optionally with dots and hyphens) so unexpected
         // strings can't reach logs or any future telemetry through this path.
         let bundleIdPattern = #"^[a-zA-Z0-9](?:[a-zA-Z0-9\-]*\.)*[a-zA-Z0-9][a-zA-Z0-9\-]*$"#
-        guard url.host == "openapp",
+        guard url.scheme == "steps-trader", url.host == "openapp",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let bundleId = components.queryItems?.first(where: { $0.name == "bundleId" })?.value,
               bundleId.range(of: bundleIdPattern, options: .regularExpression) != nil,
               TargetResolver.canOpen(bundleId: bundleId)
-        else { return }
+        else {
+            SharedKeys.recordWidgetInteraction("URL rejected by openapp route validation", source: "app")
+            return
+        }
 
         Task { @MainActor in
-            AppLauncher.open(bundleId: bundleId)
+            SharedKeys.recordWidgetInteraction("opening registered target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+            AppLauncher.open(bundleId: bundleId) { success in
+                SharedKeys.recordWidgetInteraction("target open result=\(success) target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+            }
+        }
+    }
+
+    private func processPendingWidgetUnlock() {
+        guard model.didCompleteBootstrap, scenePhase == .active,
+              !isProcessingWidgetUnlock, let pending = pendingWidgetUnlock else { return }
+        pendingWidgetUnlock = nil
+        guard Date().timeIntervalSince(pending.receivedAt) < 120 else {
+            SharedKeys.recordWidgetInteraction("unlock request expired during startup", source: "app")
+            WidgetCenter.shared.reloadAllTimelines()
+            return
+        }
+        isProcessingWidgetUnlock = true
+        Task { @MainActor in
+            defer {
+                isProcessingWidgetUnlock = false
+                model.writeWidgetSnapshot()
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            let request = pending.request
+            guard let window = AccessWindow(rawValue: request.windowRaw),
+                  let group = model.ticketGroups.first(where: { $0.id == request.groupId }),
+                  group.settings.familyControlsModeEnabled,
+                  group.enabledIntervals.contains(window) else {
+                SharedKeys.recordWidgetInteraction("unlock rejected: group or interval no longer active", source: "app")
+                return
+            }
+            model.checkDayBoundary()
+            // AuthorizationCenter starts as notDetermined in each process. Refresh
+            // it through the supported request API in the foreground main app.
+            do {
+                try await model.familyControlsService.requestAuthorization()
+            } catch {
+                model.payGateError = UsageBudgetMonitoringError.notAuthorized.userFacingMessage
+                SharedKeys.recordWidgetInteraction("unlock authorization failed", source: "app")
+                return
+            }
+            model.checkDayBoundary()
+            guard model.totalStepsBalance >= group.cost(for: window) else {
+                model.payGateError = String(localized: "Not enough colors")
+                SharedKeys.recordWidgetInteraction("unlock refused: insufficient current balance", source: "app")
+                return
+            }
+            SharedKeys.recordWidgetInteraction("unlock in app group=\(group.id) authorized=\(model.familyControlsService.isAuthorized)", source: "app")
+            guard await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: nil) else {
+                SharedKeys.recordWidgetInteraction("unlock purchase failed group=\(group.id)", source: "app")
+                return
+            }
+            SharedKeys.recordWidgetInteraction("unlock completed group=\(group.id) minutes=\(window.minutes) balance=\(model.totalStepsBalance)", source: "app")
+            // Purchasing time never launches the target. Its card remains the
+            // separate, explicit launch action (including cached URL widgets).
+
         }
     }
 
@@ -560,6 +745,13 @@ struct StepsTraderApp: App {
             clearPayGateFlags(userDefaults)
             return
         }
+
+        let requestedAt = userDefaults.object(forKey: SharedKeys.payGateRequestedAt) as? Date
+        guard AppModel.isPayGateRequestFresh(requestedAt: requestedAt) else {
+            AppLogger.app.debug("⌛️ PayGate flags ignored: request older than \(Int(AppModel.payGateRequestMaxAge / 60)) min")
+            clearPayGateFlags(userDefaults)
+            return
+        }
         
         // User explicitly tapped a notification → override any dismiss cooldown.
         // The 10s cooldown exists to prevent re-open loops after manual dismiss,
@@ -595,6 +787,9 @@ struct StepsTraderApp: App {
         userDefaults.removeObject(forKey: SharedKeys.shouldShowPayGate)
         userDefaults.removeObject(forKey: SharedKeys.payGateTargetGroupId)
         userDefaults.removeObject(forKey: SharedKeys.payGateTargetBundleId)
+        // Cleared with the rest of the request, so a consumed flag cannot leave its
+        // timestamp behind for the next one to be judged against.
+        userDefaults.removeObject(forKey: SharedKeys.payGateRequestedAt)
     }
 
     private func isRecentPayGateOpen(groupId: String, userDefaults: UserDefaults) -> Bool {
@@ -669,14 +864,67 @@ struct StepsTraderApp: App {
 
 }
 
-private extension StepsTraderApp {
+#if DEBUG
+private struct TicketSettingsUITestFixtureView: View {
+    @State private var group = TicketGroup(
+        id: "ui-testing-study",
+        name: "Study",
+        settings: AppUnlockSettings(entryCostSteps: 10, dayPassCostSteps: 100),
+        enabledIntervals: []
+    )
+    @State private var showsSettings = false
+    @State private var isDeleted = false
+
+    var body: some View {
+        ZStack {
+            Color.clear
+                .accessibilityElement()
+                .accessibilityIdentifier("ui-testing-ticket-settings.isolatedRoot")
+                .accessibilityLabel("Isolated ticket settings fixture")
+                .allowsHitTesting(false)
+
+            Button(String(localized: "Feeds")) {
+                guard !isDeleted else { return }
+                showsSettings = true
+            }
+            .accessibilityIdentifier("tab_feeds")
+        }
+        .sheet(isPresented: $showsSettings) {
+            NavigationStack {
+                TicketSettingsContentView(
+                    group: $group,
+                    onEditApps: {},
+                    onAfterDelete: {
+                        showsSettings = false
+                    },
+                    updateGroup: { updatedGroup in
+                        group = updatedGroup
+                    },
+                    deleteTicketGroup: { _ in
+                        isDeleted = true
+                    },
+                    isUsageBudgetActive: { _ in false },
+                    unspentUsageBudget: { _ in 0 },
+                    availableStepsBalance: { 0 },
+                    handlePayGatePayment: { _, _, _ in }
+                )
+                .padding()
+                .navigationTitle(String(localized: "Study"))
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+    }
+}
+#endif
+
+private extension StepsTraderProductionRoot {
     var currentTheme: AppTheme {
         AppTheme.normalized(rawValue: appThemeRaw)
     }
 }
 
 // MARK: - Notification Handling
-extension StepsTraderApp {
+extension StepsTraderProductionRoot {
     func setupNotificationHandling() {
         NotificationDelegate.shared.model = model
     }

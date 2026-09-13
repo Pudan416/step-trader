@@ -1,0 +1,5 @@
+label=gate6-pre-checksum-seal-guard
+expected_exit=zero
+working_directory=/Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-task1b-attempt5-3e5f309
+source_commit=3e5f3095167889b3a9ae5a8145ef0103489e6e3c
+command=swift artifacts/day-objects-editorial-field/director/task-1b-3e5f309-attempt5/audit/gate6/seal-guard.swift artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale1-candidate artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale1-rerender artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale3-candidate artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale3-rerender /Users/kosta/Documents/Documents\ -\ Konstantin’s\ MacBook\ Pro/dev\ local/step-trader/.worktrees/editorial-task1b-baseline-attempt5-622b7b5/artifacts/day-objects-editorial-field/material/baseline-622b7b5-attempt5/scale1

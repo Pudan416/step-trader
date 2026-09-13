@@ -52,6 +52,15 @@ final class HealthKitService: HealthKitServiceProtocol {
         self.sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)
     }
 
+    /// `lastStepCount` is the live-today fallback used by the canvas. Historical
+    /// gallery queries must neither consume nor replace it.
+    static func shouldUseLiveStepCache(
+        queryEnd: Date,
+        now: Date = .now
+    ) -> Bool {
+        queryEnd >= now.addingTimeInterval(-5 * 60)
+    }
+
     @MainActor
     func authorizationStatus() -> HKAuthorizationStatus {
         // Return status for steps (primary type)
@@ -210,9 +219,14 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
     
     func fetchSteps(from start: Date, to end: Date) async throws -> Double {
+        let usesLiveCache = Self.shouldUseLiveStepCache(queryEnd: end)
         guard let stepType = stepType else {
-            log.warning("Step type not available, returning cached: \(self.lastStepCount)")
-            return lastStepCount
+            if usesLiveCache {
+                log.warning("Step type not available, returning cached: \(self.lastStepCount)")
+                return lastStepCount
+            }
+            log.warning("Step type not available for historical query, returning 0")
+            return 0
         }
 
         // Passive HKStatisticsQuery does not show the permission sheet.
@@ -268,7 +282,7 @@ final class HealthKitService: HealthKitServiceProtocol {
                         return
                     }
                     log.error("HealthKit error: \(error.localizedDescription)")
-                    if self.lastStepCount > 0 {
+                    if usesLiveCache, self.lastStepCount > 0 {
                         continuation.resume(returning: self.lastStepCount)
                     } else {
                         continuation.resume(throwing: error)
@@ -278,8 +292,10 @@ final class HealthKitService: HealthKitServiceProtocol {
 
                 let steps = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
                 let prevCached = self.lastStepCount
-                self.lastStepCount = steps
-                log.info("👣 fetchSteps RESULT: HK returned \(Int(steps)) steps (was cached: \(Int(prevCached)))")
+                if usesLiveCache {
+                    self.lastStepCount = steps
+                }
+                log.info("👣 fetchSteps RESULT: HK returned \(Int(steps)) steps (live cache: \(usesLiveCache), was: \(Int(prevCached)))")
                 if steps > 0 {
                     self.logAuthorizationStatus(context: "fetchTodaySteps:data-available")
                 }

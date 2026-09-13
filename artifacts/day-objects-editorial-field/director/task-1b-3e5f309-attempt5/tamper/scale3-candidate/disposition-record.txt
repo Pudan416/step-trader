@@ -1,0 +1,4 @@
+disposition=preserved_disposable_copy_outside_repository
+path=/private/tmp/task1b-attempt5-scale3-candidate-tamper.NELXwV/package
+staging_eligible=no
+source_package_untouched=yes

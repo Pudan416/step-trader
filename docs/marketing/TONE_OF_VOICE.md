@@ -1,183 +1,299 @@
-# Tone of Voice — Nowhere (Nowhere)
+# Tone of voice — Nowhere
 
-This document defines the writing voice used across the app. Every string — onboarding, notifications, shields, notes, labels — should feel like it came from the same person.
+This guide defines how Nowhere speaks in the product and in closely related brand writing. It is aligned with the current positioning in `PRODUCT.md`.
 
-## Who is speaking
+Nowhere sounds like a **quiet witness**: attentive, direct, and calm. It notices what happened without judging the person, soothing them, or telling them how to live.
 
-A single human (Konstantin) who built this for himself and is sharing it. Not a brand, not a company, not a coach. A person who noticed he was living the same day on repeat, and made something about it.
+## Voice architecture
 
-## Core personality
+Nowhere has two distinct speakers. They share the same values, but they do different jobs.
 
-| Trait | Meaning | Example |
+| Speaker | Where it appears | How it sounds |
 |---|---|---|
-| **First-person honest** | "I" is the default pronoun. The app talks *with* you, not *at* you. | "Recently I've found myself living the same day over and over." |
-| **Quietly philosophical** | Statements land without exclamation marks. No hype. | "Time doesn't refill. Steps do." |
-| **Sparse** | Say less. If a sentence can be cut, cut it. | "Let's feel present." (not "Let's start our journey to presence together!") |
-| **Grounded in the body** | Physical language — walking, sleeping, feeling, touching. Not abstract self-help. | "Walking adds bright color." / "Sleep adds the dark tones." |
-| **Warm but never cheery** | The warmth is in the honesty, not in positivity. No forced optimism. | "You are now here." (not "Great job! You're amazing!") |
-| **Anti-productivity** | Never frames actions as achievements. No streak celebrations, no "keep it up!" | "The canvas is not a to-do list. It is a mirror of the day." |
+| **Kosta** | Notes from Kosta, the opening of onboarding, occasional signed founder copy | Personal, concise, observant. Uses “I” only when the personal context adds meaning. |
+| **The product** | Interface, shields, notifications, settings, errors, data, and the functional part of onboarding | Neutral, precise, and restrained. Explains the state or the next available action. Does not perform a personality. |
 
-## Writing rules
+Onboarding moves from one voice to the other: Kosta briefly explains why Nowhere exists, then the product clearly explains how it works.
 
-### 1. Lowercase bias
-Use lowercase for UI labels and short phrases. Reserve Title Case for navigation titles only.
+Do not make the whole app sound like Kosta. Do not make Kosta sound like a company.
 
-- **Yes:** "spend colors", "keep it closed", "all notes", "mostly from"
-- **No:** "Spend Colors", "Keep It Closed"
+## Relationship with the person
 
-Exceptions: proper nouns ("Nowhere"), app-level navigation ("Settings", "Canvas", "Me").
+Nowhere speaks peer to peer through **you**.
 
-### 2. Short sentences, separate lines
-The onboarding presents one thought per line. This rhythm applies everywhere.
+It understands that attention drifts. It does not turn that understanding into reassurance, and it does not turn a choice into a verdict.
 
-```
-"So I thought —"
-"am I even being present?"
-"And I made this app."
-```
+The intended feeling is:
 
-Not: "So I thought — am I even being present? And I made this app."
+> I feel understood, but not excused.
 
-### 3. No exclamation marks
-The voice does not shout. Period is the default. Question marks are fine sparingly.
+Nowhere can state an uncomfortable fact plainly:
 
-- **Yes:** "Colors restored. 30 min."
-- **No:** "Colors restored! You got 30 min!"
+> You opened it for a minute. Twenty minutes passed.
 
-### 4. Questions over instructions
-When asking the user to do something, prefer a question or a gentle statement.
+It should not add guilt, consolation, or a lesson unless the context genuinely requires an explanation.
 
-- **Yes:** "How about you?" / "What about you?"
-- **No:** "Set your step goal now."
+## Core voice attributes
 
-### 5. Contractions and casual dashes
-The voice is conversational but not sloppy. Contractions ("can't", "you'll", "it's") are fine. Em dashes — used for pauses, not semicolons.
+### Observant
 
-- **Yes:** "You can't buy them, but..."
-- **No:** "You cannot purchase them; however..."
+- **We are:** specific about what happened.
+- **We are not:** interpretive, diagnostic, or therapeutic.
+- **This sounds like:** “Nothing was recorded for this day.”
+- **Not like:** “It looks like you needed a slower day. Be kind to yourself.”
 
-### 6. Metaphor over metric
-Prefer metaphorical, sensory language over technical descriptions.
+### Direct
 
-- **Yes:** "Walking adds bright color." / "Sleep adds the dark tones."
-- **No:** "Steps contribute to your daily score." / "Sleep hours are tracked."
+- **We are:** clear about states, choices, and consequences.
+- **We are not:** harsh, dramatic, or euphemistic.
+- **This sounds like:** “Instagram is closed. Open Nowhere to choose more time.”
+- **Not like:** “Your digital wellbeing journey is taking a mindful pause.”
 
-### 7. "The" not "your" (for app concepts)
-The canvas, the day, the threshold — these are shared concepts, not possessions.
+### Calm
 
-- **Yes:** "The canvas is not a to-do list."
-- **No:** "Your canvas is not a to-do list."
+- **We are:** measured, unhurried, and emotionally steady.
+- **We are not:** cheery, motivational, or solemn.
+- **This sounds like:** “Couldn’t start the timer. Your colors were refunded.”
+- **Not like:** “Oops! Don’t worry — your colors are safe!”
 
-Exception: when speaking directly about the user's personal data ("Your canvas is different every day." — here it is literally theirs).
+### Grounded in lived experience
 
-### 8. No moral lectures
-Never tell the user what they should feel or do. Present the choice, not the judgment.
+- **We are:** close to sleep, steps, movement, attention, memory, and the actual day.
+- **We are not:** focused on self-improvement, scores, or abstract wellbeing.
+- **This sounds like:** “Sleep lays down the dark. Steps bring in the light.”
+- **Not like:** “Optimize your daily wellness score.”
 
-- **Yes:** "Feeds are the places where minutes disappear. Not evil, not good — just expensive."
-- **No:** "You're spending too much time on social media."
+### Dryly human
 
-## Vocabulary
+- **We are:** occasionally ironic when it removes pretension.
+- **We are not:** playful at the person’s expense or clever in every line.
+- **This sounds like:** “Feeds are not evil. They’re just expensive.”
+- **Not like:** “Caught doomscrolling again?”
 
-### Preferred terms
+## Messaging hierarchy
 
-| Concept | Use | Avoid |
-|---|---|---|
-| Energy unit | **colors** | points, coins, credits, XP |
-| App blocking | **closed** / **ticket** / **threshold** | blocked, locked, restricted |
-| Daily metric | **canvas** | dashboard, summary, stats |
-| Activities | **body, mind, heart** | fitness, wellness, self-care |
-| App time | **feeds** | social media, screen time |
-| Paying colors | **spend** | use, consume, pay |
-| Earning colors | **earn** / **bring** | gain, collect, accrue |
-| The day's visual | **canvas** | wallpaper (only when literally exported) |
-| Daily categories | **body, mind, heart** | exercise, creativity, joys |
-| App name | **Nowhere** or **Nowhere** | the app, our app |
+When several ideas compete for space, use this order:
 
-### Words that set the mood
-
-Use freely: canvas, colors, threshold, proof, mirror, shape, color, breath, pause, dark, bright, weight, quiet, alive, present, honest, trade, mark, room, glow, direction, foundation.
-
-Avoid: optimize, achieve, streak, crush, reward, badge, milestone, gamify, level up, productivity, hack, grind, hustle.
+1. **The lived day comes first.** Nowhere begins with how a person slept, where they walked, what they did, or what they noticed.
+2. **Memory comes before measurement.** The canvas and archive help a person recognize a day, not grade it.
+3. **Choice stays visible.** Nowhere makes the exchange between lived activity, colors, and feed access clear without declaring the choice good or bad.
+4. **The mechanism serves the life outside the phone.** Colors and the canvas are useful metaphors, not a separate fantasy world.
+5. **Feeds are neutral.** They are places a person may choose to open. Nowhere does not present technology as an enemy.
 
 ## Tone by surface
 
 ### Onboarding
-The most personal, narrative voice. First person. Reflective. Asks questions.
 
-> "Recently I've found myself living the same day over and over."
-> "Walking adds bright color. I need about 7k steps to feel nice. How about you?"
-> "By the way, I'm Konstantin. Who are you?"
+The opening is the most personal part of the product. Kosta gives a brief, honest reason for making Nowhere. He does not tell his life story or claim to have solved the problem.
 
-### Shield (blocked app screen)
-Factual. Brief. No guilt.
+After that, the product takes over. The mechanism should be easier to understand than the philosophy behind it.
 
-> "Instagram is closed."
-> "Open Nowhere to spend colors."
+**Kosta:**
+
+> “I made Nowhere because I wanted less of my life to disappear into my phone.”
+
+**Product:**
+
+> “Sleep, steps, and happenings add colors to the day.”
+> “Spend colors when you choose to open feeds.”
+
+### Notes from Kosta
+
+A note is a short author’s mark, not a miniature essay.
+
+- One thought.
+- A few lines at most.
+- Personal only when the personal detail explains the idea.
+- Philosophical language is welcome when it remains concrete.
+- A question is occasional, not a required ending.
+- No advice disguised as reflection.
+
+> “The canvas is not a score.
+> It is what the day left behind.”
+
+### Happenings
+
+Happenings are the one place where the product may actively turn attention back toward the day. The prompt is functional: remember something and record it.
+
+> “Think back. What else did you do today?”
+> “Add a happening”
+
+Do not generalize this into a product-wide habit of offering life advice.
+
+### Shields and feed access
+
+State the current condition and the available choice. This is not the place for philosophy, jokes, or guilt.
+
+> “Instagram is closed.”
+> “Open Nowhere to choose more time.”
+> “10 min · 5 colors”
+> “Keep it closed”
 
 ### Notifications
-Telegram-short. No emoji. State the fact.
 
-> "An app is closed. Open Nowhere to spend colors."
-> "Colors restored. 30 min."
-> "Colors left: 10 min."
+Notifications are entirely factual. They are not tiny Notes from Kosta.
 
-### Notes (in-app reflections)
-Literary. Serif-weight. Each note reads like a single thought from a notebook.
+> “Colors restored. 30 min.”
+> “Colors left: 10 min.”
+> “Instagram closes in 5 min.”
 
-> "The canvas is not a to-do list. It is a mirror of the day — what you chose, what you skipped, what left a mark."
-> "Steps are the raw currency. Not a fitness metric — a proof that the body moved through the world, not just through feeds."
-> "A limit is not a punishment. It is a threshold — a moment of pause before you decide if the screen deserves more of you."
+No encouragement, reflection, emoji, or artificial warmth.
 
-### Labels and buttons
-Lowercase. Verb-first or noun. Minimal.
+### Settings, permissions, errors, and data
 
-> "spend colors" / "keep it closed" / "10 min" / "all notes"
-> "Next" / "Allow" / "Let's go" / "Login"
+Use plain system language. Say what happened, what is unknown, and what the person can do next.
 
-### Settings and data
-Neutral, system-like. Slightly warmer than stock iOS.
+> “Sleep data is unavailable.”
+> “Allow Health access to add sleep and steps.”
+> “Couldn’t start the timer. Your colors were refunded.”
 
-> "End of day" / "Daily reset time" / "Points reset at this time every day."
-> "Appearance" / "Limits" / "About"
+Unknown data stays unknown. Never rewrite missing data as zero.
 
-### Me view (stats)
-Data-first. Concise. Monospaced numbers.
+### Canvas and archive
 
-> "My week" / "42 earned · 18 spent · 24 kept"
-> "avg 7.2h sleep · 8,400 steps / day"
-> "No activity yet"
+Favor recognition over analysis. Metrics can provide context, but they do not define the day.
 
-### PayGate (unlock screen)
-Direct. Black and gold. The choice is clear without pressure.
+> “Nothing was recorded for this day.”
+> “Saved days”
+> “Last seven days”
 
-> "spend colors"
-> "10 min · 5 colors"
-> "keep it closed"
+Avoid success language, streaks, grades, and interpretations of what an empty day means.
 
-### Footer / tagline
-The philosophy compressed into one line.
+## Writing rules
 
-> "You are not nowhere. You are now here."
+### Use sentence case
 
-## Sentence templates
+Sentence case is the default for headings, buttons, labels, and messages. Capitalize proper nouns and official feature names normally.
 
-When writing new copy, use these patterns:
+- **Yes:** “Spend colors”, “Keep it closed”, “Daily reset time”
+- **No:** “spend colors”, “KEEP IT CLOSED”, “Daily Reset Time”
 
-| Pattern | Example |
-|---|---|
-| `[Thing] is [metaphor].` | "The canvas is a mirror of the day." |
-| `[Thing] is not [wrong assumption]. It is [truth].` | "A limit is not a punishment. It is a threshold." |
-| `[Short fact]. [Consequence].` | "Colors restored. 30 min." |
-| `[Question without setup].` | "How about you?" / "Who are you?" |
-| `[Verb] + [object], no preamble.` | "spend colors" / "keep it closed" |
-| `Not [x], not [y] — just [z].` | "Not evil, not good — just expensive." |
+Character should come from the words and rhythm, not forced lowercase.
 
-## Anti-patterns (never do this)
+### Keep one idea per sentence
 
-- "Congratulations! You've earned 20 colors!" — no celebration language.
-- "Keep going! Only 3,000 steps to your goal!" — no coaching.
-- "You've been on Instagram for 45 minutes today" — no guilt data.
-- "Unlock Premium for unlimited access" — no upsell copy.
-- "Welcome back! We missed you!" — no fake emotion.
-- "Share your progress with friends!" — no viral growth hooks.
-- Any sentence with "journey", "empower", "unlock your potential", or "level up".
+Prefer short, complete sentences. A fragment is fine when it is a natural label or status. Do not break ordinary prose into separate lines just to make it feel poetic.
+
+### Address the person directly
+
+Use **you** when the copy concerns their action, choice, or data.
+
+- The product does not use **I**.
+- Kosta may use **I** in signed or clearly personal contexts.
+- Avoid the corporate **we**.
+
+### Give instructions only when they are functional
+
+Buttons, permissions, recovery steps, and happening prompts can use direct verbs. The product should not instruct the person how to feel or live.
+
+- **Yes:** “Open Settings”, “Choose feeds”, “Add a happening”
+- **No:** “Put the phone down”, “Go for a walk”, “Make today count”
+
+### Use questions sparingly
+
+Ask a question when the answer is part of the interaction or when a Note genuinely benefits from leaving a thought open. Do not turn every instruction into a soft question.
+
+- **Yes:** “What else did you do today?”
+- **No:** “How about setting your step goal now?”
+
+### Do not reassure by default
+
+Avoid wellness language and unsolicited emotional interpretation.
+
+- **Yes:** “No sleep data was recorded.”
+- **No:** “Nothing went wrong. Tomorrow is another day.”
+
+### Keep metaphor in its place
+
+The main image world is lived experience: the body, sleep, walking, attention, memory, and the day.
+
+Canvas, colors, marks, and exchange explain the product’s mechanism. They should not make simple UI copy vague. System messages remain literal.
+
+### Use numbers honestly
+
+Numbers describe what was recorded. They do not prove effort, worth, or the quality of a day.
+
+- **Yes:** “7,842 steps”
+- **No:** “A productive day”
+- **Yes:** “No data”
+- **No:** “0” when the data is unavailable
+
+### Keep punctuation quiet
+
+- No exclamation marks in product copy.
+- No emoji.
+- Use contractions in conversational writing.
+- Use em dashes with spaces when a real pause helps.
+- Avoid ellipses as manufactured drama.
+
+## Terminology
+
+| Concept | Prefer | Avoid |
+|---|---|---|
+| Product name | **Nowhere** | our app, the Nowhere app when Nowhere is enough |
+| Limited creative resource | **colors** | points, coins, credits, XP, rewards |
+| Daily visual trace | **canvas** | dashboard, score, performance summary |
+| Things a person did or experienced | **happenings** | body/mind/heart categories, achievements, tasks |
+| Selected apps opened through Nowhere | **feeds** | bad apps, addictive apps, distractions as a moral label |
+| Feed state | **open / closed** | punished, forbidden, failed |
+| Adding resource | **add / bring colors** | win, collect, grind, level up |
+| Exchanging resource for access | **spend colors** | redeem rewards, claim a prize |
+| A persisted day | **saved day / saved trace** | successful day, completed day |
+
+Use **activity data** only in technical, permission, or health-data contexts. In the visible product experience, prefer the specific source: sleep, steps, or happenings.
+
+## Preferred and avoided language
+
+### Prefer
+
+day, sleep, steps, walk, movement, happening, notice, remember, mark, trace, canvas, color, open, closed, spend, choose, recorded, saved, quiet, dark, light
+
+### Avoid
+
+optimize, achieve, streak, crush, reward, badge, milestone, gamify, level up, productivity, hack, grind, hustle, journey, empower, unlock your potential, digital detox, doomscrolling
+
+Also avoid language that assumes an emotion or invents intimacy:
+
+- “Be kind to yourself.”
+- “We missed you.”
+- “You’ve got this.”
+- “Great job.”
+- “Don’t feel guilty.”
+
+## Before and after
+
+| Avoid | Use instead | Why |
+|---|---|---|
+| “You’re out of colors. Don’t worry — tomorrow is another day.” | “Think back. What else did you do today?” | In a happenings context, return attention to the day instead of offering consolation. |
+| “You’ve been wasting time on Instagram.” | “You spent 20 minutes on Instagram.” | State the fact without interpreting it. |
+| “No activity today.” | “Nothing was recorded for this day.” | Do not confuse missing records with an empty life. |
+| “Earn rewards by staying active.” | “Sleep, steps, and happenings add colors.” | Explain the mechanism without productivity language. |
+| “Take back control from addictive apps.” | “Spend colors when you choose to open feeds.” | Keep feeds neutral and the person’s choice visible. |
+| “We built Nowhere to empower mindful living.” | “I made Nowhere because I wanted less of my life to disappear into my phone.” | Use a real person and a concrete reason. |
+
+## Anti-patterns
+
+Never make Nowhere sound like:
+
+- a wellness app offering reassurance;
+- a coach celebrating progress or prescribing behavior;
+- a productivity tool measuring better and worse days;
+- a digital-detox sermon blaming technology;
+- an art brand hiding simple ideas behind misty language;
+- a friend pretending to have feelings about the person;
+- a founder narrating every part of the interface.
+
+## Copy check
+
+Before shipping a string, ask:
+
+1. Is the right speaker talking: Kosta or the product?
+2. Does the copy state what is known without inventing meaning?
+3. Is it direct without becoming a judgment?
+4. Is any reassurance actually necessary?
+5. Is an instruction functional rather than behavioral?
+6. Does the metaphor clarify the mechanism?
+7. Could missing data be mistaken for zero or failure?
+8. Can a word, sentence, or flourish be removed?
+
+If the copy notices clearly and then gets out of the way, it is probably Nowhere.

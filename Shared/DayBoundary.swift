@@ -53,6 +53,24 @@ enum DayBoundary {
         return calendar.date(byAdding: .day, value: 1, to: todayCutoff) ?? todayCutoff
     }
 
+    /// Purchased usage is available until the custom day ends. Its amount is
+    /// enforced by DeviceActivityEvent thresholds, never by elapsed clock time.
+    static func purchaseExpiry(
+        minutes: Int,
+        dayEndHour: Int,
+        dayEndMinute: Int,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        let dayEnd = nextBoundary(
+            after: now,
+            dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute,
+            calendar: calendar
+        )
+        return minutes > 0 ? dayEnd : now
+    }
+
     /// True when `anchor` (e.g. persisted `dailyEnergyAnchor`) is for a different custom day than `date`.
     /// Main app resets energy when it launches; the widget can run first, so defaults/snapshot can lag.
     static func isPersistedDayBehind(

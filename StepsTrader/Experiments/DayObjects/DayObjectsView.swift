@@ -1,0 +1,66 @@
+import SwiftUI
+
+struct DayObjectsView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
+    let sceneInput: DayObjectSceneInput
+    let digitalImpact: DayObjectDigitalImpact
+    let isAnimating: Bool
+    let soundPulseBus: DayObjectsSoundPulseBus?
+    let presentationMode: DayObjectsPresentationMode
+
+    private let scene: DayObjectScene
+    private let environment: DayObjectEnvironment
+
+    init(
+        sceneInput: DayObjectSceneInput,
+        digitalImpact: DayObjectDigitalImpact = .none,
+        isAnimating: Bool = true,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas
+    ) {
+        self.sceneInput = sceneInput
+        self.digitalImpact = digitalImpact
+        self.isAnimating = isAnimating
+        self.soundPulseBus = soundPulseBus
+        self.presentationMode = presentationMode
+        scene = DayObjectScene.make(input: sceneInput)
+        environment = DayObjectEnvironment(
+            motionEnergy: sceneInput.motionEnergy,
+            visualClarity: sceneInput.visualClarity
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: ([scene.palette.backgroundBase] + scene.palette.backgroundFields).map(Self.color),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            DayObjectsMetalView(
+                scene: scene,
+                environment: environment,
+                digitalImpact: digitalImpact,
+                isAnimating: isAnimating && scenePhase == .active,
+                soundPulseBus: soundPulseBus,
+                presentationMode: presentationMode
+            )
+        }
+        .clipped()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Day Objects canvas")
+        .accessibilityValue("Spent colors \(digitalImpact.spentColors)")
+        .accessibilityIdentifier("dayObjects.canvas")
+    }
+
+    private static func color(_ linearRGB: SIMD3<Float>) -> Color {
+        Color(
+            .sRGBLinear,
+            red: Double(linearRGB.x),
+            green: Double(linearRGB.y),
+            blue: Double(linearRGB.z),
+            opacity: 1
+        )
+    }
+}

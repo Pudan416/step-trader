@@ -1,0 +1,92 @@
+{
+  "assignmentFormula" : "SHA256(domain\\0candidatePackageHash\\0baselinePackageHash\\0conditionKey).firstByte & 1",
+  "baselinePackageHash" : "c5fcd68d43b57443c56a7b9934566baf178ed46c5c2ef53d18b90b76b6ba1c51",
+  "baselineSourceCommit" : "622b7b50e0a4594ab47889a2265748e51e94e523",
+  "candidatePackageHash" : "09c092ed48a969c81145b789da7f123106c21b124020c3122de7fbd2bf508852",
+  "candidateSourceCommit" : "3e5f3095167889b3a9ae5a8145ef0103489e6e3c",
+  "conditions" : [
+    {
+      "AIdentity" : "candidate",
+      "assignmentBit" : 0,
+      "assignmentInputSHA256" : "86eb093a086a9c94c72dfa52026df427728a0665a352f6504c28cc1e357f9d15",
+      "BIdentity" : "baseline",
+      "conditionKey" : "c1-light",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-1-light-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-1-light-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "candidate",
+      "assignmentBit" : 0,
+      "assignmentInputSHA256" : "d05f80ccdea153b94fdc175dd6bae91c8b70f3859793201fb84c22c9704976a5",
+      "BIdentity" : "baseline",
+      "conditionKey" : "c1-dark",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-1-dark-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-1-dark-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "baseline",
+      "assignmentBit" : 1,
+      "assignmentInputSHA256" : "052c29e505ac1e045d9397db6b29159c1de34a5caeb6b3a1d462c81a6c7c409b",
+      "BIdentity" : "candidate",
+      "conditionKey" : "c1-lowContrast",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-1-lowContrast-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-1-lowContrast-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "candidate",
+      "assignmentBit" : 0,
+      "assignmentInputSHA256" : "c8db8a8dd42229ba2a00758d3942b2f8b8e36fbb6a3c82278879c5f1e6bb97e0",
+      "BIdentity" : "baseline",
+      "conditionKey" : "c2-light",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-2-light-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-2-light-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "baseline",
+      "assignmentBit" : 1,
+      "assignmentInputSHA256" : "3984fab652472434a324b74512704a865dd0c442de34c63efd31adc677530b66",
+      "BIdentity" : "candidate",
+      "conditionKey" : "c2-dark",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-2-dark-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-2-dark-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "candidate",
+      "assignmentBit" : 0,
+      "assignmentInputSHA256" : "2afdafdeefb40b9b895a2557d6132cbb00968ef3ff52cdcbf292fb7f7aebaa9b",
+      "BIdentity" : "baseline",
+      "conditionKey" : "c2-lowContrast",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-2-lowContrast-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-2-lowContrast-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "baseline",
+      "assignmentBit" : 1,
+      "assignmentInputSHA256" : "d5f3edf2c2ef0ea4d000d54dd77d73fedd7cda5bf6a67e6d6eae038f1b1cf692",
+      "BIdentity" : "candidate",
+      "conditionKey" : "c3-light",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-3-light-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-3-light-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "candidate",
+      "assignmentBit" : 0,
+      "assignmentInputSHA256" : "40849c4c199946cb322c0b26c0c311f46ef127c16a9e7b2674d617132fd2dd8b",
+      "BIdentity" : "baseline",
+      "conditionKey" : "c3-dark",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-3-dark-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-3-dark-layout-11-tile@1x.png"
+    },
+    {
+      "AIdentity" : "candidate",
+      "assignmentBit" : 0,
+      "assignmentInputSHA256" : "4680e0f36ee29ecd2398fabd5d9a4df2412aa30f68f9ecae652d5d8baa754a6f",
+      "BIdentity" : "baseline",
+      "conditionKey" : "c3-lowContrast",
+      "fullSourceRelativePath" : "scene-scale/outline/outline-colors-3-lowContrast-layout-11-full@1x.png",
+      "tileSourceRelativePath" : "scene-scale/outline/outline-colors-3-lowContrast-layout-11-tile@1x.png"
+    }
+  ],
+  "domain" : "day-objects-outline-task1b-ab-v1",
+  "version" : "day-objects-outline-task1b-ab-assignment-v1"
+}

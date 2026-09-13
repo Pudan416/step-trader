@@ -1,6 +1,70 @@
 import SwiftUI
 import UIKit
 
+enum HappeningSelectionPhase: Equatable {
+    case idle
+    case previewing
+    case committing
+    case reflowing
+}
+
+enum HappeningSelectionTapDecision: Equatable {
+    case preview
+    case switchPreview(previousID: String)
+    case commit
+    case ignored
+}
+
+struct HappeningSelectionTransitionState: Equatable {
+    private(set) var phase: HappeningSelectionPhase = .idle
+    private(set) var selectedID: String?
+
+    mutating func handleTap(id: String) -> HappeningSelectionTapDecision {
+        switch phase {
+        case .idle:
+            selectedID = id
+            phase = .previewing
+            return .preview
+        case .previewing:
+            if selectedID == id {
+                phase = .committing
+                return .commit
+            }
+            let previousID = selectedID
+            selectedID = id
+            return previousID.map(HappeningSelectionTapDecision.switchPreview(previousID:)) ?? .preview
+        case .committing, .reflowing:
+            return .ignored
+        }
+    }
+
+    var isInteractionLocked: Bool {
+        phase == .committing || phase == .reflowing
+    }
+
+    mutating func resolveCommit(id: String, accepted: Bool) -> Bool {
+        guard phase == .committing, selectedID == id else { return false }
+        guard accepted else {
+            phase = .previewing
+            return false
+        }
+        phase = .reflowing
+        return true
+    }
+
+    mutating func finishCommit(id: String) -> Bool {
+        guard phase == .reflowing, selectedID == id else { return false }
+        phase = .idle
+        selectedID = nil
+        return true
+    }
+
+    mutating func cancelSelection() {
+        phase = .idle
+        selectedID = nil
+    }
+}
+
 enum RemovalPhase: Equatable {
     case idle
     case pressing
@@ -73,83 +137,39 @@ struct HappeningFieldTransitionState: Equatable {
     }
 }
 
-/// Session presentation state shared by the field and its surrounding controls.
-/// Parent updates refresh metadata, while ids consumed in this mounted session
-/// stay consumed even if `onPick` synchronously republishes its old array.
+/// Configured slots stay present across Canvas membership and metadata updates.
 struct HappeningFieldPresentationState: Equatable {
-    private(set) var slotHappenings: [Happening]
     private(set) var presentedHappenings: [Happening]
-
-    private var sessionRemovedIDs: Set<String> = []
-    private var pendingParentHappenings: [Happening]?
+    var slotHappenings: [Happening] { presentedHappenings }
+    var presentedCount: Int { presentedHappenings.count }
 
     init(happenings: [Happening]) {
-        let initial = Array(happenings.prefix(10))
-        slotHappenings = initial
-        presentedHappenings = initial
-    }
-
-    var presentedCount: Int {
-        presentedHappenings.count
+        presentedHappenings = Array(happenings.prefix(10))
     }
 
     func layout(
         in size: CGSize,
         safeInsets: EdgeInsets,
-        dynamicTypeSize: DynamicTypeSize = .large
+        dynamicTypeSize: DynamicTypeSize = .large,
+        contentTopInset: CGFloat? = nil,
+        dockCenterY: CGFloat? = nil
     ) -> HappeningFieldLayout.Layout {
         HappeningFieldLayout.layout(
             count: presentedCount,
             in: size,
             safeInsets: safeInsets,
-            dynamicTypeSize: dynamicTypeSize
+            dynamicTypeSize: dynamicTypeSize,
+            contentTopInset: contentTopInset,
+            dockCenterY: dockCenterY
         )
     }
 
-    mutating func remove(id: String) -> Bool {
-        guard presentedHappenings.contains(where: { $0.id == id }) else { return false }
-        sessionRemovedIDs.insert(id)
-        presentedHappenings.removeAll { $0.id == id }
-        return true
+    mutating func receiveParent(_ configured: [Happening]) {
+        presentedHappenings = Array(configured.prefix(10))
     }
 
-    mutating func receiveParent(_ happenings: [Happening], whileTransitioning: Bool) {
-        if whileTransitioning {
-            pendingParentHappenings = happenings
-        } else {
-            mergeParent(happenings)
-        }
-    }
-
-    mutating func finishTransition() {
-        guard let pendingParentHappenings else { return }
-        self.pendingParentHappenings = nil
-        mergeParent(pendingParentHappenings)
-    }
-
-    mutating func reset(with happenings: [Happening]) {
-        let initial = Array(happenings.prefix(10))
-        slotHappenings = initial
-        presentedHappenings = initial
-        sessionRemovedIDs.removeAll()
-        pendingParentHappenings = nil
-    }
-
-    private mutating func mergeParent(_ happenings: [Happening]) {
-        let removedIDs = sessionRemovedIDs
-        let eligible = Array(
-            happenings
-                .filter { !removedIDs.contains($0.id) }
-                .prefix(10)
-        )
-        let replacements = Dictionary(uniqueKeysWithValues: happenings.map { ($0.id, $0) })
-
-        slotHappenings = slotHappenings.map { replacements[$0.id] ?? $0 }
-        var slotIDs = Set(slotHappenings.map(\.id))
-        for happening in eligible where slotIDs.insert(happening.id).inserted {
-            slotHappenings.append(happening)
-        }
-        presentedHappenings = eligible
+    mutating func reset(with configured: [Happening]) {
+        receiveParent(configured)
     }
 }
 
@@ -253,11 +273,9 @@ enum HappeningFieldLabelTypography {
     }
 
     static func scaledUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
-        let base = UIFont.systemFont(ofSize: pointSize, weight: .semibold)
-        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
-        let roundedBase = UIFont(descriptor: descriptor, size: pointSize)
-        return UIFontMetrics(forTextStyle: .footnote).scaledFont(
-            for: roundedBase,
+        AppTypography.scaledUIFont(
+            size: pointSize,
+            relativeTo: .footnote,
             compatibleWith: UITraitCollection(
                 preferredContentSizeCategory: contentSizeCategory(for: dynamicTypeSize)
             )

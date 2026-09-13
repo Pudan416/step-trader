@@ -1,0 +1,16 @@
+#pragma once
+#include "MetalShapePalette.metalh"
+
+static void metalShapeShadeProceduralFlow(
+    float2 p,
+    float2 direction,
+    float materialPhase,
+    float body,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color,
+    thread float & alpha) {
+    const float warped = dot(p, direction) * 5.4
+        + sin(dot(p, float2(-direction.y, direction.x)) * 3.1 + materialPhase) * 1.25;
+    alpha = body;
+    color = metalShapePalette(0.5 + 0.5 * sin(warped * 0.54 + 1.1), m);
+}

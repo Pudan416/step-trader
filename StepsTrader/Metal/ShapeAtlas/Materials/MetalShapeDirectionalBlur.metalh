@@ -1,0 +1,44 @@
+#pragma once
+#include "../Geometry/MetalShapeDistance.metalh"
+
+static void metalShapeShadeDirectionalBlur(
+    float2 p,
+    float2 direction,
+    float antialias,
+    constant MetalShapeGenomeUniforms & g,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color,
+    thread float & alpha) {
+    const float2 blurPoint = p * 1.42;
+    const float axis = dot(blurPoint, direction);
+    // A continuous increase in edge softness, with no seam between body and blur.
+    const float progression = smoothstep(-0.65, 0.95, axis);
+    const float extent = m.metadata.y == 1u ? 0.42 : (m.metadata.y == 3u ? 0.70 : 0.56);
+    const float spread = mix(0.0025, extent, progression * progression);
+    const float shiftedDistance = metalShapeDistance(blurPoint - direction * progression * 0.10, g);
+    const float sigma = max(antialias, spread);
+    alpha = 1.0 / (1.0 + exp(clamp(1.7 * shiftedDistance / sigma, -30.0, 30.0)));
+    alpha *= 1.0 - smoothstep(1.38, 1.90, length(blurPoint));
+    if (g.metadata.x == 1u && g.metadata.y == 6u && g.metadata.z == 17u) {
+        // Only a narrow leading rim stays crisp; softness grows immediately behind it.
+        const float early = smoothstep(-0.98, 0.10, axis);
+        const float edgeSoftness = 0.0025 + 0.82 * pow(early, 1.1);
+        const float edgeDistance = metalShapeDistance(blurPoint - direction * early * 0.15, g);
+        alpha = 1.0 / (1.0 + exp(clamp(1.7 * edgeDistance / max(antialias, edgeSoftness), -30.0, 30.0)));
+        alpha *= 1.0 - smoothstep(-0.88, 1.30, axis);
+        alpha *= 1.0 - smoothstep(1.40, 1.91, length(blurPoint));
+    }
+    if (g.metadata.x == 1u && g.metadata.y == 5u && g.metadata.z == 5u) {
+        // Keep only the leading tip: the rest opens into a diffuse light beam.
+        const float travel = axis + 0.86;
+        const float crossAxis = dot(blurPoint, float2(-direction.y, direction.x));
+        const float diffusion = smoothstep(0.0, 1.75, travel);
+        const float beamSigma = 0.004 + 0.60 * pow(diffusion, 1.15);
+        const float sideDistance = abs(crossAxis) - max(travel, 0.0) * 0.44;
+        const float sides = 1.0 / (1.0 + exp(clamp(1.7 * sideDistance / beamSigma, -30.0, 30.0)));
+        alpha = sides * smoothstep(-0.015, 0.035, travel)
+            * (1.0 - smoothstep(0.16, 2.58, travel))
+            * (1.0 - smoothstep(1.45, 1.91, length(blurPoint)));
+    }
+    color = m.metadata.y == 2u ? mix(m.color0.rgb, m.color1.rgb, progression) : m.color0.rgb;
+}

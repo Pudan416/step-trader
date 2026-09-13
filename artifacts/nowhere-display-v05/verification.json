@@ -1,0 +1,56 @@
+{
+  "Regular": {
+    "sha256": "b540e472405f1ce888b8e58e683c36ad8d7eb1b365a13e667530fa22cd18fa77",
+    "encoded_characters": 163,
+    "glyphs": 173,
+    "changed": [
+      "&",
+      "@",
+      "G",
+      "e",
+      "f",
+      "g",
+      "h",
+      "m",
+      "n",
+      "r",
+      "t",
+      "е",
+      "к",
+      "ё"
+    ],
+    "shaped_pairs_checked": 29041,
+    "minimum_checked_near_gap": 25.81,
+    "valid_contours": true,
+    "unchanged_glyphs_preserved": true,
+    "woff2_outlines_identical": true,
+    "curved_outline_checks": true
+  },
+  "Bold": {
+    "sha256": "bea524cdaee5725db43f0396cb9ead2adc50a56218dbcec3c3540a8315240c54",
+    "encoded_characters": 163,
+    "glyphs": 173,
+    "changed": [
+      "&",
+      "@",
+      "G",
+      "e",
+      "f",
+      "g",
+      "h",
+      "m",
+      "n",
+      "r",
+      "t",
+      "е",
+      "к",
+      "ё"
+    ],
+    "shaped_pairs_checked": 29041,
+    "minimum_checked_near_gap": 34.21,
+    "valid_contours": true,
+    "unchanged_glyphs_preserved": true,
+    "woff2_outlines_identical": true,
+    "curved_outline_checks": true
+  }
+}

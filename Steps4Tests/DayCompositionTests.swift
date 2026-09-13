@@ -6,6 +6,13 @@ import XCTest
 /// this, so a canvas reads as one work and two days read as different works.
 final class DayCompositionTests: XCTestCase {
 
+    func testDayCompositionOffersTheFiveApprovedFillKinds() {
+        XCTAssertEqual(
+            Set(TextureKind.allCases.map(\.rawValue)),
+            Set(["flat", "gradient", "rings", "hatch", "outline"])
+        )
+    }
+
     // MARK: - Determinism
 
     func testCompositionIsReproducibleFromTheDayKey() {
@@ -297,18 +304,25 @@ final class DayCompositionTests: XCTestCase {
 
     // MARK: - Texture policy
 
-    func testTexturePolicyMixesDominantAndAccent() {
+    func testTexturePolicyUsesOneFillForEveryFigureInTheDay() {
         let policy = TexturePolicy(dominant: .gradient, accent: .hatch, accentShare: 0.3)
         let kinds = (0..<20).map { policy.kind(forRank: $0) }
-        XCTAssertTrue(kinds.contains(.gradient))
-        XCTAssertTrue(kinds.contains(.hatch))
-        XCTAssertGreaterThan(kinds.filter { $0 == .gradient }.count,
-                             kinds.filter { $0 == .hatch }.count,
-                             "Dominant must dominate")
+        XCTAssertEqual(Set(kinds), [.gradient])
+    }
+
+    func testDayChoosesItsSingleFillOnlyFromAllowedFills() {
+        let composition = DayComposition.forDay(
+            dayKey: "2026-08-16",
+            happeningCount: 8,
+            allowedTextureKinds: [.outline]
+        )
+
+        XCTAssertEqual(composition.texturePolicy.dominant, .outline)
+        XCTAssertEqual(Set((0..<20).map(composition.texturePolicy.kind(forRank:))), [.outline])
     }
 
     func testTexturePolicyIsDeterministic() {
-        let policy = TexturePolicy(dominant: .stipple, accent: .flat, accentShare: 0.4)
+        let policy = TexturePolicy(dominant: .rings, accent: .flat, accentShare: 0.4)
         XCTAssertEqual((0..<20).map { policy.kind(forRank: $0) },
                        (0..<20).map { policy.kind(forRank: $0) })
     }
@@ -322,11 +336,12 @@ final class DayCompositionTests: XCTestCase {
                              "A month should not use one dominant fill")
     }
 
-    func testAccentIsNeverTheDominant() {
+    func testLegacyAccentFieldsCollapseToTheSingleDayFill() {
         for day in 1...100 {
             let policy = DayComposition.forDay(
                 dayKey: "2026-05-\(day % 28 + 1)", happeningCount: 6).texturePolicy
-            XCTAssertNotEqual(policy.dominant, policy.accent)
+            XCTAssertEqual(policy.dominant, policy.accent)
+            XCTAssertEqual(policy.accentShare, 0)
         }
     }
 

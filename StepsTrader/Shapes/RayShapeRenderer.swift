@@ -97,7 +97,8 @@ enum RayShapeRenderer {
         decay: Double,
         blendMode: GraphicsContext.BlendMode,
         ampScale: Double,
-        interaction: ElementInteraction?
+        interaction: ElementInteraction?,
+        spec: TextureSpec = TextureSpec(kind: .gradient, density: 0.5, uniformity: 1, angle: 0)
     ) {
         let dim = Double(min(size.width, size.height))
         let effectiveSize = Double(e.userSize ?? CGFloat(e.size))
@@ -130,6 +131,31 @@ enum RayShapeRenderer {
         )
 
         let opacity = (0.7 + breathe * 0.3) * (1.0 - decay * 0.4)
+
+        if spec.kind == .outline {
+            var cone = Path()
+            cone.move(to: CGPoint(x: anchor.x, y: anchor.y - halfH * 0.82))
+            cone.addLine(to: CGPoint(x: anchor.x - halfW * 0.62, y: anchor.y + halfH * 0.72))
+            cone.addQuadCurve(
+                to: CGPoint(x: anchor.x + halfW * 0.62, y: anchor.y + halfH * 0.72),
+                control: CGPoint(x: anchor.x, y: anchor.y + halfH * 0.92)
+            )
+            cone.closeSubpath()
+            let color = Color(hex: e.hexColor2 ?? e.hexColor)
+            context.drawLayer { ctx in
+                ctx.opacity = opacity
+                ctx.blendMode = blendMode
+                ctx.translateBy(x: anchor.x, y: anchor.y)
+                ctx.rotate(by: rotation)
+                ctx.translateBy(x: -anchor.x, y: -anchor.y)
+                ctx.stroke(
+                    cone,
+                    with: .color(color.opacity(0.78)),
+                    style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)
+                )
+            }
+            return
+        }
 
         if let symbol = context.resolveSymbol(id: e.id) {
             context.drawLayer { ctx in

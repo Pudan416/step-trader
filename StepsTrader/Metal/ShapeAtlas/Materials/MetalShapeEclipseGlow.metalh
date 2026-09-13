@@ -1,0 +1,14 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static void metalShapeShadeEclipseGlow(
+    float distance,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color,
+    thread float & alpha) {
+    const float outside = max(distance, 0.0);
+    const float edge = exp(-distance * distance * 2100.0);
+    const float halo = exp(-outside * outside * 58.0) * smoothstep(0.30, 0.0, outside);
+    alpha = max(edge, halo * 0.72) * smoothstep(-0.10, -0.015, distance);
+    color = mix(m.color1.rgb, m.color0.rgb, smoothstep(0.0, 0.28, outside));
+}

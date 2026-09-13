@@ -6,114 +6,96 @@ struct SettingsEnergyPage: View {
     @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
     @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHourSetting: Int = 0
     @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
-    @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.appTheme) private var theme
 
-    private var allowedBedtimeMinutes: [Int] { DayEndOptions.allowedMinutes }
-
-    @State private var bedtimeMinutes: Int = 23 * 60
+    private var dayStartMinutes: Binding<Int> {
+        Binding(
+            get: { dayEndHourSetting * 60 + dayEndMinuteSetting },
+            set: { minutes in
+                guard DayEndOptions.allowedMinutes.contains(minutes) else { return }
+                // Keep the model as the single writer so it can re-anchor the day.
+                model.updateDayEnd(hour: minutes / 60, minute: minutes % 60)
+            }
+        )
+    }
 
     var body: some View {
         ZStack {
-            SettingsGradientBG(model: model)
+            SettingsDetailBackground(model: model)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    DetailHeader(title: String(localized: "Limits", comment: "Settings section title"))
-                        .padding(.horizontal, 16)
-
                     // MARK: - Steps
-                    VStack(spacing: 12) {
-                        sectionHeader(
-                            icon: "figure.walk",
-                            title: String(localized: "Daily Steps Goal"),
-                            color: AppColors.brandAccent,
-                            value: formatCompactNumber(Int(stepsTarget))
-                        )
+                    SettingsGroupedSurface {
+                        VStack(spacing: 12) {
+                            sectionHeader(
+                                icon: "figure.walk",
+                                title: String(localized: "Daily step goal"),
+                                color: AppColors.brandAccent
+                            )
 
-                        StepGoalDrumPicker(value: $stepsTarget)
-                            .padding(.bottom, 14)
-                            .onChange(of: stepsTarget) { _, _ in
-                                model.recalculateDailyEnergy()
-                            }
-                    }
-                    .padding(.horizontal, 16)
-
-                    DetailDivider().padding(.horizontal, 16)
-
-                    // MARK: - Sleep Goal
-                    VStack(spacing: 12) {
-                        sectionHeader(
-                            icon: "bed.double.fill",
-                            title: String(localized: "Sleep Goal"),
-                            color: Color.indigo
-                        )
-
-                        SleepDurationStepper(hours: $sleepTarget)
-                            .frame(maxWidth: .infinity)
-                            .padding(.bottom, 14)
-                            .onChange(of: sleepTarget) { _, _ in
-                                model.recalculateDailyEnergy()
-                            }
-                    }
-                    .padding(.horizontal, 16)
-
-                    DetailDivider().padding(.horizontal, 16)
-
-                    // MARK: - Day Reset
-                    VStack(spacing: 10) {
-                        sectionHeader(
-                            icon: "clock.arrow.circlepath",
-                            title: String(localized: "Day Resets At"),
-                            color: Color.orange
-                        )
-
-                        DayResetTimePicker(
-                            selectedMinutes: $bedtimeMinutes,
-                            allowedMinutes: allowedBedtimeMinutes
-                        )
-                        .padding(.bottom, 14)
-                        .onChange(of: bedtimeMinutes) { _, newValue in
-                            let hour = (newValue / 60) % 24
-                            let minute = newValue % 60
-                            // model.updateDayEnd is the single (debounced) writer of
-                            // the persisted boundary; writing dayEndHour/MinuteSetting
-                            // here too would race the re-anchor → false day rollover.
-                            model.updateDayEnd(hour: hour, minute: minute)
+                            StepGoalDrumPicker(value: $stepsTarget)
+                                .environment(\.appTheme, .night)
+                                .padding(.bottom, 14)
+                                .onChange(of: stepsTarget) { _, _ in
+                                    model.recalculateDailyEnergy()
+                                }
                         }
                     }
                     .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.steps")
 
-                    SettingsFooter(text: String(localized: "Your canvas and colors reset at this time each day."))
+                    // MARK: - Sleep Goal
+                    SettingsGroupedSurface {
+                        VStack(spacing: 12) {
+                            sectionHeader(
+                                icon: "bed.double.fill",
+                                title: String(localized: "Sleep goal"),
+                                color: Color.indigo
+                            )
+
+                            SleepDurationStepper(hours: $sleepTarget)
+                                .environment(\.appTheme, .night)
+                                .frame(maxWidth: .infinity)
+                                .padding(.bottom, 14)
+                                .onChange(of: sleepTarget) { _, _ in
+                                    model.recalculateDailyEnergy()
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.sleep")
+
+                    // MARK: - Day Start
+                    SettingsGroupedSurface {
+                        VStack(spacing: 10) {
+                            sectionHeader(
+                                icon: "clock.arrow.circlepath",
+                                title: String(localized: "Day starts at"),
+                                color: Color.orange
+                            )
+
+                            DayResetTimePicker(
+                                selectedMinutes: dayStartMinutes,
+                                allowedMinutes: DayEndOptions.allowedMinutes
+                            )
+                            .padding(.bottom, 14)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("settings.yourDay.boundary")
+
+                    SettingsFooter(text: String(localized: "Late-night activity stays in the previous day until this time."))
                         .padding(.horizontal, 20)
                 }
                 .padding(.bottom, 80)
             }
         }
         .overlay { }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: topCardHeight)
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .detailSwipeBack()
-        .onAppear { syncBedtimeFromStorage() }
-    }
-
-    /// Mirrors `DayEndSettingsView.syncSelectedFromStorage()`: if the stored dayEnd
-    /// is off-grid, snap to the nearest valid step and write the snapped value back so
-    /// the picker UI and persistent state agree.
-    private func syncBedtimeFromStorage() {
-        let current = dayEndHourSetting * 60 + dayEndMinuteSetting
-        if allowedBedtimeMinutes.contains(current) {
-            bedtimeMinutes = current
-            return
-        }
-        let snapped = DayEndOptions.nearestAllowed(to: current)
-        bedtimeMinutes = snapped
-        let h = (snapped / 60) % 24
-        let m = snapped % 60
-        // model.updateDayEnd persists the snapped boundary itself (single writer).
-        model.updateDayEnd(hour: h, minute: m)
+        .settingsDetailPage(title: String(localized: "Goals & schedule", comment: "Settings section title"))
     }
 
     // MARK: - Shared
@@ -121,17 +103,17 @@ struct SettingsEnergyPage: View {
     private func sectionHeader(icon: String, title: String, color: Color, value: String? = nil) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.geist(size: 14, weight: .semibold))
                 .foregroundStyle(color)
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
             Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(theme.adaptivePrimaryText)
+                .font(.geist(.subheadline).weight(.semibold))
+                .foregroundStyle(SettingsCardAppearance.primaryText)
             Spacer()
             if let value {
                 Text(value)
-                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .font(.geist(.subheadline).weight(.bold).monospacedDigit())
                     .foregroundStyle(color)
             }
         }

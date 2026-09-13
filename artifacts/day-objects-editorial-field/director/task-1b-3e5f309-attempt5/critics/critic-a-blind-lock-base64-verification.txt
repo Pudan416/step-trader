@@ -1,0 +1,16 @@
+verification=PASS
+authoritative_source=/Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-outline-alpha-authority/.superpowers/sdd/2026-09-01-day-objects-editorial-field-completion/task-1b-attempt5-critic-a-blind-lock.md
+staged_payload=artifacts/day-objects-editorial-field/director/task-1b-3e5f309-attempt5/critics/critic-a-blind-lock.verbatim.base64
+encoding=base64
+wrap_columns=76
+payload_line_count=174
+payload_max_line_length=76
+payload_final_line_length=4
+payload_trailing_whitespace_lines=0
+payload_sha256=a03b606482cd0c71ae8e6d1dae8985246f4f165ee5c81d57483e7ac3874cb674
+decoded_sha256=a3e2cc6095ceaafc0cb91d3327d688d761135cad0d897d66319936fb32f90b4b
+source_sha256=a3e2cc6095ceaafc0cb91d3327d688d761135cad0d897d66319936fb32f90b4b
+decoded_cmp_source_exit=0
+readable_transcription=critics/critic-a-blind-lock.transcription.md
+readable_transcription_authoritative=no
+readable_transcription_trailing_whitespace_lines=0

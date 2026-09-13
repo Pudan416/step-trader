@@ -1,0 +1,7 @@
+sample=prelaunch
+utc=2026-09-04T00:45:35Z
+vm.swapusage: total = 5120.00M  used = 3455.44M  free = 1664.56M  (encrypted)
+Pages free:                                    41628.
+Pages throttled:                                   0.
+Swapins:                                      489457.
+Swapouts:                                     915659.

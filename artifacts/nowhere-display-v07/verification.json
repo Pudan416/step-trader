@@ -1,0 +1,30 @@
+{
+  "Regular": {
+    "sha256": "838eb4779af53c6986827ada87083e94e9c92f99528185c30be43cfd0bf366cc",
+    "encoded_characters": 163,
+    "glyphs": 173,
+    "changed": [
+      "б"
+    ],
+    "shaped_pairs_checked": 29041,
+    "minimum_checked_near_gap": 25.81,
+    "valid_contours": true,
+    "unchanged_glyphs_preserved": true,
+    "woff2_outlines_identical": true,
+    "curved_outline_checks": true
+  },
+  "Bold": {
+    "sha256": "066aaec6467be8143ea7eed0617c134c3d26e29b082aae2754151411a35a8ce1",
+    "encoded_characters": 163,
+    "glyphs": 173,
+    "changed": [
+      "б"
+    ],
+    "shaped_pairs_checked": 29041,
+    "minimum_checked_near_gap": 30.0,
+    "valid_contours": true,
+    "unchanged_glyphs_preserved": true,
+    "woff2_outlines_identical": true,
+    "curved_outline_checks": true
+  }
+}

@@ -1,8 +1,7 @@
 import AppIntents
 import WidgetKit
 
-// MARK: - Manual Refresh Intent
-
+#if !NOWHERE_APP
 struct RefreshWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "Refresh Widget"
     static var description: IntentDescription = "Force-refresh widget data."
@@ -14,121 +13,88 @@ struct RefreshWidgetIntent: AppIntent {
         return .result()
     }
 }
+#endif
 
-// MARK: - Unlock Intent
-
-/// Interactive intent triggered by widget unlock buttons.
-/// Runs entirely in the widget extension process — no app launch required.
+/// Compiled into both targets. The main-app conformance below routes execution
+/// into the app process without opening a scene for an already-authorized user.
 struct UnlockGroupWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "Unlock App Group"
     static var description: IntentDescription = "Spend colors to unlock a feed group for a chosen duration."
     static var isDiscoverable: Bool = false
-
-    @Parameter(title: "Group ID")
-    var groupId: String
-
-    @Parameter(title: "Window")
-    var windowRaw: String
+    @Parameter(title: "Group ID") var groupId: String
+    @Parameter(title: "Window") var windowRaw: String
 
     init() {}
-
     init(groupId: String, window: AccessWindow) {
         self.groupId = groupId
         self.windowRaw = window.rawValue
     }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
-        let window = AccessWindow(rawValue: windowRaw) ?? .minutes10
-        let cost = Self.cost(for: window)
-        let minutes = window.minutes
-
-        let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
-
-        // Debounce: reject rapid duplicate taps (same pattern as ShieldActionExtension)
+        #if NOWHERE_APP
+        guard !Self.purchaseInFlight else { return .result() }
+        Self.purchaseInFlight = true
+        defer {
+            Self.purchaseInFlight = false
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        let model = DIContainer.shared.applicationModel
+        await model.prepareLocalPurchaseState()
+        guard let window = AccessWindow(rawValue: windowRaw),
+              let group = model.ticketGroups.first(where: { $0.id == groupId }),
+              group.settings.familyControlsModeEnabled,
+              group.enabledIntervals.contains(window) else {
+            throw WidgetPurchaseFailure(message: String(localized: "Choose an app group"))
+        }
+        model.familyControlsService.refreshAuthorizationStatus()
+        if !model.familyControlsService.isAuthorized {
+            do {
+                // Already-granted permission can be restored on a cold process
+                // without presenting the app. Only an actual permission problem
+                // needs foreground continuation.
+                try await model.familyControlsService.requestAuthorization()
+            } catch {
+                try await requestToContinueInForeground()
+                try await model.familyControlsService.requestAuthorization()
+            }
+        }
+        model.checkDayBoundary()
+        let defaults = SharedKeys.appGroupDefaults()
         let debounceKey = "widgetUnlockLastRequestedAt_\(groupId)"
-        let now = Date()
-        if let last = g.object(forKey: debounceKey) as? Date,
-           now.timeIntervalSince(last) < 3 {
-            WidgetKind.reloadAllKinds()
-            return .result()
+        if let last = defaults.object(forKey: debounceKey) as? Date,
+           Date().timeIntervalSince(last) < 3 { return .result() }
+        defaults.set(Date(), forKey: debounceKey)
+        guard model.totalStepsBalance >= group.cost(for: window)
+                || ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: defaults, groupId: groupId) else {
+            throw WidgetPurchaseFailure(message: String(localized: "Not enough colors"))
         }
-        g.set(now, forKey: debounceKey)
-
-        let dayEndHour = g.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
-        let dayEndMinute = g.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
-        let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date
-        let defaultsStale = DayBoundary.isPersistedDayBehind(
-            anchor: anchor, relativeTo: Date(), dayEndHour: dayEndHour, dayEndMinute: dayEndMinute
-        )
-
-        let stepsBalance = defaultsStale ? 0 : g.integer(forKey: SharedKeys.stepsBalance)
-        let bonusSteps = g.integer(forKey: SharedKeys.bonusSteps)
-        let totalBalance = stepsBalance + bonusSteps
-
-        guard totalBalance >= cost else {
-            WidgetKind.reloadAllKinds()
-            return .result()
+        model.payGateError = nil
+        SharedKeys.recordWidgetInteraction("interactive purchase entered group=\(groupId) authorized=\(model.familyControlsService.isAuthorized)", source: "app")
+        guard await model.handlePayGatePaymentForGroup(groupId: groupId, window: window, costOverride: nil) else {
+            throw WidgetPurchaseFailure(message: model.payGateError ?? String(localized: "Unable to unlock the app. Please try again."))
         }
-
-        let baseEnergy = defaultsStale ? 0 : g.integer(forKey: SharedKeys.baseEnergyToday)
-        let spentToday = defaultsStale ? 0 : g.integer(forKey: SharedKeys.spentStepsToday)
-
-        let consumeFromBase = min(stepsBalance, cost)
-        let newSpent = spentToday + consumeFromBase
-        let newBalance = max(0, baseEnergy - newSpent)
-
-        g.set(newSpent, forKey: SharedKeys.spentStepsToday)
-        g.set(newBalance, forKey: SharedKeys.stepsBalance)
-
-        let remainingCost = max(0, cost - consumeFromBase)
-        if remainingCost > 0 {
-            let newBonus = max(0, bonusSteps - remainingCost)
-            g.set(newBonus, forKey: SharedKeys.bonusSteps)
-        }
-
-        let existingBudget = g.integer(forKey: SharedKeys.usageBudgetKey(groupId))
-        let totalMinutes = existingBudget + minutes
-
-        g.set(totalMinutes, forKey: SharedKeys.usageBudgetKey(groupId))
-        g.set(totalMinutes, forKey: SharedKeys.usageBudgetInitialKey(groupId))
-        g.set(Date(), forKey: SharedKeys.usageBudgetStartedKey(groupId))
-
-        let endOfDay = DayBoundary.nextBoundary(after: Date(), dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
-        g.set(endOfDay, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
-
-        g.set(true, forKey: SharedKeys.pendingBudgetMonitoringPrefix + groupId)
-        g.set(totalMinutes, forKey: SharedKeys.pendingBudgetMinutesPrefix + groupId)
-
-        let existingPendingSpend = g.integer(forKey: SharedKeys.pendingSpendAmountKey(groupId))
-        g.set(existingPendingSpend + cost, forKey: SharedKeys.pendingSpendAmountKey(groupId))
-        g.set(true, forKey: SharedKeys.pendingSpendTrackingKey(groupId))
-        g.set(windowRaw, forKey: SharedKeys.pendingSpendWindowKey(groupId))
-        let existingPendingMinutes = g.integer(forKey: SharedKeys.pendingSpendMinutesKey(groupId))
-        g.set(existingPendingMinutes + minutes, forKey: SharedKeys.pendingSpendMinutesKey(groupId))
-
-        let updatedBonus = remainingCost > 0 ? max(0, bonusSteps - remainingCost) : bonusSteps
-        let prev = WidgetDataFile.read()
-        WidgetDataFile.write(WidgetSnapshot(
-            balance: newBalance + updatedBonus,
-            earned: prev?.earned ?? baseEnergy,
-            stepsPoints: prev?.stepsPoints ?? 0,
-            sleepPoints: prev?.sleepPoints ?? 0,
-            bodyPoints: prev?.bodyPoints ?? 0,
-            mindPoints: prev?.mindPoints ?? 0,
-            heartPoints: prev?.heartPoints ?? 0,
-            timestamp: Date()
-        ))
-
-        g.synchronize()
-
-        ShieldRebuildHelper.rebuild()
-
-        WidgetKind.reloadAllKinds()
-
+        // Persist before returning: Button(intent:) guarantees a timeline reload
+        // after perform(), which must observe the committed balance and budget.
+        model.writeWidgetSnapshot()
+        defaults.synchronize()
+        SharedKeys.recordWidgetInteraction("interactive purchase completed group=\(groupId) minutes=\(window.minutes) balance=\(model.totalStepsBalance)", source: "app")
+        #else
+        // Never execute a second payment implementation in the extension.
+        SharedKeys.recordWidgetInteraction("interactive purchase unexpectedly routed to extension", source: "extension")
+        throw WidgetPurchaseFailure(message: String(localized: "Open Nowhere to unlock this app."))
+        #endif
         return .result()
     }
+}
 
-    private static func cost(for window: AccessWindow) -> Int {
-        TicketGroup.cost(for: window)
-    }
+#if NOWHERE_APP
+extension UnlockGroupWidgetIntent: ForegroundContinuableIntent {
+    @MainActor private static var purchaseInFlight = false
+}
+#endif
+
+private struct WidgetPurchaseFailure: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }

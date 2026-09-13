@@ -1,11 +1,8 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.90.1";
 
-// --- Required env vars ---
-// Read once at startup. Missing values throw immediately rather than failing
-// silently per request (defends against §6.3: a missing APNS_BUNDLE_ID used to
-// silently fall back to the production identifier and could mass-delete tokens
-// via §6.4's cleanup heuristic).
+// Supabase injects its own credentials. Validate APNs configuration only after
+// method/auth checks, so an incomplete deployment fails closed without crashing
+// the worker or skipping authentication. Never fall back to a guessed bundle ID.
 function requireEnv(name: string): string {
   const v = Deno.env.get(name);
   if (!v) {
@@ -16,7 +13,6 @@ function requireEnv(name: string): string {
 
 const SUPABASE_URL = requireEnv("SUPABASE_URL");
 const SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-const APNS_BUNDLE_ID = requireEnv("APNS_BUNDLE_ID");
 const IS_PRODUCTION = Deno.env.get("APNS_ENVIRONMENT") !== "sandbox";
 
 // --- Constant-time string compare ---
@@ -146,7 +142,7 @@ async function sendAPNs(
 //   server-to-server contexts (cron, admin tooling), never from a browser.
 //   If a browser caller is added later, narrow `Access-Control-Allow-Origin`
 //   to a specific allow-list — do not return "*".
-serve(async (req) => {
+Deno.serve(async (req) => {
   // No browser callers expected. Reject preflights instead of advertising
   // "*". A future legitimate caller can be added to an allow-list here.
   if (req.method === "OPTIONS") {
@@ -180,13 +176,31 @@ serve(async (req) => {
     });
   }
 
-  const title = typeof parsed.title === "string" ? parsed.title : "";
-  const pushBody = typeof parsed.body === "string" ? parsed.body : "";
+  const title = typeof parsed?.title === "string" ? parsed.title : "";
+  const pushBody = typeof parsed?.body === "string" ? parsed.body : "";
   if (!title || !pushBody) {
     return new Response(
       JSON.stringify({ error: "title and body are required" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
+  }
+
+  const bundleId = Deno.env.get("APNS_BUNDLE_ID");
+  const requiredAPNs = ["APNS_TEAM_ID", "APNS_KEY_ID", "APNS_PRIVATE_KEY"];
+  if (!bundleId || requiredAPNs.some((name) => !Deno.env.get(name))) {
+    return new Response(JSON.stringify({ error: "Push delivery is not configured" }), {
+      status: 503, headers: { "Content-Type": "application/json" },
+    });
+  }
+  let jwt: string;
+  try {
+    jwt = await generateAPNsJWT();
+  } catch {
+    // A malformed signing key is a deployment problem, not a bad device token.
+    console.error("[send-push] Unable to initialize APNs signing credentials");
+    return new Response(JSON.stringify({ error: "Push delivery is not configured" }), {
+      status: 503, headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Use service role to read all tokens
@@ -211,8 +225,6 @@ serve(async (req) => {
     });
   }
 
-  const jwt = await generateAPNsJWT();
-
   // Send to all tokens in parallel (batches of 50)
   const results: Awaited<ReturnType<typeof sendAPNs>>[] = [];
   const batchSize = 50;
@@ -220,7 +232,7 @@ serve(async (req) => {
     const batch = tokens.slice(i, i + batchSize);
     const batchResults = await Promise.all(
       batch.map((t) =>
-        sendAPNs(t.token, title, pushBody, jwt, APNS_BUNDLE_ID, IS_PRODUCTION)
+        sendAPNs(t.token, title, pushBody, jwt, bundleId, IS_PRODUCTION)
       )
     );
     results.push(...batchResults);
@@ -247,7 +259,7 @@ serve(async (req) => {
   if (topicMismatches > 0) {
     console.warn(
       `[send-push] ${topicMismatches} tokens returned DeviceTokenNotForTopic — ` +
-        `check APNS_BUNDLE_ID="${APNS_BUNDLE_ID}" and APNS_ENVIRONMENT.`
+        `check APNS_BUNDLE_ID="${bundleId}" and APNS_ENVIRONMENT.`
     );
   }
 

@@ -90,6 +90,10 @@ struct CanvasElement: Identifiable, Codable {
     /// How many times this option has been logged historically (drives shape complexity).
     var activityCount: Int?
 
+    /// Restrained palette-only color roll for the Editorial renderer. Nil keeps
+    /// historical canvases on the day's unmodified material recipe.
+    var editorialColorVariant: Int?
+
     // Timestamps
     let createdAt: Date
 
@@ -108,7 +112,7 @@ struct CanvasElement: Identifiable, Codable {
         return shape == .blob ? .circle : shape
     }
 
-    init(id: UUID, kind: ElementKind, optionId: String, label: String?, hexColor: String, hexColor2: String? = nil, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, lastEditedAt: Date? = nil, frozenShapeType: CanvasShapeType? = nil) {
+    init(id: UUID, kind: ElementKind, optionId: String, label: String?, hexColor: String, hexColor2: String? = nil, size: CGFloat, basePosition: CGPoint, phaseOffset: Double, driftSpeed: Double, driftAmplitude: CGFloat, pulseFrequency: Double, pulseAmplitude: CGFloat, rotationSpeed: Double, opacity: Double, createdAt: Date, assetVariant: Int? = nil, userRotation: Double = 0, shapeSeed: UInt64? = nil, userSize: CGFloat? = nil, activityCount: Int? = nil, editorialColorVariant: Int? = nil, lastEditedAt: Date? = nil, frozenShapeType: CanvasShapeType? = nil) {
         self.id = id
         self.kind = kind
         self.optionId = optionId
@@ -130,6 +134,7 @@ struct CanvasElement: Identifiable, Codable {
         self.shapeSeed = shapeSeed
         self.userSize = userSize
         self.activityCount = activityCount
+        self.editorialColorVariant = editorialColorVariant
         self.lastEditedAt = lastEditedAt
         self.frozenShapeType = frozenShapeType
     }
@@ -239,11 +244,20 @@ struct CanvasElement: Identifiable, Codable {
     /// request for something new. It still obeys the day: size follows the
     /// archetype's curve and colour stays on the day's palette, so one re-roll
     /// cannot break the canvas's coherence.
-    mutating func reroll(rank: Int, composition: DayComposition) {
+    /// - Parameters:
+    ///   - allowedShapes: injected so a batch Remix and the tests can pin the
+    ///     set instead of reading `UserDefaults` once per element.
+    ///   - date: injected so one Remix stamps every element with one instant.
+    mutating func reroll(
+        rank: Int,
+        composition: DayComposition,
+        allowedShapes: [CanvasShapeType] = CanvasShapeType.allowedByUser,
+        at date: Date = .now
+    ) {
         shapeSeed = UInt64.random(in: UInt64.min...UInt64.max)
 
         // Freeze one currently allowed shape so historical renders stay stable.
-        let resolvedShape = CanvasShapeType.allowedByUser.randomElement() ?? .circle
+        let resolvedShape = allowedShapes.randomElement() ?? .circle
         frozenShapeType = resolvedShape
 
         var rng = SeededRNG(seed: shapeSeed ?? 0)
@@ -283,7 +297,7 @@ struct CanvasElement: Identifiable, Codable {
             driftSpeed = Double.random(in: 0.08...0.2)
         }
 
-        lastEditedAt = .now
+        lastEditedAt = date
     }
 
     static func spawn(
@@ -343,14 +357,21 @@ struct CanvasElement: Identifiable, Codable {
         // colour from the day's composition rather than all 29 swatches.
         let color = figure?.colorHex ?? composition.color(forRank: rank)
 
-        // ~60% two-colour, ~40% single-colour — restores the variety the old
-        // `randomSecondColor` (~50% nil) gave, deterministically. Every
-        // element getting a gradient made the canvas busier than intended;
-        // `hexColor2`'s own doc comment still says "Nil = solid single color".
-        var secondColourRng = SeededRNG.derived(from: seed, domain: "secondColour")
-        let hexColor2 = secondColourRng.nextDouble() < 0.6
-            ? composition.color(forRank: rank + 1)
-            : nil
+        // A palette figure keeps the exact two-colour material shown in its
+        // source circle. Other entry points retain the canvas's quieter 60/40
+        // gradient-to-solid mix.
+        let hexColor2: String?
+        if figure != nil {
+            hexColor2 = CanvasColorPalette.happeningGradientSecondColor(
+                seed: seed,
+                primary: color
+            )
+        } else {
+            var secondColourRng = SeededRNG.derived(from: seed, domain: "secondColour")
+            hexColor2 = secondColourRng.nextDouble() < 0.6
+                ? composition.color(forRank: rank + 1)
+                : nil
+        }
 
         var motionRng = SeededRNG.derived(from: seed, domain: "motion")
         let opacityRange = composition.opacityRange(forRank: rank)
@@ -391,7 +412,7 @@ struct CanvasElement: Identifiable, Codable {
         case id, kind, category, optionId, hexColor, hexColor2, size, basePosition
         case phaseOffset, driftSpeed, driftAmplitude, pulseFrequency, pulseAmplitude, rotationSpeed, opacity, createdAt
         case label, assetVariant, userRotation
-        case shapeSeed, userSize, activityCount
+        case shapeSeed, userSize, activityCount, editorialColorVariant
         case lastEditedAt, frozenShapeType
     }
 
@@ -421,6 +442,7 @@ struct CanvasElement: Identifiable, Codable {
         shapeSeed = try c.decodeIfPresent(UInt64.self, forKey: .shapeSeed)
         userSize = try c.decodeIfPresent(CGFloat.self, forKey: .userSize)
         activityCount = try c.decodeIfPresent(Int.self, forKey: .activityCount)
+        editorialColorVariant = try c.decodeIfPresent(Int.self, forKey: .editorialColorVariant)
         lastEditedAt = try c.decodeIfPresent(Date.self, forKey: .lastEditedAt)
         frozenShapeType = try c.decodeIfPresent(CanvasShapeType.self, forKey: .frozenShapeType)
             ?? legacyCategory?.frozenShapeType
@@ -458,6 +480,7 @@ struct CanvasElement: Identifiable, Codable {
         try c.encodeIfPresent(shapeSeed, forKey: .shapeSeed)
         try c.encodeIfPresent(userSize, forKey: .userSize)
         try c.encodeIfPresent(activityCount, forKey: .activityCount)
+        try c.encodeIfPresent(editorialColorVariant, forKey: .editorialColorVariant)
         try c.encodeIfPresent(lastEditedAt, forKey: .lastEditedAt)
         try c.encodeIfPresent(frozenShapeType, forKey: .frozenShapeType)
     }

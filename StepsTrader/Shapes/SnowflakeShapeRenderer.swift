@@ -270,12 +270,14 @@ enum SnowflakeShapeRenderer {
         decayedColor2: Color? = nil,
         spec: TextureSpec
     ) {
-        drawTrailGhosts(
-            e, context: &context, size: size, t: t, decay: decay,
-            blendMode: blendMode, ampScale: ampScale,
-            renderCache: renderCache, trailLength: trailLength,
-            decayedColor: decayedColor,
-            decayedColor2: decayedColor2)
+        if spec.kind != .outline {
+            drawTrailGhosts(
+                e, context: &context, size: size, t: t, decay: decay,
+                blendMode: blendMode, ampScale: ampScale,
+                renderCache: renderCache, trailLength: trailLength,
+                decayedColor: decayedColor,
+                decayedColor2: decayedColor2)
+        }
 
         let breathePhase = sin(t * (0.25 + e.phaseOffset * 0.1) + e.phaseOffset * 3.7)
         let center = center(e, size: size, t: t, ampScale: ampScale, renderCache: renderCache)

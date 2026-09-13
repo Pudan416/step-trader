@@ -6,7 +6,7 @@ import Combine
 /// Energy recalculation against the three-part model:
 ///
 ///     steps(20) + sleep(20) + happenings(60) = 100
-///     happenings = min(additions × 10, 60)
+///     happenings = min(additions × 6, 60)
 ///
 /// Replaces the five-part per-category assertions this file used to carry.
 @MainActor
@@ -44,7 +44,7 @@ final class EnergyRecalcTests: XCTestCase {
         defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
         model.stepsToday = 10_000
         model.dailySleepHours = 8.0
-        addAdditions(to: model, count: 6)
+        addAdditions(to: model, count: 10)
         model.spentStepsToday = 0
 
         model.recalculateDailyEnergy()
@@ -74,9 +74,9 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(notificationCount, 3)
     }
 
-    /// Acceptance criterion: a day of 2 happenings plus full steps and sleep
-    /// totals 60, not 100. Two additions earn 20, not a whole category's worth.
-    func testRecalculate_twoHappeningsWithFullStepsAndSleepTotalsSixty() {
+    /// A day of 2 happenings plus full steps and sleep totals 52, not 100.
+    /// Two additions earn 12, not a whole category's worth.
+    func testRecalculate_twoHappeningsWithFullStepsAndSleepTotalsFiftyTwo() {
         let model = makeModel()
         defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
         defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
@@ -87,7 +87,7 @@ final class EnergyRecalcTests: XCTestCase {
 
         model.recalculateDailyEnergy()
 
-        XCTAssertEqual(model.baseEnergyToday, 60, "20 steps + 20 sleep + 20 happenings")
+        XCTAssertEqual(model.baseEnergyToday, 52, "20 steps + 20 sleep + 12 happenings")
     }
 
     func testRecalculate_cappedAt100() {
@@ -178,27 +178,27 @@ final class EnergyRecalcTests: XCTestCase {
 
     // MARK: - Happening points
 
-    func testHappeningPoints_tenPerAddition() {
+    func testHappeningPoints_sixPerAddition() {
         let model = makeModel()
         XCTAssertEqual(model.happeningPointsToday, 0)
 
         addAdditions(to: model, count: 1)
-        XCTAssertEqual(model.happeningPointsToday, 10)
+        XCTAssertEqual(model.happeningPointsToday, 6)
 
         addAdditions(to: model, count: 2)
-        XCTAssertEqual(model.happeningPointsToday, 30, "Three additions total")
+        XCTAssertEqual(model.happeningPointsToday, 18, "Three additions total")
     }
 
-    /// Distinct additions past the sixth still land on the canvas and still
+    /// Distinct additions past the tenth still land on the canvas and still
     /// increment `useCount` — they just stop earning.
     func testHappeningPoints_capAtSixtyRegardlessOfCount() {
         let model = makeModel()
-        addAdditions(to: model, count: 6)
+        addAdditions(to: model, count: 10)
         XCTAssertEqual(model.happeningPointsToday, 60)
 
         addAdditions(to: model, count: 1)
-        XCTAssertEqual(model.happeningPointsToday, 60, "Seventh addition earns nothing")
-        XCTAssertEqual(model.todayAdditions.count, 7, "But it is still recorded")
+        XCTAssertEqual(model.happeningPointsToday, 60, "Eleventh addition earns nothing")
+        XCTAssertEqual(model.todayAdditions.count, 11, "But it is still recorded")
 
         addAdditions(to: model, count: 50)
         XCTAssertEqual(model.happeningPointsToday, 60)
@@ -210,7 +210,7 @@ final class EnergyRecalcTests: XCTestCase {
         model.addHappening(id: HappeningDefaults.builtIns[1].id, colorHex: "#CC5050")
 
         XCTAssertEqual(model.todayAdditions.count, 2)
-        XCTAssertEqual(model.happeningPointsToday, 20)
+        XCTAssertEqual(model.happeningPointsToday, 12)
     }
 
     // MARK: - Routines

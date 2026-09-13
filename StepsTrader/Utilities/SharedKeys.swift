@@ -5,6 +5,27 @@ import WidgetKit
 /// Single source of truth for all UserDefaults and App Group keys.
 /// Shared across the main app and extensions (ShieldAction, ShieldConfiguration, DeviceActivityMonitor).
 enum SharedKeys {
+    private static let widgetDiagnosticLock = NSLock()
+
+    /// Bounded, local-only breadcrumbs for physical-device widget diagnosis.
+    /// Callers pass only routing/status metadata, never arbitrary incoming URLs.
+    static func recordWidgetInteraction(_ message: String, source: String) {
+        #if DEBUG
+        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)"
+        Logger(subsystem: "com.personalproject.StepsTrader", category: "WidgetInteraction")
+            .notice("\(source, privacy: .public): \(line, privacy: .public)")
+        widgetDiagnosticLock.lock()
+        defer { widgetDiagnosticLock.unlock() }
+        if let defaults = UserDefaults(suiteName: appGroupId) {
+            let key = "widgetInteractionDiagnostic_\(source)_v1"
+            var history = defaults.stringArray(forKey: key) ?? []
+            history.append(line)
+            defaults.set(Array(history.suffix(40)), forKey: key)
+            defaults.synchronize()
+        }
+        #endif
+    }
+
     static let appGroupId = "group.personal-project.StepsTrader"
     static func appGroupDefaults() -> UserDefaults {
         if let defaults = UserDefaults(suiteName: appGroupId) {
@@ -47,6 +68,11 @@ enum SharedKeys {
     // MARK: - Shield state
     static let shieldState = "doomShieldState_v1"
     static let shieldPushSentAt = "shieldPushSentAt_v1"
+    /// Set by ShieldAction when an unlock tap could *not* produce a push — notifications
+    /// are denied, or `UNUserNotificationCenter.add` failed. ShieldConfiguration reads it
+    /// so the shield can say so instead of pointing at a notification that never arrived.
+    /// Mutually exclusive with `shieldPushSentAt`; whichever is written clears the other.
+    static let shieldPushUnavailableAt = "shieldPushUnavailableAt_v1"
     static let shieldActionLogs = "shieldActionLogs_v1"
     static let lastBlockedAppBundleId = "lastBlockedAppBundleId"
     static let lastBlockedGroupId = "lastBlockedGroupId"
@@ -97,6 +123,16 @@ enum SharedKeys {
     /// re-rolling on every foreground within the same day.
     static let dailyRandomThemeLastRolledKey = "dailyRandomTheme_lastRolledKey_v1"
 
+    /// Comma-separated `ModernPaletteCategory` raw values. An empty string
+    /// means every category, which is the default.
+    static let modernPaletteCategories = "modernPaletteCategories_v1"
+
+    /// Preferred renderer for the active and newly created Canvas. Historical
+    /// canvases freeze their renderer in `DayCanvas.visualStyleRaw`.
+    static let canvasVisualStyle = "canvasVisualStyle_v1"
+    /// One-time migration marker that promotes only the active day to Editorial.
+    static let canvasVisualStyleMigrationVersion = "canvasVisualStyleMigrationVersion_v1"
+
     static let canvasOverlayStyle = "canvasOverlayStyle_v1"
     static let canvasTexture = "canvasTexture_v1"
 
@@ -110,6 +146,10 @@ enum SharedKeys {
     /// The shapes a new canvas element may take, as `CanvasShapeType` raw
     /// strings. Replaces the three keys above. Never empty.
     static let allowedCanvasShapes = "allowedCanvasShapes_v1"
+
+    /// Fill styles eligible for the day's single deterministic canvas style.
+    /// Stored in `TextureKind.allCases` order and never empty.
+    static let allowedCanvasFills = "allowedCanvasFills_v1"
 
     // MARK: - Happenings
 
@@ -136,6 +176,9 @@ enum SharedKeys {
 
     // MARK: - Widget
     static let widgetBackgroundMode = "widgetBackgroundMode_v1"
+    static let widgetWallpaperPosition = "widgetWallpaperPosition_v1"
+    static let widgetWallpaperTop = "widgetWallpaperTop_v1"
+    static let widgetWallpaperBottom = "widgetWallpaperBottom_v1"
     static let hasMediumWidget = "hasMediumWidget_v1"
     static let hasLargeWidget = "hasLargeWidget_v1"
 
@@ -222,4 +265,63 @@ enum SharedKeys {
     static func pendingSpendTrackingKey(_ groupId: String) -> String { "pendingSpendTracking_\(groupId)" }
     static func pendingSpendWindowKey(_ groupId: String) -> String { "pendingSpendWindow_\(groupId)" }
     static func pendingSpendMinutesKey(_ groupId: String) -> String { "pendingSpendMinutes_\(groupId)" }
+}
+
+/// A widget-issued, single-use purchase link. An arbitrary incoming URL must not
+/// be able to spend colors: the capability is stored only in the shared container
+/// and bound to the exact group and duration rendered by the widget.
+struct WidgetUnlockRequest {
+    let groupId: String
+    let windowRaw: String
+    private static let lock = NSLock()
+
+    private static func key(_ groupId: String, _ windowRaw: String) -> String {
+        "widgetUnlockCapability_v1_\(groupId)_\(windowRaw)"
+    }
+
+    static func url(groupId: String, windowRaw: String, defaults: UserDefaults) -> URL {
+        lock.lock()
+        defer { lock.unlock() }
+        let storageKey = key(groupId, windowRaw)
+        let token: String
+        if let existing = defaults.string(forKey: storageKey) {
+            // Never rewrite an existing capability: the app may have consumed it
+            // after this process read it. Rewriting would resurrect a used URL.
+            token = existing
+        } else {
+            token = UUID().uuidString
+            defaults.set(token, forKey: storageKey)
+            defaults.synchronize()
+        }
+        var components = URLComponents()
+        components.scheme = "steps-trader"
+        components.host = "unlock"
+        components.queryItems = [
+            URLQueryItem(name: "groupId", value: groupId),
+            URLQueryItem(name: "window", value: windowRaw),
+            URLQueryItem(name: "token", value: token)
+        ]
+        return components.url!
+    }
+
+    /// Called on the main app's actor before awaiting authorization or purchase.
+    static func consume(_ url: URL, defaults: UserDefaults) -> Self? {
+        guard url.scheme == "steps-trader", url.host == "unlock",
+              url.path.isEmpty, url.user == nil, url.password == nil, url.port == nil,
+              url.fragment == nil,
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              items.count == 3, Set(items.map(\.name)) == ["groupId", "window", "token"],
+              let group = items.first(where: { $0.name == "groupId" })?.value, !group.isEmpty,
+              let window = items.first(where: { $0.name == "window" })?.value, !window.isEmpty,
+              let token = items.first(where: { $0.name == "token" })?.value, !token.isEmpty
+        else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        let storageKey = key(group, window)
+        guard defaults.string(forKey: storageKey) == token else { return nil }
+        // Once seeded, only the app rotates the capability; the extension is a reader.
+        defaults.set(UUID().uuidString, forKey: storageKey)
+        defaults.synchronize()
+        return Self(groupId: group, windowRaw: window)
+    }
 }

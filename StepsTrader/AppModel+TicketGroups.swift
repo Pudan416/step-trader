@@ -32,7 +32,7 @@ extension AppModel {
         scheduleTicketGroupsSupabaseSync()
     }
 
-    func createTicketGroup(name: String, templateApp: String? = nil, stickerThemeIndex: Int? = nil) -> TicketGroup {
+    func createTicketGroup(name: String, selection: FamilyActivitySelection = FamilyActivitySelection(), templateApp: String? = nil, stickerThemeIndex: Int? = nil) -> TicketGroup {
         let defaultSettings = AppUnlockSettings(
             entryCostSteps: entryCostSteps,
             dayPassCostSteps: defaultDayPassCost(forEntryCost: entryCostSteps),
@@ -40,7 +40,7 @@ extension AppModel {
             familyControlsModeEnabled: true
         )
         let themeIndex = stickerThemeIndex ?? 0
-        let group = blockingStore.createTicketGroup(name: name, templateApp: templateApp, defaultSettings: defaultSettings, stickerThemeIndex: themeIndex)
+        let group = blockingStore.createTicketGroup(name: name, selection: selection, templateApp: templateApp, defaultSettings: defaultSettings, stickerThemeIndex: themeIndex)
         scheduleTicketGroupsSupabaseSync()
         Task {
             await SupabaseSyncService.shared.trackAnalyticsEvent(
@@ -56,6 +56,7 @@ extension AppModel {
 
     func updateTicketGroup(_ group: TicketGroup) {
         blockingStore.updateTicketGroup(group)
+        ensureUsageBudgetMonitoringForActiveGroups()
         invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }
@@ -68,6 +69,7 @@ extension AppModel {
 
     func addAppsToGroup(_ groupId: String, selection: FamilyActivitySelection) {
         blockingStore.addAppsToGroup(groupId, selection: selection)
+        ensureUsageBudgetMonitoringForActiveGroups()
         invalidateBundleIdCache()
         scheduleTicketGroupsSupabaseSync()
     }

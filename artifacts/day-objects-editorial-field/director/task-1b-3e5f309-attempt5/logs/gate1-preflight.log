@@ -1,0 +1,26 @@
+gate1_preflight_utc=2026-09-03T23:36:32Z
+source_commit=3e5f3095167889b3a9ae5a8145ef0103489e6e3c
+head_state=detached
+material_root_absent=yes
+scale1-candidate_absent=yes
+scale1-rerender_absent=yes
+scale3-candidate_absent=yes
+scale3-rerender_absent=yes
+tracked_status_begin
+tracked_status_end
+diff_check_begin
+diff_check_end
+cached_diff_check_begin
+cached_diff_check_end
+frozen_hashes_begin
+3ce4e38005b3c262cd76ca58a8cd169e38f0a23aa2df70a8437ebb134bed52c9  Tools/DayObjectsEditorialField/Manifests/visible-v1.json
+c4f4c95c2431701587a3c366dcc4d82ae21b9a5735d840a995a0aae52346124c  artifacts/day-objects-editorial-field/composition/composition-approved.json
+7faef26a612768b67b73b520c7889e569594516bde3745f8a75b4ff2a24aeccd  artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json
+e2170a3f1f3a9798bd857f059fdee9b53b0fb2e1d4f16754f244a62236a2d543  Tools/DayObjectsEditorialField/Sources/EditorialFieldRender/MaterialRenderer.swift
+frozen_hashes_end
+ruling16_sha256=eff34dd2b123eace483cd5d37aef8f3faa8121f9a990205bbbd4b019ad432414
+heavy_processes_begin
+heavy_processes_end
+vm.swapusage: total = 5120.00M  used = 3487.50M  free = 1632.50M  (encrypted)
+Pages throttled:                                   0.
+Swapouts:                                     915659.

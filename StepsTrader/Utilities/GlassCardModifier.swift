@@ -194,6 +194,11 @@ struct GlassCardModifier: ViewModifier {
 }
 
 extension View {
+    /// Stable neutral chrome over artwork: never takes on the palette shimmer.
+    func smokedCanvasControl<S: InsettableShape>(in shape: S) -> some View {
+        modifier(SmokedCanvasControlModifier(shape: shape))
+    }
+
     /// Liquid Glass card. Defaults to `.lens` with the global cycling tint.
     /// Use `tint: .off` for clean lens, `tint: .fixed(.something)` to pin a color.
     func glassCard(
@@ -204,20 +209,33 @@ extension View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius, style: style, tint: tint))
     }
 
-    /// Sheet background for category / choices pickers.
-    /// iOS 26+ uses the system Liquid Glass sheet; older OS keeps ultraThinMaterial.
-    @ViewBuilder
+    /// The same daily artwork behind app-owned sheets and choices.
     func choicesSheetPresentationBackground() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-        } else {
-            presentationBackground(.ultraThinMaterial)
-        }
+        presentationBackground { TodayCanvasBackground(detail: true) }
     }
 
     /// Compact inset field (note inputs inside choice rows).
     func inlineGlassField(cornerRadius: CGFloat = 10) -> some View {
         modifier(InlineGlassFieldModifier(cornerRadius: cornerRadius))
+    }
+}
+
+private struct SmokedCanvasControlModifier<S: InsettableShape>: ViewModifier {
+    let shape: S
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                if reduceTransparency {
+                    shape.fill(AppColors.graphite)
+                } else {
+                    shape.fill(.regularMaterial)
+                        .overlay(shape.fill(AppColors.graphite.opacity(contrast == .increased ? 1 : 0.91)))
+                        .environment(\.colorScheme, .dark)
+                }
+            }
     }
 }
 
@@ -285,5 +303,5 @@ extension View {
 /// Single source of truth for foreground ink that sits on
 /// `AppColors.brandAccent` capsules and CTAs.
 enum AppAccentInk {
-    static var primary: Color { Color(red: 0.08, green: 0.08, blue: 0.08) }
+    static var primary: Color { AppColors.accentInk }
 }

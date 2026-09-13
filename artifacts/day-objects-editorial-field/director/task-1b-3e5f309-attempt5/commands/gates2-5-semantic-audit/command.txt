@@ -1,0 +1,5 @@
+label=gates2-5-semantic-audit
+expected_exit=zero
+working_directory=/Users/kosta/Documents/Documents - Konstantin’s MacBook Pro/dev local/step-trader/.worktrees/editorial-task1b-attempt5-3e5f309
+source_commit=3e5f3095167889b3a9ae5a8145ef0103489e6e3c
+command=swift artifacts/day-objects-editorial-field/director/task-1b-3e5f309-attempt5/audit/gates2-5/audit.swift artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale1-candidate artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale1-rerender artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale3-candidate artifacts/day-objects-editorial-field/material/approved-3e5f309-attempt5/scale3-rerender artifacts/day-objects-editorial-field/composition/composition-approved.json artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json

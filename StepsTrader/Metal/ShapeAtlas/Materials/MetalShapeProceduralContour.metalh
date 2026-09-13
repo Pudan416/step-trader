@@ -1,0 +1,16 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static void metalShapeShadeProceduralContour(
+    float distance,
+    float materialPhase,
+    float body,
+    constant MetalShapeMaterialUniforms & m,
+    thread float3 & color,
+    thread float & alpha) {
+    const float bands = abs(sin(distance * (48.0 + m.params2.x * 28.0) + materialPhase));
+    const float boundaryLine = 1.0 - smoothstep(0.016, 0.042, abs(distance));
+    const float interiorLines = body * (1.0 - smoothstep(0.07, 0.21, bands));
+    alpha = max(boundaryLine, interiorLines * 0.74);
+    color = mix(m.color0.rgb, m.color1.rgb, interiorLines);
+}

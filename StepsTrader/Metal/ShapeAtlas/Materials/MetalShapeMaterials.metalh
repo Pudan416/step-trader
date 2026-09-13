@@ -1,0 +1,48 @@
+#pragma once
+#include "MetalShapeSideLight.metalh"
+#include "MetalShapeContour.metalh"
+#include "MetalShapeDirectionalBlur.metalh"
+#include "MetalShapeRadial.metalh"
+#include "MetalShapeProceduralLight.metalh"
+#include "MetalShapeProceduralFlow.metalh"
+#include "MetalShapeProceduralContour.metalh"
+#include "MetalShapeEclipseGlow.metalh"
+#include "MetalShapeSunset.metalh"
+
+static float4 metalShapeGenomeShade(
+    MetalShapeVertexOut in,
+    constant MetalShapeGenomeUniforms &g,
+    constant MetalShapeMaterialUniforms &m) {
+    const float2 p = (in.uv - 0.5) * 2.72;
+    const float distance = metalShapeDistance(p, g);
+    const float antialias = max(fwidth(distance), 0.0025);
+    const float body = smoothstep(antialias, -antialias, distance);
+    const float2 direction = normalize(m.params1.xy);
+    const float materialPhase = m.params0.x * 2.0 * M_PI_F;
+    const uint material = min(m.metadata.x, 10u);
+    float3 color = m.color0.rgb;
+    float alpha = body;
+
+    if (material == 1u) {
+        metalShapeShadeSideLight(p, direction, materialPhase, m, color);
+    } else if (material == 2u) {
+        metalShapeShadeContour(distance, m, color, alpha);
+    } else if (material == 3u) {
+        metalShapeShadeDirectionalBlur(p, direction, antialias, g, m, color, alpha);
+    } else if (material == 4u || material == 5u) {
+        metalShapeShadeRadial(p, material, m, color);
+    } else if (material == 6u) {
+        metalShapeShadeProceduralLight(p, m, color);
+    } else if (material == 7u) {
+        metalShapeShadeProceduralFlow(p, direction, materialPhase, body, m, color, alpha);
+    } else if (material == 8u) {
+        metalShapeShadeProceduralContour(distance, materialPhase, body, m, color, alpha);
+    } else if (material == 9u) {
+        metalShapeShadeEclipseGlow(distance, m, color, alpha);
+    }
+
+    if (material == 10u) {
+        metalShapeShadeSunset(p, m, color, alpha);
+    }
+    return float4(color * alpha, alpha);
+}

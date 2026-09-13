@@ -1,0 +1,27 @@
+#pragma once
+#include "../MetalShapeUniforms.metalh"
+
+static float metalShapeSnowflakeRadius(float theta, constant MetalShapeGenomeUniforms &g) {
+    const float halfSector = M_PI_F / float(clamp(g.metadata.z, 3u, 12u));
+    float local = fmod(theta, 2.0 * halfSector);
+    if (local < 0.0) local += 2.0 * halfSector;
+    const float folded = local > halfSector ? 2.0 * halfSector - local : local;
+    const float unit = folded / halfSector;
+    const float u = unit * M_PI_F;
+    const uint count = min(g.metadata.w, 5u);
+    float radius = 1.0;
+    if (count > 0u) radius += g.harmonic0.y * cos(u * g.harmonic0.x);
+    if (count > 1u) radius += g.harmonic0.w * cos(u * g.harmonic0.z);
+    if (count > 2u) radius += g.harmonic1.y * cos(u * g.harmonic1.x);
+    if (count > 3u) radius += g.harmonic1.w * cos(u * g.harmonic1.z);
+    if (count > 4u) radius += g.harmonic2.y * cos(u * g.harmonic2.x);
+    if (g.harmonic2.z > 0.0) {
+        const float spike = max(0.0, 1.0 - abs(unit) / max(g.harmonic2.w, 1e-4));
+        radius += g.harmonic2.z * spike * spike;
+    }
+    if (g.transform.z > 0.0) {
+        const float distance = (unit - g.transform.w) / 0.12;
+        radius -= g.transform.z * exp(-(distance * distance));
+    }
+    return max(radius, 0.12) * g.transform.y;
+}

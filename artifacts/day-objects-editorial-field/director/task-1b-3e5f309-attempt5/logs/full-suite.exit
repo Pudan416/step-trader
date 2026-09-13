@@ -1,0 +1,15 @@
+status=RUNNING
+started_utc=2026-09-03T22:06:09Z
+command=swift test --package-path Tools/DayObjectsEditorialField
+baseline_swapouts=915659
+baseline_pages_throttled=0
+suite_pid=50910
+status=COMPLETE
+exit_code=0
+ended_utc=2026-09-03T23:31:27Z
+duration_seconds=5118
+resource_breach=0
+breach_reason=none
+end_swapouts=915659
+swapouts_delta=0
+end_pages_throttled=0

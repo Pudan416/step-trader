@@ -1,7 +1,9 @@
 import Foundation
+import SwiftUI
 import os.log
 #if canImport(FamilyControls)
 import FamilyControls
+import ManagedSettings
 #endif
 
 struct TicketGroup: Identifiable, Codable {
@@ -88,3 +90,110 @@ struct TicketGroup: Identifiable, Codable {
         #endif
     }
 }
+
+
+/// The same group name and scope on every purchase surface, including widgets.
+/// A preset must never replace a user's group name.
+struct AppGroupIdentity: Equatable {
+    let title: String
+    let detail: String
+    #if canImport(FamilyControls)
+    var applicationToken: ApplicationToken? = nil
+    #endif
+
+    static let applicationNames: [String: String] = [
+        "com.burbn.instagram": "Instagram", "com.zhiliaoapp.musically": "TikTok",
+        "com.google.ios.youtube": "YouTube", "com.toyopagroup.picaboo": "Snapchat",
+        "com.reddit.Reddit": "Reddit", "com.atebits.Tweetie2": "X",
+        "com.facebook.Facebook": "Facebook", "com.linkedin.LinkedIn": "LinkedIn",
+        "com.pinterest": "Pinterest", "ph.telegra.Telegraph": "Telegram",
+        "net.whatsapp.WhatsApp": "WhatsApp"
+    ]
+
+    init(name: String, templateApp: String?, applicationCount: Int?, categoryCount: Int = 0, webDomainCount: Int = 0) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let app = templateApp.flatMap { Self.applicationNames[$0] }
+        title = name.isEmpty ? (app ?? String(localized: "App group")) : name
+        if let app, app != title {
+            detail = app
+        } else if templateApp != nil {
+            detail = String(localized: "1 app")
+        } else {
+            var parts: [String] = []
+            if let count = applicationCount, count > 0 {
+                parts.append(count == 1 ? String(localized: "1 app") : String(localized: "\(count) apps"))
+            }
+            if categoryCount > 0 {
+                parts.append(categoryCount == 1 ? String(localized: "1 category") : String(localized: "\(categoryCount) categories"))
+            }
+            if webDomainCount > 0 {
+                parts.append(webDomainCount == 1 ? String(localized: "1 website") : String(localized: "\(webDomainCount) websites"))
+            }
+            detail = parts.isEmpty ? String(localized: "App group") : parts.joined(separator: " · ")
+        }
+    }
+
+    init(name: String, templateApp: String?, selectionData: Data?) {
+        #if canImport(FamilyControls)
+        let selection = selectionData.flatMap { try? JSONDecoder().decode(FamilyActivitySelection.self, from: $0) }
+        self.init(name: name, templateApp: templateApp,
+                  applicationCount: selection?.applicationTokens.count,
+                  categoryCount: selection?.categoryTokens.count ?? 0,
+                  webDomainCount: selection?.webDomainTokens.count ?? 0)
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           templateApp == nil, let selection, selection.isSingleApplication {
+            applicationToken = selection.applicationTokens.first
+        }
+        #else
+        self.init(name: name, templateApp: templateApp, applicationCount: nil)
+        #endif
+    }
+}
+
+extension TicketGroup {
+    var displayIdentity: AppGroupIdentity {
+        #if canImport(FamilyControls)
+        var identity = AppGroupIdentity(name: name, templateApp: templateApp,
+                         applicationCount: selection.applicationTokens.count,
+                         categoryCount: selection.categoryTokens.count,
+                         webDomainCount: selection.webDomainTokens.count)
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           templateApp == nil, selection.isSingleApplication {
+            identity.applicationToken = selection.applicationTokens.first
+        }
+        return identity
+        #else
+        return AppGroupIdentity(name: name, templateApp: templateApp, applicationCount: nil)
+        #endif
+    }
+}
+
+/// Shared by the app and widget: an automatic title is rendered by iOS, never
+/// decoded from a private application token or copied into the user's name.
+struct AppGroupTitle: View {
+    let identity: AppGroupIdentity
+
+    var body: some View {
+        #if canImport(FamilyControls)
+        if let token = identity.applicationToken {
+            Label(token).labelStyle(.titleOnly)
+        } else {
+            Text(identity.title)
+        }
+        #else
+        Text(identity.title)
+        #endif
+    }
+}
+
+#if canImport(FamilyControls)
+extension FamilyActivitySelection {
+    var isSingleApplication: Bool {
+        applicationTokens.count == 1 && categoryTokens.isEmpty && webDomainTokens.isEmpty
+    }
+
+    var hasGroupTargets: Bool {
+        !applicationTokens.isEmpty || !categoryTokens.isEmpty
+    }
+}
+#endif
