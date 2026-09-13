@@ -1,3 +1,4 @@
+import CoreText
 import SwiftUI
 import UIKit
 import XCTest
@@ -112,19 +113,31 @@ final class AppTypographyTests: XCTestCase {
 
     func testRequiredNowhereDisplayFacesAreRegisteredInTheApplicationBundle() {
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay08-Regular", size: 24),
+            UIFont(name: "NowhereDisplay091-Regular", size: 24),
             "The regular Nowhere Display face must be bundled and registered by the app target."
         )
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay08-Bold", size: 24),
+            UIFont(name: "NowhereDisplay091-Bold", size: 24),
             "The exact static Nowhere Display Bold face used by posters must be registered by the app target."
         )
+    }
+
+    func testDisplayFontIncludesRevisedCyrillicAndExtendedCharactersWithoutFallback() {
+        let characters = Array("ЗзЖжBВ€$₽čćšžđČĆŠŽĐéüäöÉÜÄÖ".utf16)
+        for style in ["Regular", "Bold"] {
+            let name = "NowhereDisplay091-\(style)"
+            let font = CTFontCreateWithName(name as CFString, 24, nil)
+            XCTAssertEqual(CTFontCopyPostScriptName(font) as String, name)
+            var glyphs = [CGGlyph](repeating: 0, count: characters.count)
+            XCTAssertTrue(CTFontGetGlyphsForCharacters(font, characters, &glyphs, characters.count))
+            XCTAssertFalse(glyphs.contains(0), "All display characters must come from the bundled face.")
+        }
     }
 
     @MainActor
     func testAppBlackBrandFontRendersTheStaticNowhereDisplayBoldFace() throws {
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay08-Bold", size: 80),
+            UIFont(name: "NowhereDisplay091-Bold", size: 80),
             "The static Nowhere Display Bold face must be available before SwiftUI can render it."
         )
 
@@ -134,7 +147,7 @@ final class AppTypographyTests: XCTestCase {
         )
         let expected = try renderedImage(
             Text("0")
-                .font(.custom("NowhereDisplay08-Bold", fixedSize: 80))
+                .font(.custom("NowhereDisplay091-Bold", fixedSize: 80))
         )
 
         let actualImage = try XCTUnwrap(actual.cgImage)
@@ -172,7 +185,7 @@ final class AppTypographyTests: XCTestCase {
 
         let referenceImage = try renderedImage(
             Text("22/08/26")
-                .font(.custom("NowhereDisplay08-Bold", fixedSize: 40))
+                .font(.custom("NowhereDisplay091-Bold", fixedSize: 40))
         )
         let expectedBounds = try darkPixelBounds(in: try XCTUnwrap(referenceImage.cgImage))
 
@@ -198,7 +211,7 @@ final class AppTypographyTests: XCTestCase {
 
         let blackReference = try renderedImage(
             Text("22/08/26")
-                .font(.custom("NowhereDisplay08-Bold", fixedSize: 48))
+                .font(.custom("NowhereDisplay091-Bold", fixedSize: 48))
         )
         let expectedInk = try darkPixelCount(in: try XCTUnwrap(blackReference.cgImage))
 
