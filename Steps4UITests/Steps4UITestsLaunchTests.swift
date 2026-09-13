@@ -29,6 +29,31 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertEqual(groups.count, initialCount)
     }
 
+    func testCategorySelectionRequestsNameAndBackKeepsDraft() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+            "-AppleInterfaceStyle", "Light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+        app.launch()
+        XCTAssertTrue(app.buttons["tab_feeds"].waitForExistence(timeout: 10))
+        app.buttons["tab_feeds"].tap()
+        app.buttons["feed.add"].tap()
+        let all = app.staticTexts["All Apps & Categories"]
+        XCTAssertTrue(all.waitForExistence(timeout: 5))
+        all.tap()
+        app.buttons["feed.selection.done"].tap()
+        let name = app.textFields["feed.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Create"].isEnabled)
+        name.tap()
+        name.typeText("Focus")
+        XCTAssertTrue(app.buttons["Create"].isEnabled)
+        attachScreenshot(named: "new-feed-name-light-large")
+        app.navigationBars.buttons["Select Apps"].tap()
+        XCTAssertTrue(app.buttons["feed.selection.done"].isEnabled)
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
+    }
+
     func testLaunch() throws {
         let app = XCUIApplication()
         app.launch()

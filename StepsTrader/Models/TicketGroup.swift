@@ -193,7 +193,7 @@ extension FamilyActivitySelection {
     }
 
     var hasGroupTargets: Bool {
-        !applicationTokens.isEmpty || !categoryTokens.isEmpty || !webDomainTokens.isEmpty
+        !applicationTokens.isEmpty || !categoryTokens.isEmpty
     }
 }
 #endif

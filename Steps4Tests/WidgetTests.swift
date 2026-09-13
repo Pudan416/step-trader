@@ -48,6 +48,12 @@ final class WidgetTests: XCTestCase {
         XCTAssertFalse(selection.isSingleApplication)
     }
 
+    func testWebsiteOnlySelectionCannotCreateAnInvisibleAppGroup() throws {
+        var selection = FamilyActivitySelection()
+        selection.webDomainTokens = [try JSONDecoder().decode(WebDomainToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        XCTAssertFalse(selection.hasGroupTargets)
+    }
+
     func testGroupIdentityKeepsCustomNameForPresetApp() {
         let identity = AppGroupIdentity(name: "Evening break", templateApp: "com.burbn.instagram", applicationCount: 1)
         XCTAssertEqual(identity.title, "Evening break")
