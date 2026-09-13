@@ -54,7 +54,6 @@ struct AppsPageSimplified: View {
     @State private var selection = FamilyActivitySelection()
     @State private var showPicker = false
     @State private var selectedGroupId: TicketGroupId? = nil
-    @State private var showTemplatePicker = false
     @State private var expandedSheetGroupId: TicketGroupId? = nil
     @State private var inlineExpansion = FeedInlineExpansion()
     @State private var autoScrolledTargetID: String?
@@ -69,8 +68,6 @@ struct AppsPageSimplified: View {
     @State private var initialMinutes: [String: Int] = [:]
 
     private var buttonTint: Color { theme.textPrimary }
-    @State private var showCustomNamePrompt = false
-    @State private var customTicketName = ""
     @State private var deleteHapticTick = 0
     @State private var showPickerAfterDismiss = false
     @State private var groupIdToDelete: String? = nil
@@ -79,7 +76,9 @@ struct AppsPageSimplified: View {
     /// unlimited — this stays a named function so the call sites keep reading
     /// as an intent rather than a raw state flip.
     private func attemptCreateGroup() {
-        showTemplatePicker = true
+        selection = FamilyActivitySelection()
+        selectedGroupId = nil
+        showPicker = true
     }
 
     var body: some View {
@@ -149,56 +148,23 @@ struct AppsPageSimplified: View {
                     ticketSettingsSheet(group: groupBinding, onDismiss: { expandedSheetGroupId = nil })
                 }
             }
-            .sheet(isPresented: $showPicker, onDismiss: {
-                if let groupId = selectedGroupId {
-                    if let group = model.blockingStore.ticketGroups.first(where: { $0.id == groupId.id }) {
-                        let hasApps = !group.selection.applicationTokens.isEmpty || !group.selection.categoryTokens.isEmpty
-                        if !hasApps { model.deleteTicketGroup(groupId.id) }
+            .sheet(isPresented: $showPicker, onDismiss: { selectedGroupId = nil }) {
+                NewAppGroupSheet(
+                    selection: selection,
+                    name: selectedGroupId.flatMap { id in
+                        model.blockingStore.ticketGroups.first { $0.id == id.id }?.name
+                    } ?? ""
+                ) { selection, name in
+                    if let id = selectedGroupId,
+                       var group = model.blockingStore.ticketGroups.first(where: { $0.id == id.id }) {
+                        if group.selection != selection { group.templateApp = nil }
+                        group.selection = selection
+                        group.name = name
+                        model.updateTicketGroup(group)
+                    } else {
+                        _ = model.createTicketGroup(name: name, selection: selection, stickerThemeIndex: 0)
                     }
-                    selectedGroupId = nil
                 }
-            }) {
-                #if canImport(FamilyControls)
-                AppSelectionSheet(
-                    selection: $selection,
-                    templateApp: selectedGroupId.flatMap { gid in model.blockingStore.ticketGroups.first(where: { $0.id == gid.id })?.templateApp },
-                    onDone: {
-                        if let groupId = selectedGroupId {
-                            let hasApps = !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty
-                            if hasApps {
-                                model.addAppsToGroup(groupId.id, selection: selection)
-                                showPicker = false; selectedGroupId = nil
-                            } else {
-                                model.deleteTicketGroup(groupId.id)
-                                showPicker = false; selectedGroupId = nil
-                            }
-                        } else {
-                            model.syncFamilyControlsCards(from: selection)
-                            showPicker = false; selectedGroupId = nil
-                        }
-                    }
-                )
-                #else
-                Text(String(localized: "Family Controls not available")).padding()
-                #endif
-            }
-            .sheet(isPresented: $showTemplatePicker) {
-                TicketTemplatePickerView(
-                    model: model,
-                    onTemplateSelected: { templateApp in
-                        showTemplatePicker = false
-                        let displayName = TargetResolver.displayName(for: templateApp)
-                        let group = model.createTicketGroup(name: displayName, templateApp: templateApp, stickerThemeIndex: 0)
-                        selection = FamilyActivitySelection()
-                        selectedGroupId = TicketGroupId(id: group.id)
-                        showPicker = true
-                    },
-                    onCustomSelected: {
-                        showTemplatePicker = false
-                        customTicketName = ""
-                        showCustomNamePrompt = true
-                    }
-                )
             }
             .onAppear { selection = model.appSelection }
             .task {
@@ -216,20 +182,6 @@ struct AppsPageSimplified: View {
                 // Coming back from the blocked app is the transition that
                 // matters most here, and it does not wait for the poll.
                 if phase == .active { refreshUsageBudgets() }
-            }
-            .alert(String(localized: "Name your feed"), isPresented: $showCustomNamePrompt) {
-                TextField(String(localized: "e.g. Social, Games…", comment: "Placeholder for feed name"), text: $customTicketName)
-                Button(String(localized: "Create")) {
-                    let name = customTicketName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let group = model.createTicketGroup(
-                        name: name.isEmpty ? String(localized: "New Feed") : name,
-                        stickerThemeIndex: 0
-                    )
-                    selection = FamilyActivitySelection()
-                    selectedGroupId = TicketGroupId(id: group.id)
-                    showPicker = true
-                }
-                Button(String(localized: "Cancel"), role: .cancel) {}
             }
             .alert(String(localized: "Delete this feed?"), isPresented: Binding(
                 get: { groupIdToDelete != nil },
@@ -361,7 +313,7 @@ struct AppsPageSimplified: View {
             }
 
             Button(action: attemptCreateGroup) {
-                Label(String(localized: "Add a feed"), systemImage: "plus")
+                Label(String(localized: "Add apps"), systemImage: "plus")
                     .font(.geist(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(palette.onAccentColor)
                     .padding(.horizontal, 22)
@@ -397,6 +349,10 @@ struct AppsPageSimplified: View {
             // becomes Liquid Glass automatically; pre-26 it's translucent
             // material. Explicit color was flattening it into a solid bar.
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    AppGroupTitle(identity: group.wrappedValue.displayIdentity)
+                        .font(.headline)
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Done")) { onDismiss() }
                 }

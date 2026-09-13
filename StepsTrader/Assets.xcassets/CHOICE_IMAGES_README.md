@@ -30,7 +30,6 @@ Auxiliary (non-catalog) Image Sets in this xcassets:
 
 - `grain 1` — paper-grain overlay used by the canvas backdrop
 - `colors` — palette swatch reference image
-- `instagram`, `tiktok`, `youtube`, `x`, `facebook`, `linkedin`, `pinterest`, `reddit`, `snapchat`, `telegram`, `whatsapp` — Shields icons (see §6)
 
 ## 3. Adding a new mind / heart asset
 

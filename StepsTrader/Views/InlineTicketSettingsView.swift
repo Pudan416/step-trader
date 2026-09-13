@@ -44,6 +44,8 @@ struct TicketSettingsContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isUnlocking = false
+    @State private var showRename = false
+    @State private var editedName = ""
     @State private var showEditSettings = false
     @State private var showDeleteConfirmation = false
     @State private var unlockHapticTick = 0
@@ -57,7 +59,7 @@ struct TicketSettingsContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(group.displayIdentity.title)
+                AppGroupTitle(identity: group.displayIdentity)
                     .font(.onest(.headline))
                 Text(group.displayIdentity.detail)
                     .font(.onest(.caption))
@@ -88,6 +90,15 @@ struct TicketSettingsContentView: View {
                 }
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
+
+            Button {
+                editedName = group.name
+                showRename = true
+            } label: {
+                rowButtonLabel(icon: "pencil", title: String(localized: "Rename"), showChevron: true, expanded: false, surface: surface, separator: separator)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.feed.rename")
 
             Button {
                 onEditApps()
@@ -125,6 +136,22 @@ struct TicketSettingsContentView: View {
         }
         .padding(.top, 8)
         .sensoryFeedback(.impact(weight: .medium), trigger: unlockHapticTick)
+        .alert(String(localized: "Name your feed"), isPresented: $showRename) {
+            TextField(String(localized: "Name your feed"), text: $editedName)
+            Button(String(localized: "Save")) {
+                group.name = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+                updateGroup(group)
+            }
+            .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if group.selection.isSingleApplication {
+                Button(String(localized: "Use app name")) {
+                    group.name = ""
+                    group.templateApp = nil
+                    updateGroup(group)
+                }
+            }
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        }
         .confirmationDialog(
             String(localized: "Delete \(group.name.isEmpty ? "Feed" : group.name)?"),
             isPresented: $showDeleteConfirmation,

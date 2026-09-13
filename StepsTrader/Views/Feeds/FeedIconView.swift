@@ -3,9 +3,7 @@ import SwiftUI
 import FamilyControls
 #endif
 
-/// One app icon. Registry apps get our bundled asset with full styling control;
-/// everything else gets the system-drawn `Label(token)`, which the system renders
-/// in its own process and which cannot be recoloured, masked, or reshaped.
+/// Native app icon from the selected Screen Time token.
 struct FeedIconView: View {
     let source: FeedIconSource
     let size: CGFloat
@@ -13,22 +11,7 @@ struct FeedIconView: View {
     var token: ApplicationToken? = nil
     #endif
 
-    var body: some View {
-        switch source {
-        case .asset(let imageName):
-            assetIcon(imageName)
-        case .systemLabel:
-            systemIcon
-        }
-    }
-
-    private func assetIcon(_ imageName: String) -> some View {
-        Image(imageName)
-            .resizable()
-            .scaledToFill()
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
-    }
+    var body: some View { systemIcon }
 
     @ViewBuilder
     private var systemIcon: some View {

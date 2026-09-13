@@ -1,7 +1,26 @@
 import XCTest
+import FamilyControls
+import ManagedSettings
 @testable import Steps4
 
 final class WidgetTests: XCTestCase {
+
+    func testAutomaticNameUsesOnlySingleAppTokenAndSurvivesWidgetSerialization() throws {
+        let token = try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [token]
+        let identity = AppGroupIdentity(name: "", templateApp: nil,
+            selectionData: try JSONEncoder().encode(selection))
+        XCTAssertEqual(identity.applicationToken, token)
+        let renamed = AppGroupIdentity(name: "My break", templateApp: nil,
+            selectionData: try JSONEncoder().encode(selection))
+        XCTAssertNil(renamed.applicationToken)
+        XCTAssertEqual(renamed.title, "My break")
+        selection.categoryTokens = [try JSONDecoder().decode(ActivityCategoryToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        let mixed = AppGroupIdentity(name: "", templateApp: nil,
+            selectionData: try JSONEncoder().encode(selection))
+        XCTAssertNil(mixed.applicationToken)
+    }
 
     func testGroupIdentityKeepsCustomNameForPresetApp() {
         let identity = AppGroupIdentity(name: "Evening break", templateApp: "com.burbn.instagram", applicationCount: 1)

@@ -174,8 +174,8 @@ final class BlockingStore: ObservableObject {
         #endif
     }
 
-    func createTicketGroup(name: String, templateApp: String? = nil, defaultSettings: AppUnlockSettings, stickerThemeIndex: Int = 0) -> TicketGroup {
-        let group = TicketGroup(name: name, settings: defaultSettings, templateApp: templateApp, stickerThemeIndex: stickerThemeIndex)
+    func createTicketGroup(name: String, selection: FamilyActivitySelection = FamilyActivitySelection(), templateApp: String? = nil, defaultSettings: AppUnlockSettings, stickerThemeIndex: Int = 0) -> TicketGroup {
+        let group = TicketGroup(name: name, selection: selection, settings: defaultSettings, templateApp: templateApp, stickerThemeIndex: stickerThemeIndex)
         ticketGroups.append(group)
         persistTicketGroups()
         return group

@@ -36,7 +36,13 @@ struct TicketGroupQuery: EntityQuery {
               let decoded = try? JSONDecoder().decode([GroupStub].self, from: data) else {
             return []
         }
-        return decoded.map { TicketGroupEntity(id: $0.id, name: $0.name) }
+        // AppIntent display representations cannot host a FamilyControls Label.
+        // Keep unnamed entries distinguishable in the configuration picker.
+        return decoded.enumerated().map { index, group in
+            let name = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return TicketGroupEntity(id: group.id,
+                name: name.isEmpty ? String(localized: "App group \(index + 1)") : name)
+        }
     }
 
     private struct GroupStub: Decodable {

@@ -890,7 +890,7 @@ struct OnboardingStoriesView: View {
             .padding(.bottom, 20)
             
             ZStack {
-                Image("instagram")
+                Image(systemName: "app")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 56, height: 56)
@@ -1171,15 +1171,15 @@ struct OnboardingStoriesView: View {
 
     // MARK: - Slide 10: Feed Selection (skippable)
     
-    private static let popularApps: [(bundleId: String, name: String, imageName: String)] = [
-        ("com.burbn.instagram", "Instagram", "instagram"),
-        ("com.zhiliaoapp.musically", "TikTok", "tiktok"),
-        ("com.google.ios.youtube", "YouTube", "youtube"),
-        ("com.atebits.Tweetie2", "X", "x"),
-        ("com.reddit.Reddit", "Reddit", "reddit"),
-        ("com.facebook.Facebook", "Facebook", "facebook"),
-        ("com.toyopagroup.picaboo", "Snapchat", "snapchat"),
-        ("ph.telegra.Telegraph", "Telegram", "telegram"),
+    private static let popularApps: [(bundleId: String, name: String)] = [
+        ("com.burbn.instagram", "Instagram"),
+        ("com.zhiliaoapp.musically", "TikTok"),
+        ("com.google.ios.youtube", "YouTube"),
+        ("com.atebits.Tweetie2", "X"),
+        ("com.reddit.Reddit", "Reddit"),
+        ("com.facebook.Facebook", "Facebook"),
+        ("com.toyopagroup.picaboo", "Snapchat"),
+        ("ph.telegra.Telegraph", "Telegram"),
     ]
 
     @ViewBuilder
@@ -1220,13 +1220,6 @@ struct OnboardingStoriesView: View {
                     } label: {
                         VStack(spacing: 8) {
                             ZStack(alignment: .topTrailing) {
-                                Image(app.imageName)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 48, height: 48)
-                                    .clipShape(RoundedRectangle(cornerRadius: 11))
-                                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.white.opacity(0.08), lineWidth: 1))
-                                
                                 if isSelected {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.geist(16, relativeTo: .subheadline))

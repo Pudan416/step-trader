@@ -152,7 +152,7 @@ struct PayGateView: View {
                 .scaleEffect(appeared ? 1 : 0.85)
 
             VStack(spacing: 6) {
-                Text(group.displayIdentity.title)
+                AppGroupTitle(identity: group.displayIdentity)
                     .font(.onest(24, weight: .medium, relativeTo: .title2))
                     .fontDesign(nil)
                     .foregroundStyle(PayGatePalette.textPrimary)

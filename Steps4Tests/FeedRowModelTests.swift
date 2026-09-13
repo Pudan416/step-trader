@@ -6,10 +6,10 @@ final class FeedRowModelTests: XCTestCase {
 
     // MARK: - Icon source
 
-    func testRegistryAppUsesBundledAsset() {
+    func testRegistryAppUsesSystemLabel() {
         XCTAssertEqual(
             FeedRowModel.iconSource(forBundleId: "com.burbn.instagram"),
-            .asset("instagram")
+            .systemLabel
         )
     }
 
@@ -28,14 +28,14 @@ final class FeedRowModelTests: XCTestCase {
 
     func testSingleAppGroupRendersAsPlainIcon() {
         let kind = FeedRowModel.kind(templateApp: "com.burbn.instagram", appTokenCount: 1)
-        XCTAssertEqual(kind, .single(.asset("instagram")))
+        XCTAssertEqual(kind, .single(.systemLabel))
     }
 
     func testTemplateGroupWithNoTokensStillRendersAsSingle() {
         // Template groups are validated to exactly one app, but the token count
         // can read zero before the picker's selection has been persisted.
         let kind = FeedRowModel.kind(templateApp: "com.burbn.instagram", appTokenCount: 0)
-        XCTAssertEqual(kind, .single(.asset("instagram")))
+        XCTAssertEqual(kind, .single(.systemLabel))
     }
 
     func testCustomGroupWithTwoAppsRendersAsCluster() {

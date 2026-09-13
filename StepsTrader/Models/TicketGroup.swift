@@ -1,7 +1,9 @@
 import Foundation
+import SwiftUI
 import os.log
 #if canImport(FamilyControls)
 import FamilyControls
+import ManagedSettings
 #endif
 
 struct TicketGroup: Identifiable, Codable {
@@ -95,6 +97,9 @@ struct TicketGroup: Identifiable, Codable {
 struct AppGroupIdentity: Equatable {
     let title: String
     let detail: String
+    #if canImport(FamilyControls)
+    var applicationToken: ApplicationToken? = nil
+    #endif
 
     static let applicationNames: [String: String] = [
         "com.burbn.instagram": "Instagram", "com.zhiliaoapp.musically": "TikTok",
@@ -135,6 +140,10 @@ struct AppGroupIdentity: Equatable {
                   applicationCount: selection?.applicationTokens.count,
                   categoryCount: selection?.categoryTokens.count ?? 0,
                   webDomainCount: selection?.webDomainTokens.count ?? 0)
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           templateApp == nil, let selection, selection.isSingleApplication {
+            applicationToken = selection.applicationTokens.first
+        }
         #else
         self.init(name: name, templateApp: templateApp, applicationCount: nil)
         #endif
@@ -144,12 +153,47 @@ struct AppGroupIdentity: Equatable {
 extension TicketGroup {
     var displayIdentity: AppGroupIdentity {
         #if canImport(FamilyControls)
-        return AppGroupIdentity(name: name, templateApp: templateApp,
+        var identity = AppGroupIdentity(name: name, templateApp: templateApp,
                          applicationCount: selection.applicationTokens.count,
                          categoryCount: selection.categoryTokens.count,
                          webDomainCount: selection.webDomainTokens.count)
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           templateApp == nil, selection.isSingleApplication {
+            identity.applicationToken = selection.applicationTokens.first
+        }
+        return identity
         #else
         return AppGroupIdentity(name: name, templateApp: templateApp, applicationCount: nil)
         #endif
     }
 }
+
+/// Shared by the app and widget: an automatic title is rendered by iOS, never
+/// decoded from a private application token or copied into the user's name.
+struct AppGroupTitle: View {
+    let identity: AppGroupIdentity
+
+    var body: some View {
+        #if canImport(FamilyControls)
+        if let token = identity.applicationToken {
+            Label(token).labelStyle(.titleOnly)
+        } else {
+            Text(identity.title)
+        }
+        #else
+        Text(identity.title)
+        #endif
+    }
+}
+
+#if canImport(FamilyControls)
+extension FamilyActivitySelection {
+    var isSingleApplication: Bool {
+        applicationTokens.count == 1 && categoryTokens.isEmpty && webDomainTokens.isEmpty
+    }
+
+    var hasGroupTargets: Bool {
+        !applicationTokens.isEmpty || !categoryTokens.isEmpty || !webDomainTokens.isEmpty
+    }
+}
+#endif

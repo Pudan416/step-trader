@@ -324,7 +324,7 @@ struct FeedRowView: View {
                 .buttonStyle(.plain)
                 .frame(height: headerHeight)
                 .accessibilityIdentifier("feed.\(group.id).access")
-                .accessibilityLabel(accessibilityLabel)
+                .accessibilityElement(children: .combine)
                 .accessibilityHint(accessibilityHint)
                 .accessibilityAction(named: String(localized: "Settings"), onSettings)
                 .accessibilityAction(named: String(localized: "Delete"), onDelete)
@@ -346,7 +346,7 @@ struct FeedRowView: View {
     private func rowContent(width: CGFloat) -> some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(displayName)
+                AppGroupTitle(identity: group.displayIdentity)
                     .font(.geist(20, weight: .medium, relativeTo: .body))
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
 

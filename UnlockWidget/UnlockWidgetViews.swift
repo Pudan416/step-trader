@@ -175,7 +175,7 @@ struct NowhereWidgetContent: View {
         return activeGroupLink(group) {
             VStack(alignment: .leading, spacing: compact ? (dense ? 2 : 4) : 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(identity.title)
+                    AppGroupTitle(identity: identity)
                         .font(.onest(size: compact ? 13 : 15, weight: .medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -206,7 +206,7 @@ struct NowhereWidgetContent: View {
             }
             .accessibilityElement(children: .contain)
             .contentShape(Rectangle())
-            .accessibilityLabel("\(identity.title), \(identity.detail)")
+
         }
     }
 

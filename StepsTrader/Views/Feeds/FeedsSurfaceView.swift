@@ -96,7 +96,7 @@ struct FeedsSurfaceView: View {
         return VStack(spacing: 12) {
             if let group {
                 VStack(spacing: 4) {
-                    Text(group.displayIdentity.title).font(.onest(20, weight: .medium))
+                    AppGroupTitle(identity: group.displayIdentity).font(.onest(20, weight: .medium))
                     Text(group.displayIdentity.detail).font(.onest(.caption)).opacity(0.8)
                 }
                 .foregroundStyle(.white)
