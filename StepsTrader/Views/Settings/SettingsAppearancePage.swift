@@ -215,9 +215,11 @@ struct SettingsAppearancePage: View {
         }
         .safeAreaInset(edge: .bottom) {
             (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())) {
-                Text(draft == original ? String(localized: "Preview") : String(localized: "Unsaved changes"))
-                    .font(.geist(.caption))
-                    .foregroundStyle(theme.textSecondary)
+                if draft != original {
+                    Text("Unsaved changes")
+                        .font(.geist(.caption))
+                        .foregroundStyle(theme.textSecondary)
+                }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Button("Apply") { applyAppearance() }
                     .buttonStyle(.borderedProminent)
