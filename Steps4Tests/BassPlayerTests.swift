@@ -382,7 +382,7 @@ final class BassPlayerTests: XCTestCase {
     }
 
     private func makeHarness(
-        clock: any DayObjectsTransportClock = HostTimeDayObjectsTransportClock(schedulingLookaheadSeconds: 0)
+        clock: any DayObjectsTransportClock = ManualDayObjectsTransportClock(now: 0)
     ) throws -> (
         player: BassPlayer,
         pool: RecordingBassPool,
@@ -477,7 +477,9 @@ final class BassPlayerTests: XCTestCase {
         .init(
             kind: .subdivision,
             position: .init(absoluteSubdivision: subdivision),
-            hostTimeSeconds: Double(subdivision) * 0.125,
+            // These schedule-only fixtures advance musical position synchronously.
+            // Deadline behavior is exercised separately with futureEvent.
+            hostTimeSeconds: 0,
             tempoBPM: 120
         )
     }
@@ -486,7 +488,9 @@ final class BassPlayerTests: XCTestCase {
         .init(
             kind: .beat,
             position: .init(absoluteSubdivision: subdivision),
-            hostTimeSeconds: Double(subdivision) * 0.125,
+            // These schedule-only fixtures advance musical position synchronously.
+            // Deadline behavior is exercised separately with futureEvent.
+            hostTimeSeconds: 0,
             tempoBPM: 120
         )
     }

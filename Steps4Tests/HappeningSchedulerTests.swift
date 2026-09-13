@@ -94,7 +94,10 @@ final class HappeningSchedulerTests: XCTestCase {
         ] {
             let plan = WorldArrangementFixture.plan(world, mood, happenings: (0..<10).map { "world-event-\($0)" })
             let bank = RecordingHappeningBank()
-            let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
+            let scheduler = HappeningScheduler(
+                worldBank: PlaybackWorldBank(instrumentBank: bank),
+                clock: ManualDayObjectsTransportClock(now: 0)
+            )
             try scheduler.configure(plans: plan.happenings, tonalWorld: plan.world, remixSeed: plan.seed)
             try scheduler.start(playInitialBirths: false)
             for subdivision in Int64(0)...Int64(128 * MusicalPosition.subdivisionsPerBar) {
@@ -534,9 +537,25 @@ final class HappeningSchedulerTests: XCTestCase {
         XCTAssertFalse(harness.scheduler.metrics.activeHappeningIDs.contains(removed.happeningID))
     }
 
+    func testScheduleOnlyRenderingDoesNotDependOnHostUptime() throws {
+        let clock = ManualDayObjectsTransportClock(now: 0)
+        let harness = try makeHarness(count: 1, playInitialBirths: true, clock: clock)
+        defer { harness.scheduler.stop() }
+        let input = event(.subdivision, subdivision: 16)
+        harness.scheduler.render(input, currentChord: harness.world.progression[0])
+
+        XCTAssertEqual(harness.scheduler.pendingDeadlineTaskCount, 0)
+        XCTAssertEqual(harness.pool.successfulPlayCalls.count, 1)
+    }
+
     func testAttackHistoryIsBoundedAndKeepsMostRecentResolvedEvents() throws {
-        let harness = try makeHarness(count: 10)
+        // A newly booted CI runner can have less uptime than this simulated
+        // hour of music. Schedule-only rendering must not depend on uptime.
+        let harness = try makeHarness(count: 10, clock: ManualDayObjectsTransportClock(now: 3_420))
+        defer { harness.scheduler.stop() }
         renderBars(2_000, through: harness.scheduler, chord: harness.world.progression[0])
+
+        XCTAssertEqual(harness.scheduler.pendingDeadlineTaskCount, 0)
 
         let history = harness.scheduler.metrics.attackHistory
         XCTAssertLessThanOrEqual(history.count, HappeningScheduler.maximumRecordedAttackCount)
@@ -560,7 +579,7 @@ final class HappeningSchedulerTests: XCTestCase {
     private func makeHarness(
         count: Int,
         playInitialBirths: Bool = false,
-        clock: any DayObjectsTransportClock = HostTimeDayObjectsTransportClock(schedulingLookaheadSeconds: 0)
+        clock: any DayObjectsTransportClock = ManualDayObjectsTransportClock(now: 0)
     ) throws -> Harness {
         let bank = RecordingHappeningBank()
         let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank), clock: clock)
@@ -596,7 +615,9 @@ final class HappeningSchedulerTests: XCTestCase {
         .init(
             kind: kind,
             position: .init(absoluteSubdivision: subdivision),
-            hostTimeSeconds: Double(subdivision) * 0.125,
+            // These schedule-only fixtures advance musical position synchronously.
+            // Deadline behavior is exercised separately with futureEvent.
+            hostTimeSeconds: 0,
             tempoBPM: 120
         )
     }

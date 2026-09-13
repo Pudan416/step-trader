@@ -42,7 +42,9 @@ The local-only `b131196c` Debug restriction was found missing from integration a
 - Additional Canvas/lab run: 105 tests, 0 failures, including the two former red regressions and real upload-gate cancellation/latest-snapshot coverage.
 - An initial full run was intentionally interrupted after independent review found the legacy/unowned Canvas retry gap. It is not counted as a full-suite pass.
 - Final source: all 34 Canvas persistence regressions passed, including legacy deferred-upload durability, recovery-release follow-up and session/token coherence.
-- The full unit run was still executing when this code-review record was committed. Completed full-suite/Release results and the exact published revision are recorded in [PR #21](https://github.com/Pudan416/step-trader/pull/21) and its checks; do not substitute older-head results.
+- Full local unit run for `d1b02585`: 2,076 tests, 5 intentional skips, 0 failures in 1,927 seconds. Current-head Release CI built the app and all four extensions and passed bundled audio checks; Edge Functions and both admin checks passed.
+- Full GitHub unit run for `d1b02585`: 2,076 tests, 5 skips, 1 failure in the bounded Happening attack-history test. Its synchronous offline event helper used relative musical seconds as absolute host timestamps; on the newly booted CI runner, later events were correctly deferred and the test inspected history too early. This exposed a test clock-domain defect that a long-running local machine concealed. A forced 3,420-second clock reproduced the exact CI cutoff at bar 1,709 locally; a second zero-clock regression also failed before the helper fix. The follow-up makes offline test events immediately due, verifies history at the short CI uptime and adds a zero-clock regression; explicit future-deadline tests remain intact. All 40 Bass/Happening tests passed after the fix. Production code is unchanged by this follow-up.
+- The follow-up validation results and exact published revision are recorded in [PR #21](https://github.com/Pudan416/step-trader/pull/21) and its checks; do not substitute older-head results.
 
 ## Review limits
 
