@@ -162,13 +162,13 @@ extension AppModel {
         let optionId: String
         if case .workout(let workout) = suggestion.source {
             guard let workoutOptionId = workout.suggestedOptionId,
-                  installExternalPaletteHappening(
+                  let happening = installExternalPaletteHappening(
                     id: workoutOptionId,
                     title: workout.activityName
-                  ) != nil else {
+                  ) else {
                 return nil
             }
-            optionId = workoutOptionId
+            optionId = happening.id
         } else {
             optionId = suggestion.optionId
         }

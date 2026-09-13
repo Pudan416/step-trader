@@ -541,6 +541,30 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertTrue(model.todayAdditions.isEmpty)
     }
 
+    func testCanonicalWalkRemovesTheExistingImportedCanvasElement() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        var canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let element = CanvasElement.spawn(
+            id: UUID(), optionId: "body_walking", label: "Walking", existingElements: [],
+            dayKey: canvas.dayKey,
+            composition: DayComposition.forDay(dayKey: canvas.dayKey, happeningCount: 0)
+        )
+        canvas.elements = [element]
+        model.todayAdditions = [OptionEntry(
+            id: element.id.uuidString, dayKey: canvas.dayKey, optionId: "body_walking",
+            colorHex: element.hexColor, timestamp: date, assetVariant: nil
+        )]
+        let result = try XCTUnwrap(CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true, canvas: canvas, model: model,
+            happeningID: "happening_walk", at: date, persist: { _ in true }
+        ))
+        XCTAssertEqual(result.removedElement.id, element.id)
+        XCTAssertTrue(result.canvas.elements.isEmpty)
+        XCTAssertTrue(model.todayAdditions.isEmpty)
+    }
+
     func testRemovalFallsBackToLegacyEntryIDAndAllowsReAdding() throws {
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         let model = makeRemovalModel()
@@ -1389,6 +1413,22 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
 
     /// Catches a reroll accidentally changing the promised object instead of
     /// changing only its restrained color variation.
+    func testCanonicalWalkPreviewKeepsImportedCanvasIdentityAndColor() throws {
+        var element = CanvasElement.spawn(
+            id: UUID(), optionId: "health_workout_52", label: "Walking", existingElements: [],
+            dayKey: dayKey,
+            composition: DayComposition.forDay(dayKey: dayKey, happeningCount: 0)
+        )
+        element.editorialColorVariant = 37
+        let snapshot = HappeningEditorialAssignmentResolver.snapshot(request: .init(
+            happenings: [happening], baseInput: editorialInput(),
+            committedElements: [element], colorNonce: 2
+        ))
+        let assignment = try XCTUnwrap(snapshot.assignments["happening_walk"])
+        XCTAssertEqual(assignment.elementID, element.id)
+        XCTAssertEqual(assignment.colorVariant, 37)
+    }
+
     func testColorRerollKeepsElementIdentityAndShapeStable() throws {
         let first = try XCTUnwrap(
             HappeningEditorialAssignmentResolver.assignments(

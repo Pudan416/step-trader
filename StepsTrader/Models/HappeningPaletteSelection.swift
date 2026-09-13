@@ -9,8 +9,8 @@ enum HappeningPaletteSelectionError: Error, Equatable {
 enum HappeningPaletteSelection {
     static let slotCount = 10
 
-    /// Only the chooser collapses known imported equivalents. Stored IDs,
-    /// selected slots, history, use counts and the addition economy stay intact.
+    /// The chooser and saved palette share known imported equivalents.
+    /// Catalog records, history and use counts stay intact.
     /// Equal titles alone are never evidence that two user happenings are one.
     static func alternatives(catalog: [Happening], selected: [String], query: String = "") -> [Happening] {
         let selectedChoices = Set(selected.map(choiceID))
@@ -31,7 +31,7 @@ enum HappeningPaletteSelection {
         }
     }
 
-    private static func choiceID(_ id: String) -> String {
+    static func choiceID(_ id: String) -> String {
         switch id {
         // 52 is the persisted HKWorkoutActivityType.walking raw value.
         // Other workout types can share a label while being distinct activities.
@@ -40,17 +40,19 @@ enum HappeningPaletteSelection {
         }
     }
 
-    /// Removes deleted and duplicate ids, then fills empty slots in a stable
-    /// order: the supplied defaults first, followed by the catalog source order.
+    /// Repairs saved slots using the current built-in for known aliases, then
+    /// fills vacancies in default order. Historical catalog records are untouched.
     static func repaired(ids: [String], catalog: [Happening], defaults: [String]) -> [String] {
         let liveIDs = Set(catalog.map(\.id))
         var seen = Set<String>()
 
         return (ids + defaults + catalog.map(\.id)).reduce(into: []) { repaired, id in
-            guard repaired.count < slotCount, liveIDs.contains(id), seen.insert(id).inserted else {
+            let key = choiceID(id)
+            let currentID = liveIDs.contains(key) ? key : id
+            guard repaired.count < slotCount, liveIDs.contains(currentID), seen.insert(key).inserted else {
                 return
             }
-            repaired.append(id)
+            repaired.append(currentID)
         }
     }
 

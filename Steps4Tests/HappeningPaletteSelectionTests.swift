@@ -48,20 +48,50 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         XCTAssertEqual(HappeningPaletteSelection.alternatives(catalog: catalog, selected: []), catalog)
     }
 
-    func testSelectedLegacyWalksSurviveCatalogReloadAndRemainReplaceable() throws {
+    func testSavedAndLegacyWalkingDuplicatesBecomeOneWalkAndStayRepairedAfterReload() {
         let catalog = HappeningDefaults.builtIns + [
             Happening(id: "body_walking", title: "Walking", isBuiltIn: false, useCount: 7),
             Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false, useCount: 3)
         ]
         let selected = ["body_walking", "health_workout_52"] + Array(HappeningDefaults.builtIns.dropFirst(2)).map(\.id)
-        defaults.set(selected, forKey: SharedKeys.happeningPaletteSelection)
+        for key in [SharedKeys.happeningPaletteSelection, SharedKeys.legacyHappeningPaletteOrderIds] {
+            defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            defaults.set(selected, forKey: key)
+            let store = HappeningPaletteSelectionStore(defaults: defaults)
+            store.load(catalog: catalog)
+            XCTAssertEqual(store.ids.first, "happening_walk")
+            XCTAssertEqual(store.ids.count, 10)
+            XCTAssertFalse(store.ids.contains("body_walking"))
+            XCTAssertFalse(store.ids.contains("health_workout_52"))
+            XCTAssertEqual(store.ids.last, "happening_workout")
+            let reloaded = HappeningPaletteSelectionStore(defaults: defaults)
+            reloaded.load(catalog: catalog)
+            XCTAssertEqual(reloaded.ids, store.ids)
+            XCTAssertEqual(defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection), store.ids)
+        }
+    }
+
+    func testSaveCannotReintroduceWalkingAliasBesideWalk() throws {
+        let catalog = HappeningDefaults.builtIns + [
+            Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false)
+        ]
         let store = HappeningPaletteSelectionStore(defaults: defaults)
         store.load(catalog: catalog)
-        XCTAssertEqual(store.ids, selected)
-        var draft = HappeningPaletteSelectionDraft(selected: store.ids, catalog: catalog)
-        XCTAssertTrue(draft.replace(id: "body_walking", with: "happening_workout"))
-        try store.save(draft.ids, catalog: catalog)
-        XCTAssertTrue(store.ids.contains("health_workout_52"))
+        let original = store.ids
+        XCTAssertThrowsError(try store.save(Array(original.dropLast()) + ["health_workout_52"], catalog: catalog))
+        XCTAssertEqual(store.ids, original)
+    }
+
+    func testRepairKeepsCustomWalkAndAnImportedWalkWhenBuiltInIsMissing() {
+        let catalog = [
+            Happening(id: "body_walking", title: "Walking", isBuiltIn: false),
+            Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false),
+            Happening(id: "user_walk", title: "Walk", isBuiltIn: false)
+        ]
+        XCTAssertEqual(
+            HappeningPaletteSelection.repaired(ids: catalog.map(\.id), catalog: catalog, defaults: []),
+            ["body_walking", "user_walk"]
+        )
     }
 
     func testAlternativeStillExistsWhenItsBuiltInIsMissing() {

@@ -187,6 +187,53 @@ final class HealthActivitySuggestionTests: XCTestCase {
         XCTAssertTrue(model.selectedPaletteHappeningIDs().contains("health_workout_57"))
     }
 
+    func testAcceptingWalkingReusesWalkWithoutReplacingAnotherPaletteSlot() throws {
+        let defaults = UserDefaults.stepsTrader()
+        let catalogBefore = defaults.data(forKey: SharedKeys.happeningCatalog)
+        let selectionBefore = defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection)
+        defer {
+            if let catalogBefore {
+                defaults.set(catalogBefore, forKey: SharedKeys.happeningCatalog)
+            } else {
+                defaults.removeObject(forKey: SharedKeys.happeningCatalog)
+            }
+            if let selectionBefore {
+                defaults.set(selectionBefore, forKey: SharedKeys.happeningPaletteSelection)
+            } else {
+                defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            }
+        }
+
+        let model = AppModel(
+            healthKitService: ConfigurableHealthKitMock(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+        model.happeningStore.load()
+        model.happeningPaletteSelectionStore.load(catalog: model.happeningStore.all)
+        let workout = DetectedWorkout(
+            id: UUID(),
+            activityType: HKWorkoutActivityType.walking.rawValue,
+            startDate: Date.now.addingTimeInterval(-1_800),
+            endDate: Date.now,
+            durationMinutes: 30,
+            caloriesBurned: nil,
+            distance: nil
+        )
+        let suggestion = try XCTUnwrap(ActivitySuggestion.fromWorkout(workout))
+
+        try model.happeningPaletteSelectionStore.save(
+            HappeningDefaults.builtIns.map(\.id), catalog: model.happeningStore.all
+        )
+        let original = model.selectedPaletteHappeningIDs()
+        XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "happening_walk")
+        XCTAssertEqual(model.selectedPaletteHappeningIDs(), original)
+        XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "happening_walk")
+        XCTAssertEqual(model.selectedPaletteHappeningIDs(), original)
+    }
+
     func testRefreshDoesNotSuggestHealthWalkingWhenWalkIsAlreadyOnCanvas() async {
         let healthKit = ConfigurableHealthKitMock()
         healthKit.workoutsToReturn = [

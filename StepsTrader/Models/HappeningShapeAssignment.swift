@@ -89,6 +89,8 @@ enum HappeningEditorialAssignmentResolver {
         let assignments: [String: HappeningEditorialAssignment] = request.happenings.reduce(into: [:]) { result, happening in
             let committedElement = request.committedElements.first {
                 $0.optionId == happening.id
+            } ?? request.committedElements.first {
+                HappeningPaletteSelection.choiceID($0.optionId) == HappeningPaletteSelection.choiceID(happening.id)
             }
             let elementID = committedElement?.id
                 ?? variedElementID(happeningID: happening.id, request: request, direction: direction)

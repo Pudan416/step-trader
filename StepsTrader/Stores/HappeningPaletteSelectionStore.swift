@@ -76,7 +76,7 @@ final class HappeningPaletteSelectionStore {
             ids = HappeningPaletteSelection.repaired(ids: saved, catalog: catalog, defaults: defaultIDs)
         } else if let legacy = defaults.stringArray(forKey: SharedKeys.legacyHappeningPaletteOrderIds),
                   isValidSelection(legacy, catalog: catalog) {
-            ids = legacy
+            ids = HappeningPaletteSelection.repaired(ids: legacy, catalog: catalog, defaults: defaultIDs)
         } else {
             ids = HappeningPaletteSelection.repaired(ids: [], catalog: catalog, defaults: defaultIDs)
         }
@@ -85,12 +85,13 @@ final class HappeningPaletteSelectionStore {
     }
 
     func save(_ ids: [String], catalog: [Happening]) throws {
-        guard isValidSelection(ids, catalog: catalog) else {
+        guard isValidSelection(ids, catalog: catalog),
+              Set(ids.map(HappeningPaletteSelection.choiceID)).count == ids.count else {
             throw HappeningPaletteSelectionError.requiresExactlyTen
         }
 
-        self.ids = ids
-        defaults.set(ids, forKey: SharedKeys.happeningPaletteSelection)
+        self.ids = HappeningPaletteSelection.repaired(ids: ids, catalog: catalog, defaults: [])
+        defaults.set(self.ids, forKey: SharedKeys.happeningPaletteSelection)
     }
 
     @discardableResult

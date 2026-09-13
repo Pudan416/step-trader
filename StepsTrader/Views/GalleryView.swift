@@ -500,7 +500,7 @@ struct GalleryView: View {
 
     private var paletteAddedIDs: Set<String> {
         guard dayCanvas.dayKey == AppModel.dayKey(for: .now) else { return [] }
-        return Set(dayCanvas.elements.map(\.optionId))
+        return Set(dayCanvas.elements.map { HappeningPaletteSelection.choiceID($0.optionId) })
     }
 
     private var paletteLabelInks: [String: HappeningPaletteLabelInk] {

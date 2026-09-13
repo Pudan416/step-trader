@@ -293,6 +293,9 @@ enum CanvasHappeningRemovalTransaction {
         guard canvasLoaded,
               canvas.dayKey == capturedDayKey,
               let index = canvas.elements.firstIndex(where: { $0.optionId == happeningID })
+                ?? canvas.elements.firstIndex(where: {
+                    HappeningPaletteSelection.choiceID($0.optionId) == HappeningPaletteSelection.choiceID(happeningID)
+                })
         else { return nil }
         let element = canvas.elements[index]
         let entryID = CanvasHappeningEntryResolver.entryID(

@@ -20,7 +20,8 @@ extension AppModel {
             dayEndMinute: dayEndMinute
         )
         return !todayAdditions.contains {
-            $0.dayKey == dayKey && $0.optionId == id
+            $0.dayKey == dayKey
+                && HappeningPaletteSelection.choiceID($0.optionId) == HappeningPaletteSelection.choiceID(id)
         }
     }
 
@@ -123,11 +124,14 @@ extension AppModel {
     /// Adds a detected external activity to the full catalog and to the ten
     /// active palette slots. Stable ids make this operation idempotent.
     func installExternalPaletteHappening(id: String, title: String) -> Happening? {
-        let happening = happeningStore.ensureExternalHappening(id: id, title: title)
+        // A detected walk uses the same active slot as the built-in Walk.
+        // Imported catalog records remain available to resolve historical days.
+        let happening = happeningStore.happening(id: HappeningPaletteSelection.choiceID(id))
+            ?? happeningStore.ensureExternalHappening(id: id, title: title)
         do {
-            if !happeningPaletteSelectionStore.ids.contains(id) {
+            if !happeningPaletteSelectionStore.ids.contains(happening.id) {
                 try happeningPaletteSelectionStore.insertReplacingLeastUsed(
-                    id,
+                    happening.id,
                     catalog: happeningStore.all
                 )
             }
@@ -190,8 +194,8 @@ extension AppModel {
     func availablePaletteHappenings(on date: Date = .now) -> [Happening] {
         let used = Set(todayAdditions.lazy
             .filter { $0.dayKey == Self.dayKey(for: date) }
-            .map(\.optionId))
-        return configuredPaletteHappenings().filter { !used.contains($0.id) }
+            .map { HappeningPaletteSelection.choiceID($0.optionId) })
+        return configuredPaletteHappenings().filter { !used.contains(HappeningPaletteSelection.choiceID($0.id)) }
     }
 
     func rekeyTodayAdditions(from oldDayKey: String, to newDayKey: String) {

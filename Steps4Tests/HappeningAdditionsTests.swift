@@ -334,6 +334,22 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(model.configuredPaletteHappenings().map(\.id), configuredIDs)
     }
 
+    func testMigratedWalkRecognizesTodaysImportedAdditionWithoutRewritingIt() {
+        let model = makeModel()
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        model.loadDailyEnergyState()
+        for id in ["body_walking", "health_workout_52"] {
+            model.todayAdditions = [OptionEntry(
+                id: "old-entry", dayKey: AppModel.dayKey(for: date), optionId: id,
+                colorHex: "#AABBCC", timestamp: date, assetVariant: nil
+            )]
+            XCTAssertFalse(model.canAddHappening(id: "happening_walk", on: date))
+            XCTAssertFalse(model.availablePaletteHappenings(on: date).contains { $0.id == "happening_walk" })
+            XCTAssertTrue(model.canAddHappening(id: "happening_walk", on: date.addingTimeInterval(86_400)))
+            XCTAssertEqual(model.todayAdditions.first?.optionId, id)
+        }
+    }
+
     func testAvailablePaletteHappeningsExcludesOnlyCurrentCustomDayAdditions() {
         let model = makeModel()
         let date = Date(timeIntervalSince1970: 1_786_176_000)
