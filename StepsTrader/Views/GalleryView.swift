@@ -207,7 +207,7 @@ struct GalleryView: View {
     private var todayKey: String { AppModel.dayKey(for: Date.now) }
 
     private var preferredCanvasVisualStyle: CanvasVisualStyle {
-        CanvasVisualStyle(rawValue: preferredCanvasVisualStyleRaw) ?? .editorial
+        CanvasVisualStyle.currentStyle(storedRaw: preferredCanvasVisualStyleRaw)
     }
 
     private var editorialRenderInput: EditorialCanvasRenderInput {
@@ -1683,7 +1683,7 @@ struct GalleryView: View {
     private func applyPreferredCanvasVisualStyle(_ rawValue: String) {
         guard canvasLoaded,
               dayCanvas.dayKey == todayKey else { return }
-        let style = CanvasVisualStyle(rawValue: rawValue) ?? .editorial
+        let style = CanvasVisualStyle.currentStyle(storedRaw: rawValue)
         guard dayCanvas.visualStyleRaw != style.rawValue else { return }
 
         if presentation.isEditing {

@@ -260,6 +260,7 @@ enum MeHistoryThumbnailPolicy {
 }
 
 struct DayHistoryTile: View {
+    @ObservedObject var snapshots = MePosterSnapshotCache.shared
     let dayKey: String
     let snapshot: PastDaySnapshot?
     let health: MeDayHealth?
@@ -271,8 +272,6 @@ struct DayHistoryTile: View {
     @AppStorage(SharedKeys.modernPaletteCategories)
     private var modernPaletteCategoriesRaw = ""
 
-    @State private var thumbnail: UIImage?
-    @State private var hasLoaded = false
 
     private var date: Date {
         CachedFormatters.dayKey.date(from: dayKey) ?? Date.now
@@ -305,24 +304,15 @@ struct DayHistoryTile: View {
     }
 
     private var tileBody: some View {
-        let resolvedHealth = health
-            ?? snapshot.map(MeDayHealth.init(snapshot:))
-            ?? MeDayHealth(steps: nil, sleepHours: nil)
-
-        return ZStack {
-            if let thumbnail {
+        ZStack {
+            if let thumbnail = snapshots.cachedImage(for: dayKey) {
                 Image(uiImage: thumbnail)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                EnergyGradientBackground(
-                    stepsPoints: resolvedHealth.stepsPoints,
-                    sleepPoints: resolvedHealth.sleepPoints,
-                    hasStepsData: resolvedHealth.hasStepsData,
-                    hasSleepData: resolvedHealth.hasSleepData,
-                    showGrain: true
-                )
-                .allowsHitTesting(false)
+                // Loading is not artwork. The live day and selected poster
+                // publish their exact composition to the shared snapshot cache.
+                Color.black.opacity(0.12)
             }
 
             LinearGradient(
@@ -351,10 +341,16 @@ struct DayHistoryTile: View {
             .padding(.vertical, 7)
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .task {
-            guard !hasLoaded else { return }
-            hasLoaded = true
+        .task(id: MePosterCanvasLoadID(dayKey: dayKey, hasTrackedSnapshot: snapshot != nil)) {
             await loadThumbnail()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .todayCanvasStorageDidChange)
+            .receive(on: DispatchQueue.main)) { notification in
+                guard notification.object as? String == dayKey else { return }
+                Task { await loadThumbnail(forceRefresh: true) }
+            }
+        .onChange(of: modernPaletteCategoriesRaw) { _, _ in
+            Task { await loadThumbnail() }
         }
     }
 
@@ -380,30 +376,22 @@ struct DayHistoryTile: View {
 
     // MARK: - Thumbnail loading
 
-    private func loadThumbnail() async {
-        let key = dayKey
+    @MainActor
+    private func loadThumbnail(forceRefresh: Bool = false) async {
+        // Today's live backdrop/large poster owns the current health and
+        // appearance inputs. A disk-only thumbnail must never overwrite it.
+        guard dayKey != AppModel.dayKey(for: .now) else { return }
         let canvas = await MePosterCanvasLoadCoordinator.shared.canvas(
-            for: key,
-            hasTrackedSnapshot: snapshot != nil
-        )
-
-        guard let canvas = MeHistoryThumbnailPolicy.canvasForRendering(canvas) else {
-            return
-        }
-
-        let size = CGSize(width: 240, height: 240 * 4.0 / 3.0)
-        let fixedTime = canvas.lastModified
-
-        let image = await HistoryThumbnailCache.shared.thumbnail(
             for: dayKey,
-            canvas: canvas,
-            size: size,
-            fixedTime: fixedTime,
-            theme: theme,
-            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+            hasTrackedSnapshot: snapshot != nil,
+            forceRefresh: forceRefresh
         )
-
-        await MainActor.run { thumbnail = image }
+        guard !Task.isCancelled,
+              let canvas = MeHistoryThumbnailPolicy.canvasForRendering(canvas) else { return }
+        _ = await snapshots.image(
+            for: canvas,
+            categories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
+        )
     }
 }
 

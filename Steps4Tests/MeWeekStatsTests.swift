@@ -837,3 +837,117 @@ final class MePosterSnapshotTests: XCTestCase {
                        "Me must display a cached bitmap, not start a second animated Canvas")
     }
 }
+
+@MainActor
+final class MeCalendarArtworkRefreshTests: XCTestCase {
+    func testVisibleTilePicksUpTheSharedPosterAfterInitiallyMissingArtwork() async throws {
+        let key = "tile-refresh-\(UUID().uuidString)"
+        CanvasStorageService.shared.deleteCanvas(for: key)
+        defer { CanvasStorageService.shared.deleteCanvas(for: key) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = MePosterSnapshotCache(directory: directory) { canvas, _ in
+            UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+                (canvas.remixSeed == nil ? UIColor.red : UIColor.blue).setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            }
+        }
+        let tile = DayHistoryTile(snapshots: cache, dayKey: key, snapshot: nil, health: nil,
+                                  isSelected: false, onTap: {})
+            .environment(\.appTheme, .night)
+            .environment(\.renderingIsActive, false)
+        let host = UIHostingController(rootView: tile)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 120, height: 180))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.frame = window.bounds
+        host.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(400))
+
+        let before = centerPixel(of: host.view)
+        var canvas = DayCanvas(dayKey: key)
+        let poster = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertNotNil(poster)
+        try await Task.sleep(for: .milliseconds(300))
+        host.view.layoutIfNeeded()
+        let after = centerPixel(of: host.view)
+        XCTAssertGreaterThan(zip(before, after).map { abs(Int($0) - Int($1)) }.reduce(0, +), 30,
+                             "A mounted tile must observe the same new artwork as the large poster")
+        XCTAssertGreaterThan(after[0], 100)
+        XCTAssertLessThan(after[2], 10)
+
+        canvas.remixSeed = 42
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        try await Task.sleep(for: .milliseconds(300))
+        host.view.layoutIfNeeded()
+        let refreshed = centerPixel(of: host.view)
+        XCTAssertGreaterThan(refreshed[2], 100, "An existing thumbnail must refresh after a remix too")
+        XCTAssertLessThan(refreshed[0], 10)
+    }
+
+    private func centerPixel(of view: UIView) -> [UInt8] {
+        let image = UIGraphicsImageRenderer(size: view.bounds.size).image { _ in
+            view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+        }
+        guard let cg = image.cgImage,
+              let sample = cg.cropping(to: CGRect(x: cg.width / 2, y: cg.height / 2, width: 1, height: 1)) else { return [] }
+        var rgba = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(data: &rgba, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        context?.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return Array(rgba.prefix(3))
+    }
+}
+
+#if !DEBUG
+@MainActor
+final class ReleaseEnergyGradientTests: XCTestCase {
+    func testLegacyBackgroundIsFlatForEveryHealthStateAndGradientStyle() throws {
+        for style in GradientStyle.allCases {
+            for hasData in [false, true] {
+                let renderer = ImageRenderer(content: EnergyGradientBackground(
+                    stepsPoints: hasData ? 20 : 0, sleepPoints: hasData ? 20 : 0,
+                    hasStepsData: hasData, hasSleepData: hasData, showGrain: false,
+                    gradientStyleOverride: style.rawValue,
+                    fixedTime: Date(timeIntervalSinceReferenceDate: 100)
+                ).frame(width: 80, height: 80))
+                renderer.scale = 1
+                let image = try XCTUnwrap(renderer.uiImage?.cgImage)
+                XCTAssertEqual(pixel(image, x: 10, y: 10), pixel(image, x: 40, y: 40),
+                               "Release must not draw the legacy \(style) gradient")
+                XCTAssertEqual(pixel(image, x: 40, y: 40), pixel(image, x: 65, y: 65))
+            }
+        }
+    }
+
+    func testReleaseAppearanceDoesNotOfferLegacyControls() {
+        XCTAssertFalse(CanvasAppearancePresentation(style: .legacy).showsLegacyControls)
+    }
+
+    func testReleaseTodayAndAppearanceDraftIgnoreAnOldGradientPreference() {
+        var appearance = TodayCanvasAppearance.initial
+        appearance.style = CanvasVisualStyle.legacy.rawValue
+        XCTAssertEqual(appearance.canvas(from: nil).resolvedVisualStyle, .editorial)
+        let suite = "release-appearance-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(CanvasVisualStyle.legacy.rawValue, forKey: SharedKeys.canvasVisualStyle)
+        XCTAssertEqual(SettingsAppearanceDraft.load(from: defaults).canvasStyle, CanvasVisualStyle.editorial.rawValue)
+        XCTAssertEqual(CanvasVisualStyleMigration.decision(
+            dayKey: "2026-09-13", storedStyleRaw: "legacy", currentDayKey: "2026-09-13", completedVersion: 1
+        ), .persist(.editorial, markVersion: CanvasVisualStyleMigration.currentVersion))
+    }
+
+    private func pixel(_ image: CGImage, x: Int, y: Int) -> [UInt8] {
+        guard let sample = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)) else { return [] }
+        var rgba = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(data: &rgba, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        context?.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return rgba
+    }
+}
+#endif

@@ -7,7 +7,7 @@ struct SettingsAppearancePreview: View {
     var thumbnail = false
 
     private var style: CanvasVisualStyle {
-        styleOverride ?? CanvasVisualStyle(rawValue: draft.canvasStyle) ?? .editorial
+        CanvasVisualStyle.currentStyle(storedRaw: styleOverride?.rawValue ?? draft.canvasStyle)
     }
 
     var body: some View {

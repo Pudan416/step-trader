@@ -8,6 +8,8 @@ import SwiftUI
 /// Palette (unchanged): Gold #FFBF65 → Coral #FD8973 → Navy #003A6C → Night #13181B
 /// Inputs: stepsPoints (0…20), sleepPoints (0…20), hasStepsData, hasSleepData
 enum EnergyGradientRenderer {
+    /// Historical drawings retain their shapes on a quiet surface in Release.
+    static let neutralBackground = Color(hex: "#343737")
 
     // MARK: - Palette
 
@@ -360,6 +362,7 @@ enum EnergyGradientRenderer {
         colorPalette: Palette? = nil,
         time: Double? = nil
     ) {
+        #if DEBUG
         let pal = colorPalette ?? palette(for: .warmSunset)
         let w = Double(size.width)
         let h = Double(size.height)
@@ -554,6 +557,9 @@ enum EnergyGradientRenderer {
         case .organic, .mesh, .angular:
             break
         }
+        #else
+        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(neutralBackground))
+        #endif
     }
 }
 
@@ -768,6 +774,7 @@ struct EnergyGradientBackground: View {
     }
 
     var body: some View {
+        #if DEBUG
         gradientContent
             .ignoresSafeArea()
             .overlay {
@@ -777,8 +784,12 @@ struct EnergyGradientBackground: View {
                     TextureOverlayView(texture: texture)
                 }
             }
+        #else
+        EnergyGradientRenderer.neutralBackground
+        #endif
     }
 
+    #if DEBUG
     @ViewBuilder
     private var gradientContent: some View {
         if let fixedTime {
@@ -817,6 +828,7 @@ struct EnergyGradientBackground: View {
                 .animation(.easeInOut(duration: 0.8), value: hasSleepData)
         }
     }
+    #endif
 }
 
 // MARK: - View Extension
@@ -873,6 +885,7 @@ struct ResourceGradientLayout {
 /// cropping a gradient made for the full card.
 struct ResourceGradientFill: View {
     var body: some View {
+        #if DEBUG
         GeometryReader { geometry in
             let layout = ResourceGradientLayout.make(in: geometry.size)
             RadialGradient(
@@ -889,6 +902,9 @@ struct ResourceGradientFill: View {
             )
         }
         .allowsHitTesting(false)
+        #else
+        TodayCanvasUnlockFill()
+        #endif
     }
 }
 

@@ -180,12 +180,15 @@ final class SettingsHomePresentationTests: XCTestCase {
         XCTAssertFalse(presentation.showsLegacyControls)
     }
 
+    #if DEBUG
     func testLegacyAppearanceRestoresCompletePreviousControls() {
         let presentation = CanvasAppearancePresentation(style: .legacy)
 
         XCTAssertFalse(presentation.showsModernPalettes)
         XCTAssertTrue(presentation.showsLegacyControls)
     }
+
+    #endif
 
 #if DEBUG
     func testInternalLabCatalogContainsDayObjectsAndAtlasExport() {

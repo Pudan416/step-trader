@@ -53,7 +53,7 @@ struct TodayCanvasAppearance: Equatable {
         canvas.inkSpent = spent
         canvas.hasStepsData = hasSteps
         canvas.hasSleepData = hasSleep
-        canvas.visualStyleRaw = style
+        canvas.visualStyleRaw = CanvasVisualStyle.currentStyle(storedRaw: style).rawValue
         if canvas.remixSeed == nil {
             canvas.gradientStyle = gradient
             canvas.gradientPalette = palette

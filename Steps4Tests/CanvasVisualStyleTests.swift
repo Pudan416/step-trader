@@ -28,6 +28,7 @@ final class CanvasVisualStyleTests: XCTestCase {
         XCTAssertEqual(historical, .use(.legacy))
     }
 
+    #if DEBUG
     func testCompletedMigrationNeverOverridesDeliberateLegacy() {
         XCTAssertEqual(
             CanvasVisualStyleMigration.decision(
@@ -39,6 +40,8 @@ final class CanvasVisualStyleTests: XCTestCase {
             .use(.legacy)
         )
     }
+
+    #endif
 
     func testStyleSurvivesWholeCanvasJSONRoundTrip() throws {
         var canvas = DayCanvas(dayKey: "2026-09-06")

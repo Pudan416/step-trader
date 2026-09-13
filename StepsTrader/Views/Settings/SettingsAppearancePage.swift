@@ -5,8 +5,9 @@ struct CanvasAppearancePresentation: Equatable {
     let showsLegacyControls: Bool
 
     init(style: CanvasVisualStyle) {
-        showsModernPalettes = style == .editorial
-        showsLegacyControls = style == .legacy
+        let current = CanvasVisualStyle.currentStyle(storedRaw: style.rawValue)
+        showsModernPalettes = current == .editorial
+        showsLegacyControls = current == .legacy
     }
 }
 
@@ -108,7 +109,7 @@ struct SettingsAppearancePage: View {
     }
 
     private var selectedCanvasStyle: CanvasVisualStyle {
-        CanvasVisualStyle(rawValue: canvasVisualStyleRaw) ?? .editorial
+        CanvasVisualStyle.currentStyle(storedRaw: canvasVisualStyleRaw)
     }
 
     private var canvasStyleBinding: Binding<CanvasVisualStyle> {
@@ -264,7 +265,9 @@ struct SettingsAppearancePage: View {
 
     @ViewBuilder private var styleCards: some View {
         styleCard(.editorial, title: String(localized: "Objects"), detail: String(localized: "Soft forms, arranged by your day"))
+        #if DEBUG
         styleCard(.legacy, title: String(localized: "Gradients"), detail: String(localized: "Flowing color and drawn shapes"))
+        #endif
     }
 
     private func styleCard(_ style: CanvasVisualStyle, title: String, detail: String) -> some View {

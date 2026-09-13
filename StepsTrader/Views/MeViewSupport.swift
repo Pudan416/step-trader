@@ -215,6 +215,14 @@ final class MePosterCanvasLoadCoordinator {
 /// Only visual content participates in the key; saves and music never advance it.
 @MainActor
 final class MePosterSnapshotCache: ObservableObject {
+    // Debug can still render Legacy. Never reuse those bitmaps in Release,
+    // including when installing a Release build over a developer build.
+    #if DEBUG
+    nonisolated static let cacheDirectoryName = "MePosterSnapshots-v2-debug"
+    #else
+    nonisolated static let cacheDirectoryName = "MePosterSnapshots-v2-release"
+    #endif
+
     typealias Render = @MainActor (DayCanvas, Set<ModernPaletteCategory>) async -> UIImage?
     static let shared = MePosterSnapshotCache()
     @Published private(set) var revision = 0
@@ -236,7 +244,7 @@ final class MePosterSnapshotCache: ObservableObject {
 
     init(
         directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MePosterSnapshots-v1", isDirectory: true),
+            .appendingPathComponent(MePosterSnapshotCache.cacheDirectoryName, isDirectory: true),
         render: @escaping Render = { canvas, categories in
             var frozen = canvas
             frozen.lastModified = (canvas.elements.map(\.createdAt).max() ?? canvas.createdAt)

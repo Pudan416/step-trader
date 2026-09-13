@@ -5,6 +5,15 @@ enum CanvasVisualStyle: String, Codable, CaseIterable, Hashable, Identifiable {
     case legacy
 
     var id: String { rawValue }
+
+    /// Release only creates native artwork; Legacy remains decodable for archives.
+    static func currentStyle(storedRaw: String?) -> Self {
+        #if DEBUG
+        Self(rawValue: storedRaw ?? "") ?? .editorial
+        #else
+        .editorial
+        #endif
+    }
 }
 
 enum CanvasVisualStyleMigration {
@@ -21,6 +30,11 @@ enum CanvasVisualStyleMigration {
         currentDayKey: String,
         completedVersion: Int
     ) -> Decision {
+        #if !DEBUG
+        if dayKey == currentDayKey, storedStyleRaw != CanvasVisualStyle.editorial.rawValue {
+            return .persist(.editorial, markVersion: currentVersion)
+        }
+        #endif
         if let storedStyleRaw,
            let explicit = CanvasVisualStyle(rawValue: storedStyleRaw) {
             return .use(explicit)

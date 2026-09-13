@@ -29,7 +29,7 @@ struct SettingsAppearanceDraft: Equatable {
             automatic: defaults.bool(forKey: SharedKeys.dailyRandomThemeEnabled),
             texture: defaults.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue,
             categories: defaults.string(forKey: SharedKeys.modernPaletteCategories) ?? "",
-            canvasStyle: defaults.string(forKey: SharedKeys.canvasVisualStyle) ?? CanvasVisualStyle.editorial.rawValue,
+            canvasStyle: CanvasVisualStyle.currentStyle(storedRaw: defaults.string(forKey: SharedKeys.canvasVisualStyle)).rawValue,
             shapes: Set(shapes.isEmpty ? CanvasShapeType.selectableCases : shapes),
             fills: Set(fills.isEmpty ? TextureKind.allCases : fills),
             manualStyle: defaults.string(forKey: SharedKeys.userGradientStyle) ?? GradientStyle.radial.rawValue,
