@@ -260,6 +260,7 @@ struct FeedRowView: View {
     @Environment(\.canvasChromePalette) private var palette
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ScaledMetric(relativeTo: .body) private var headerHeight = FeedCardLayout.collapsedHeight
+    @ScaledMetric(relativeTo: .body) private var titleLineHeight: CGFloat = 28
     @ScaledMetric(relativeTo: .body) private var choiceHeight: CGFloat = 78
 
     private var textEdge: Double {
@@ -349,6 +350,12 @@ struct FeedRowView: View {
                 AppGroupTitle(identity: group.displayIdentity)
                     .font(.geist(20, weight: .medium, relativeTo: .body))
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    // Family Controls' token title has a taller intrinsic box
+                    // than Text. Keep its line box aligned with named feeds.
+                    .frame(
+                        height: titleLineHeight * (dynamicTypeSize.isAccessibilitySize ? 2 : 1),
+                        alignment: .leading
+                    )
 
                 Text(group.displayIdentity.detail)
                     .font(.onest(12, relativeTo: .caption))
