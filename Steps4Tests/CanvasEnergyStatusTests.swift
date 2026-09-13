@@ -125,3 +125,25 @@ final class CanvasChromePaletteTests: XCTestCase {
         XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "#808080")]).family, .neutral)
     }
 }
+
+
+final class CanvasHintLayoutTests: XCTestCase {
+    func testHintPointsToMeasuredPlusInsteadOfScreenCenter() {
+        for width: CGFloat in [280, 353, 812] {
+            let targetX = width - 26
+            let layout = CanvasHintLayout(containerWidth: width, targetX: targetX)
+            XCTAssertEqual(layout.minX + layout.tailX, targetX, accuracy: 0.01)
+            XCTAssertGreaterThanOrEqual(layout.minX, 0)
+            XCTAssertLessThanOrEqual(layout.minX + layout.width, width)
+            XCTAssertGreaterThanOrEqual(layout.tailX, 22)
+            XCTAssertLessThanOrEqual(layout.tailX, layout.width - 22)
+        }
+    }
+
+    func testHintFollowsControlOnEitherSideAndInTheMiddle() {
+        for targetX: CGFloat in [26, 170, 327] {
+            let layout = CanvasHintLayout(containerWidth: 353, targetX: targetX)
+            XCTAssertEqual(layout.minX + layout.tailX, targetX, accuracy: 0.01)
+        }
+    }
+}

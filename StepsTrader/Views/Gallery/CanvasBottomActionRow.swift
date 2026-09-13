@@ -18,6 +18,7 @@ struct CanvasBottomActionRow: View {
     let isDataPanelOpen: Bool
     let isHappeningPalettePresented: Bool
     let soundAppearance: CanvasSoundButtonAppearance
+    var addHint: String? = nil
     let onSound: () -> Void
     let onOpenHappeningList: () -> Void
     let onToggleHappeningPalette: () -> Void
@@ -38,6 +39,14 @@ struct CanvasBottomActionRow: View {
         // GalleryView already supplies the 16pt screen guard rail. Four more
         // points land the circular controls at the Figma frame's 20pt edge.
         .padding(.horizontal, 4)
+        .overlayPreferenceValue(CanvasHintAnchorKey.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor, let addHint, !isDataPanelOpen, !isHappeningPalettePresented {
+                    CanvasAnchoredHint(text: addHint, target: proxy[anchor], containerWidth: proxy.size.width)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
     }
 
     private var content: some View {
@@ -120,6 +129,7 @@ struct CanvasBottomActionRow: View {
         .accessibilityIdentifier(
             isHappeningPalettePresented ? "canvas_palette_close_button" : "canvas_add_button"
         )
+        .anchorPreference(key: CanvasHintAnchorKey.self, value: .bounds) { $0 }
         .coachMarkAnchor(.tapPlusButton)
         // The palette docks on this button's line rather than re-deriving it
         // from tab-bar height and paddings.
@@ -165,5 +175,97 @@ enum CanvasSoundButtonAppearance: Equatable {
         case .playing: "on"
         case .retry: "error, retry available"
         }
+    }
+}
+
+/// Horizontal geometry for a hint above a measured control.
+struct CanvasHintLayout {
+    let width: CGFloat
+    let minX: CGFloat
+    let tailX: CGFloat
+
+    init(containerWidth: CGFloat, targetX: CGFloat) {
+        width = min(300, containerWidth)
+        minX = min(max(0, targetX - width + 26), max(0, containerWidth - width))
+        tailX = targetX - minX
+    }
+}
+
+private struct CanvasHintAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
+    }
+}
+
+/// A solid, readable hint whose tail terminates above the actual target.
+/// Height is measured so localized copy and Dynamic Type grow upward.
+struct CanvasAnchoredHint: View {
+    let text: String
+    let target: CGRect
+    let containerWidth: CGFloat
+    var onDismiss: (() -> Void)? = nil
+
+    @Environment(\.canvasChromePalette) private var palette
+    @State private var height: CGFloat = 0
+
+    var body: some View {
+        let layout = CanvasHintLayout(containerWidth: containerWidth, targetX: target.midX)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(text)
+                .font(.geist(17, weight: .medium, relativeTo: .body))
+                .foregroundStyle(palette.textColor)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("canvas_add_hint")
+            if let onDismiss {
+                Button(action: onDismiss) {
+                    Text("skip all")
+                        .font(.geist(15, weight: .medium, relativeTo: .subheadline))
+                        .foregroundStyle(palette.secondaryColor)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .padding(.bottom, CanvasHintBubbleShape.tailHeight)
+        .frame(width: layout.width, alignment: .leading)
+        .background(palette.surfaceColor, in: CanvasHintBubbleShape(tailX: layout.tailX))
+        .overlay(CanvasHintBubbleShape(tailX: layout.tailX).stroke(palette.secondaryColor, lineWidth: 1))
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .position(x: layout.minX + layout.width / 2, y: target.minY - 10 - height / 2)
+        .opacity(height > 0 ? 1 : 0)
+    }
+}
+
+struct CanvasHintBubbleShape: Shape {
+    static let tailHeight: CGFloat = 8
+    let tailX: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let body = CGRect(x: rect.minX, y: rect.minY, width: rect.width,
+                          height: max(0, rect.height - Self.tailHeight))
+        let radius = min(16, body.height / 2, body.width / 2)
+        let tipX = rect.minX + tailX
+        var path = Path()
+        path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
+        path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
+        path.addArc(center: CGPoint(x: body.maxX - radius, y: body.minY + radius), radius: radius,
+                    startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+        path.addLine(to: CGPoint(x: body.maxX, y: body.maxY - radius))
+        path.addArc(center: CGPoint(x: body.maxX - radius, y: body.maxY - radius), radius: radius,
+                    startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+        path.addLine(to: CGPoint(x: tipX + 8, y: body.maxY))
+        path.addLine(to: CGPoint(x: tipX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: tipX - 8, y: body.maxY))
+        path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
+        path.addArc(center: CGPoint(x: body.minX + radius, y: body.maxY - radius), radius: radius,
+                    startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        path.addLine(to: CGPoint(x: body.minX, y: body.minY + radius))
+        path.addArc(center: CGPoint(x: body.minX + radius, y: body.minY + radius), radius: radius,
+                    startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+        path.closeSubpath()
+        return path
     }
 }

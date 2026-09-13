@@ -1310,13 +1310,6 @@ struct GalleryView: View {
                     )
                     .padding(.bottom, 14)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if showAddHint && !showHappeningPalette {
-                    addActivityHint
-                        .padding(.bottom, 14)
-                        .transition(
-                            .scale(scale: 0.85, anchor: .bottom)
-                            .combined(with: .opacity)
-                        )
                 }
                 if !showHappeningPalette {
                     bottomControlsBar
@@ -1451,6 +1444,8 @@ struct GalleryView: View {
             isDataPanelOpen: presentation.showsDataPanel,
             isHappeningPalettePresented: showHappeningPalette,
             soundAppearance: canvasSoundAppearance,
+            addHint: showAddHint && !presentation.isWideCanvas
+                && model.pendingActivitySuggestions.isEmpty ? activeHintWindow.prompt : nil,
             onSound: handleCanvasSoundControl,
             onOpenHappeningList: {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -1594,24 +1589,6 @@ struct GalleryView: View {
     // ═══════════════════════════════════════════════════════════
     // MARK: - Empty State
     // ═══════════════════════════════════════════════════════════
-
-    /// Directed nudge bubble that sits centered just above the + button while
-    /// the day is still sparse (< 2 elements). The copy is time-aware
-    /// (`activeHintWindow`) and the downward caret visually links it to the
-    /// `RadialHoldMenu` so the user understands where to tap.
-    private var addActivityHint: some View {
-        Text(activeHintWindow.prompt)
-            .font(.geist(size: 14, weight: .medium, design: .rounded))
-            .foregroundStyle(labelColor)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            // Reserve room for the tail so the text stays centered in the body.
-            .padding(.bottom, BubbleWithTail.tailHeight)
-            .liquidGlassControl(in: BubbleWithTail())
-            .contrastingOnGlass()
-            .accessibilityElement(children: .combine)
-            .allowsHitTesting(false)
-    }
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
@@ -2504,53 +2481,6 @@ private enum AddHintWindow: String {
             return String(localized: "What did you do today?",
                           comment: "Empty-canvas nudge, evening — retrospective")
         }
-    }
-}
-
-/// Capsule body with an integrated downward tail, drawn as one continuous
-/// outline so the glass material reads as a single surface (no seam between
-/// the bubble and its caret). Used by the empty-canvas "add activity" hint.
-private struct BubbleWithTail: InsettableShape {
-    static let tailWidth: CGFloat = 16
-    static let tailHeight: CGFloat = 7
-
-    var insetAmount: CGFloat = 0
-
-    func inset(by amount: CGFloat) -> some InsettableShape {
-        var copy = self
-        copy.insetAmount += amount
-        return copy
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let r = rect.insetBy(dx: insetAmount, dy: insetAmount)
-        let body = CGRect(x: r.minX, y: r.minY,
-                          width: r.width,
-                          height: max(0, r.height - Self.tailHeight))
-        let radius = min(body.height / 2, body.width / 2)
-        let halfTail = Self.tailWidth / 2
-
-        var path = Path()
-        // Top edge.
-        path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
-        path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
-        // Right cap.
-        path.addArc(center: CGPoint(x: body.maxX - radius, y: body.minY + radius),
-                    radius: radius,
-                    startAngle: .degrees(-90), endAngle: .degrees(90),
-                    clockwise: false)
-        // Bottom edge → into the tail → out of the tail.
-        path.addLine(to: CGPoint(x: r.midX + halfTail, y: body.maxY))
-        path.addLine(to: CGPoint(x: r.midX, y: r.maxY))
-        path.addLine(to: CGPoint(x: r.midX - halfTail, y: body.maxY))
-        path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
-        // Left cap.
-        path.addArc(center: CGPoint(x: body.minX + radius, y: body.minY + radius),
-                    radius: radius,
-                    startAngle: .degrees(90), endAngle: .degrees(270),
-                    clockwise: false)
-        path.closeSubpath()
-        return path
     }
 }
 
