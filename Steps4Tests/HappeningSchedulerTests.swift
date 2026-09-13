@@ -4,6 +4,71 @@ import XCTest
 
 @MainActor
 final class HappeningSchedulerTests: XCTestCase {
+    func testNormalHappeningAttackAndReleaseWaitForHostTime() async throws {
+        let clock = ManualDayObjectsTransportClock(now: 9.9)
+        let harness = try makeHarness(count: 1, playInitialBirths: true, clock: clock)
+        harness.scheduler.render(futureEvent(subdivision: 0, hostTime: 10), currentChord: harness.world.progression[0])
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        XCTAssertTrue(harness.pool.successfulPlayCalls.isEmpty, "Lookahead must not play a sample before the scheduled beat")
+        clock.advance(to: 10)
+        await waitForDeadlineState { harness.pool.successfulPlayCalls.count == 1 }
+
+        // This musical position is past the voice's release, but its audible
+        // deadline is still ahead of the transport callback.
+        harness.scheduler.render(futureEvent(subdivision: 128, hostTime: 11), currentChord: harness.world.progression[0])
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        XCTAssertTrue(harness.pool.stopCalls.isEmpty)
+        clock.advance(to: 11)
+        await waitForDeadlineState { !harness.pool.stopCalls.isEmpty }
+        XCTAssertEqual(harness.scheduler.pendingDeadlineTaskCount, 0)
+        harness.scheduler.stop()
+    }
+
+    func testStoppedHappeningSchedulerDiscardsLookaheadBeforeReuse() async throws {
+        let clock = ManualDayObjectsTransportClock(now: 9.9)
+        let harness = try makeHarness(count: 1, playInitialBirths: true, clock: clock)
+        harness.scheduler.render(futureEvent(subdivision: 0, hostTime: 10), currentChord: harness.world.progression[0])
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        harness.scheduler.stop()
+        try harness.scheduler.configure(plans: [], tonalWorld: harness.world, remixSeed: 99)
+        try harness.scheduler.start()
+        clock.advance(to: 10)
+        await waitForDeadlineState { clock.pendingWaiterCount == 0 }
+        XCTAssertTrue(harness.pool.successfulPlayCalls.isEmpty)
+        XCTAssertTrue(harness.scheduler.metrics.attackHistory.isEmpty)
+        XCTAssertEqual(harness.scheduler.pendingDeadlineTaskCount, 0)
+        harness.scheduler.stop()
+    }
+
+    func testOldHappeningReleaseCannotStopReconfiguredVoice() async throws {
+        let clock = ManualDayObjectsTransportClock(now: 9.9)
+        let harness = try makeHarness(count: 1, playInitialBirths: true, clock: clock)
+        harness.scheduler.render(event(.subdivision, subdivision: 0), currentChord: harness.world.progression[0])
+        harness.scheduler.render(futureEvent(subdivision: 128, hostTime: 10), currentChord: harness.world.progression[0])
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        try harness.scheduler.configure(plans: harness.plans, tonalWorld: harness.world, remixSeed: 42)
+        try harness.scheduler.start(playInitialBirths: true)
+        harness.scheduler.render(event(.subdivision, subdivision: 0), currentChord: harness.world.progression[0])
+        clock.advance(to: 10)
+        await waitForDeadlineState { clock.pendingWaiterCount == 0 }
+        XCTAssertEqual(harness.pool.stopCalls.count, 1)
+        XCTAssertEqual(harness.scheduler.metrics.activeVoiceCount, 1)
+        harness.scheduler.stop()
+    }
+
+    private func futureEvent(subdivision: Int64, hostTime: TimeInterval) -> DayObjectsTransportEvent {
+        .init(kind: .subdivision, position: .init(absoluteSubdivision: subdivision),
+              hostTimeSeconds: hostTime, tempoBPM: 120)
+    }
+
+    private func waitForDeadlineState(_ predicate: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<20_000 {
+            if predicate() { return }
+            await Task.yield()
+        }
+        XCTFail("Deadline operation did not reach the expected state", file: file, line: line)
+    }
+
     func testContinuousReverbCalibrationUpdatesOwnedVoicesWithoutRestartOrDryBoost() throws {
         let harness = try makeHarness(count: 1, playInitialBirths: true)
         render(subdivisions: 0...0, through: harness.scheduler, chord: harness.world.progression[0])
@@ -494,10 +559,11 @@ final class HappeningSchedulerTests: XCTestCase {
 
     private func makeHarness(
         count: Int,
-        playInitialBirths: Bool = false
+        playInitialBirths: Bool = false,
+        clock: any DayObjectsTransportClock = HostTimeDayObjectsTransportClock(schedulingLookaheadSeconds: 0)
     ) throws -> Harness {
         let bank = RecordingHappeningBank()
-        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank))
+        let scheduler = HappeningScheduler(worldBank: PlaybackWorldBank(instrumentBank: bank), clock: clock)
         let world = makeWorld()
         let plans = count > 0 ? (1...count).map { makePlan(index: $0, seed: 42) } : []
         try scheduler.configure(plans: plans, tonalWorld: world, remixSeed: 42)

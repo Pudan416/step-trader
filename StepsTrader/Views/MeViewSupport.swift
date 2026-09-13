@@ -919,6 +919,10 @@ struct MeSelectedDayPoster: View {
                 guard notification.object as? String == dayKey else { return }
                 Task { await loadCanvas(forceRefresh: true) }
             }
+        .onChange(of: health) { _, _ in
+            guard !isToday, dayCanvas == nil else { return }
+            Task { await loadCanvas() }
+        }
         .onChange(of: todayAppearance) { _, _ in
             guard isToday else { return }
             Task { await loadCanvas() }
@@ -1282,6 +1286,7 @@ struct MeWeekHappeningsView: View {
 }
 
 struct MeLifecycleModifier: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var model: AppModel
     @Binding var cachedDayKeys: [String]
     @Binding var hasLoadedSnapshots: Bool
@@ -1294,7 +1299,8 @@ struct MeLifecycleModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onAppear {
-                guard !hasLoadedSnapshots else { return }
+                // Me can return after a purchase or after its previous load was
+                // cancelled by navigation. Refresh rather than retaining stale data.
                 hasLoadedSnapshots = true
                 cachedDayKeys = MeView.computeDayKeys()
                 onLoad()
@@ -1308,6 +1314,9 @@ struct MeLifecycleModifier: ViewModifier {
             }
             .onChange(of: model.dayEndHour) { _, _ in onDayEndChange() }
             .onChange(of: model.dayEndMinute) { _, _ in onDayEndChange() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active, hasLoadedSnapshots { onTopConsumersChange() }
+            }
             .onChange(of: model.appStepsSpentByDay) { _, _ in onTopConsumersChange() }
             .onChange(of: model.ticketGroups.map(\.id)) { _, _ in onTopConsumersChange() }
             .onDisappear {

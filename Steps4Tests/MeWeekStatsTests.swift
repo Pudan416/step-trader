@@ -951,3 +951,79 @@ final class ReleaseEnergyGradientTests: XCTestCase {
     }
 }
 #endif
+
+@MainActor
+final class MePremergeRefreshRegressionTests: XCTestCase {
+    private func model() -> AppModel {
+        AppModel(healthKitService: MockHealthKitService(), familyControlsService: MockFamilyControlsService(),
+                 notificationService: MockNotificationService(), budgetEngine: MockBudgetEngine(),
+                 subscriptionStore: SubscriptionStore())
+    }
+
+    func testReturningToMeReloadsTheLedgerAfterAnotherScreenMadeAPurchase() async throws {
+        let model = model()
+        var loads = 0
+        let content = Color.clear.modifier(MeLifecycleModifier(
+            model: model, cachedDayKeys: .constant(MeView.computeDayKeys()),
+            hasLoadedSnapshots: .constant(true), loadTask: .constant(nil), serverFetchTask: .constant(nil),
+            onLoad: { loads += 1 }, onDayEndChange: {}, onTopConsumersChange: {}))
+        let host = UIHostingController(rootView: content)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 544))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.beginAppearanceTransition(true, animated: false)
+        host.endAppearanceTransition()
+        for _ in 0..<40 {
+            if loads > 0 { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertGreaterThan(loads, 0, "Returning to a previously loaded Me must reload transactions written while it was hidden")
+    }
+
+    func testHistoricalHealthArrivalRegeneratesFallbackArtwork() async throws {
+        let model = model()
+        let key = "2099-11-29"
+        CanvasStorageService.shared.deleteCanvas(for: key)
+        defer { CanvasStorageService.shared.deleteCanvas(for: key) }
+        _ = await MePosterCanvasLoadCoordinator.shared.canvas(for: key, hasTrackedSnapshot: false, forceRefresh: true)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var rendered: [DayCanvas] = []
+        let cache = MePosterSnapshotCache(directory: directory) { canvas, _ in
+            rendered.append(canvas)
+            return UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+                UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            }
+        }
+        func poster(health: MeDayHealth?) -> some View {
+            MeSelectedDayPoster(snapshots: cache, model: model, dayKey: key,
+                                snapshot: nil, health: health, unlockRecords: [], shareRequestID: 0,
+                                onShareAvailabilityChange: { _ in })
+                .environment(\.appTheme, .night)
+                .environment(\.renderingIsActive, true)
+        }
+        let host = UIHostingController(rootView: poster(health: nil))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 544))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.beginAppearanceTransition(true, animated: false)
+        host.endAppearanceTransition()
+        for _ in 0..<80 {
+            if !rendered.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(rendered.last?.resolvedHasStepsData, false)
+        let health = MeDayHealth(steps: 9000, sleepHours: 8)
+        host.rootView = poster(health: health)
+        for _ in 0..<80 {
+            if rendered.last?.resolvedHasStepsData == true { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(rendered.last?.stepsPoints, health.stepsPoints)
+        XCTAssertEqual(rendered.last?.sleepPoints, health.sleepPoints)
+        XCTAssertEqual(rendered.last?.resolvedHasStepsData, true,
+                       "HealthKit arriving after the initial poster must refresh its rendered/share artwork")
+    }
+}

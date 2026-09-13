@@ -2360,7 +2360,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             XCTAssertEqual(runtime.playbackPairMetricsForTesting.lifecycleState, .started, "cycle \(cycle)")
             XCTAssertTrue(runtime.playbackPairMetricsForTesting.sharedEngineIsRunning, "cycle \(cycle)")
             XCTAssertEqual(engine.metrics.activeTransportCount, 1, "cycle \(cycle)")
-            XCTAssertEqual(engine.metrics.activeTaskCount, 1, "cycle \(cycle)")
+            XCTAssertTrue((1...6).contains(engine.metrics.activeTaskCount), "bounded transport and deadline workers, cycle \(cycle)")
             XCTAssertEqual(engine.metrics.activeNodeCount, baseline.activeNodeCount, "cycle \(cycle)")
 
             await engine.stop()
@@ -2399,7 +2399,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             XCTAssertEqual(runtime.playbackMetrics.activeHappeningCount, 10, "add cycle \(cycle)")
             XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "add cycle \(cycle)")
             XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 1, "add cycle \(cycle)")
-            XCTAssertEqual(runtime.playbackMetrics.activeTaskCount, 1, "add cycle \(cycle)")
+            XCTAssertTrue((1...6).contains(runtime.playbackMetrics.activeTaskCount), "bounded workers, add cycle \(cycle)")
 
             fullPlan.happenings.forEach { engine.removeHappening(id: $0.happeningID) }
             XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty, "remove cycle \(cycle)")
@@ -2416,7 +2416,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
             }
             XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "remove cycle \(cycle)")
             XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 1, "remove cycle \(cycle)")
-            XCTAssertEqual(runtime.playbackMetrics.activeTaskCount, 1, "remove cycle \(cycle)")
+            XCTAssertTrue((1...6).contains(runtime.playbackMetrics.activeTaskCount), "bounded workers, remove cycle \(cycle)")
         }
 
         await engine.stop()

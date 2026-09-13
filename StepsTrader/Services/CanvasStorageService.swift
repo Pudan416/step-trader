@@ -47,9 +47,24 @@ final class CanvasStorageService {
 
     @discardableResult
     func saveCanvas(_ canvas: DayCanvas) -> Bool {
+        writeCanvas(canvas, markForCloudUpload: true)
+    }
+
+    @discardableResult
+    private func writeCanvas(_ canvas: DayCanvas, markForCloudUpload: Bool) -> Bool {
         var canvas = canvas
         canvas.freezeNativeBackgroundIfNeeded()
         let url = canvasFileURL(for: canvas.dayKey)
+        if canvas.localCloudOwnerID == nil,
+           let existingData = try? Data(contentsOf: url),
+           let existing = try? JSONDecoder().decode(DayCanvas.self, from: existingData) {
+            // The UI can still hold a guest draft when recovery binds its file
+            // to an account. A subsequent UI save must retain that binding.
+            canvas.localCloudOwnerID = existing.localCloudOwnerID
+        }
+        if markForCloudUpload, canvas.localCloudOwnerID != nil {
+            canvas.pendingCloudUpload = true
+        }
         do {
             let data = try JSONEncoder().encode(canvas)
             try data.write(to: url, options: .atomic)
@@ -97,6 +112,54 @@ final class CanvasStorageService {
         return canvas
     }
 
+    /// Reload after the network suspension so edits made while the fetch was
+    /// in flight participate in the merge. MainActor serializes this commit
+    /// with Gallery edits; a failed atomic write keeps the journal on disk.
+    @MainActor
+    func resolvePendingCanvas(for dayKey: String, remote: DayCanvasFetchResult) -> DayCanvas? {
+        guard let local = loadCanvas(for: dayKey), local.needsRemoteHydration,
+              let resolved = CanvasDraftRecovery.resolve(local: local, remote: remote),
+              saveCanvas(resolved) else { return nil }
+        return resolved
+    }
+
+    func pendingCloudRecoveryDayKeys() -> [String] {
+        availableDayKeys().filter { key in
+            guard let canvas = loadCanvas(for: key) else { return false }
+            return canvas.needsRemoteHydration || canvas.pendingCloudUpload == true
+        }
+    }
+
+    /// Explicit sync requests, including edits of unowned historical files,
+    /// need a durable intent before debounce/admission can defer their upload.
+    /// Loading or caching a remote poster does not create this intent.
+    @MainActor
+    func recordCloudUploadIntent(for dayKey: String, currentUserID: String?) {
+        guard var local = loadCanvas(for: dayKey),
+              local.localCloudOwnerID == nil || local.localCloudOwnerID == currentUserID else { return }
+        local.pendingCloudUpload = true
+        saveCanvas(local)
+    }
+
+    /// A late response must never clear a newer local version's upload marker.
+    @MainActor
+    func acknowledgeCloudUpload(dayKey: String, uploadedJSON: Data) {
+        guard var local = loadCanvas(for: dayKey), !local.needsRemoteHydration,
+              local.pendingCloudUpload == true,
+              let uploaded = try? JSONDecoder().decode(DayCanvas.self, from: uploadedJSON),
+              let localData = try? Self.sortedEncoder.encode(local.cloudSnapshot),
+              let uploadedData = try? Self.sortedEncoder.encode(uploaded.cloudSnapshot),
+              localData == uploadedData else { return }
+        local.pendingCloudUpload = nil
+        writeCanvas(local, markForCloudUpload: false)
+    }
+
+    private static var sortedEncoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }
+
     func deleteCanvas(for dayKey: String) {
         let url = canvasFileURL(for: dayKey)
         try? fileManager.removeItem(at: url)
@@ -113,11 +176,20 @@ final class CanvasStorageService {
 
         source.dayKey = newDayKey
         if let destination = loadCanvas(for: newDayKey) {
+            if let sourceOwner = source.localCloudOwnerID, let destinationOwner = destination.localCloudOwnerID,
+               sourceOwner != destinationOwner { return false }
             var knownIDs = Set(source.elements.map(\.id))
             source.elements.append(
                 contentsOf: destination.elements.filter { knownIDs.insert($0.id).inserted }
             )
             source.lastModified = max(source.lastModified, destination.lastModified)
+            if let destinationJournal = destination.pendingRemoteHydration {
+                var journal = source.pendingRemoteHydration ?? CanvasPendingRemoteHydration()
+                journal.deletedElementIDs.formUnion(destinationJournal.deletedElementIDs)
+                journal.artworkWasEdited = journal.artworkWasEdited || destinationJournal.artworkWasEdited
+                source.pendingRemoteHydration = journal
+            }
+            if destination.pendingCloudUpload == true { source.pendingCloudUpload = true }
         }
 
         guard saveCanvas(source) else { return false }

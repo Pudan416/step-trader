@@ -295,6 +295,7 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
         XCTAssertNil(controllerReference.value, "The completed teardown task must break its temporary controller cycle")
     }
 
+    #if DEBUG
     func testSystemAccessibilitySourceResamplesVoiceOverOnStatusNotification() async {
         let notificationCenter = NotificationCenter()
         var isVoiceOverRunning = false
@@ -396,6 +397,8 @@ final class DayObjectsInstrumentAuditionControllerTests: XCTestCase {
             XCTAssertEqual(bank.pool.noteOffCount, 1)
         }
     }
+
+    #endif
 
     func testGridEnableCancelsHeldLeadExactlyOnceAndDisablesAudition() async {
         let harness = await makeLeadHarness()

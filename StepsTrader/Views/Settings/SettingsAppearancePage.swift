@@ -130,61 +130,39 @@ struct SettingsAppearancePage: View {
         ZStack {
             SettingsDetailBackground(model: model)
 
-            VStack(spacing: 16) {
-                Picker("Appearance", selection: $draft.interfaceTheme) {
-                    Text("System").tag(AppTheme.system.rawValue)
-                    Text("Light").tag(AppTheme.daylight.rawValue)
-                    Text("Dark").tag(AppTheme.night.rawValue)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .accessibilityIdentifier("settings.appearance.interfaceTheme")
-
-                canvasAppearancePreview
-                    .padding(.horizontal, 16)
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                    #if DEBUG
-                    if selectedCanvasStyle == .editorial {
-                        modernPaletteCategoriesSection
-                            .transition(.opacity)
-                        if ExperimentalFeatures.dayObjectsLab {
-                            dayObjectsLabSection
-                        }
-                    } else {
-                        appearanceModePicker
-                            .padding(.horizontal, 16)
-
-                        if appearanceMode == .automatic {
-                            automaticThemeSection
+            GeometryReader { geometry in
+                if dynamicTypeSize.isAccessibilitySize || geometry.size.height < 560 {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            interfaceThemePicker
+                            canvasAppearancePreview
                                 .padding(.horizontal, 16)
-                                .transition(.opacity)
-                        } else {
-                            VStack(alignment: .leading, spacing: 24) {
-                                backgroundGroup
-                                canvasIngredientsDisclosure
-                            }
-                            .transition(.opacity)
-                            }
-                }
-                    #else
-                    modernPaletteCategoriesSection
-                    #endif
+                            appearanceOptions
+                        }
+                        .padding(.bottom, 16)
+                    }
+                } else {
+                    VStack(spacing: 16) {
+                        interfaceThemePicker
+                        canvasAppearancePreview
+                            .padding(.horizontal, 16)
+                        ScrollView {
+                            appearanceOptions
+                                .padding(.bottom, 16)
+                        }
                     }
                 }
-                .padding(.bottom, 16)
-                .motionAnimation(
-                    .spring(response: 0.3, dampingFraction: 0.8),
-                    value: appearanceMode,
-                    reducedMotionFallback: .easeInOut(duration: 0.15)
-                )
-                .motionAnimation(
-                    .spring(response: 0.3, dampingFraction: 0.8),
-                    value: selectedCanvasStyle,
-                    reducedMotionFallback: .easeInOut(duration: 0.15)
-                )
             }
+            .motionAnimation(
+                .spring(response: 0.3, dampingFraction: 0.8),
+                value: appearanceMode,
+                reducedMotionFallback: .easeInOut(duration: 0.15)
+            )
+            .motionAnimation(
+                .spring(response: 0.3, dampingFraction: 0.8),
+                value: selectedCanvasStyle,
+                reducedMotionFallback: .easeInOut(duration: 0.15)
+            )
         }
         .environment(\.appTheme, theme)
         .environment(\.resolvedAppTheme, theme == .daylight ? .daylight : .night)
@@ -248,6 +226,47 @@ struct SettingsAppearancePage: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: lightHapticTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: mediumHapticTick)
+    }
+
+    private var interfaceThemePicker: some View {
+        Picker("Appearance", selection: $draft.interfaceTheme) {
+            Text("System").tag(AppTheme.system.rawValue)
+            Text("Light").tag(AppTheme.daylight.rawValue)
+            Text("Dark").tag(AppTheme.night.rawValue)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16)
+        .accessibilityIdentifier("settings.appearance.interfaceTheme")
+    }
+
+    private var appearanceOptions: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            #if DEBUG
+            if selectedCanvasStyle == .editorial {
+                modernPaletteCategoriesSection
+                    .transition(.opacity)
+                if ExperimentalFeatures.dayObjectsLab {
+                    dayObjectsLabSection
+                }
+            } else {
+                appearanceModePicker
+                    .padding(.horizontal, 16)
+                if appearanceMode == .automatic {
+                    automaticThemeSection
+                        .padding(.horizontal, 16)
+                        .transition(.opacity)
+                } else {
+                    VStack(alignment: .leading, spacing: 24) {
+                        backgroundGroup
+                        canvasIngredientsDisclosure
+                    }
+                    .transition(.opacity)
+                }
+            }
+            #else
+            modernPaletteCategoriesSection
+            #endif
+        }
     }
 
     // MARK: - Appearance Mode
@@ -570,9 +589,11 @@ struct SettingsAppearancePage: View {
             canvasShapesSection
             canvasFillsSection
             textureSection
+            #if DEBUG
             if ExperimentalFeatures.dayObjectsLab {
                 dayObjectsLabSection
             }
+            #endif
         }
     }
 
@@ -684,6 +705,7 @@ struct SettingsAppearancePage: View {
         lightHapticTick &+= 1
     }
 
+    #if DEBUG
     private var dayObjectsLabSection: some View {
         NavigationLink {
             DayObjectsLabView()
@@ -705,7 +727,9 @@ struct SettingsAppearancePage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.appearance.dayObjectsLab")
     }
+    #endif
 
     private var canvasFillsSection: some View {
         VStack(alignment: .leading, spacing: 10) {

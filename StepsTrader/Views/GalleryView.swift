@@ -76,18 +76,12 @@ struct GalleryView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var dayCanvas: DayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: Date.now))
     @State private var activeDayKey: String = AppModel.dayKey(for: Date.now)
-    /// True once `loadCanvas()` has run at least once. Prevents `syncCanvasWithModel()`
-    /// from saving the empty default canvas to disk before the real one is loaded,
-    /// which would overwrite the persisted elements.
+    /// Local editing is ready once a durable file (complete or provisional)
+    /// has loaded. The file's hydration journal separately gates cloud authority.
     @State private var canvasLoaded = false
     @State private var loadTask: Task<Void, Never>? = nil
-    /// Generation counter bumped on every user-driven mutation (spawn/remove/reroll/drag-end).
-    /// Used by `loadCanvas()` to detect a race where the user mutates the canvas while a
-    /// remote fetch is in flight, so we can MERGE instead of clobbering local additions.
+    /// Invalidates cached palette render input after local artwork edits.
     @State private var localMutationCounter: Int = 0
-    /// IDs deleted locally between fetch start and fetch completion. Prevents the merge
-    /// logic from resurrecting elements the user explicitly removed mid-flight.
-    @State private var pendingDeletedIds: Set<UUID> = []
     /// Toolbar/sheet state (M5 extraction). Backs the six picker/share/export
     /// fields hoisted to a separate Observable manager.
     @State private var toolbar = CanvasToolbarState()
@@ -941,6 +935,7 @@ struct GalleryView: View {
                     },
                     nativeRecipe: dayCanvas.artworkRecipe == nil ? nil : Binding(get: { dayCanvas.artworkRecipe }, set: { recipe in
                         dayCanvas.artworkRecipe = recipe
+                        dayCanvas.recordExplicitArtworkEdit()
                         dayCanvas.lastModified = .now
                         localMutationCounter &+= 1
                     }),
@@ -1016,6 +1011,9 @@ struct GalleryView: View {
                 )
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .todayCanvasStorageDidChange)) { _ in
+            applyRecoveredCanvasIfAvailable()
+        }
         .onChange(of: canvasSyncState) {
             reconcileLoadedCanvasHappenings(at: .now)
             syncCanvasWithModel()
@@ -1055,6 +1053,7 @@ struct GalleryView: View {
             ) {
                 closeHappeningPalette()
             } else if selected {
+                retryPendingCanvasRecovery()
                 consumePaletteOpenRequestIfReady()
             }
             if !selected {
@@ -1136,6 +1135,7 @@ struct GalleryView: View {
                 return
             }
             guard scenePhase == .active else { return }
+            retryPendingCanvasRecovery()
             model.checkDayBoundary()
             let newKey = AppModel.dayKey(for: Date.now)
             if newKey != activeDayKey {
@@ -1676,6 +1676,7 @@ struct GalleryView: View {
     private func applyPreferredNativeBackground(_ rawValue: String) {
         guard canvasLoaded, dayCanvas.dayKey == todayKey,
               dayCanvas.applyNativeBackground(paletteCategories: ModernPaletteSelection.decode(rawValue)) else { return }
+        dayCanvas.recordExplicitArtworkEdit()
         localMutationCounter &+= 1
         saveCanvasLocally()
     }
@@ -1690,6 +1691,7 @@ struct GalleryView: View {
             send(.endEditing)
         }
         dayCanvas.visualStyleRaw = style.rawValue
+        dayCanvas.recordExplicitArtworkEdit()
         dayCanvas.lastModified = .now
         canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
         saveCanvasLocally()
@@ -1709,10 +1711,10 @@ struct GalleryView: View {
         happeningPalettePanel = paletteState.activePanel
         showHappeningPalette = paletteState.isPresented
         loadTask?.cancel()
+        loadTask = nil
         activeDayKey = newKey
         dayCanvas = makeNewCanvas(dayKey: newKey)
         canvasLoaded = false
-        pendingDeletedIds.removeAll()
         send(.dayBoundary)
         refreshHappeningPalette()
         loadCanvas()
@@ -1724,88 +1726,83 @@ struct GalleryView: View {
         // inert so it cannot race persistence tests through the shared canvas
         // directory; tests exercise CanvasStorageService explicitly.
         if isUnitTestHost {
-            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
+            applyEditableCanvas(makeNewCanvas(dayKey: dayKey))
             return
         }
         if usesTask7UITestFixture {
-            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
+            applyEditableCanvas(makeNewCanvas(dayKey: dayKey))
             syncCanvasWithModel()
             return
         }
-        let local = CanvasStorageService.shared.loadCanvas(for: dayKey)
-        if let local {
-            let migrated = migratedLoadedCanvas(local)
-            applyHydratedCanvas(migrated.canvas)
+        if let local = CanvasStorageService.shared.loadCanvas(for: dayKey) {
+            let migrated = local.needsRemoteHydration
+                ? (canvas: local, didMigrate: false)
+                : migratedLoadedCanvas(local)
+            applyEditableCanvas(migrated.canvas)
             syncCanvasWithModel()
-            if migrated.didMigrate {
-                saveCanvasLocally()
-            }
+            if migrated.didMigrate { saveCanvasLocally() }
+            retryPendingCanvasRecovery()
             return
         }
-        // No on-disk canvas. If we already finished bootstrap for this day,
-        // treat that as a real "empty today" rather than re-fetching forever.
         if lastBootstrappedDayKey == dayKey {
-            applyHydratedCanvas(makeNewCanvas(dayKey: dayKey))
+            applyEditableCanvas(makeNewCanvas(dayKey: dayKey))
             canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
             syncCanvasWithModel()
+            retryPendingCanvasRecovery()
             return
         }
-        dayCanvas = makeNewCanvas(dayKey: dayKey)
-        let snapshotCounter = localMutationCounter
-        pendingDeletedIds.removeAll()
-        loadTask = Task {
-            let remote = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey)
-            await MainActor.run {
-                guard !Task.isCancelled else { return }
-                let didHydrate = CanvasRemoteHydrationCoordinator.apply(
-                    remote,
-                    onFound: { remoteCanvas in
-                        if localMutationCounter != snapshotCounter {
-                            let merged = mergeRemoteWithLocal(
-                                remote: remoteCanvas,
-                                local: dayCanvas
-                            )
-                            let migrated = migratedLoadedCanvas(merged)
-                            applyHydratedCanvas(migrated.canvas)
-                            saveCanvasLocally()
-                            syncCanvasWithModel()
-                        } else {
-                            let migrated = migratedLoadedCanvas(remoteCanvas)
-                            applyHydratedCanvas(migrated.canvas)
-                            // Hydration may canonicalize duplicate binary palette
-                            // elements. Persist the resulting source of truth, not
-                            // the pre-reconciliation remote payload.
-                            CanvasStorageService.shared.saveCanvas(dayCanvas)
-                            syncCanvasWithModel()
-                            refreshWidgetSnapshot()
-                        }
-                    },
-                    onConfirmedAbsent: {
-                        canvasVisualStyleMigrationVersion = CanvasVisualStyleMigration.currentVersion
-                        applyHydratedCanvas(dayCanvas)
-                        if localMutationCounter != snapshotCounter {
-                            saveCanvasLocally()
-                        }
-                        syncCanvasWithModel()
-                    }
-                )
-                guard didHydrate else {
-                    // Keep canvasLoaded false and do not publish or mark this
-                    // day bootstrapped. A later appearance can retry safely.
-                    loadTask = nil
-                    return
-                }
-                lastBootstrappedDayKey = dayKey
-                pendingDeletedIds.removeAll()
-                loadTask = nil
-            }
+        // Persist a provisional day before allowing edits. Failed/unauthenticated
+        // fetches leave it editable, but cannot publish it as the complete day.
+        var draft = makeNewCanvas(dayKey: dayKey)
+        draft.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        draft.localCloudOwnerID = AuthenticationService.shared.currentUser?.id
+        guard CanvasStorageService.shared.saveCanvas(draft) else {
+            canvasLoaded = false
+            return
         }
+        applyEditableCanvas(draft)
+        syncCanvasWithModel()
+        retryPendingCanvasRecovery()
+    }
+
+    private func retryPendingCanvasRecovery() {
+        guard !isUnitTestHost, !usesTask7UITestFixture, loadTask == nil else { return }
+        loadTask = Task {
+            await SupabaseSyncService.shared.recoverPendingDayCanvases()
+            guard !Task.isCancelled else { return }
+            applyRecoveredCanvasIfAvailable()
+            loadTask = nil
+        }
+    }
+
+    private func applyRecoveredCanvasIfAvailable() {
+        guard dayCanvas.needsRemoteHydration,
+              let saved = CanvasStorageService.shared.loadCanvas(for: activeDayKey),
+              !saved.needsRemoteHydration else { return }
+        // Native controls and an active drag can have visible edits not yet
+        // flushed when the fetch completes. Merge that live draft too. Assign
+        // before saving so the storage notification cannot re-enter recovery.
+        var liveDraft = dayCanvas
+        liveDraft.localCloudOwnerID = saved.localCloudOwnerID
+        guard let merged = CanvasDraftRecovery.resolve(local: liveDraft, remote: .found(saved)) else { return }
+        let migrated = migratedLoadedCanvas(merged)
+        let previous = dayCanvas
+        dayCanvas = migrated.canvas
+        guard CanvasStorageService.shared.saveCanvas(dayCanvas) else {
+            dayCanvas = previous
+            return
+        }
+        applyEditableCanvas(migrated.canvas)
+        lastBootstrappedDayKey = saved.dayKey
+        publishCanvasPersistence(dayCanvas)
+        syncCanvasWithModel()
+        refreshWidgetSnapshot()
     }
 
     /// Canvas data can arrive after the palette snapshot was first made. Keep
     /// that state cache in sync at this assignment boundary rather than during
     /// a SwiftUI body evaluation.
-    private func applyHydratedCanvas(_ canvas: DayCanvas) {
+    private func applyEditableCanvas(_ canvas: DayCanvas) {
         dayCanvas = canvas
         canvasLoaded = true
         if !isUnitTestHost {
@@ -1814,9 +1811,8 @@ struct GalleryView: View {
         refreshHappeningPalette()
     }
 
-    /// Daily additions are a persisted projection of the visual Canvas. Repair
-    /// that projection only at a completed hydration boundary so an empty
-    /// placeholder can never delete legitimate entries while a load is active.
+    /// Complete canvases own the daily-entry projection. Provisional canvases
+    /// can recover their saved additions, but cannot delete unmatched entries.
     private func reconcileLoadedCanvasHappenings(at now: Date) {
         guard !isUnitTestHost, activeDayKey == dayCanvas.dayKey else { return }
         guard let reconciliation = CanvasHappeningReconciliationPolicy.reconcileIfReady(
@@ -1839,47 +1835,6 @@ struct GalleryView: View {
             reconciliation,
             model: model
         )
-    }
-
-    /// ID-keyed merge with last-write-wins per element and tombstone protection.
-    /// - Local additions (id only on local) are kept.
-    /// - Local deletes (`pendingDeletedIds`) suppress matching remote ids permanently.
-    /// - For ids present on both sides, the side with the newer `lastEditedAt`
-    ///   (falling back to `createdAt`) wins; ties go to local.
-    private func mergeRemoteWithLocal(remote: DayCanvas, local: DayCanvas) -> DayCanvas {
-        var byId: [UUID: CanvasElement] = [:]
-        for el in remote.elements where !pendingDeletedIds.contains(el.id) {
-            byId[el.id] = el
-        }
-        for el in local.elements {
-            if let existing = byId[el.id] {
-                let localTs = el.lastEditedAt ?? el.createdAt
-                let remoteTs = existing.lastEditedAt ?? existing.createdAt
-                if localTs >= remoteTs { byId[el.id] = el }
-            } else if !pendingDeletedIds.contains(el.id) {
-                byId[el.id] = el
-            }
-        }
-        var merged = remote
-        // Preserve local recipe edits when both sides belong to the new
-        // generation. A historical remote canvas must not be auto-migrated by
-        // the temporary fresh canvas used while hydration is in flight.
-        if remote.artworkRecipe != nil, local.artworkRecipe != nil,
-           local.lastModified >= remote.lastModified {
-            merged.artworkRecipe = local.artworkRecipe
-        }
-        if merged.visualStyleRaw == nil {
-            merged.visualStyleRaw = local.visualStyleRaw
-        }
-        let order = local.elements.map(\.id) + remote.elements.map(\.id)
-        var seen: Set<UUID> = []
-        var ordered: [CanvasElement] = []
-        for id in order where seen.insert(id).inserted {
-            if let el = byId[id] { ordered.append(el) }
-        }
-        merged.elements = ordered
-        merged.lastModified = Date.now
-        return merged
     }
 
     @MainActor
@@ -1942,7 +1897,9 @@ struct GalleryView: View {
         // from disk on next launch.
         guard canvasLoaded else { return false }
         let didPersist: Bool
-        if dayCanvas.elements.isEmpty && dayCanvas.artworkRecipe == nil && dayCanvas.remixSeed == nil {
+        if !dayCanvas.needsRemoteHydration && dayCanvas.pendingCloudUpload != true
+            && dayCanvas.localCloudOwnerID == nil
+            && dayCanvas.elements.isEmpty && dayCanvas.artworkRecipe == nil && dayCanvas.remixSeed == nil {
             CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey)
             didPersist = true
         } else {
@@ -2022,7 +1979,6 @@ struct GalleryView: View {
         if let presentationOrigin {
             spawnPresentation.stage(elementID: element.id, origin: presentationOrigin)
         }
-        pendingDeletedIds.remove(element.id)
         dayCanvas = result.canvas
         localMutationCounter &+= 1
         publishCanvasPersistence(result.canvas)
@@ -2069,7 +2025,6 @@ struct GalleryView: View {
         }
 
         dayCanvas = result.canvas
-        pendingDeletedIds.insert(result.removedElement.id)
         localMutationCounter &+= 1
         publishCanvasPersistence(result.canvas)
         refreshHappeningPalette()

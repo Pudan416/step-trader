@@ -3,6 +3,39 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectsTransportTests: XCTestCase {
+    @MainActor
+    func testDeadlineQueueRecoversFromClockFailureAndPreservesReplacementWorker() async {
+        let clock = OnceFailingDeadlineClock()
+        let queue = DayObjectsPlaybackDeadlineQueue(clock: clock)
+        var delivered: [Int] = []
+        XCTAssertTrue(queue.deferUntilDeadline(1) { delivered.append(1) })
+        for _ in 0..<20_000 {
+            if clock.didFail && queue.activeTaskCount == 0 { break }
+            await Task.yield()
+        }
+        XCTAssertTrue(clock.didFail)
+        XCTAssertEqual(queue.activeTaskCount, 0, "A failed sleep must release the worker so a retry can run")
+        XCTAssertTrue(delivered.isEmpty)
+
+        XCTAssertTrue(queue.deferUntilDeadline(2) { delivered.append(2) })
+        for _ in 0..<20_000 {
+            if clock.manual.pendingWaiterCount == 1 { break }
+            await Task.yield()
+        }
+        XCTAssertEqual(clock.manual.pendingWaiterCount, 1)
+        queue.cancel()
+        XCTAssertTrue(queue.deferUntilDeadline(2) { delivered.append(3) })
+        XCTAssertTrue(queue.deferUntilDeadline(2) { delivered.append(4) })
+        clock.manual.advance(to: 2)
+        for _ in 0..<20_000 {
+            if delivered.count == 2 { break }
+            await Task.yield()
+        }
+        XCTAssertEqual(delivered, [3, 4], "Canceled worker cleanup must not discard the new generation or reorder equal deadlines")
+        XCTAssertEqual(queue.activeTaskCount, 0)
+        queue.cancel()
+    }
+
     func testOrderedEventsUseSixteenSubdivisionsPerFourFourBar() async throws {
         let clock = ManualDayObjectsTransportClock()
         let recorder = TransportEventRecorder()
@@ -364,4 +397,23 @@ private actor TransportReference {
         await transport?.start(tempoBPM: tempoBPM, harmonicCycleBars: harmonicCycleBars)
     }
 }
+private final class OnceFailingDeadlineClock: DayObjectsTransportClock, @unchecked Sendable {
+    private enum Failure: Error { case interrupted }
+    let manual = ManualDayObjectsTransportClock()
+    private let lock = NSLock()
+    private var hasFailed = false
+    var didFail: Bool { lock.withLock { hasFailed } }
+
+    func now() -> TimeInterval { manual.now() }
+    func sleep(untilHostTime hostTime: TimeInterval) async throws {
+        let shouldFail = lock.withLock {
+            guard !hasFailed else { return false }
+            hasFailed = true
+            return true
+        }
+        if shouldFail { throw Failure.interrupted }
+        try await manual.sleep(untilHostTime: hostTime)
+    }
+}
+
 #endif

@@ -1,5 +1,117 @@
 import Foundation
 
+/// Local-only recovery journal. Its presence means the file is editable but
+/// does not yet contain all of the remote day's artwork.
+struct CanvasPendingRemoteHydration: Codable, Equatable {
+    var deletedElementIDs: Set<UUID> = []
+    var artworkWasEdited = false
+}
+
+/// Resolves a locally editable draft only after a conclusive cloud read.
+/// Whole-document sync remains last-write-wins; this merge preserves the remote
+/// version that was fetched, rather than replacing it with an empty placeholder.
+enum CanvasDraftRecovery {
+    static func resolve(local: DayCanvas, remote: DayCanvasFetchResult, at now: Date = .now) -> DayCanvas? {
+        guard let journal = local.pendingRemoteHydration else { return local }
+        var resolved: DayCanvas
+        switch remote {
+        case .failed:
+            return nil
+        case .confirmedAbsent:
+            resolved = local
+        case .found(let remoteCanvas):
+            guard remoteCanvas.dayKey == local.dayKey else { return nil }
+            resolved = remoteCanvas
+            var elements = [UUID: CanvasElement]()
+            for element in remoteCanvas.elements where !journal.deletedElementIDs.contains(element.id) {
+                elements[element.id] = element
+            }
+            for element in local.elements where !journal.deletedElementIDs.contains(element.id) {
+                if let old = elements[element.id],
+                   (old.lastEditedAt ?? old.createdAt) > (element.lastEditedAt ?? element.createdAt) { continue }
+                elements[element.id] = element
+            }
+            var seen = Set<UUID>()
+            let ordered = (local.elements + remoteCanvas.elements).compactMap { element -> CanvasElement? in
+                guard seen.insert(element.id).inserted else { return nil }
+                return elements[element.id]
+            }
+            if journal.artworkWasEdited {
+                resolved.artworkRecipe = local.artworkRecipe
+                resolved.remixSeed = local.remixSeed
+                resolved.soundWorldRaw = local.soundWorldRaw
+                resolved.soundMoodRaw = local.soundMoodRaw
+                resolved.guestSoundWorldRaw = local.guestSoundWorldRaw
+                resolved.visualStyleRaw = local.visualStyleRaw
+                resolved.gradientStyle = local.gradientStyle
+                resolved.gradientPalette = local.gradientPalette
+                resolved.overlayStyle = local.overlayStyle
+                resolved.textureRaw = local.textureRaw
+            }
+            let recipe = mergedRecipe(base: resolved.artworkRecipe, local: local.artworkRecipe,
+                remote: remoteCanvas.artworkRecipe, eventIDs: ordered.map { $0.id.uuidString.lowercased() },
+                artworkWasEdited: journal.artworkWasEdited)
+            resolved.elements = ordered
+            resolved.artworkRecipe = recipe
+            if local.lastModified >= remoteCanvas.lastModified {
+                resolved.sleepPoints = local.sleepPoints
+                resolved.stepsPoints = local.stepsPoints
+                resolved.sleepColorHex = local.sleepColorHex
+                resolved.stepsColorHex = local.stepsColorHex
+                resolved.inkEarned = local.inkEarned
+                resolved.inkSpent = local.inkSpent
+                resolved.hasStepsData = local.hasStepsData
+                resolved.hasSleepData = local.hasSleepData
+            }
+        }
+        resolved.pendingRemoteHydration = nil
+        resolved.pendingCloudUpload = true
+        resolved.localCloudOwnerID = local.localCloudOwnerID
+        resolved.lastModified = now
+        return resolved
+    }
+
+    /// Keep frozen shapes/materials from both files. Remote placements retain
+    /// their slots; an offline addition may need a free slot in the merged day.
+    private static func mergedRecipe(base: NativeAtlasRecipe?, local: NativeAtlasRecipe?,
+                                     remote: NativeAtlasRecipe?, eventIDs: [String],
+                                     artworkWasEdited: Bool) -> NativeAtlasRecipe? {
+        guard var recipe = base, recipe.isSupported else { return base }
+        let ids = Array(eventIDs.prefix(10))
+        let localActors = Dictionary((local?.actors ?? []).map { ($0.eventID, $0) },
+                                     uniquingKeysWith: { first, _ in first })
+        let remoteActors = (remote?.actors ?? []).filter { ids.contains($0.eventID) }
+        var sources = remoteActors.map { actor in
+            artworkWasEdited ? (localActors[actor.eventID] ?? actor) : actor
+        }
+        let remoteIDs = Set(remoteActors.map(\.eventID))
+        sources += (local?.actors ?? []).filter { ids.contains($0.eventID) && !remoteIDs.contains($0.eventID) }
+        recipe.actors = []
+        var assignedIDs = Set<String>()
+        for source in sources where assignedIDs.insert(source.eventID).inserted {
+            let occupied = Set(recipe.actors.map(\.slot))
+            let remoteActor = remoteActors.first { $0.eventID == source.eventID }
+            let preferredSlot = remoteActor?.slot ?? source.slot
+            let position = preferredSlot == source.slot ? source.position : (remoteActor?.position ?? source.position)
+            if !occupied.contains(preferredSlot) {
+                recipe.actors.append(copyActor(source, slot: preferredSlot, position: position))
+            } else if let placement = recipe.reconciled(eventIDs: recipe.actors.map(\.eventID) + [source.eventID])
+                .actors.first(where: { $0.eventID == source.eventID }) {
+                recipe.actors.append(copyActor(source, slot: placement.slot, position: placement.position))
+            }
+        }
+        return recipe.reconciled(eventIDs: ids)
+    }
+
+    private static func copyActor(_ actor: NativeAtlasRecipe.Actor, slot: Int,
+                                  position: SIMD2<Float>) -> NativeAtlasRecipe.Actor {
+        NativeAtlasRecipe.Actor(eventID: actor.eventID, presetID: actor.presetID,
+            materialID: actor.materialID, seedHex: actor.seedHex, geometry: actor.geometry,
+            material: actor.material, position: position, size: actor.size,
+            rotation: actor.rotation, slot: slot)
+    }
+}
+
 struct DayCanvas: Codable {
     var dayKey: String                          // "2026-02-12"
     var elements: [CanvasElement] {             // spawned from activities
@@ -33,6 +145,31 @@ struct DayCanvas: Codable {
     var soundWorldRaw: String?
     var soundMoodRaw: String?
     var guestSoundWorldRaw: String?
+    var pendingRemoteHydration: CanvasPendingRemoteHydration?
+    /// Retained after a recovered draft is committed locally, until that exact
+    /// version is acknowledged by the server. Neither field is sent to cloud.
+    var pendingCloudUpload: Bool?
+    /// Binds recovered local work to the account whose remote baseline was
+    /// fetched. Legacy local canvases remain unscoped for compatibility.
+    var localCloudOwnerID: String?
+
+    var needsRemoteHydration: Bool { pendingRemoteHydration != nil }
+
+    var cloudSnapshot: DayCanvas {
+        var snapshot = self
+        snapshot.pendingRemoteHydration = nil
+        snapshot.pendingCloudUpload = nil
+        snapshot.localCloudOwnerID = nil
+        return snapshot
+    }
+
+    func belongsToCloudUser(_ userID: String) -> Bool {
+        localCloudOwnerID == nil || localCloudOwnerID == userID
+    }
+
+    mutating func recordExplicitArtworkEdit() {
+        pendingRemoteHydration?.artworkWasEdited = true
+    }
 
     var resolvedRemixSeed: UInt64 {
         remixSeed ?? CanvasElement.makeSeed(
@@ -135,6 +272,7 @@ struct DayCanvas: Codable {
         guard recipe.backgroundStyle != background else { return false }
         recipe.backgroundStyle = background
         artworkRecipe = recipe
+        recordExplicitArtworkEdit()
         lastModified = .now
         return true
     }

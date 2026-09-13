@@ -310,6 +310,7 @@ actor SupabaseSyncService {
     var pendingDailyStats: DailyStatsPayload?
     var pendingDailySpent: DailySpentPayload?
     var pendingDayCanvas: DayCanvasSyncPayload?
+    var canvasUploadOrdering = CanvasUploadOrdering()
     var pendingPreferences: UserPreferencesPayload?
     
     var lastSentDailySelections: DailySelectionsPayload?
@@ -406,6 +407,9 @@ actor SupabaseSyncService {
 
     /// Drain the offline retry queue. Call on app launch or when connectivity is restored.
     func drainRetryQueue() async {
+        guard canvasUploadOrdering.beginRetryDrain() else { return }
+        var ownsRetryDrain = true
+        defer { if ownsRetryDrain { canvasUploadOrdering.endRetryDrain() } }
         migrateLegacyOptionEntryIntents()
         await drainPendingOptionEntryIntents()
         await AuthenticationService.shared.waitForInitialization()
@@ -424,12 +428,25 @@ actor SupabaseSyncService {
 
         let queue = retryQueueStore.loadUnexpired(now: .now)
         guard !queue.isEmpty else {
+            ownsRetryDrain = false
+            canvasUploadOrdering.endRetryDrain()
+            await recoverPendingDayCanvases()
             return
         }
         AppLogger.network.debug("📡 Draining \(queue.count) queued sync requests")
         
         var acknowledgedQueueIDs = Set<String>()
         for entry in queue {
+            if let upload = CanvasQueuedUpload(request: entry) {
+                guard canvasUploadOrdering.canReplay(dayKey: upload.canvas.dayKey) else { continue }
+                let superseded = await MainActor.run {
+                    upload.isSuperseded(by: CanvasStorageService.shared.loadCanvas(for: upload.canvas.dayKey))
+                }
+                if superseded {
+                    acknowledgedQueueIDs.insert(entry.queueID)
+                    continue
+                }
+            }
             guard let url = URL(string: entry.urlString) else {
                 acknowledgedQueueIDs.insert(entry.queueID)
                 continue
@@ -475,6 +492,11 @@ actor SupabaseSyncService {
         retryQueueStore.removeAcknowledged(queueIDs: acknowledgedQueueIDs)
         let remainingCount = loadRetryQueue().count
         AppLogger.network.debug("📡 Retry queue drained: \(acknowledgedQueueIDs.count) acknowledged, \(remainingCount) pending")
+        // Recover against the server after older raw writes have settled. A
+        // recovery upload must not be followed by a pre-recovery Canvas retry.
+        ownsRetryDrain = false
+        canvasUploadOrdering.endRetryDrain()
+        await recoverPendingDayCanvases()
     }
     
     // MARK: - Shared Helpers

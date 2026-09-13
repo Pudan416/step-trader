@@ -4,6 +4,99 @@ import XCTest
 
 @MainActor
 final class BassPlayerTests: XCTestCase {
+    func testNormalPlaybackWaitsForAttackLegatoAndReleaseHostTimes() async throws {
+        let clock = ManualDayObjectsTransportClock(now: 9.9)
+        let harness = try makeHarness(clock: clock)
+        let plan = bassPlan(events: [
+            bassEvent(id: 1, start: 0, duration: 8),
+            bassEvent(id: 2, start: 8, duration: 4),
+        ])
+        try harness.player.configure(plan)
+        _ = harness.player.render(futureEvent(at: 0, hostTime: 10), plan: plan, duckCommand: nil)
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        XCTAssertTrue(harness.pool.noteOnRequests.isEmpty, "Lookahead must not sound the bass before the kick")
+        clock.advance(to: 10)
+        await waitForDeadlineState { harness.pool.noteOnRequests.count == 1 }
+        XCTAssertEqual(harness.pool.scheduledGateHostTimes, [10])
+
+        let updateCount = harness.pool.updateRequests.count
+        _ = harness.player.render(futureEvent(at: 8, hostTime: 11), plan: plan, duckCommand: nil)
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        XCTAssertEqual(harness.pool.updateRequests.count, updateCount, "Legato must keep the old pitch until its beat")
+        clock.advance(to: 11)
+        await waitForDeadlineState { harness.pool.updateRequests.last?.midiNote == 38 }
+
+        _ = harness.player.render(futureEvent(at: 12, hostTime: 12), plan: plan, duckCommand: nil)
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        XCTAssertEqual(harness.pool.noteOffCount, 0, "A lookahead release must not shorten the held note")
+        clock.advance(to: 12)
+        await waitForDeadlineState { harness.pool.noteOffCount == 1 }
+        XCTAssertEqual(harness.player.pendingDeadlineTaskCount, 0)
+    }
+
+    func testStoppingBeforeFutureBassAttackCannotReviveVoice() async throws {
+        let clock = ManualDayObjectsTransportClock(now: 9.9)
+        let harness = try makeHarness(clock: clock)
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 4)])
+        try harness.player.configure(plan)
+        _ = harness.player.render(futureEvent(at: 0, hostTime: 10), plan: plan, duckCommand: nil)
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        harness.player.stopAttacks()
+        clock.advance(to: 10)
+        await waitForDeadlineState { clock.pendingWaiterCount == 0 }
+        XCTAssertTrue(harness.pool.noteOnRequests.isEmpty)
+        XCTAssertEqual(harness.player.metrics.activeVoiceCount, 0)
+        XCTAssertEqual(harness.player.pendingDeadlineTaskCount, 0)
+    }
+
+    func testOldBassReleaseCannotCutOffReconfiguredVoice() async throws {
+        let clock = ManualDayObjectsTransportClock(now: 9.9)
+        let harness = try makeHarness(clock: clock)
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 4)])
+        try harness.player.configure(plan)
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+        _ = harness.player.render(futureEvent(at: 4, hostTime: 10), plan: plan, duckCommand: nil)
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        try harness.player.configure(plan)
+        _ = harness.player.render(event(at: 0), plan: plan, duckCommand: nil)
+        clock.advance(to: 10)
+        await waitForDeadlineState { clock.pendingWaiterCount == 0 }
+        XCTAssertEqual(harness.pool.noteOffCount, 1)
+        XCTAssertEqual(harness.player.metrics.activeVoiceCount, 1)
+        harness.player.releaseAll()
+    }
+
+    func testDiagnosticAuditionCancelsPendingNormalBassEvent() async throws {
+        let clock = ManualDayObjectsTransportClock(now: 9.9)
+        let harness = try makeHarness(clock: clock)
+        let plan = bassPlan(events: [bassEvent(id: 1, start: 0, duration: 4)])
+        try harness.player.configure(plan)
+        _ = harness.player.render(futureEvent(at: 0, hostTime: 10), plan: plan, duckCommand: nil)
+        await waitForDeadlineState { clock.pendingWaiterCount == 1 }
+        XCTAssertTrue(try harness.player.audition(
+            instrumentID: plan.instrumentID, midiNote: 43, velocity: 0.7,
+            hostTime: 10, restorationPlan: nil, automaticallyReleaseAfterWallClock: false
+        ))
+        XCTAssertEqual(harness.player.pendingDeadlineTaskCount, 0)
+        clock.advance(to: 10)
+        await waitForDeadlineState { clock.pendingWaiterCount == 0 }
+        XCTAssertEqual(harness.pool.noteOnRequests.map(\.midiNote), [43])
+        harness.player.releaseAll()
+    }
+
+    private func futureEvent(at subdivision: Int64, hostTime: TimeInterval) -> DayObjectsTransportEvent {
+        .init(kind: .subdivision, position: .init(absoluteSubdivision: subdivision),
+              hostTimeSeconds: hostTime, tempoBPM: 120)
+    }
+
+    private func waitForDeadlineState(_ predicate: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<20_000 {
+            if predicate() { return }
+            await Task.yield()
+        }
+        XCTFail("Deadline operation did not reach the expected state", file: file, line: line)
+    }
+
     func testDiagnosticSidechainSchedulesOneProductionBassGateKickAndDuckAtTheSameHostTime() throws {
         let harness = try makeHarness()
         let compositionBass = bassPlan(
@@ -288,7 +381,9 @@ final class BassPlayerTests: XCTestCase {
         XCTAssertEqual(destination.pool.maximumActiveVoiceCount, 1)
     }
 
-    private func makeHarness() throws -> (
+    private func makeHarness(
+        clock: any DayObjectsTransportClock = HostTimeDayObjectsTransportClock(schedulingLookaheadSeconds: 0)
+    ) throws -> (
         player: BassPlayer,
         pool: RecordingBassPool,
         duckBackend: RecordingBassDuckBackend,
@@ -300,7 +395,7 @@ final class BassPlayerTests: XCTestCase {
         let duckBackend = RecordingBassDuckBackend()
         try world.prepare()
         return (
-            BassPlayer(worldBank: world, duckBackend: duckBackend),
+            BassPlayer(worldBank: world, duckBackend: duckBackend, clock: clock),
             try XCTUnwrap(bank.bassPool),
             duckBackend,
             bank,

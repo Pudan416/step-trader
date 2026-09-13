@@ -59,12 +59,17 @@ enum CanvasHappeningReconciliationPolicy {
         now: Date
     ) -> CanvasHappeningReconciliation? {
         guard canvasLoaded, !appModelIsBootstrapping else { return nil }
-        return CanvasHappeningReconciler.reconcile(
+        let result = CanvasHappeningReconciler.reconcile(
             canvas: canvas,
             entries: entries,
             dayKey: dayKey,
             now: now
         )
+        guard canvas.needsRemoteHydration else { return result }
+        // A provisional Canvas can recover an addition committed just before
+        // a crash, but its absent elements are not evidence of deletion.
+        return CanvasHappeningReconciliation(entriesToAdd: result.entriesToAdd,
+            entryIDsToRemove: [], duplicateElementIDsToRemove: result.duplicateElementIDsToRemove)
     }
 }
 
@@ -257,6 +262,7 @@ enum CanvasHappeningSpawnTransaction {
 
         var canonical = canvas
         canonical.elements.append(element)
+        canonical.pendingRemoteHydration?.deletedElementIDs.remove(element.id)
         canonical.lastModified = date
         guard persist(canonical) else { return nil }
 
@@ -305,6 +311,7 @@ enum CanvasHappeningRemovalTransaction {
         )
         var canonical = canvas
         let removed = canonical.elements.remove(at: index)
+        canonical.pendingRemoteHydration?.deletedElementIDs.insert(removed.id)
         canonical.lastModified = date
         guard persist(canonical) else { return nil }
         if let entryID {

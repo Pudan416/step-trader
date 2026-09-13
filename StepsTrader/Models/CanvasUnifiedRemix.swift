@@ -13,6 +13,7 @@ struct CanvasRemixSnapshot {
     let soundMoodRaw: String?
     let guestSoundWorldRaw: String?
     let artworkRecipe: NativeAtlasRecipe?
+    let pendingArtworkWasEdited: Bool?
 
     init(canvas: DayCanvas) {
         dayKey = canvas.dayKey
@@ -27,6 +28,7 @@ struct CanvasRemixSnapshot {
         soundMoodRaw = canvas.soundMoodRaw
         guestSoundWorldRaw = canvas.guestSoundWorldRaw
         artworkRecipe = canvas.artworkRecipe
+        pendingArtworkWasEdited = canvas.pendingRemoteHydration?.artworkWasEdited
     }
 }
 
@@ -68,6 +70,7 @@ enum CanvasUnifiedRemix {
         next.gradientPalette = GradientPalette.allCases[palette.nextInt(in: 0...(GradientPalette.allCases.count - 1))].rawValue
         next.textureRaw = CanvasTexture.allCases[texture.nextInt(in: 0...(CanvasTexture.allCases.count - 1))].rawValue
         next.lastModified = date
+        next.recordExplicitArtworkEdit()
         return .init(canvas: next, previous: .init(canvas: canvas), musicSelection: selection, seed: seed)
     }
 
@@ -89,6 +92,9 @@ enum CanvasUnifiedRemix {
         restored.artworkRecipe = snapshot.artworkRecipe?.reconciled(
             eventIDs: restored.elements.map { $0.id.uuidString.lowercased() }
         )
+        if let wasEdited = snapshot.pendingArtworkWasEdited {
+            restored.pendingRemoteHydration?.artworkWasEdited = wasEdited
+        }
         return restored
     }
 }

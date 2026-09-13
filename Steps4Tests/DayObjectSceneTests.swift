@@ -3,6 +3,14 @@ import simd
 @testable import Steps4
 
 final class DayObjectSceneTests: XCTestCase {
+    func testLegacyLabIsAvailableOnlyInDebugBuilds() {
+        #if DEBUG
+        XCTAssertTrue(ExperimentalFeatures.dayObjectsLab)
+        #else
+        XCTAssertFalse(ExperimentalFeatures.dayObjectsLab)
+        #endif
+    }
+
     func testGeneratorOnlySelectsApprovedNonInterferenceMaterials() {
         let approvedMaterials: Set<DayObjectMaterialFamily> = [
             .gradient, .solid, .sphere, .glass, .mist,
@@ -339,6 +347,7 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(material.gpuAppearance.light.x, 0)
     }
 
+    #if DEBUG
     func testEditorialPreviewDisablesGlobalBlurSoDepthControlsFocus() {
         XCTAssertEqual(
             DayObjectsLabView.resolvedVisualClarity(0.55, isEditorialPreview: true),
@@ -349,6 +358,8 @@ final class DayObjectSceneTests: XCTestCase {
             0.55
         )
     }
+
+    #endif
 
     func testAddingEventPreservesExistingActors() {
         let before = DayObjectScene.make(input: input(["walk", "sleep"]))
@@ -497,7 +508,9 @@ final class DayObjectSceneTests: XCTestCase {
     func testSceneInputDefaultsToLabExclusionAndPreservesCustomRegion() {
         let defaultInput = input(["walk"])
         XCTAssertEqual(defaultInput.uiExclusionRegion, .dayObjectsLabControls)
+        #if DEBUG
         XCTAssertEqual(DayObjectsLabView.uiExclusionRegion, .dayObjectsLabControls)
+        #endif
 
         let custom = DayObjectNormalizedRect(
             minX: 0.72,
@@ -518,7 +531,9 @@ final class DayObjectSceneTests: XCTestCase {
     }
 
     func testLabUsesFullCanvasCoverageInsteadOfBottomControlExclusion() {
+        #if DEBUG
         XCTAssertEqual(DayObjectsLabView.canvasCoverage, .fullCanvas)
+        #endif
         let scene = DayObjectScene.make(input: .init(
             dayKey: "2026-08-20",
             identity: "day-objects-lab",

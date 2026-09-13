@@ -1,12 +1,9 @@
+#if DEBUG
 import SwiftUI
-
-#if DEBUG || INTERNAL_BUILD
 import AVFAudio
 import Combine
 import UIKit
-#endif
 
-#if DEBUG || INTERNAL_BUILD
 @MainActor
 final class DayObjectsSystemAccessibilityStatusSource: DayObjectsAccessibilityStatusSource {
     @Published private(set) var isVoiceOverRunning: Bool
@@ -33,9 +30,7 @@ final class DayObjectsSystemAccessibilityStatusSource: DayObjectsAccessibilitySt
             }
     }
 }
-#endif
 
-#if DEBUG || INTERNAL_BUILD
 /// Interactive bench for the deterministic daily choreography.
 ///
 /// Event IDs stay chronological as the happenings slider grows, so the live
@@ -833,14 +828,8 @@ struct DayObjectsLabView: View {
         )
     }
 }
-#else
-struct DayObjectsLabView: View {
-    static let uiExclusionRegion = DayObjectNormalizedRect.dayObjectsLabControls
-
-    var body: some View { EmptyView() }
-}
-#endif
 
 #Preview {
     NavigationStack { DayObjectsLabView() }
 }
+#endif

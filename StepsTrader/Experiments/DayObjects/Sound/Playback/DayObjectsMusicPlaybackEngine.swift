@@ -661,6 +661,11 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
                 && leadPlayer != nil
         }
 
+        var pendingDeadlineTaskCount: Int {
+            (bassPlayer?.pendingDeadlineTaskCount ?? 0)
+                + (happeningScheduler?.pendingDeadlineTaskCount ?? 0)
+        }
+
         init(bank: PlaybackWorldBank) {
             self.bank = bank
             effects = EffectState()
@@ -1350,7 +1355,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             : 0
         return .init(
             activeTransportCount: transportIsRunning ? 1 : 0,
-            activeTaskCount: (transportIsRunning ? 1 : 0) + (tempoUpdateTask == nil ? 0 : 1),
+            activeTaskCount: (transportIsRunning ? 1 : 0) + (tempoUpdateTask == nil ? 0 : 1)
+                + worldA.pendingDeadlineTaskCount + worldB.pendingDeadlineTaskCount,
             activeNodeCount: metrics.nodeCount,
             activeVoiceCount: worldA.activeVoiceCount + worldB.activeVoiceCount,
             activeHappeningCount: activeHappeningCount,
@@ -1411,7 +1417,8 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         return .init(
             nodeCount: pair.metrics.fixedSharedNodeCount + tonal + piano + drums,
             poolCount: PlaybackWorldBankConfiguration.PoolName.allCases.count * 2,
-            taskCount: (transportIsRunning ? 1 : 0) + (tempoUpdateTask == nil ? 0 : 1),
+            taskCount: (transportIsRunning ? 1 : 0) + (tempoUpdateTask == nil ? 0 : 1)
+                + worldA.pendingDeadlineTaskCount + worldB.pendingDeadlineTaskCount,
             transportCount: transportIsRunning ? 1 : 0,
             leadTokenCount: leadCount,
             happeningTokenCount: happeningCount
@@ -1899,7 +1906,8 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         let bankMetrics = world.bank.metrics
         return .init(
             activeTransportCount: transportIsRunning ? 1 : 0,
-            activeTaskCount: (transportIsRunning ? 1 : 0) + (tempoUpdateTask == nil ? 0 : 1),
+            activeTaskCount: (transportIsRunning ? 1 : 0) + (tempoUpdateTask == nil ? 0 : 1)
+                + world.pendingDeadlineTaskCount,
             activeNodeCount: bankMetrics.allocatedTonalVoiceCount
                 + bankMetrics.allocatedPianoVoiceCount
                 + bankMetrics.allocatedDrumPlayerCount,

@@ -7,6 +7,353 @@ import SwiftUI
 
 @MainActor
 final class CanvasPersistenceRegressionTests: XCTestCase {
+    private func unresolvedDraft(dayKey: String, deletedID: UUID = UUID()) throws -> DayCanvas {
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(DayCanvas(dayKey: dayKey))) as? [String: Any])
+        json["pendingRemoteHydration"] = [
+            "deletedElementIDs": [deletedID.uuidString],
+            "artworkWasEdited": true
+        ]
+        return try JSONDecoder().decode(DayCanvas.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    func testUnresolvedOfflineCanvasDoesNotDeleteRestoredEntries() throws {
+        let key = AppModel.dayKey(for: .now)
+        let draft = try unresolvedDraft(dayKey: key)
+        let entry = OptionEntry(id: UUID().uuidString, dayKey: key, optionId: "happening_walk",
+                                colorHex: "#FFFFFF", timestamp: .now, assetVariant: nil)
+        let result = CanvasHappeningReconciliationPolicy.reconcileIfReady(
+            canvasLoaded: true, appModelIsBootstrapping: false, canvas: draft,
+            entries: [entry], dayKey: key, now: .now)
+        XCTAssertTrue(result?.entryIDsToRemove.isEmpty ?? true,
+                      "An editable offline draft is not proof that remote/restored entries were deleted")
+    }
+
+    func testUnresolvedOfflineCanvasMetadataSurvivesDiskReload() throws {
+        let key = "2098-12-26"
+        let prior = CanvasStorageService.shared.loadCanvas(for: key)
+        defer {
+            CanvasStorageService.shared.deleteCanvas(for: key)
+            if let prior { CanvasStorageService.shared.saveCanvas(prior) }
+        }
+        let deletedID = UUID()
+        XCTAssertTrue(CanvasStorageService.shared.saveCanvas(try unresolvedDraft(dayKey: key, deletedID: deletedID)))
+        let reloaded = try XCTUnwrap(CanvasStorageService.shared.loadCanvas(for: key))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(reloaded)) as? [String: Any])
+        let pending = try XCTUnwrap(json["pendingRemoteHydration"] as? [String: Any],
+                                  "Restart must not mistake a partial draft for a complete cloud canvas")
+        XCTAssertEqual(pending["deletedElementIDs"] as? [String], [deletedID.uuidString])
+        XCTAssertEqual(pending["artworkWasEdited"] as? Bool, true)
+    }
+
+    func testOfflineCanvasCanPersistAnAdditionBeforeRemoteRecovery() throws {
+        let now = Date.now
+        let key = AppModel.dayKey(for: now)
+        var draft = DayCanvas.newDailyCanvas(dayKey: key)
+        draft.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        model.todayAdditions = []
+        let element = CanvasElement.spawn(optionId: "happening_walk", label: "Walk",
+            existingElements: [], dayKey: key, composition: .forDay(dayKey: key, happeningCount: 0))
+        var persisted: DayCanvas?
+        let result = try XCTUnwrap(CanvasHappeningSpawnTransaction.commit(
+            canvasLoaded: true, canvas: draft, model: model, element: element,
+            recordUse: false, at: now, persist: { persisted = $0; return true }))
+        XCTAssertEqual(persisted?.elements.map(\.id), [element.id])
+        XCTAssertTrue(result.canvas.needsRemoteHydration)
+        XCTAssertEqual(model.todayAdditions.map(\.id), [element.id.uuidString])
+        XCTAssertNil(CanvasDraftRecovery.resolve(local: result.canvas, remote: .failed))
+    }
+
+    func testRemoteRecoveryMergesOfflineAdditionWithoutReplacingRemoteRemix() throws {
+        let key = "2098-12-25"
+        var remote = CanvasUnifiedRemix.next(canvas: DayCanvas.newDailyCanvas(dayKey: key)).canvas
+        let old = CanvasElement.spawn(optionId: "read", label: "Read", existingElements: [],
+            dayKey: key, composition: .forDay(dayKey: key, happeningCount: 0))
+        remote.elements = [old]
+        var draft = DayCanvas.newDailyCanvas(dayKey: key)
+        draft.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        let added = CanvasElement.spawn(optionId: "walk", label: "Walk", existingElements: [],
+            dayKey: key, composition: .forDay(dayKey: key, happeningCount: 0))
+        draft.elements = [added]
+        let merged = try XCTUnwrap(CanvasDraftRecovery.resolve(local: draft, remote: .found(remote)))
+        XCTAssertEqual(Set(merged.elements.map(\.id)), [old.id, added.id])
+        XCTAssertEqual(merged.remixSeed, remote.remixSeed)
+        XCTAssertEqual(merged.soundWorldRaw, remote.soundWorldRaw)
+        XCTAssertEqual(merged.artworkRecipe?.seedHex, remote.artworkRecipe?.seedHex)
+        XCTAssertFalse(merged.needsRemoteHydration)
+        XCTAssertEqual(merged.pendingCloudUpload, true)
+    }
+
+    func testSuspendedCanvasUploadBlocksSameDayAndRawRetryUntilCompletionDespiteCallerCancellation() async {
+        let suspended = SuspendedCanvasUpload()
+        let started = expectation(description: "upload admitted")
+        suspended.onStart = { started.fulfill() }
+        let caller = Task {
+            await CanvasUploadOrdering.runUpload { await suspended.upload(dayKey: "2098-12-16") }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        caller.cancel()
+        XCTAssertFalse(suspended.ordering.beginUpload(for: "2098-12-16"))
+        XCTAssertTrue(suspended.ordering.beginRetryDrain())
+        XCTAssertFalse(suspended.ordering.canReplay(dayKey: "2098-12-16"))
+        XCTAssertFalse(suspended.ordering.beginUpload(for: "2098-12-15"))
+        suspended.resume()
+        await caller.value
+        XCTAssertFalse(suspended.uploadWasCancelled)
+        XCTAssertTrue(suspended.ordering.canReplay(dayKey: "2098-12-16"))
+        suspended.ordering.endRetryDrain()
+        XCTAssertTrue(suspended.ordering.beginUpload(for: "2098-12-16"))
+        suspended.ordering.endUpload(for: "2098-12-16")
+    }
+
+    func testSuccessfulChildUploadDefersFollowupUntilParentRecoveryReleasesDay() {
+        var ordering = CanvasUploadOrdering()
+        let day = "2098-12-14"
+        XCTAssertTrue(ordering.beginRecovery(for: day))
+        XCTAssertTrue(ordering.beginUpload(for: day))
+        // The child has completed, but its awaiting recovery parent has not
+        // resumed yet. A follow-up cannot start and disappear into that guard.
+        ordering.endUpload(for: day)
+        XCTAssertFalse(ordering.requestFollowup(for: day))
+        XCTAssertFalse(ordering.beginRecovery(for: day))
+        XCTAssertFalse(ordering.canReplay(dayKey: day))
+        XCTAssertTrue(ordering.endRecovery(for: day))
+        XCTAssertTrue(ordering.beginRecovery(for: day))
+        XCTAssertFalse(ordering.endRecovery(for: day), "The queued follow-up is consumed exactly once")
+        XCTAssertTrue(ordering.requestFollowup(for: day), "A direct upload has no parent to await")
+    }
+
+    func testLegacyCanvasSyncIntentSurvivesDeferredAdmissionAndOlderUploadAcknowledgement() throws {
+        let key = "2098-12-13"
+        let storage = CanvasStorageService.shared
+        let prior = storage.loadCanvas(for: key)
+        defer {
+            storage.deleteCanvas(for: key)
+            if let prior { storage.saveCanvas(prior) }
+        }
+        var old = DayCanvas.newDailyCanvas(dayKey: key)
+        XCTAssertTrue(storage.saveCanvas(old))
+        XCTAssertNil(storage.loadCanvas(for: key)?.pendingCloudUpload,
+                     "Merely caching an unowned remote poster must not enqueue an upload")
+        let uploaded = try JSONEncoder().encode(old.cloudSnapshot)
+        var ordering = CanvasUploadOrdering()
+        XCTAssertTrue(ordering.beginUpload(for: key))
+        old.stepsPoints = 73
+        XCTAssertTrue(storage.saveCanvas(old))
+        // syncDayCanvas records this before the gate can deny the newer send.
+        storage.recordCloudUploadIntent(for: key, currentUserID: "owner-a")
+        XCTAssertEqual(storage.loadCanvas(for: key)?.pendingCloudUpload, true)
+        XCTAssertNil(storage.loadCanvas(for: key)?.localCloudOwnerID)
+        XCTAssertFalse(ordering.beginUpload(for: key), "A still owns the in-flight upload")
+        ordering.endUpload(for: key) // A failed: there is no success-triggered follow-up.
+        XCTAssertTrue(storage.pendingCloudRecoveryDayKeys().contains(key),
+                      "A later retry drain must discover the legacy edit B even after A failed")
+        storage.acknowledgeCloudUpload(dayKey: key, uploadedJSON: uploaded)
+        XCTAssertEqual(storage.loadCanvas(for: key)?.pendingCloudUpload, true)
+        XCTAssertEqual(storage.loadCanvas(for: key)?.stepsPoints, 73)
+    }
+
+    func testCanvasCloudIdentityRejectsRefreshedSessionFromPreviousAccount() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "access_token": "token-a", "token_type": "bearer", "expires_in": 3600,
+            "refresh_token": "refresh-a", "user": ["id": "owner-a"]])
+        let session = try JSONDecoder().decode(SupabaseSessionResponse.self, from: data)
+        XCTAssertTrue(CanvasCloudIdentity.matches(session: session, token: "token-a",
+            userID: "owner-a", currentUserID: "owner-a"))
+        XCTAssertFalse(CanvasCloudIdentity.matches(session: session, token: "token-a",
+            userID: "owner-b", currentUserID: "owner-b"))
+        XCTAssertFalse(CanvasCloudIdentity.matches(session: session, token: "token-b",
+            userID: "owner-a", currentUserID: "owner-a"))
+        XCTAssertFalse(CanvasCloudIdentity.matches(session: session, token: "token-a",
+            userID: "owner-a", currentUserID: nil))
+    }
+
+    func testDelayedCanvasUploadUsesLatestDiskSnapshotEvenWithinSameTimestamp() throws {
+        var old = DayCanvas.newDailyCanvas(dayKey: "2098-12-15")
+        old.localCloudOwnerID = "owner-a"
+        let delayed = SupabaseSyncService.DayCanvasSyncPayload(dayKey: old.dayKey,
+            canvasJsonData: try JSONEncoder().encode(old.cloudSnapshot), lastModified: old.lastModified)
+        var newer = old
+        newer.stepsPoints = 99
+        let selected = try XCTUnwrap(CanvasUploadSnapshot.latest(local: newer, fallback: delayed, userID: "owner-a"))
+        let decoded = try JSONDecoder().decode(DayCanvas.self, from: selected.canvasJsonData)
+        XCTAssertEqual(decoded.stepsPoints, 99)
+        XCTAssertNil(decoded.localCloudOwnerID)
+        XCTAssertNil(CanvasUploadSnapshot.latest(local: newer, fallback: delayed, userID: "owner-b"))
+        newer.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        XCTAssertNil(CanvasUploadSnapshot.latest(local: newer, fallback: delayed, userID: "owner-a"))
+    }
+
+    func testRecoveryKeepsFrozenActorIdentityFromBothDevices() throws {
+        let key = "2098-12-18"
+        var remote = CanvasUnifiedRemix.next(canvas: DayCanvas.newDailyCanvas(dayKey: key)).canvas
+        remote.elements = [CanvasElement.spawn(optionId: "read", label: "Read", existingElements: [],
+            dayKey: key, composition: .forDay(dayKey: key, happeningCount: 0))]
+        var draft = DayCanvas.newDailyCanvas(dayKey: key)
+        draft.elements = [CanvasElement.spawn(optionId: "walk", label: "Walk", existingElements: [],
+            dayKey: key, composition: .forDay(dayKey: key, happeningCount: 0))]
+        let remoteActor = try XCTUnwrap(remote.artworkRecipe?.actors.first)
+        let localActor = try XCTUnwrap(draft.artworkRecipe?.actors.first)
+        for artworkWasEdited in [false, true] {
+            draft.pendingRemoteHydration = CanvasPendingRemoteHydration(artworkWasEdited: artworkWasEdited)
+            let merged = try XCTUnwrap(CanvasDraftRecovery.resolve(local: draft, remote: .found(remote)))
+            let actors = try XCTUnwrap(merged.artworkRecipe?.actors)
+            XCTAssertEqual(actors.first { $0.eventID == remoteActor.eventID }, remoteActor)
+            let added = try XCTUnwrap(actors.first { $0.eventID == localActor.eventID })
+            XCTAssertEqual(added.seedHex, localActor.seedHex)
+            XCTAssertEqual(added.geometry, localActor.geometry)
+            XCTAssertEqual(added.material, localActor.material)
+            XCTAssertEqual(added.presetID, localActor.presetID)
+            XCTAssertEqual(added.materialID, localActor.materialID)
+            XCTAssertEqual(Set(actors.map(\.slot)).count, actors.count)
+        }
+    }
+
+    func testEditingAcknowledgedOwnedCanvasRestoresDurableUploadMarker() throws {
+        let key = "2098-12-17"
+        let storage = CanvasStorageService.shared
+        let prior = storage.loadCanvas(for: key)
+        defer {
+            storage.deleteCanvas(for: key)
+            if let prior { storage.saveCanvas(prior) }
+        }
+        var canvas = DayCanvas.newDailyCanvas(dayKey: key)
+        canvas.localCloudOwnerID = "owner-a"
+        canvas.pendingCloudUpload = true
+        XCTAssertTrue(storage.saveCanvas(canvas))
+        storage.acknowledgeCloudUpload(dayKey: key, uploadedJSON: try JSONEncoder().encode(canvas.cloudSnapshot))
+        canvas = try XCTUnwrap(storage.loadCanvas(for: key))
+        XCTAssertNil(canvas.pendingCloudUpload)
+        canvas.stepsPoints = 99
+        XCTAssertTrue(storage.saveCanvas(canvas))
+        XCTAssertEqual(storage.loadCanvas(for: key)?.pendingCloudUpload, true)
+    }
+
+    func testRemoteRecoveryPreservesExplicitOfflineArtworkAndDurableTombstone() throws {
+        let key = "2098-12-24"
+        var remote = DayCanvas.newDailyCanvas(dayKey: key)
+        let removed = CanvasElement.spawn(optionId: "walk", label: "Walk", existingElements: [],
+            dayKey: key, composition: .forDay(dayKey: key, happeningCount: 0))
+        remote.elements = [removed]
+        var draft = CanvasUnifiedRemix.next(canvas: DayCanvas.newDailyCanvas(dayKey: key)).canvas
+        draft.pendingRemoteHydration = CanvasPendingRemoteHydration(
+            deletedElementIDs: [removed.id], artworkWasEdited: true)
+        let restarted = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(draft))
+        let merged = try XCTUnwrap(CanvasDraftRecovery.resolve(local: restarted, remote: .found(remote)))
+        XCTAssertTrue(merged.elements.isEmpty)
+        XCTAssertEqual(merged.remixSeed, draft.remixSeed)
+        XCTAssertEqual(merged.artworkRecipe?.seedHex, draft.artworkRecipe?.seedHex)
+    }
+
+    func testOfflineRemixUndoRestoresRemoteArtworkOwnershipWithoutUndoingDeletionJournal() throws {
+        let key = "2098-12-20"
+        var draft = DayCanvas.newDailyCanvas(dayKey: key)
+        draft.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        var history = CanvasRemixHistory()
+        var remixed = try XCTUnwrap(history.commitRemix(canvas: draft, persist: { _ in true })).canvas
+        XCTAssertEqual(remixed.pendingRemoteHydration?.artworkWasEdited, true)
+        let removedID = UUID()
+        remixed.pendingRemoteHydration?.deletedElementIDs.insert(removedID)
+        let undone = try XCTUnwrap(history.commitUndo(into: remixed, persist: { _ in true }))
+        XCTAssertEqual(undone.pendingRemoteHydration?.artworkWasEdited, false)
+        XCTAssertEqual(undone.pendingRemoteHydration?.deletedElementIDs, [removedID])
+        let remote = CanvasUnifiedRemix.next(canvas: CanvasUnifiedRemix.next(canvas: draft.cloudSnapshot).canvas).canvas
+        let recovered = try XCTUnwrap(CanvasDraftRecovery.resolve(local: undone, remote: .found(remote)))
+        XCTAssertEqual(recovered.remixSeed, remote.remixSeed)
+        XCTAssertEqual(recovered.artworkRecipe?.seedHex, remote.artworkRecipe?.seedHex)
+    }
+
+    func testStaleInMemoryDraftCannotEraseItsClaimedCloudOwner() throws {
+        let key = "2098-12-19"
+        let storage = CanvasStorageService.shared
+        let prior = storage.loadCanvas(for: key)
+        defer {
+            storage.deleteCanvas(for: key)
+            if let prior { storage.saveCanvas(prior) }
+        }
+        var original = DayCanvas.newDailyCanvas(dayKey: key)
+        original.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        var claimed = original
+        claimed.localCloudOwnerID = "owner-a"
+        XCTAssertTrue(storage.saveCanvas(claimed))
+        original.stepsPoints = 40
+        XCTAssertTrue(storage.saveCanvas(original))
+        XCTAssertEqual(storage.loadCanvas(for: key)?.localCloudOwnerID, "owner-a")
+        XCTAssertEqual(storage.loadCanvas(for: key)?.stepsPoints, 40)
+    }
+
+    func testConfirmedAbsentOfflineDayStillRequiresDurableUploadAcknowledgement() throws {
+        var draft = DayCanvas.newDailyCanvas(dayKey: "2098-12-23")
+        draft.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        draft.localCloudOwnerID = "owner-a"
+        let resolved = try XCTUnwrap(CanvasDraftRecovery.resolve(local: draft, remote: .confirmedAbsent))
+        XCTAssertFalse(resolved.needsRemoteHydration)
+        XCTAssertEqual(resolved.pendingCloudUpload, true)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(resolved.cloudSnapshot)) as? [String: Any])
+        XCTAssertNil(json["pendingRemoteHydration"])
+        XCTAssertNil(json["pendingCloudUpload"])
+        XCTAssertNil(json["localCloudOwnerID"])
+        XCTAssertTrue(resolved.belongsToCloudUser("owner-a"))
+        XCTAssertFalse(resolved.belongsToCloudUser("owner-b"))
+        XCTAssertNil(CanvasDraftRecovery.resolve(local: draft, remote: .found(DayCanvas(dayKey: "2098-12-22"))))
+    }
+
+    func testRecoveredCanvasSupersedesOnlyOlderRetryFromItsOwnAccount() throws {
+        var queued = DayCanvas(dayKey: "2098-12-21")
+        queued.lastModified = Date(timeIntervalSince1970: 100)
+        let row: [String: Any] = ["user_id": "owner-a", "day_key": queued.dayKey,
+            "canvas_json": try JSONSerialization.jsonObject(with: JSONEncoder().encode(queued))]
+        let request = SupabasePendingSyncRequest(
+            urlString: "https://example.supabase.co/rest/v1/user_day_canvases", method: "POST",
+            body: try JSONSerialization.data(withJSONObject: row), preferHeader: nil,
+            createdAt: .now, optionEntryDeleteID: nil)
+        let retry = try XCTUnwrap(CanvasQueuedUpload(request: request))
+        var recovered = queued
+        recovered.localCloudOwnerID = "owner-a"
+        recovered.lastModified = Date(timeIntervalSince1970: 200)
+        XCTAssertTrue(retry.isSuperseded(by: recovered), "An old raw retry cannot overwrite recovered artwork")
+        recovered.localCloudOwnerID = "owner-b"
+        XCTAssertFalse(retry.isSuperseded(by: recovered))
+        recovered.localCloudOwnerID = "owner-a"
+        recovered.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        XCTAssertFalse(retry.isSuperseded(by: recovered), "An unresolved draft cannot discard a possibly useful older upload")
+        recovered.pendingRemoteHydration = nil
+        recovered.lastModified = Date(timeIntervalSince1970: 50)
+        XCTAssertFalse(retry.isSuperseded(by: recovered))
+    }
+
+    func testRecoveryReloadsLatestOfflineEditsAndAcknowledgesOnlyUploadedVersion() throws {
+        let key = "2098-12-22"
+        let storage = CanvasStorageService.shared
+        let prior = storage.loadCanvas(for: key)
+        defer {
+            storage.deleteCanvas(for: key)
+            if let prior { storage.saveCanvas(prior) }
+        }
+        var draft = DayCanvas.newDailyCanvas(dayKey: key)
+        draft.pendingRemoteHydration = CanvasPendingRemoteHydration()
+        XCTAssertTrue(storage.saveCanvas(draft))
+        // The network fetch started before this edit. Recovery must re-read disk.
+        let added = CanvasElement.spawn(optionId: "read", label: "Read", existingElements: [],
+            dayKey: key, composition: .forDay(dayKey: key, happeningCount: 0))
+        draft.elements = [added]
+        XCTAssertTrue(storage.saveCanvas(draft))
+        let resolved = try XCTUnwrap(storage.resolvePendingCanvas(for: key, remote: .confirmedAbsent))
+        XCTAssertEqual(resolved.elements.map(\.id), [added.id])
+        let uploaded = try JSONEncoder().encode(resolved.cloudSnapshot)
+        var newer = resolved
+        newer.stepsPoints = 42
+        XCTAssertTrue(storage.saveCanvas(newer))
+        storage.acknowledgeCloudUpload(dayKey: key, uploadedJSON: uploaded)
+        XCTAssertEqual(storage.loadCanvas(for: key)?.pendingCloudUpload, true)
+        storage.acknowledgeCloudUpload(dayKey: key, uploadedJSON: try JSONEncoder().encode(newer.cloudSnapshot))
+        XCTAssertNil(storage.loadCanvas(for: key)?.pendingCloudUpload)
+        XCTAssertEqual(storage.loadCanvas(for: key)?.stepsPoints, 42)
+    }
+
     func testCloudCanvasRoundTripPreservesFullWidthRemixAndShapeSeeds() throws {
         var canvas = CanvasUnifiedRemix.next(canvas: DayCanvas(dayKey: "2026-08-18")).canvas
         canvas.remixSeed = UInt64.max
@@ -1359,5 +1706,28 @@ final class NativeAtlasRecipeTests: XCTestCase {
         var future = NativeAtlasRecipe.make(dayKey: "future")
         future.schemaVersion = 99
         XCTAssertEqual(future.reconciled(eventIDs: ["new"]), future)
+    }
+}
+
+@MainActor
+private final class SuspendedCanvasUpload {
+    var ordering = CanvasUploadOrdering()
+    var onStart: (() -> Void)?
+    private var continuation: CheckedContinuation<Void, Never>?
+    private(set) var uploadWasCancelled = false
+
+    func upload(dayKey: String) async {
+        guard ordering.beginUpload(for: dayKey) else { return }
+        defer { ordering.endUpload(for: dayKey) }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            onStart?()
+        }
+        uploadWasCancelled = Task.isCancelled
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
     }
 }

@@ -29,6 +29,7 @@ final class BassPlayer {
 
     private let worldBank: PlaybackWorldBank
     private let duckBackend: BassDuckBackend
+    private let deadlines: DayObjectsPlaybackDeadlineQueue
     private var pool: DayObjectsTonalVoicePoolProtocol?
     private var token: DayObjectsVoiceToken?
     private var heldStableID: UInt64?
@@ -56,9 +57,16 @@ final class BassPlayer {
         )
     }
 
-    init(worldBank: PlaybackWorldBank, duckBackend: BassDuckBackend) {
+    var pendingDeadlineTaskCount: Int { deadlines.activeTaskCount }
+
+    init(
+        worldBank: PlaybackWorldBank,
+        duckBackend: BassDuckBackend,
+        clock: any DayObjectsTransportClock = HostTimeDayObjectsTransportClock(schedulingLookaheadSeconds: 0)
+    ) {
         self.worldBank = worldBank
         self.duckBackend = duckBackend
+        deadlines = DayObjectsPlaybackDeadlineQueue(clock: clock)
     }
 
     func configure(
@@ -132,6 +140,21 @@ final class BassPlayer {
             )
         }
 
+        if deadlines.deferUntilDeadline(transportEvent.hostTimeSeconds, perform: { [weak self] in
+            _ = self?.renderAtDeadline(transportEvent, plan: plan, duckCommandCount: 0)
+        }) {
+            return frame(at: transportEvent.position, attackedEventStableID: nil,
+                         duckCommandCount: duckCommand == nil ? 0 : 1)
+        }
+        return renderAtDeadline(transportEvent, plan: plan, duckCommandCount: duckCommand == nil ? 0 : 1)
+    }
+
+    private func renderAtDeadline(
+        _ transportEvent: DayObjectsTransportEvent,
+        plan: BassPlan?,
+        duckCommandCount: Int
+    ) -> BassPlaybackFrame {
+
         let globalSubdivision = transportEvent.position.absoluteSubdivision
         if schedulingOriginSubdivision == nil { schedulingOriginSubdivision = globalSubdivision }
         let relativeSubdivision = relativeSubdivision(for: globalSubdivision)
@@ -152,7 +175,7 @@ final class BassPlayer {
             return frame(
                 at: transportEvent.position,
                 attackedEventStableID: nil,
-                duckCommandCount: duckCommand == nil ? 0 : 1
+                duckCommandCount: duckCommandCount
             )
         }
 
@@ -172,7 +195,7 @@ final class BassPlayer {
             return frame(
                 at: transportEvent.position,
                 attackedEventStableID: event.stableID,
-                duckCommandCount: duckCommand == nil ? 0 : 1
+                duckCommandCount: duckCommandCount
             )
         }
 
@@ -190,11 +213,11 @@ final class BassPlayer {
             delaySend: 0,
             reverbSend: Self.unit(plan.reverbSend)
         )
-        guard let token = pool.noteOn(request) else {
+        guard let token = pool.noteOn(request, atHostTime: transportEvent.hostTimeSeconds) else {
             return frame(
                 at: transportEvent.position,
                 attackedEventStableID: nil,
-                duckCommandCount: duckCommand == nil ? 0 : 1
+                duckCommandCount: duckCommandCount
             )
         }
 
@@ -214,11 +237,12 @@ final class BassPlayer {
         return frame(
             at: transportEvent.position,
             attackedEventStableID: event.stableID,
-            duckCommandCount: duckCommand == nil ? 0 : 1
+            duckCommandCount: duckCommandCount
         )
     }
 
     func releaseAll() {
+        deadlines.cancel()
         releaseDiagnosticAudition(restoring: nil)
         releaseHeldVoice()
         heldStableID = nil
@@ -262,6 +286,7 @@ final class BassPlayer {
         automaticallyReleaseAfterWallClock: Bool = true
     ) throws -> Bool {
         guard acceptsAttacks, hostTime.isFinite else { return false }
+        deadlines.cancel()
         releaseDiagnosticAudition(restoring: nil)
         releaseHeldVoice()
         try worldBank.prepare()

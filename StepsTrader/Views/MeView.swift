@@ -32,6 +32,7 @@ struct MeView: View {
     @State private var shareRequestID = 0
     @State private var shareRequestedDayKey: String?
     @State private var posterCarouselWidth: CGFloat = 350
+    @State private var paymentLoadTask: Task<Void, Never>?
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
 
@@ -55,6 +56,7 @@ struct MeView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .modifier(meLifecycle)
                 .modifier(meSheets)
+                .onDisappear { paymentLoadTask?.cancel() }
         }
     }
 
@@ -80,7 +82,10 @@ struct MeView: View {
             serverFetchTask: $serverFetchTask,
             onLoad: { loadAllSnapshots() },
             onDayEndChange: { refreshDayKeysAndReload() },
-            onTopConsumersChange: { rebuildTopConsumers() }
+            onTopConsumersChange: {
+                rebuildTopConsumers()
+                refreshPaymentLedger()
+            }
         )
     }
 
@@ -524,21 +529,11 @@ struct MeView: View {
         recentHealthByDay = pastDays.mapValues(MeDayHealth.init(snapshot:))
         rebuildWeekModel()
 
+        refreshPaymentLedger()
         loadTask = Task { @MainActor in
-            // The payment log is read only for display names now — targets that
-            // are no longer in a ticket group would otherwise show a raw key.
-            let paymentData = await Task.detached {
-                (
-                    Self.loadTransactionNameMap(),
-                    Self.loadUnlockRecords()
-                )
-            }.value
             let healthData = await loadRecentHealth(dayKeys: cachedDayKeys)
             guard !Task.isCancelled else { return }
-            cachedTxNames = paymentData.0
-            unlockRecords = paymentData.1
             recentHealthByDay.merge(healthData) { _, refreshed in refreshed }
-            rebuildTopConsumers()
         }
 
         serverFetchTask = Task { @MainActor in
@@ -553,6 +548,19 @@ struct MeView: View {
                 rebuildWeekModel()
                 rebuildTopConsumers()
             }
+        }
+    }
+
+    private func refreshPaymentLedger() {
+        paymentLoadTask?.cancel()
+        paymentLoadTask = Task { @MainActor in
+            let paymentData = await Task.detached {
+                (Self.loadTransactionNameMap(), Self.loadUnlockRecords())
+            }.value
+            guard !Task.isCancelled else { return }
+            cachedTxNames = paymentData.0
+            unlockRecords = paymentData.1
+            rebuildTopConsumers()
         }
     }
 

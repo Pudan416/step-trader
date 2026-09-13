@@ -37,6 +37,7 @@ final class HappeningScheduler {
     private static let admissionRetryHorizonSubdivisions: Int64 = MusicalPosition.subdivisionsPerBar
     private static let birthRetryRearmSubdivisions: Int64 = MusicalPosition.subdivisionsPerBar
     private let worldBank: PlaybackWorldBank
+    private let deadlines: DayObjectsPlaybackDeadlineQueue
     private var happeningPool: DayObjectsHappeningSamplePoolProtocol?
     private var reverbSendScale = 1.0
     private var states: [String: ActiveHappeningState] = [:]
@@ -78,8 +79,14 @@ final class HappeningScheduler {
         )
     }
 
-    init(worldBank: PlaybackWorldBank) {
+    var pendingDeadlineTaskCount: Int { deadlines.activeTaskCount }
+
+    init(
+        worldBank: PlaybackWorldBank,
+        clock: any DayObjectsTransportClock = HostTimeDayObjectsTransportClock(schedulingLookaheadSeconds: 0)
+    ) {
         self.worldBank = worldBank
+        deadlines = DayObjectsPlaybackDeadlineQueue(clock: clock)
     }
 
     func configure(
@@ -87,6 +94,7 @@ final class HappeningScheduler {
         tonalWorld: TonalWorldPlan,
         remixSeed: UInt64
     ) throws {
+        deadlines.cancel()
         releaseAllOwnedVoices()
         reverbSendScale = 1
         try worldBank.prepare()
@@ -139,6 +147,7 @@ final class HappeningScheduler {
     }
 
     func stop() {
+        deadlines.cancel()
         isPlaying = false
         pendingReplacement = nil
         releaseAllOwnedVoices()
@@ -222,6 +231,13 @@ final class HappeningScheduler {
     }
 
     func render(_ event: DayObjectsTransportEvent, currentChord: ChordPlan) {
+        if deadlines.deferUntilDeadline(event.hostTimeSeconds, perform: { [weak self] in
+            self?.renderAtDeadline(event, currentChord: currentChord)
+        }) { return }
+        renderAtDeadline(event, currentChord: currentChord)
+    }
+
+    private func renderAtDeadline(_ event: DayObjectsTransportEvent, currentChord: ChordPlan) {
         happeningPool?.performHousekeeping()
         currentPosition = event.position
         currentTempoBPM = event.tempoBPM.isFinite ? max(1, event.tempoBPM) : 120

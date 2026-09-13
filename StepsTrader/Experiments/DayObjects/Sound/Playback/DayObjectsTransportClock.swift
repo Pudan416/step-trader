@@ -39,6 +39,66 @@ struct HostTimeDayObjectsTransportClock: DayObjectsTransportClock {
     }
 }
 
+/// Some voices expose immediate controls rather than sample-time scheduling.
+/// Keep their entire musical event (attack, legato and release) at the same
+/// audible deadline as the drums, whose buffers are submitted during lookahead.
+/// One worker preserves transport order, including events sharing a deadline.
+@MainActor
+final class DayObjectsPlaybackDeadlineQueue {
+    private struct Pending {
+        let hostTime: TimeInterval
+        let perform: @MainActor () -> Void
+    }
+
+    private let clock: any DayObjectsTransportClock
+    private var pending: [Pending] = []
+    private var worker: Task<Void, Never>?
+    private var generation: UInt64 = 0
+
+    var activeTaskCount: Int { worker == nil ? 0 : 1 }
+
+    init(clock: any DayObjectsTransportClock = HostTimeDayObjectsTransportClock(schedulingLookaheadSeconds: 0)) {
+        self.clock = clock
+    }
+
+    /// Returns false for an already-due event so offline rendering and the
+    /// transport's first frame retain their synchronous result.
+    func deferUntilDeadline(_ hostTime: TimeInterval, perform: @escaping @MainActor () -> Void) -> Bool {
+        guard hostTime.isFinite else { return true }
+        guard hostTime > clock.now() || !pending.isEmpty else { return false }
+        pending.append(.init(hostTime: hostTime, perform: perform))
+        guard worker == nil else { return true }
+        let epoch = generation
+        worker = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                // A canceled worker may resume after a new playback epoch has
+                // already submitted work. Only clean up our own generation.
+                if self.generation == epoch {
+                    self.worker = nil
+                    self.pending.removeAll(keepingCapacity: true)
+                }
+            }
+            while let next = self.pending.first {
+                do { try await self.clock.sleep(untilHostTime: next.hostTime) }
+                catch { return }
+                guard !Task.isCancelled, self.generation == epoch else { return }
+                self.pending.removeFirst()
+                next.perform()
+                guard self.generation == epoch else { return }
+            }
+        }
+        return true
+    }
+
+    func cancel() {
+        generation &+= 1
+        worker?.cancel()
+        worker = nil
+        pending.removeAll(keepingCapacity: true)
+    }
+}
+
 final class ManualDayObjectsTransportClock: DayObjectsTransportClock, @unchecked Sendable {
     private struct Waiter {
         let deadline: TimeInterval
