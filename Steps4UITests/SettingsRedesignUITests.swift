@@ -28,6 +28,32 @@ final class SettingsRedesignUITests: XCTestCase {
         add(attachment)
     }
 
+    func testReleaseHasOneCustomizableVisualStyleAndDebugKeepsBoth() {
+        let app = launchSettings()
+        openSettingsDestination("settings.destination.appearance", in: app)
+        #if DEBUG
+        XCTAssertTrue(app.buttons["settings.appearance.style.legacy"].exists)
+        XCTAssertTrue(app.buttons["settings.appearance.style.editorial"].exists)
+        app.buttons["settings.appearance.style.editorial"].tap()
+        #else
+        XCTAssertFalse(app.buttons["settings.appearance.style.legacy"].exists)
+        XCTAssertFalse(app.buttons["settings.appearance.style.editorial"].exists,
+                       "Release should show customization directly, without a one-option style picker")
+        #endif
+        XCTAssertTrue(app.descendants(matching: .any)["settings.appearance.preview"].exists)
+        let pastel = app.buttons["modernPalette.pastel"]
+        reveal(pastel, in: app)
+        pastel.tap()
+        let selection = pastel.value as? String
+        let apply = app.buttons["settings.appearance.apply"]
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        openSettingsDestination("settings.destination.appearance", in: app)
+        reveal(app.buttons["modernPalette.pastel"], in: app)
+        XCTAssertEqual(app.buttons["modernPalette.pastel"].value as? String, selection)
+        capture(app, name: "Appearance visual style availability")
+    }
+
     func testCombinedDailyAccentScreensAndRotation() {
         XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }

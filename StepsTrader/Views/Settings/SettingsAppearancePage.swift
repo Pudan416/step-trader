@@ -138,9 +138,10 @@ struct SettingsAppearancePage: View {
                     .padding(.horizontal, 16)
                     .accessibilityIdentifier("settings.appearance.interfaceTheme")
 
-                    canvasStylePicker
+                    canvasAppearancePreview
                         .padding(.horizontal, 16)
 
+                    #if DEBUG
                     if selectedCanvasStyle == .editorial {
                         modernPaletteCategoriesSection
                             .transition(.opacity)
@@ -163,6 +164,9 @@ struct SettingsAppearancePage: View {
                             .transition(.opacity)
                         }
                     }
+                    #else
+                    modernPaletteCategoriesSection
+                    #endif
                 }
                 .padding(.bottom, 80)
                 .motionAnimation(
@@ -239,8 +243,9 @@ struct SettingsAppearancePage: View {
 
     // MARK: - Appearance Mode
 
-    private var canvasStylePicker: some View {
+    private var canvasAppearancePreview: some View {
         VStack(alignment: .leading, spacing: 12) {
+            #if DEBUG
             SettingsSectionLabel(text: String(localized: "Canvas style"))
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: 12) { styleCards }
@@ -248,6 +253,7 @@ struct SettingsAppearancePage: View {
                 HStack(alignment: .top, spacing: 12) { styleCards }
 
             }
+            #endif
             SettingsAppearancePreview(draft: draft)
                 .frame(height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -263,11 +269,10 @@ struct SettingsAppearancePage: View {
         .accessibilityIdentifier("settings.appearance.canvasStyle")
     }
 
+    #if DEBUG
     @ViewBuilder private var styleCards: some View {
         styleCard(.editorial, title: String(localized: "Objects"), detail: String(localized: "Soft forms, arranged by your day"))
-        #if DEBUG
         styleCard(.legacy, title: String(localized: "Gradients"), detail: String(localized: "Flowing color and drawn shapes"))
-        #endif
     }
 
     private func styleCard(_ style: CanvasVisualStyle, title: String, detail: String) -> some View {
@@ -298,6 +303,8 @@ struct SettingsAppearancePage: View {
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityIdentifier("settings.appearance.style.\(style.rawValue)")
     }
+
+    #endif
 
     private func applyAppearance() {
         draft.apply(shared: UserDefaults(suiteName: SharedKeys.appGroupId), dayKey: AppModel.dayKey(for: .now))
