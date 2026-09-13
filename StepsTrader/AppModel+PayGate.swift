@@ -146,7 +146,7 @@ extension AppModel {
         logPaymentTransaction(
             amount: cost,
             target: "group_\(groupId)",
-            targetName: group.name,
+            targetName: group.displayIdentity.title,
             window: window,
             balanceBefore: balanceBeforePayment,
             balanceAfter: self.totalStepsBalance
@@ -204,7 +204,7 @@ extension AppModel {
             logPaymentTransaction(
                 amount: amount,
                 target: "group_\(group.id)",
-                targetName: group.name,
+                targetName: group.displayIdentity.title,
                 window: window,
                 minutes: pendingMinutes > 0 ? pendingMinutes : nil,
                 balanceBefore: self.totalStepsBalance + amount,

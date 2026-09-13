@@ -10,6 +10,25 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    func testCreatingFeedStartsWithSelectionAndCancelKeepsGroups() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["tab_feeds"].waitForExistence(timeout: 10))
+        app.buttons["tab_feeds"].tap()
+        let groups = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access'"))
+        let initialCount = groups.count
+        app.buttons["feed.add"].tap()
+        let done = app.buttons["feed.selection.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertFalse(done.isEnabled)
+        XCTAssertTrue(app.navigationBars["Select Apps"].exists)
+        attachScreenshot(named: "new-feed-native-selection")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
+        XCTAssertEqual(groups.count, initialCount)
+    }
+
     func testLaunch() throws {
         let app = XCUIApplication()
         app.launch()

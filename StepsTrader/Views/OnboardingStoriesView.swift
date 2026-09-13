@@ -1201,7 +1201,7 @@ struct OnboardingStoriesView: View {
             .padding(.top, 40)
             .padding(.bottom, 32)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 16) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 16) {
                 ForEach(popularApps, id: \.bundleId) { app in
                     let isSelected = selectedFeedApp == app.bundleId && hasSelection
                     let isDisabled = isLockedToSelectedPreset && selectedFeedApp != app.bundleId
@@ -1218,13 +1218,19 @@ struct OnboardingStoriesView: View {
                         
                         showOnboardingPicker = true
                     } label: {
-                        VStack(spacing: 8) {
-                            ZStack(alignment: .topTrailing) {
-                                if isSelected {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.geist(16, relativeTo: .subheadline))
-                                        .foregroundStyle(accent)
-                                        .background(Circle().fill(.black).padding(2))
+                        HStack(spacing: 8) {
+                            Text(app.name)
+                                .font(.geist(15, weight: .regular, relativeTo: .body))
+                                .foregroundStyle(isSelected ? .white : .white.opacity(0.8))
+                            Spacer(minLength: 0)
+                            if isSelected {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(accent)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .padding(.horizontal, 12)
+                        .background(Circle().fill(.black).padding(2))
                                         .offset(x: 4, y: -4)
                                 }
                             }

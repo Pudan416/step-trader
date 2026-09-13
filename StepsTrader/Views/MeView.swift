@@ -614,7 +614,7 @@ struct MeView: View {
                 total += raw
                 claimedKeys.insert(group.id)
             }
-            if total > 0 { results.append((name: group.name, spent: total, key: groupKey)) }
+            if total > 0 { results.append((name: group.displayIdentity.title, spent: total, key: groupKey)) }
         }
 
         let txNames = cachedTxNames

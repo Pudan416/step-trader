@@ -104,6 +104,8 @@ struct AppsPageSimplified: View {
                                 )
                                 .canvasChromeSurface(in: Circle())
                         }
+                        .accessibilityLabel(String(localized: "Add apps"))
+                        .accessibilityIdentifier("feed.add")
                         #if DEBUG
                         .coachMarkAnchor(.unlockSuccess)
                         #endif

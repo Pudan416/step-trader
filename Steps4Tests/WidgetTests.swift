@@ -22,6 +22,32 @@ final class WidgetTests: XCTestCase {
         XCTAssertNil(mixed.applicationToken)
     }
 
+    func testAutomaticGroupNameSurvivesPersistenceAndLegacyNamesStayIntact() throws {
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let group = TicketGroup(name: "", selection: selection,
+            settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20))
+        let decoded = try JSONDecoder().decode(TicketGroup.self, from: JSONEncoder().encode(group))
+        XCTAssertEqual(decoded.displayIdentity.applicationToken, selection.applicationTokens.first)
+        var legacy = group
+        legacy.templateApp = "com.burbn.instagram"
+        legacy.name = "Instagram"
+        let old = try JSONDecoder().decode(TicketGroup.self, from: JSONEncoder().encode(legacy))
+        XCTAssertEqual(old.name, "Instagram")
+        XCTAssertNil(old.displayIdentity.applicationToken)
+    }
+
+    func testEmptyAndMixedSelectionsCannotUseAnAutomaticAppName() throws {
+        var selection = FamilyActivitySelection()
+        XCTAssertFalse(selection.hasGroupTargets)
+        XCTAssertFalse(selection.isSingleApplication)
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        XCTAssertTrue(selection.isSingleApplication)
+        selection.webDomainTokens = [try JSONDecoder().decode(WebDomainToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        XCTAssertTrue(selection.hasGroupTargets)
+        XCTAssertFalse(selection.isSingleApplication)
+    }
+
     func testGroupIdentityKeepsCustomNameForPresetApp() {
         let identity = AppGroupIdentity(name: "Evening break", templateApp: "com.burbn.instagram", applicationCount: 1)
         XCTAssertEqual(identity.title, "Evening break")
