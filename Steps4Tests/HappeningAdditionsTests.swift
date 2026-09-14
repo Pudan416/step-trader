@@ -313,7 +313,7 @@ final class HappeningAdditionsTests: XCTestCase {
 
         try model.savePaletteHappeningSelection(selectedIDs)
 
-        XCTAssertEqual(model.paletteHappeningCatalog().count, 31)
+        XCTAssertEqual(model.paletteHappeningCatalog().count, HappeningDefaults.builtIns.count + 1)
         XCTAssertEqual(model.selectedPaletteHappeningIDs(), selectedIDs)
         XCTAssertFalse(
             model.availablePaletteHappenings(on: date).contains { $0.id == selectedIDs[0] }

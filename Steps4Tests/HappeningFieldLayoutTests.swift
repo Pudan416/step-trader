@@ -1645,6 +1645,19 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
 
 
 final class HappeningScrollableFieldTests: XCTestCase {
+    func testSevenStaggeredRowsAreCenteredInTheirScrollableSpace() {
+        let viewport = CGSize(width: 390, height: 844)
+        let layout = HappeningFieldLayout.layout(count: 31, in: viewport, safeInsets: EdgeInsets(), contentTopInset: 170)
+        let rows = Dictionary(grouping: layout.sources) { $0.center.y }.sorted { $0.key < $1.key }
+        XCTAssertEqual(rows.map { $0.value.count }, [4, 5, 4, 5, 4, 5, 4])
+        for row in rows {
+            let centers = row.value.map(\.center.x)
+            XCTAssertEqual((centers.min()! + centers.max()!) / 2, layout.contentSize.width / 2, accuracy: 0.01)
+        }
+        XCTAssertEqual(layout.contourBounds.midX, layout.contentSize.width / 2, accuracy: 0.01)
+        XCTAssertEqual(layout.contourBounds.midY, layout.contentSize.height / 2, accuracy: 0.01)
+    }
+
     func testThirtyChoicesExtendBeyondBothEdgesWithoutShrinkingTouchTargets() {
         let viewport = CGSize(width: 390, height: 844)
         let layout = HappeningFieldLayout.layout(
@@ -1663,12 +1676,12 @@ final class HappeningScrollableFieldTests: XCTestCase {
     }
 
     @MainActor
-    func testNativeScrollOffsetReachesTheRendererBindingOnBothAxes() throws {
-        var offset = CGPoint.zero
-        let layout = HappeningFieldLayout.layout(count: 30, in: CGSize(width: 390, height: 844), safeInsets: EdgeInsets())
+    func testArtworkMovesWithScrollContentImmediatelyAndOpensAtCenter() throws {
+        let artwork = UIView()
+        let layout = HappeningFieldLayout.layout(count: 31, in: CGSize(width: 390, height: 844), safeInsets: EdgeInsets())
         let view = HappeningPaletteView(
             happenings: HappeningDefaults.builtIns,
-            scrollOffset: Binding(get: { offset }, set: { offset = $0 }),
+            artwork: AnyView(HappeningScrollArtworkProbe(view: artwork)),
             layout: layout, interaction: HappeningPaletteInteractionState(), addedIDs: [], instruction: nil,
             onActivate: { _ in }, onCreate: { _ in .failed }
         )
@@ -1678,16 +1691,23 @@ final class HappeningScrollableFieldTests: XCTestCase {
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         host.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         func findScroll(_ view: UIView) -> UIScrollView? {
             if let scroll = view as? UIScrollView { return scroll }
             return view.subviews.lazy.compactMap { findScroll($0) }.first
         }
         let scroll = try XCTUnwrap(findScroll(host.view))
-        scroll.setContentOffset(CGPoint(x: 120, y: 180), animated: false)
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        XCTAssertEqual(offset.x, 120, accuracy: 1)
-        XCTAssertEqual(offset.y, 180, accuracy: 1)
+        XCTAssertTrue(artwork.isDescendant(of: scroll), "The renderer must be inside the same scrolling content as the labels")
+        XCTAssertEqual(scroll.contentOffset.x, (scroll.contentSize.width - scroll.bounds.width) / 2, accuracy: 1)
+        XCTAssertEqual(scroll.contentOffset.y, (scroll.contentSize.height - scroll.bounds.height) / 2, accuracy: 1)
+        let before = artwork.convert(artwork.bounds, to: window)
+        let offset = scroll.contentOffset
+        scroll.setContentOffset(CGPoint(x: offset.x + 80, y: offset.y + 60), animated: false)
+        // Deliberately do not let SwiftUI update or Metal produce another frame.
+        // The compositor must move the existing artwork with the finger now.
+        let after = artwork.convert(artwork.bounds, to: window)
+        XCTAssertEqual(after.minX, before.minX - 80, accuracy: 0.5)
+        XCTAssertEqual(after.minY, before.minY - 60, accuracy: 0.5)
     }
 
     func testPresentationKeepsTheWholeCatalogIncludingCustomChoices() {
@@ -1697,4 +1717,10 @@ final class HappeningScrollableFieldTests: XCTestCase {
         state.receiveParent(choices.reversed())
         XCTAssertEqual(state.presentedHappenings, choices.reversed())
     }
+}
+
+private struct HappeningScrollArtworkProbe: UIViewRepresentable {
+    let view: UIView
+    func makeUIView(context: Context) -> UIView { view }
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }

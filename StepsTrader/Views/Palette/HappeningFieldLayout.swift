@@ -103,21 +103,37 @@ enum HappeningFieldLayout {
 
         if count > 10 {
             let radius = max(68, min(96, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize / 14 * 68))
-            let columns = 5
             let gap: CGFloat = 8
             let step = radius * 2 + gap
-            let width = max(size.width, edgeClearance * 2 + CGFloat(columns) * step - gap)
-            let sources = (0..<count).map { index in
-                Source(index: index, center: CGPoint(
-                    x: edgeClearance + radius + CGFloat(index % columns) * step,
-                    y: contentTop + radius + CGFloat(index / columns) * step
-                ), radius: radius)
+            var rows: [Int] = []
+            var remaining = count
+            while remaining > 0 {
+                let rowCount = min(remaining, rows.count.isMultiple(of: 2) ? 4 : 5)
+                rows.append(rowCount)
+                remaining -= rowCount
+            }
+            let width = max(size.width, edgeClearance * 2 + radius * 10 + gap * 4)
+            let rowSteps = zip(rows, rows.dropFirst()).map { previous, next in
+                previous.isMultiple(of: 2) == next.isMultiple(of: 2) ? step : step * sqrt(3) / 2
+            }
+            let clusterHeight = radius * 2 + rowSteps.reduce(0, +)
+            // Symmetric padding makes the scroll view's centre the field's centre.
+            let padding = max(contentTop, size.height - dockAnchor.y + 80)
+            let height = max(size.height, clusterHeight + padding * 2)
+            var sources: [Source] = []
+            var centerY = (height - clusterHeight) / 2 + radius
+            for (rowIndex, rowCount) in rows.enumerated() {
+                let firstX = width / 2 - CGFloat(rowCount - 1) * step / 2
+                for column in 0..<rowCount {
+                    sources.append(Source(index: sources.count, center: CGPoint(
+                        x: firstX + CGFloat(column) * step,
+                        y: centerY
+                    ), radius: radius))
+                }
+                if rowIndex < rowSteps.count { centerY += rowSteps[rowIndex] }
             }
             var result = makeLayout(sources: sources, dockAnchor: dockAnchor)
-            result.contentSize = CGSize(
-                width: width,
-                height: max(size.height, result.contourBounds.maxY + (size.height - dockAnchor.y) + 80)
-            )
+            result.contentSize = CGSize(width: width, height: height)
             return result
         }
 

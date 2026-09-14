@@ -2745,6 +2745,12 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Asked for help" } }
       }
     },
+    "option.title.happening_listened" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Listened" } }
+      }
+    },
     "option.title.happening_said_no" : {
       "extractionState" : "manual",
       "localizations" : {

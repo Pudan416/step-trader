@@ -102,7 +102,6 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
-    @State private var paletteScrollOffset: CGPoint = .zero
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
@@ -410,7 +409,6 @@ struct GalleryView: View {
         metricOverlay = nil
         send(.openHappeningPalette)
         refreshHappeningPalette()
-        paletteScrollOffset = .zero
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
             showHappeningPalette = true
@@ -475,7 +473,13 @@ struct GalleryView: View {
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
                 activePanel: $happeningPalettePanel,
-                scrollOffset: $paletteScrollOffset,
+                artwork: AnyView(DayObjectsView(
+                    sceneInput: displayedEditorialRenderInput.sceneInput,
+                    digitalImpact: displayedEditorialRenderInput.digitalImpact,
+                    isAnimating: isCanvasSelected,
+                    soundPulseBus: canvasSoundPulseBus,
+                    presentationMode: paletteRenderMode(layout: layout, viewportSize: layout.contentSize)
+                )),
                 layout: layout,
                 interaction: paletteInteraction,
                 addedIDs: paletteAddedIDs,
@@ -829,11 +833,11 @@ struct GalleryView: View {
             let paletteLayout = happeningPaletteLayout(in: viewport)
             ZStack {
                 DayCanvasArtworkView(
-                    style: showHappeningPalette ? .editorial : dayCanvas.resolvedVisualStyle,
+                    style: dayCanvas.resolvedVisualStyle,
                     editorial: displayedEditorialRenderInput,
-                    isAnimating: isCanvasSelected,
+                    isAnimating: isCanvasSelected && !showHappeningPalette,
                     soundPulseBus: canvasSoundPulseBus,
-                    presentationMode: paletteRenderMode(layout: paletteLayout.translated(by: paletteScrollOffset), viewportSize: viewport.size)
+                    presentationMode: .canvas
                 ) {
                     legacyCanvasLayers
                         .background {
@@ -857,6 +861,8 @@ struct GalleryView: View {
                         }
                 }
                 .frame(width: viewport.size.width, height: viewport.size.height)
+                .opacity(showHappeningPalette ? 0 : 1)
+                .accessibilityHidden(showHappeningPalette)
 
                 if !presentation.isEditing {
                     CanvasAnimationOverlay(

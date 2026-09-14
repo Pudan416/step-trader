@@ -32,7 +32,7 @@ final class HappeningStoreTests: XCTestCase {
 
     func testSeedsBuiltInsOnFirstLoad() {
         let store = makeStore()
-        XCTAssertEqual(store.all.count, 30)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count)
         XCTAssertEqual(Set(store.all.map(\.id)), HappeningDefaults.builtInIds)
     }
 
@@ -40,7 +40,7 @@ final class HappeningStoreTests: XCTestCase {
         let store = makeStore()
         store.load()
         store.load()
-        XCTAssertEqual(store.all.count, 30)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count)
     }
 
     func testLoadAddsNewBuiltInsWithoutResettingCounts() throws {
@@ -49,11 +49,11 @@ final class HappeningStoreTests: XCTestCase {
 
         // Simulate a catalog written by an older build that lacked one built-in.
         let trimmed = store.all.filter { $0.id != "happening_laughed" }
-        XCTAssertEqual(trimmed.count, 29)
+        XCTAssertEqual(trimmed.count, HappeningDefaults.builtIns.count - 1)
         defaults.set(try JSONEncoder().encode(trimmed), forKey: SharedKeys.happeningCatalog)
 
         let reloaded = makeStore()
-        XCTAssertEqual(reloaded.all.count, 30)
+        XCTAssertEqual(reloaded.all.count, HappeningDefaults.builtIns.count)
         XCTAssertNotNil(reloaded.happening(id: "happening_laughed"))
         XCTAssertEqual(
             reloaded.happening(id: "happening_walk")?.useCount, 1,
@@ -61,14 +61,14 @@ final class HappeningStoreTests: XCTestCase {
         )
     }
 
-    func testUpgradeFromTenAddsTwentyAndKeepsCustomNamesAndUseHistory() throws {
+    func testUpgradeFromTenExpandsCatalogAndKeepsCustomNamesAndUseHistory() throws {
         var old = Array(HappeningDefaults.builtIns.prefix(10))
         old[0].useCount = 7
         old[0].lastUsedAt = Date(timeIntervalSince1970: 1234)
         old.append(Happening(id: "user_existing", title: "Coffee with my sister", isBuiltIn: false, useCount: 3))
         defaults.set(try JSONEncoder().encode(old), forKey: SharedKeys.happeningCatalog)
         let upgraded = makeStore()
-        XCTAssertEqual(upgraded.all.count, 31)
+        XCTAssertEqual(upgraded.all.count, HappeningDefaults.builtIns.count + 1)
         XCTAssertEqual(Set(upgraded.all.filter(\.isBuiltIn).map(\.id)), HappeningDefaults.builtInIds)
         XCTAssertEqual(upgraded.happening(id: "happening_walk"), old[0])
         XCTAssertEqual(upgraded.happening(id: "user_existing"), old.last)
@@ -113,7 +113,7 @@ final class HappeningStoreTests: XCTestCase {
     func testRecordUseForUnknownIdIsIgnored() {
         let store = makeStore()
         store.recordUse(id: "nope_does_not_exist", at: .now)
-        XCTAssertEqual(store.all.count, 30)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count)
         XCTAssertNil(store.happening(id: "nope_does_not_exist"))
     }
 
@@ -127,7 +127,7 @@ final class HappeningStoreTests: XCTestCase {
         XCTAssertFalse(made.isBuiltIn)
         XCTAssertEqual(made.useCount, 0, "Creating a happening only adds it to the catalog")
         XCTAssertNil(made.lastUsedAt)
-        XCTAssertEqual(store.all.count, 31)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count + 1)
         XCTAssertEqual(store.happening(id: made.id)?.title, "Rooftop coffee")
     }
 
@@ -179,7 +179,7 @@ final class HappeningStoreTests: XCTestCase {
         let second = store.create(title: "Sauna", at: .now)
 
         XCTAssertNotEqual(first.id, second.id, "Two happenings, not one merged")
-        XCTAssertEqual(store.all.count, 32)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count + 2)
     }
 
     // MARK: - Orphan reconstitution
@@ -193,7 +193,7 @@ final class HappeningStoreTests: XCTestCase {
             titleResolver: { $0 == "body_walking" ? "Walking" : "Joy" }
         )
 
-        XCTAssertEqual(store.all.count, 32, "Two orphans; happening_walk already present")
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count + 2, "Two orphans; happening_walk already present")
 
         let walking = store.happening(id: "body_walking")
         XCTAssertEqual(walking?.title, "Walking")
@@ -208,7 +208,7 @@ final class HappeningStoreTests: XCTestCase {
         store.recordUse(id: "body_walking", at: Date(timeIntervalSince1970: 100))
         store.reconstituteOrphans(fromHistoryIds: ["body_walking"], titleResolver: { _ in "Walking" })
 
-        XCTAssertEqual(store.all.count, 31)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count + 1)
         XCTAssertEqual(
             store.happening(id: "body_walking")?.useCount, 1,
             "A second pass must not reset a reconstituted happening"
@@ -218,13 +218,13 @@ final class HappeningStoreTests: XCTestCase {
     func testReconstituteWithNoOrphansChangesNothing() {
         let store = makeStore()
         store.reconstituteOrphans(fromHistoryIds: ["happening_walk"], titleResolver: { $0 })
-        XCTAssertEqual(store.all.count, 30)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count)
     }
 
     func testReconstituteHandlesEmptyHistory() {
         let store = makeStore()
         store.reconstituteOrphans(fromHistoryIds: [], titleResolver: { $0 })
-        XCTAssertEqual(store.all.count, 30)
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count)
     }
 
     func testReconstitutedOrphansPersist() {
