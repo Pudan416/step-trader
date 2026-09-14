@@ -22,3 +22,7 @@ The lag came from two independently updated surfaces: labels scrolled natively, 
 ## Captures
 
 [Centred opening](happenings-field-start.png) · [Scrolled](happenings-field-diagonal.png) · [Added](happenings-field-added.png) · [Large type](happenings-field-large-type.png) · [Swipe recording](scrolling.mov)
+
+## Device installation
+
+Built and installed revision `4c7146b4f3532f47ea80a0150a350028a184ce29` on iPhone Costa over Wi-Fi on 2026-09-15 at approximately 01:19 Europe/Belgrade. devicectl confirmed installation. The subsequent launch was denied because the phone was locked (FBSOpenApplicationErrorDomain 7). App and all four embedded extensions passed strict signing and resource validation. No remote publication or current-integration change. Physical-device visual/gesture inspection was not performed.
