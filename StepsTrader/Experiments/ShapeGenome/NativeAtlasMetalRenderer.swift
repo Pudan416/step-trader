@@ -77,6 +77,8 @@ final class NativeAtlasMetalRenderer {
         clearEncoder.setFragmentBytes(&background, length: DayObjectsMeshGradientUniforms.metalStride, index: 0)
         clearEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         clearEncoder.endEncoding()
+        let accent = CanvasChromePalette.resolve(backgroundColors: scene.meshGradientStyle.colors.map { DayObjectRGB(linearRGB: $0) }).accent.linearRGB
+        var pickerAccent = SIMD4<Float>(accent.x, accent.y, accent.z, 1)
         var source = 0
         for actor in frame.actors {
             guard let spec = descriptors[actor.eventID] else { continue }
@@ -105,6 +107,7 @@ final class NativeAtlasMetalRenderer {
             encoder.setFragmentBytes(&geometry, length: MetalShapeGenomeUniforms.metalStride, index: 0)
             encoder.setFragmentBytes(&material, length: MetalShapeMaterialUniforms.metalStride, index: 1)
             placement.withUnsafeBytes { encoder.setFragmentBytes($0.baseAddress!, length: $0.count, index: 2) }
+            encoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 3)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); encoder.endEncoding()
             source = target
         }

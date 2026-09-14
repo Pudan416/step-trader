@@ -55,7 +55,7 @@ struct HappeningShapeField: View {
                     }
                     .foregroundStyle(ink.color)
                     .frame(width: side, height: side)
-                    .contentShape(Circle())
+                    .contentShape(HappeningPickerShape())
             }
             .buttonStyle(.plain)
             .disabled(locked)
@@ -132,5 +132,25 @@ enum HappeningPaletteLabelInk: Equatable {
                 SIMD3(color.x, color.y, color.z) * opacity + bg * (1 - opacity)
             }
         })
+    }
+}
+
+/// Matches the subtle superellipse used by both Metal picker renderers.
+private struct HappeningPickerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            for step in 0...128 {
+                let angle = Double(step) / 128 * 2 * Double.pi
+                func coordinate(_ value: Double) -> CGFloat {
+                    CGFloat((value < 0 ? -1 : 1) * pow(abs(value), 2 / 2.2))
+                }
+                let point = CGPoint(
+                    x: rect.midX + rect.width / 2 * coordinate(cos(angle)),
+                    y: rect.midY + rect.height / 2 * coordinate(sin(angle))
+                )
+                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            path.closeSubpath()
+        }
     }
 }

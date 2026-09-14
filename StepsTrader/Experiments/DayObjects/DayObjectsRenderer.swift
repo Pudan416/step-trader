@@ -1499,6 +1499,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             backgroundEncoder.endEncoding()
         }
 
+        let accent = CanvasChromePalette.resolve(backgroundColors: renderScene.meshGradientStyle.colors.map { DayObjectRGB(linearRGB: $0) }).accent.linearRGB
+        var pickerAccent = SIMD4<Float>(accent.x, accent.y, accent.z, 1)
         let actorUpload = DayObjectsActorUpload(
             actors: frame.actors,
             actorLimit: Self.actorCapacity,
@@ -1546,6 +1548,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         if !actorUpload.actors.isEmpty {
             var actorUniforms = actorUpload.uniforms
             sceneEncoder.setRenderPipelineState(actorPipeline)
+            sceneEncoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 4)
             sceneEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             sceneEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
             sceneEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
@@ -1624,6 +1627,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             if simd_length(inward) > 0.001 { echoDirection = simd_normalize(inward) }
             var actorUniforms = actorUpload.uniforms
             echoEncoder.setRenderPipelineState(actorPipeline)
+            echoEncoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 4)
             echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             echoEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
             echoEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
