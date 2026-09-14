@@ -42,7 +42,7 @@ final class DayObjectPaletteTests: XCTestCase {
         }
     }
 
-    func testOrderedPrimaryGradientRendersEveryStopAlongTheTransition() throws {
+    func testOrderedPrimaryGradientBlendsBroadOverlappingColorFields() throws {
         let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
         let commandQueue = try XCTUnwrap(device.makeCommandQueue())
         let library = try XCTUnwrap(device.makeDefaultLibrary())
@@ -65,22 +65,35 @@ final class DayObjectPaletteTests: XCTestCase {
             let pixels = try renderMeshGradient(style: style, elapsedTime: 0, plan: plan,
                 device: device, commandQueue: commandQueue, pipeline: pipeline)
             let width = plan.background.width, y = plan.background.height / 2
-            for (index, color) in colors.enumerated() {
-                let x = Int((0.18 + 0.64 * Double(index) / Double(colors.count - 1)) * Double(width))
+            func sample(_ x: Int, _ component: Int) -> Float {
+                Float(Float16(bitPattern: pixels[(y * width + x) * 4 + component]))
+            }
+            // Color order remains legible, but the intermediate swatches must
+            // blend with their neighbors instead of forming pure-color bands.
+            XCTAssertLessThan(sample(0, 0), 0.4)
+            XCTAssertGreaterThan(sample(width - 1, 0), 0.7)
+            if colors.count == 3 {
+                XCTAssertGreaterThan(sample(width / 2, 0), sample(width / 2, 1) + 0.35)
+                XCTAssertGreaterThan(sample(width / 2, 1), 0.1,
+                    "The middle red must overlap the white field")
+            } else if colors.count == 4 {
+                XCTAssertGreaterThan(sample(width / 3, 0), sample(width / 3, 1) + 0.2)
+                XCTAssertGreaterThan(sample(2 * width / 3, 1), sample(2 * width / 3, 0) + 0.2)
+                XCTAssertGreaterThan(sample(width / 3, 1), 0.1,
+                    "Adjacent intermediate colors should already overlap")
+            }
+            // A 10%-of-width window catches visually narrow transitions that
+            // are continuous pixel-by-pixel but still look like sharp stripes.
+            let window = width / 10
+            var largestWindowChange: Float = 0
+            for x in window..<width {
                 for component in 0..<3 {
-                    let actual = Float(Float16(bitPattern: pixels[(y * width + x) * 4 + component]))
-                    XCTAssertEqual(actual, color[component], accuracy: 0.015,
-                        "\(colors.count) colors: stop \(index) must appear along the main transition")
+                    largestWindowChange = max(largestWindowChange,
+                        abs(sample(x, component) - sample(x - window, component)))
                 }
             }
-            // A narrow seam or a discontinuity would create a large adjacent-pixel jump.
-            for x in 1..<width {
-                for component in 0..<3 {
-                    let previous = Float(Float16(bitPattern: pixels[(y * width + x - 1) * 4 + component]))
-                    let current = Float(Float16(bitPattern: pixels[(y * width + x) * 4 + component]))
-                    XCTAssertLessThan(abs(current - previous), 0.06)
-                }
-            }
+            XCTAssertLessThan(largestWindowChange, 0.4,
+                "\(colors.count)-color gradient must spread its transitions broadly")
         }
     }
 

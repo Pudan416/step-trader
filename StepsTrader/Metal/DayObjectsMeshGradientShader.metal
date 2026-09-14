@@ -172,14 +172,21 @@ fragment float4 dayObjectsMeshGradientFragment(
         if (uniforms.archetype == 4u)
             field = length(p - axis * 0.18) * 1.35;
         if (uniforms.colors[0].a > 2.5) {
-            // Each swatch is a stop on the SAME field: endpoints retain broad
-            // areas, and one or two intermediate colors span the transition.
+            // Broad overlapping fields keep the selected color order without
+            // restarting the blend at each swatch and creating narrow bands.
             uint count = clamp(uniforms.colorCount, 2u, 4u);
-            float position = saturate((field - 0.18) / 0.64) * float(count - 1u);
-            uint segment = min(uint(position), count - 2u);
-            float blend = smoothstep(0.0, 1.0, position - float(segment));
-            return float4(mix(uniforms.colors[segment].rgb,
-                              uniforms.colors[segment + 1u].rgb, blend), 1.0);
+            float spacing = 1.0 / float(count - 1u);
+            float fieldWidth = spacing * 0.75;
+            float position = clamp(field, -1.0, 2.0);
+            float3 color = float3(0.0);
+            float totalWeight = 0.0;
+            for (uint index = 0u; index < count; ++index) {
+                float distance = (position - float(index) * spacing) / fieldWidth;
+                float weight = exp(-0.5 * distance * distance);
+                color += uniforms.colors[index].rgb * weight;
+                totalWeight += weight;
+            }
+            return float4(color / max(totalWeight, 0.000001), 1.0);
         }
         float blend = smoothstep(0.28, 0.72, field);
         float3 color = mix(uniforms.colors[0].rgb, uniforms.colors[1].rgb, blend);
