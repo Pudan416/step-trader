@@ -1265,6 +1265,10 @@ final class NativeAtlasRecipeTests: XCTestCase {
 
     func testNativeBackgroundMigrationPreservesDefaultAppearanceAndTimestamps() throws {
         var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-10")
+        let recipe = try XCTUnwrap(canvas.artworkRecipe)
+        canvas.artworkRecipe?.backgroundStyle = NativeAtlasRecipe.makeBackgroundStyle(
+            dayKey: canvas.dayKey, recipeSeed: UInt64(recipe.seedHex, radix: 16)!,
+            paletteCategories: ModernPaletteSelection.all, useLegacyStyle: true)
         let style = try XCTUnwrap(canvas.artworkRecipe?.backgroundStyle)
         let modified = canvas.lastModified
         canvas.artworkRecipe?.backgroundStyle = nil

@@ -20,13 +20,14 @@ extension NativeAtlasRecipe {
     func resolvedBackgroundStyle(dayKey: String) -> DayObjectMeshGradientStyle {
         backgroundStyle ?? Self.makeBackgroundStyle(
             dayKey: dayKey, recipeSeed: UInt64(seedHex, radix: 16) ?? 0,
-            paletteCategories: ModernPaletteSelection.all
+            paletteCategories: ModernPaletteSelection.all, useLegacyStyle: true
         )
     }
 
     static func makeBackgroundStyle(
         dayKey: String, recipeSeed: UInt64,
-        paletteCategories: Set<ModernPaletteCategory>
+        paletteCategories: Set<ModernPaletteCategory>,
+        useLegacyStyle: Bool = false
     ) -> DayObjectMeshGradientStyle {
         let rootSeed = CanvasElement.makeSeed(
             optionId: "dayObjects:primary-canvas", dayKey: dayKey, index: 0
@@ -35,7 +36,10 @@ extension NativeAtlasRecipe {
             rootSeed: rootSeed, categories: paletteCategories,
             dayKey: dayKey, identity: "primary-canvas"
         )
-        return .primaryCanvas(seed: recipeSeed, palette: .make(modernPalette: palette))
+        let colors = DayObjectPalette.make(modernPalette: palette)
+        return useLegacyStyle
+            ? .legacyPrimaryCanvas(seed: recipeSeed, palette: colors)
+            : .primaryCanvas(seed: recipeSeed, palette: colors)
     }
 
     func remixed(

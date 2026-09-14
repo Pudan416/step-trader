@@ -23,6 +23,8 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
     let phase: Double
     let motionDirection: Double
     let preservesColorFields: Bool
+    /// Absent in saved artwork that uses the original two fields plus an accent spot.
+    let usesOrderedColorStops: Bool?
 
     init(
         colors: [SIMD3<Float>],
@@ -34,7 +36,8 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
         scale: Double,
         phase: Double,
         motionDirection: Double = 1,
-        preservesColorFields: Bool = false
+        preservesColorFields: Bool = false,
+        usesOrderedColorStops: Bool? = nil
     ) {
         self.colors = colors
         self.archetype = archetype
@@ -46,6 +49,7 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
         self.phase = phase
         self.motionDirection = motionDirection < 0 ? -1 : 1
         self.preservesColorFields = preservesColorFields
+        self.usesOrderedColorStops = usesOrderedColorStops
     }
 
     static func make(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
@@ -102,9 +106,45 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
         )
     }
 
-    /// Keep two genuinely different palette colors instead of averaging every
-    /// swatch into a pale wash. Only the atlas route opts into this direction.
+    /// Preserve the most separated endpoint pair. Add palette colors between
+    /// them, choosing the shortest perceptual path through the intermediate stops.
+    /// Count selection is stable for a recipe: 30% two, 40% three, 30% four.
     static func primaryCanvas(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
+        let base = legacyPrimaryCanvas(seed: seed, palette: palette)
+        let start = base.colors[0], end = base.colors[1]
+        let remaining = palette.colors.map(\.linearRGB).filter { $0 != start && $0 != end }
+        var rng = SeededRNG.derived(from: seed, domain: "primary-background-stops")
+        let roll = rng.nextInt(in: 0...9)
+        let count = roll < 3 ? 2 : (roll < 7 ? 3 : 4)
+
+        func distance(_ a: SIMD3<Float>, _ b: SIMD3<Float>) -> Float {
+            simd_distance(DayObjectRGB(linearRGB: a).perceptualOKLab,
+                          DayObjectRGB(linearRGB: b).perceptualOKLab)
+        }
+        func pathLength(_ middle: [SIMD3<Float>]) -> Float {
+            let stops = [start] + middle + [end]
+            return zip(stops, stops.dropFirst()).reduce(Float(0)) { $0 + distance($1.0, $1.1) }
+        }
+        var middle: [SIMD3<Float>] = []
+        if count == 3 {
+            middle = remaining.min { pathLength([$0]) < pathLength([$1]) }.map { [$0] } ?? []
+        } else if count == 4 {
+            // The catalog has four colors. Evaluate both orders so the two
+            // intermediate swatches do not introduce an avoidable color detour.
+            middle = Array(remaining.prefix(2))
+            let reversed = Array(middle.reversed())
+            if pathLength(reversed) < pathLength(middle) { middle = reversed }
+        }
+        return Self(colors: [start] + middle + [end],
+                    archetype: base.archetype, offset: base.offset,
+                    distortion: base.distortion, swirl: base.swirl,
+                    speed: base.speed, scale: base.scale, phase: base.phase,
+                    motionDirection: base.motionDirection, preservesColorFields: true,
+                    usesOrderedColorStops: true)
+    }
+
+    /// Original generator for archived recipes that never froze a background.
+    static func legacyPrimaryCanvas(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
         let base = make(seed: seed, palette: palette)
         let colors = palette.colors.map(\.linearRGB)
         var pair = (0, 1)

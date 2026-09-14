@@ -171,6 +171,16 @@ fragment float4 dayObjectsMeshGradientFragment(
             field += 0.16 * sin(across * 4.0 + uniforms.phase);
         if (uniforms.archetype == 4u)
             field = length(p - axis * 0.18) * 1.35;
+        if (uniforms.colors[0].a > 2.5) {
+            // Each swatch is a stop on the SAME field: endpoints retain broad
+            // areas, and one or two intermediate colors span the transition.
+            uint count = clamp(uniforms.colorCount, 2u, 4u);
+            float position = saturate((field - 0.18) / 0.64) * float(count - 1u);
+            uint segment = min(uint(position), count - 2u);
+            float blend = smoothstep(0.0, 1.0, position - float(segment));
+            return float4(mix(uniforms.colors[segment].rgb,
+                              uniforms.colors[segment + 1u].rgb, blend), 1.0);
+        }
         float blend = smoothstep(0.28, 0.72, field);
         float3 color = mix(uniforms.colors[0].rgb, uniforms.colors[1].rgb, blend);
         if (length(uniforms.colors[2].rgb - uniforms.colors[0].rgb) > 0.001) {

@@ -4,6 +4,101 @@ import XCTest
 @testable import Steps4
 
 final class DayObjectPaletteTests: XCTestCase {
+    func testPrimaryGradientColorCountsFollowThirtyFortyThirty() {
+        let palette = DayObjectPalette.make(modernPalette: ModernPalette(
+            code: "000000555555aaaaaaffffff", categories: [.retro]))
+        var counts = [Int: Int]()
+        for seed in UInt64(0)..<10_000 {
+            let style = DayObjectMeshGradientStyle.primaryCanvas(seed: seed, palette: palette)
+            counts[Set(style.colors).count, default: 0] += 1
+        }
+        XCTAssertEqual(Set(counts.keys), [2, 3, 4])
+        for (count, expected) in [(2, 0.30), (3, 0.40), (4, 0.30)] {
+            XCTAssertEqual(Double(counts[count, default: 0]) / 10_000, expected, accuracy: 0.02)
+        }
+        print("Primary gradient counts over 10000 seeds: \(counts)")
+    }
+
+    func testPrimaryGradientKeepsContrastEndpointsAndOrderedPaletteIntermediates() throws {
+        let palette = DayObjectPalette.make(modernPalette: ModernPalette(
+            code: "aaaaaa000000ffffff555555", categories: [.retro]))
+        for seed in UInt64(0)..<100 {
+            let style = DayObjectMeshGradientStyle.primaryCanvas(seed: seed, palette: palette)
+            XCTAssertEqual(style, .primaryCanvas(seed: seed, palette: palette))
+            let decoded = try JSONDecoder().decode(DayObjectMeshGradientStyle.self,
+                from: JSONEncoder().encode(style))
+            XCTAssertEqual(decoded, style)
+            let uniforms = DayObjectsMeshGradientUniforms(style: decoded,
+                resolution: SIMD2(300, 500), elapsedTime: 0)
+            XCTAssertEqual(uniforms.colorCount, UInt32(style.colors.count))
+            XCTAssertEqual(uniforms.color0.w, 3, "New saved recipes must render all their ordered stops")
+            XCTAssertEqual(style.colors.count, Set(style.colors).count)
+            XCTAssertTrue(style.colors.allSatisfy { palette.colors.map(\.linearRGB).contains($0) })
+            let first = try XCTUnwrap(style.colors.first)
+            let last = try XCTUnwrap(style.colors.last)
+            XCTAssertEqual(Set([first, last]), [SIMD3<Float>(repeating: 0), SIMD3<Float>(repeating: 1)])
+            let levels = style.colors.map { $0.x }
+            XCTAssertEqual(levels, first.x < last.x ? levels.sorted() : levels.sorted(by: >))
+        }
+    }
+
+    func testOrderedPrimaryGradientRendersEveryStopAlongTheTransition() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let commandQueue = try XCTUnwrap(device.makeCommandQueue())
+        let library = try XCTUnwrap(device.makeDefaultLibrary())
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = library.makeFunction(name: "dayObjectsFullscreenVertex")
+        descriptor.fragmentFunction = library.makeFunction(name: "dayObjectsMeshGradientFragment")
+        descriptor.colorAttachments[0].pixelFormat = .rgba16Float
+        let pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        let plan = DayObjectsRenderTargetPlan(drawableWidth: 512, drawableHeight: 512)
+        let black = SIMD3<Float>(0, 0, 0), white = SIMD3<Float>(1, 1, 1)
+        let red = SIMD3<Float>(1, 0, 0), green = SIMD3<Float>(0, 1, 0)
+        for colors in [[black, white], [black, red, white], [black, red, green, white]] {
+            let legacy = DayObjectMeshGradientStyle(
+                colors: colors, archetype: .drift, distortion: 0, swirl: 0,
+                speed: 0, scale: 1, phase: 0, preservesColorFields: true)
+            var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any])
+            json["usesOrderedColorStops"] = true
+            let style = try JSONDecoder().decode(DayObjectMeshGradientStyle.self,
+                from: JSONSerialization.data(withJSONObject: json))
+            let pixels = try renderMeshGradient(style: style, elapsedTime: 0, plan: plan,
+                device: device, commandQueue: commandQueue, pipeline: pipeline)
+            let width = plan.background.width, y = plan.background.height / 2
+            for (index, color) in colors.enumerated() {
+                let x = Int((0.18 + 0.64 * Double(index) / Double(colors.count - 1)) * Double(width))
+                for component in 0..<3 {
+                    let actual = Float(Float16(bitPattern: pixels[(y * width + x) * 4 + component]))
+                    XCTAssertEqual(actual, color[component], accuracy: 0.015,
+                        "\(colors.count) colors: stop \(index) must appear along the main transition")
+                }
+            }
+            // A narrow seam or a discontinuity would create a large adjacent-pixel jump.
+            for x in 1..<width {
+                for component in 0..<3 {
+                    let previous = Float(Float16(bitPattern: pixels[(y * width + x - 1) * 4 + component]))
+                    let current = Float(Float16(bitPattern: pixels[(y * width + x) * 4 + component]))
+                    XCTAssertLessThan(abs(current - previous), 0.06)
+                }
+            }
+        }
+    }
+
+    func testSavedPrimaryGradientWithoutOrderedStopsRetainsLegacyRenderingMode() throws {
+        let style = DayObjectMeshGradientStyle(
+            colors: [SIMD3<Float>(1, 0, 0), SIMD3<Float>(0, 0, 1), SIMD3<Float>(0, 1, 0)],
+            distortion: 0.2, swirl: 0.1, speed: 0.05, scale: 0.72, phase: 1,
+            preservesColorFields: true)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(style)) as? [String: Any])
+        json.removeValue(forKey: "usesOrderedColorStops")
+        let decoded = try JSONDecoder().decode(DayObjectMeshGradientStyle.self,
+            from: JSONSerialization.data(withJSONObject: json))
+        let uniforms = DayObjectsMeshGradientUniforms(style: decoded,
+            resolution: SIMD2(300, 500), elapsedTime: 0)
+        XCTAssertEqual(uniforms.color0.w, 2, "Saved accent-spot gradients must keep the historical shader route")
+        XCTAssertEqual(decoded, style)
+    }
+
     func testProductionLabBackgroundDoesNotRepeatOnConsecutiveCalendarDays() {
         let filters: [(name: String, categories: Set<ModernPaletteCategory>)] = [
             ("all", ModernPaletteSelection.all),

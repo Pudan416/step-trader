@@ -45,6 +45,7 @@ struct DayObjectsMeshGradientUniforms: Equatable {
         }
         // Alpha is unused by the opaque background; retain the 128-byte ABI.
         if style.preservesColorFields { colors[0].w = 2 }
+        if style.usesOrderedColorStops == true { colors[0].w = 3 }
         color0 = colors[0]
         color1 = colors[1]
         color2 = colors[2]
@@ -62,7 +63,8 @@ struct DayObjectsMeshGradientUniforms: Equatable {
         swirl = Self.finite(Float(style.swirl))
         scale = Self.finite(Float(style.scale))
         phase = Self.finite(Float(style.phase))
-        colorCount = UInt32(min(max(style.colors.count, 3), 5))
+        let minimumColorCount = style.usesOrderedColorStops == true ? 2 : 3
+        colorCount = UInt32(min(max(style.colors.count, minimumColorCount), 5))
         archetype = style.archetype.rawValue
         motionDirection = style.motionDirection < 0 ? -1 : 1
     }
