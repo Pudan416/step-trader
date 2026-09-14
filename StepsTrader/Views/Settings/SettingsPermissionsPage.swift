@@ -120,7 +120,7 @@ struct SettingsPermissionsPage: View {
                             identifier: "settings.permissions.health",
                             icon: "heart.fill",
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
-                            subtitle: String(localized: "Health data fills your Canvas with steps, sleep and workouts."),
+                            subtitle: String(localized: "Health data brings activity, sleep and workouts to your Canvas."),
                             presentation: healthPresentation,
                             actionTitle: healthPresentation.status == .connected ? String(localized: "Manage access") : String(localized: "Check access"),
                             onFix: handleHealthAction

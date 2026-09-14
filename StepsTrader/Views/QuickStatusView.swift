@@ -29,10 +29,10 @@ struct QuickStatusView: View {
 
                 VStack(spacing: 20) {
                     HStack {
-                        Text(String(localized: "Steps today:", comment: "QuickStatus – steps label"))
+                        Text(String(localized: "Activity today:", comment: "QuickStatus – steps label"))
                             .font(.geist(.title2))
                         Spacer()
-                        Text("\(Int(model.stepsToday))")
+                        Text(String(localized: "\(Int(model.stepsToday)) steps"))
                             .font(.geist(.title))
                             .bold()
                             .foregroundStyle(.green)
@@ -44,7 +44,7 @@ struct QuickStatusView: View {
                         Text(String(localized: "Entry balance:", comment: "QuickStatus – balance label"))
                             .font(.geist(.title2))
                         Spacer()
-                        Text(String(localized: "\(model.userEconomyStore.totalStepsBalance) steps", comment: "QuickStatus – balance value"))
+                        Text(String(localized: "\(model.userEconomyStore.totalStepsBalance) colors", comment: "QuickStatus – balance value"))
                             .font(.geist(.title))
                             .bold()
                             .foregroundStyle(

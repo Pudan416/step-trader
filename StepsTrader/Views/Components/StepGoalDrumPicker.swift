@@ -57,7 +57,7 @@ struct StepGoalDrumPicker: View {
                     .frame(minWidth: 100, minHeight: 48)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Enter exact step goal"))
+                .accessibilityLabel(String(localized: "Enter exact activity goal"))
                 .accessibilityHint(String(localized: "Adjust by 500 steps, or tap the number to enter a goal."))
                 .accessibilityValue(accessibilityValue)
                 .accessibilityIdentifier("settings.yourDay.steps.exactValue")
@@ -67,7 +67,7 @@ struct StepGoalDrumPicker: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: value)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(String(localized: "Daily step goal"))
+        .accessibilityLabel(String(localized: "Daily activity goal"))
         .accessibilityValue(accessibilityValue)
         .accessibilityIdentifier("settings.yourDay.steps.adjustable")
         .accessibilityAdjustableAction { direction in
@@ -77,8 +77,8 @@ struct StepGoalDrumPicker: View {
             @unknown default: break
             }
         }
-        .alert(String(localized: "Daily step goal"), isPresented: $isEditing) {
-            TextField(String(localized: "Steps"), text: $exactValue)
+        .alert(String(localized: "Daily activity goal"), isPresented: $isEditing) {
+            TextField(String(localized: "Step count"), text: $exactValue)
                 .keyboardType(.numberPad)
                 .accessibilityIdentifier("settings.yourDay.steps.input")
             Button(String(localized: "Cancel"), role: .cancel) { }

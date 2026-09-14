@@ -475,7 +475,7 @@ extension AppModel {
             : EnergyDefaults.assumedSleepPoints
         let computedInkEarned = min(
             EnergyDefaults.maxBaseEnergy,
-            pointsFromSteps(stepsForInk) +
+            (stepsForInk > 0 ? pointsFromSteps(stepsForInk) : EnergyDefaults.assumedActivityPoints) +
             sleepPts +
             HappeningEconomy.points(forAdditionCount: savedHappeningIds.count)
         )
@@ -543,8 +543,23 @@ extension AppModel {
         return hoursSinceDayStart >= 6
     }
 
-    var stepsPointsToday: Int {
-        pointsFromSteps(stepsToday)
+    /// The category is Activity; HealthKit currently supplies a measured step count.
+    /// Keep persisted step keys unchanged so existing canvases and widgets still decode.
+    private var stepsForActivityToday: Double {
+        stepsToday > 0 ? stepsToday : fallbackCachedSteps()
+    }
+
+    /// A completed empty query qualifies, just like assumed sleep. HealthKit hides
+    /// read permission, so write authorization is not evidence of a connection.
+    /// Never mistake the initial loading state for a completed empty query.
+    var isActivityAssumed: Bool {
+        stepsForActivityToday == 0 && hasStepsData
+    }
+
+    var activityPointsToday: Int {
+        isActivityAssumed
+            ? EnergyDefaults.assumedActivityPoints
+            : pointsFromSteps(stepsForActivityToday)
     }
 
     private var userSleepTarget: Double {
@@ -601,14 +616,14 @@ extension AppModel {
         guard target > 0 else { return 0 }
         let capped = min(max(0, steps), target)
         let ratio = capped / target
-        return Int(ratio * Double(EnergyDefaults.stepsMaxPoints))
+        return Int(ratio * Double(EnergyDefaults.activityMaxPoints))
     }
 
     @MainActor
     func recalculateDailyEnergy() {
-        // Total = steps(20) + sleep(20) + happenings(60) = 100 max
-        let stepsForEnergy = stepsToday > 0 ? stepsToday : fallbackCachedSteps()
-        let stepsPts = pointsFromSteps(stepsForEnergy)
+        // Total = activity(20) + sleep(20) + happenings(60) = 100 max
+        let stepsForEnergy = stepsForActivityToday
+        let stepsPts = activityPointsToday
         let sleepPts = sleepPointsToday
         let total = stepsPts + sleepPts + happeningPointsToday
 
@@ -716,7 +731,7 @@ extension AppModel {
         WidgetDataFile.write(WidgetSnapshot(
             balance: stepsBalance + g.integer(forKey: SharedKeys.bonusSteps),
             earned: baseEnergyToday,
-            stepsPoints: stepsPointsToday,
+            stepsPoints: activityPointsToday,
             sleepPoints: sleepPointsToday,
             bodyPoints: happeningPointsToday,
             mindPoints: 0,

@@ -136,8 +136,8 @@ struct LoginView: View {
             // Features — lightweight, no cards
             VStack(alignment: .leading, spacing: 18) {
                 featureRow(
-                    icon: "figure.walk",
-                    text: String(localized: "Turn movement into energy"),
+                    icon: "waveform.path",
+                    text: String(localized: "Turn activity into colors"),
                     tint: Color(hex: "#FFBF65")
                 )
                 featureRow(

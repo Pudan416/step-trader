@@ -12,8 +12,9 @@ final class HealthStore: ObservableObject {
     @Published var dailySleepHours: Double = 0
     @Published var baseEnergyToday: Int = 0
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
-    /// True once HealthKit has returned step data (or a cached value was loaded).
-    /// Do not infer from `stepsToday > 0` — zero steps with data IS valid.
+    /// True once today's step query resolves, including empty/unavailable Health,
+    /// or a cached result is loaded. This does not imply read permission.
+    /// Do not infer from `stepsToday > 0` — a resolved zero count is valid.
     @Published var hasStepsData: Bool = false
     /// True once HealthKit has returned sleep data.
     @Published var hasSleepData: Bool = false
@@ -58,6 +59,12 @@ final class HealthStore: ObservableObject {
         } catch {
             AppLogger.healthKit.error("👣 refreshSteps FAILED: \(error.localizedDescription), was \(Int(before))")
             loadCachedStepsToday()
+            if Self.isUnavailableHealthData(error) {
+                // Declining or skipping Health still resolves the daily fallback.
+                // A same-day cached measurement always takes precedence.
+                hasStepsData = true
+                cacheStepsToday()
+            }
             AppLogger.healthKit.error("👣 refreshSteps: fallback to cache → \(Int(self.stepsToday))")
         }
     }
@@ -76,7 +83,27 @@ final class HealthStore: ObservableObject {
         } catch {
             AppLogger.healthKit.error("⚠️ Failed to refresh sleep: \(error.localizedDescription)")
             loadCachedSleepToday()
+            if Self.isUnavailableHealthData(error) {
+                hasSleepData = true
+            }
         }
+    }
+
+    /// A locked database or a transient query failure is not proof of missing data.
+    /// Check the query's actual error, never HealthKit's write authorization status.
+    private static func isUnavailableHealthData(_ error: Error) -> Bool {
+        if let serviceError = error as? HealthKitServiceError,
+           serviceError == .healthKitNotAvailable {
+            return true
+        }
+        let healthError = error as NSError
+        guard healthError.domain == HKErrorDomain else { return false }
+        return [
+            HKError.Code.errorHealthDataUnavailable,
+            .errorAuthorizationNotDetermined,
+            .errorAuthorizationDenied,
+            .errorNoData,
+        ].contains { $0.rawValue == healthError.code }
     }
     
     // MARK: - Workouts & Mindful Minutes

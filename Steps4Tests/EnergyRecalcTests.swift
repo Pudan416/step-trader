@@ -151,6 +151,150 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(model.stepsBalance, 0)
     }
 
+    // MARK: - Activity colors without Health data
+
+    func testActivityGiftAddsFiveToAssumedSleepWithoutAccumulating() {
+        let model = makeModel()
+        model.stepsToday = 0
+        model.dailySleepHours = 0
+        model.healthStore.hasStepsData = true
+        model.healthStore.hasSleepData = true
+        model.dayEndHour = (Calendar.current.component(.hour, from: .now) + 12) % 24
+        model.dayEndMinute = 0
+
+        model.recalculateDailyEnergy()
+        XCTAssertEqual(model.activityPointsToday, 5)
+        XCTAssertEqual(model.baseEnergyToday, 15)
+        XCTAssertTrue(model.pay(cost: 5))
+        model.recalculateDailyEnergy()
+        model.recalculateDailyEnergy()
+        XCTAssertEqual(model.baseEnergyToday, 15)
+        XCTAssertEqual(model.stepsBalance, 10, "Refreshing must not award the gift again")
+    }
+
+    func testActivityGiftWaitsForHealthQuery() {
+        let model = makeModel()
+        model.stepsToday = 0
+        model.healthStore.hasStepsData = false
+        XCTAssertEqual(model.activityPointsToday, 0)
+        XCTAssertFalse(model.isActivityAssumed)
+    }
+
+    func testActivityGiftIsReplacedByRealData() {
+        let model = makeModel()
+        defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
+        model.healthStore.hasStepsData = true
+        model.stepsToday = 0
+        model.recalculateDailyEnergy()
+        XCTAssertEqual(model.activityPointsToday, 5)
+
+        model.stepsToday = 500
+        model.recalculateDailyEnergy()
+        XCTAssertFalse(model.isActivityAssumed)
+        XCTAssertEqual(model.activityPointsToday, 1, "Gift is a fallback, not a bonus on measured activity")
+        model.stepsToday = 20_000
+        model.recalculateDailyEnergy()
+        XCTAssertEqual(model.activityPointsToday, 20)
+    }
+
+    func testActivityUsesSameDayCacheBeforeAssumingMissingData() {
+        let model = makeModel()
+        defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
+        defaults.set(5_000.0, forKey: SharedKeys.cachedStepsToday)
+        defaults.set(model.currentDayStart(for: .now), forKey: SharedKeys.dailyEnergyAnchor)
+        model.stepsToday = 0
+        model.healthStore.hasStepsData = true
+        model.recalculateDailyEnergy()
+        XCTAssertEqual(model.activityPointsToday, 10)
+        XCTAssertEqual(model.baseEnergyToday, model.activityPointsToday + model.sleepPointsToday)
+    }
+
+    func testActivityIgnoresPreviousDayCache() {
+        let model = makeModel()
+        defaults.set(8_000.0, forKey: SharedKeys.cachedStepsToday)
+        defaults.set(Date.now.addingTimeInterval(-172_800), forKey: SharedKeys.dailyEnergyAnchor)
+        model.stepsToday = 0
+        model.healthStore.hasStepsData = true
+        XCTAssertEqual(model.activityPointsToday, 5)
+        XCTAssertTrue(model.isActivityAssumed)
+    }
+
+    func testActivityGiftSurvivesRolloverAndReturnsOnNextDay() async throws {
+        let snapshotURL = PersistenceManager.pastDaySnapshotsFileURL
+        let originalSnapshots = try? Data(contentsOf: snapshotURL)
+        defer {
+            if let originalSnapshots {
+                try? originalSnapshots.write(to: snapshotURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: snapshotURL)
+            }
+        }
+        let model = makeModel()
+        model.dayEndHour = (Calendar.current.component(.hour, from: .now) + 12) % 24
+        model.dayEndMinute = 0
+        await model.refreshStepsIfAuthorized()
+        XCTAssertEqual(model.activityPointsToday, 5)
+        XCTAssertTrue(model.isActivityAssumed)
+        XCTAssertEqual(model.baseEnergyToday, 15)
+        XCTAssertTrue(model.pay(cost: 5))
+        model.persistDailyEnergyState()
+
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1,
+                                                          to: model.currentDayStart(for: .now)))
+        defaults.set(yesterday, forKey: SharedKeys.dailyEnergyAnchor)
+        XCTAssertTrue(model.resetDailyEnergyIfNeeded())
+        let archived = try XCTUnwrap(model.loadPastDaySnapshots()[AppModel.dayKey(for: yesterday)])
+        XCTAssertEqual(archived.inkEarned, 15)
+        XCTAssertEqual(archived.inkSpent, 5)
+        XCTAssertEqual(archived.steps, 0, "A colors gift must never invent Health measurements")
+        XCTAssertFalse(model.isActivityAssumed, "A new day waits for its own query")
+
+        await model.refreshStepsIfAuthorized()
+        XCTAssertEqual(model.activityPointsToday, 5)
+        XCTAssertEqual(model.baseEnergyToday, 15)
+        XCTAssertEqual(model.stepsBalance, 15, "Yesterday's spending does not consume today's gift")
+    }
+
+    func testUnconnectedHealthStillGrantsDailyGifts() async {
+        for code in [HKError.Code.errorAuthorizationNotDetermined, .errorAuthorizationDenied, .errorHealthDataUnavailable] {
+            clearDefaults()
+            let health = ConfigurableHealthKitMock()
+            health.stepsError = NSError(domain: HKErrorDomain, code: code.rawValue)
+            health.sleepError = NSError(domain: HKErrorDomain, code: code.rawValue)
+            let model = AppModel(
+                healthKitService: health,
+                familyControlsService: MockFamilyControlsService(),
+                notificationService: MockNotificationService(),
+                budgetEngine: MockBudgetEngine(),
+                subscriptionStore: SubscriptionStore()
+            )
+            model.isBootstrapping = true
+            model.dayEndHour = (Calendar.current.component(.hour, from: .now) + 12) % 24
+            model.dayEndMinute = 0
+            await model.refreshStepsIfAuthorized()
+            XCTAssertEqual(model.activityPointsToday, 5, "Health unavailable: \(code)")
+            XCTAssertEqual(model.sleepPointsToday, 10)
+            XCTAssertEqual(model.baseEnergyToday, 15)
+            XCTAssertFalse(health.authorizationRequested, "Gifts must not trigger a permission prompt")
+        }
+    }
+
+    func testTransientHealthFailureDoesNotAssumeActivityBeforeAResult() async {
+        let health = ConfigurableHealthKitMock()
+        health.stepsError = NSError(domain: HKErrorDomain, code: HKError.Code.errorDatabaseInaccessible.rawValue)
+        let model = AppModel(
+            healthKitService: health,
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+        model.isBootstrapping = true
+        await model.refreshStepsBalance()
+        XCTAssertFalse(model.isActivityAssumed)
+        XCTAssertEqual(model.activityPointsToday, 0)
+    }
+
     // MARK: - Sleep points: assumed vs real
 
     func testSleepPointsToday_assumedWhenNoData() {
@@ -276,6 +420,12 @@ final class EnergyRecalcTests: XCTestCase {
 
     private func clearDefaults() {
         let keys = [
+            SharedKeys.dailySleepHours,
+            "cachedSleepHoursToday",
+            SharedKeys.cachedStepsToday,
+            SharedKeys.hasStepsData,
+            SharedKeys.dayEndHour,
+            SharedKeys.dayEndMinute,
             SharedKeys.userStepsTarget,
             SharedKeys.userSleepTarget,
             SharedKeys.restDayOverrideEnabled,

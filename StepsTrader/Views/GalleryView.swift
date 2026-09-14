@@ -208,7 +208,7 @@ struct GalleryView: View {
         EditorialCanvasInputFactory.make(
             canvas: dayCanvas,
             metrics: EditorialCanvasMetrics(
-                stepsProgress: Double(model.stepsPointsToday) / 20,
+                stepsProgress: Double(model.activityPointsToday) / 20,
                 sleepProgress: Double(model.sleepPointsToday) / 20,
                 spentProgress: decayNorm
             ),
@@ -358,7 +358,7 @@ struct GalleryView: View {
     private var canvasSyncState: CanvasSyncState {
         CanvasSyncState(
             sleepPoints: model.sleepPointsToday,
-            stepsPoints: model.stepsPointsToday,
+            stepsPoints: model.activityPointsToday,
             baseEnergy: model.baseEnergyToday,
             spentSteps: model.spentStepsToday,
             isBootstrapping: model.isBootstrapping,
@@ -779,7 +779,7 @@ struct GalleryView: View {
                 dayKey: dayCanvas.dayKey,
                 remixSeed: dayCanvas.remixSeed,
                 sleepPoints: model.sleepPointsToday,
-                stepsPoints: model.stepsPointsToday,
+                stepsPoints: model.activityPointsToday,
                 sleepColor: Color(hex: sleepColorHex),
                 stepsColor: Color(hex: stepsColorHex),
                 decayNorm: decayNorm,
@@ -831,7 +831,7 @@ struct GalleryView: View {
                     legacyCanvasLayers
                         .background {
                             EnergyGradientBackground(
-                                stepsPoints: model.stepsPointsToday,
+                                stepsPoints: model.activityPointsToday,
                                 sleepPoints: model.sleepPointsToday,
                                 hasStepsData: model.hasStepsData,
                                 hasSleepData: model.hasSleepData,
@@ -855,7 +855,7 @@ struct GalleryView: View {
                     CanvasAnimationOverlay(
                         elements: renderedCanvasElements,
                         sleepPoints: model.sleepPointsToday,
-                        stepsPoints: model.stepsPointsToday,
+                        stepsPoints: model.activityPointsToday,
                         sleepColor: Color(hex: sleepColorHex),
                         stepsColor: Color(hex: stepsColorHex),
                         decayNorm: decayNorm,
@@ -1322,11 +1322,12 @@ struct GalleryView: View {
     private var dataPanelRows: [CanvasDataRow] {
         [
             CanvasDataRow(
-                kind: .steps,
-                title: String(localized: "Steps", comment: "Canvas data panel – steps row"),
-                systemImage: "shoeprints.fill",
-                value: model.stepsPointsToday,
-                maxValue: EnergyDefaults.stepsMaxPoints
+                kind: .activity,
+                title: String(localized: "Activity", comment: "Canvas data panel – steps row"),
+                systemImage: model.isActivityAssumed ? "gift.fill" : "waveform.path",
+                value: model.activityPointsToday,
+                maxValue: EnergyDefaults.activityMaxPoints,
+                explanation: model.isActivityAssumed ? EnergyDefaults.activityAssumedMessage : nil
             ),
             CanvasDataRow(
                 kind: .sleep,
@@ -1855,7 +1856,7 @@ struct GalleryView: View {
 
         // 2. Update canvas metrics from model (sleep, steps, energy)
         let newSleep = model.sleepPointsToday
-        let newSteps = model.stepsPointsToday
+        let newSteps = model.activityPointsToday
         let newEarned = model.baseEnergyToday
         let newSpent = model.spentStepsToday
 
@@ -2346,7 +2347,7 @@ struct GalleryView: View {
                 canvasContent = AnyView(
                     ZStack {
                         EnergyGradientBackground(
-                            stepsPoints: model.stepsPointsToday,
+                            stepsPoints: model.activityPointsToday,
                             sleepPoints: model.sleepPointsToday,
                             hasStepsData: model.hasStepsData,
                             hasSleepData: model.hasSleepData,
@@ -2361,7 +2362,7 @@ struct GalleryView: View {
                             dayKey: dayCanvas.dayKey,
                             remixSeed: dayCanvas.remixSeed,
                             sleepPoints: model.sleepPointsToday,
-                            stepsPoints: model.stepsPointsToday,
+                            stepsPoints: model.activityPointsToday,
                             sleepColor: Color(hex: sleepColorHex),
                             stepsColor: Color(hex: stepsColorHex),
                             decayNorm: decayNorm,

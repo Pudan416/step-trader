@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Activity" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активность"
+          }
+        }
+      }
+    },
     "Background": {
       "extractionState": "manual",
       "localizations": {

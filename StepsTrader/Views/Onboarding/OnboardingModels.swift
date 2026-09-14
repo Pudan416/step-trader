@@ -135,10 +135,11 @@ enum OnboardingSlides {
             ),
             OnboardingSlide(
                 lines: [
-                    String(localized: "steps brighten it."),
-                    String(localized: "how many steps a day is your goal?")
+                    String(localized: "activity brightens it."),
+                    String(localized: "choose your daily activity goal.")
                 ],
-                slideType: .canvasSteps
+                slideType: .canvasSteps,
+                microcopy: String(localized: "For now, activity uses Apple Health steps. No data? You still get 5 colors.")
             ),
             OnboardingSlide(
                 lines: [
@@ -166,7 +167,7 @@ enum OnboardingSlides {
             ),
             OnboardingSlide(
                 lines: [
-                    String(localized: "the app needs access to apple health."),
+                    String(localized: "you can connect apple health."),
                     String(localized: "we read steps, sleep, and workouts. nothing else.")
                 ],
                 action: .requestHealth,

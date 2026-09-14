@@ -40,6 +40,10 @@ extension AppModel {
     
     func fallbackCachedSteps() -> Double {
         let g = UserDefaults.stepsTrader()
+        if let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date,
+           !isSameCustomDay(anchor, .now) {
+            return 0
+        }
         let cached = g.double(forKey: SharedKeys.cachedStepsToday)
         if cached > 0 {
             AppLogger.healthKit.debug("💾 Falling back to cached steps: \(cached)")

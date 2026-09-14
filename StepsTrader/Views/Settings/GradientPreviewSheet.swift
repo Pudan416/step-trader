@@ -12,7 +12,7 @@ struct GradientPreviewSheet: View {
     private let states: [(steps: Double, sleep: Double, label: String)] = [
         (1.0, 1.0, String(localized: "Full", comment: "GradientPreview – preview mode showing all data")),
         (0.0, 1.0, String(localized: "Sleep only", comment: "GradientPreview – preview mode sleep data only")),
-        (1.0, 0.0, String(localized: "Steps only", comment: "GradientPreview – preview mode steps data only")),
+        (1.0, 0.0, String(localized: "Activity only", comment: "GradientPreview – preview mode steps data only")),
         (0.0, 0.0, String(localized: "No data", comment: "GradientPreview – preview mode empty state")),
     ]
 

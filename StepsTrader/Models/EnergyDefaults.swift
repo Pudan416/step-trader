@@ -7,7 +7,12 @@ enum EnergyDefaults {
     static let sleepMaxPoints: Int = 20
     static let assumedSleepPoints: Int = 10
     static let stepsTarget: Double = 10_000
-    static let stepsMaxPoints: Int = 20
+    static let activityMaxPoints: Int = 20
+    static let assumedActivityPoints: Int = 5
+
+    static var activityAssumedMessage: String {
+        String(localized: "activity_assumed_message", comment: "Activity – gift when no Health data comes through")
+    }
 
     /// English titles for the 31 options that existed before happenings.
     ///

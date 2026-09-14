@@ -101,7 +101,7 @@ struct SettingsYourDayCardLabel: View {
     }
 
     private var stepsLabel: String {
-        String(localized: "Step goal", comment: "Settings Your day steps metric label")
+        String(localized: "Activity goal", comment: "Settings Your day steps metric label")
     }
 
     private var sleepLabel: String {

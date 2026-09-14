@@ -29,10 +29,15 @@ struct SettingsEnergyPage: View {
                     SettingsGroupedSurface {
                         VStack(spacing: 12) {
                             sectionHeader(
-                                icon: "figure.walk",
-                                title: String(localized: "Daily step goal"),
+                                icon: "waveform.path",
+                                title: String(localized: "Daily activity goal"),
                                 color: AppColors.brandAccent
                             )
+
+                            Text(String(localized: "Activity currently uses steps from Apple Health. You can use Nowhere without connecting it."))
+                                .font(.geist(.footnote))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
 
                             StepGoalDrumPicker(value: $stepsTarget)
                                 .environment(\.appTheme, .night)

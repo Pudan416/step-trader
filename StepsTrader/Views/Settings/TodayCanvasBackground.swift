@@ -405,7 +405,7 @@ struct TodayCanvasBackdropHost: ViewModifier {
 
     private var appearance: TodayCanvasAppearance {
         TodayCanvasAppearance(
-            dayKey: currentDay, steps: model.stepsPointsToday, sleep: model.sleepPointsToday,
+            dayKey: currentDay, steps: model.activityPointsToday, sleep: model.sleepPointsToday,
             earned: model.baseEnergyToday, spent: model.spentStepsToday,
             hasSteps: model.hasStepsData, hasSleep: model.hasSleepData,
             style: style, gradient: gradient, palette: palette, texture: texture, categories: categories
