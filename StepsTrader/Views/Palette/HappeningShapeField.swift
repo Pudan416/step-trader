@@ -36,7 +36,7 @@ struct HappeningShapeField: View {
                 onActivate(happening)
             } label: {
                 Text(happening.localizedTitle())
-                    .font(.geist(size: min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
+                    .font(.nowhereDisplay(min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(3)
                     .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
