@@ -94,6 +94,18 @@ final class CanvasEnergyStatusTests: XCTestCase {
 }
 
 final class CanvasChromePaletteTests: XCTestCase {
+    func testFeedsTabBarRemainsDistinctFromCardsAndKeepsIconsReadable() {
+        let inputs = ModernPaletteCatalog.all.map { $0.hexes.map(DayObjectRGB.init(hex:)) }
+            + [[], [DayObjectRGB(hex: "#000000")], [DayObjectRGB(hex: "#FFFFFF")]]
+        for colors in inputs {
+            let palette = CanvasChromePalette.resolve(backgroundColors: colors)
+            XCTAssertGreaterThanOrEqual(
+                contrastRatio(palette.feedTabSurface.linearRGB, palette.surface.linearRGB),
+                4.5
+            )
+        }
+    }
+
     func testAllCatalogPalettesHaveReadableTextButtonsAndProgress() {
         let inputs = ModernPaletteCatalog.all.map { $0.hexes.map(DayObjectRGB.init(hex:)) }
             + [[], [DayObjectRGB(hex: "#000000")], [DayObjectRGB(hex: "#FFFFFF")],

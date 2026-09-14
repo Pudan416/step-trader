@@ -72,6 +72,13 @@ struct CanvasChromePalette: Equatable {
     }
 
     var surfaceColor: Color { color(surface) }
+    /// Feeds cards use `surface`, so the floating bar needs its own tone when
+    /// a card scrolls beneath it. Mix toward the existing readable ink rather
+    /// than introducing an unrelated color into the day's palette.
+    var feedTabSurface: DayObjectRGB {
+        DayObjectRGB(sRGB: surface.sRGB * 0.25 + textPrimary.sRGB * 0.75)
+    }
+    var feedTabSurfaceColor: Color { color(feedTabSurface) }
     var textColor: Color { color(textPrimary) }
     var secondaryColor: Color { color(textSecondary) }
     var accentColor: Color { color(accent) }

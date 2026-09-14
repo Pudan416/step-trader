@@ -114,6 +114,11 @@ struct MainTabView: View {
     }
 
     private var tabTint: Color { canvasBackdrop.chromePalette.textColor }
+    private var tabBarSurfaceColor: Color {
+        selection == Tab.feeds.rawValue
+            ? canvasBackdrop.chromePalette.feedTabSurfaceColor
+            : canvasBackdrop.chromePalette.surfaceColor
+    }
 
     private var isWideCanvas: Bool { canvasPresentation.isWideCanvas }
 
@@ -439,7 +444,7 @@ struct MainTabView: View {
         GlassEffectContainer(spacing: 8) {
             tabBarItems(animated: true)
                 .padding(6)
-                .canvasChromeSurface(in: Capsule(style: .continuous))
+                .background(tabBarSurfaceColor, in: Capsule(style: .continuous))
         }
         .padding(.bottom, 4)
     }
@@ -447,7 +452,7 @@ struct MainTabView: View {
     private var legacyTabBar: some View {
         tabBarItems(animated: false)
             .padding(6)
-            .canvasChromeSurface(in: Capsule(style: .continuous))
+            .background(tabBarSurfaceColor, in: Capsule(style: .continuous))
             .clipShape(Capsule(style: .continuous))
             .padding(.bottom, 4)
     }
@@ -475,12 +480,20 @@ struct MainTabView: View {
                                 .offset(x: 3, y: -2)
                         }
                     }
-                    .foregroundStyle(isSelected ? tabTint : canvasBackdrop.chromePalette.secondaryColor)
+                    .foregroundStyle(
+                        isSelected ? tabTint : (
+                            selection == Tab.feeds.rawValue
+                                ? canvasBackdrop.chromePalette.surfaceColor
+                                : canvasBackdrop.chromePalette.secondaryColor
+                        )
+                    )
                     .frame(width: isSelected ? 78 : 70, height: 48)
                     .background {
                         if isSelected {
                             Capsule(style: .continuous)
-                                .fill(canvasBackdrop.chromePalette.trackColor)
+                                .fill(selection == Tab.feeds.rawValue
+                                      ? canvasBackdrop.chromePalette.surfaceColor
+                                      : canvasBackdrop.chromePalette.trackColor)
                         }
                     }
                     .contentShape(Capsule(style: .continuous))
