@@ -257,6 +257,7 @@ struct FeedRowView: View {
     let onPurchased: () -> Void
     @ObservedObject var backdrop: TodayCanvasBackdropStore = .shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.canvasChromePalette) private var palette
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ScaledMetric(relativeTo: .body) private var headerHeight = FeedCardLayout.collapsedHeight
@@ -285,6 +286,16 @@ struct FeedRowView: View {
 
     private var displayName: String {
         group.displayIdentity.title
+    }
+
+    private var invertsSystemTitle: Bool {
+        #if canImport(FamilyControls)
+        // FamilyActivityTitleView can retain the system's dark ink in light
+        // appearance even though the feed card always has a dark surface.
+        return colorScheme == .light && group.displayIdentity.applicationToken != nil
+        #else
+        return false
+        #endif
     }
 
     var body: some View {
@@ -350,6 +361,7 @@ struct FeedRowView: View {
                 AppGroupTitle(identity: group.displayIdentity)
                     .font(.geist(20, weight: .medium, relativeTo: .body))
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .modifier(FeedSystemTitleContrast(invert: invertsSystemTitle))
                     // Family Controls' token title has a taller intrinsic box
                     // than Text. Keep its line box aligned with named feeds.
                     .frame(
@@ -435,6 +447,19 @@ struct FeedRowView: View {
         return canOpen
             ? String(localized: "Double tap to open the app")
             : String(localized: "Double tap to open feed settings")
+    }
+}
+
+private struct FeedSystemTitleContrast: ViewModifier {
+    let invert: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if invert {
+            content.colorInvert()
+        } else {
+            content
+        }
     }
 }
 
