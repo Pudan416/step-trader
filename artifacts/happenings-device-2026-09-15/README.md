@@ -8,6 +8,8 @@ The signed app and all four embedded extensions passed strict signature verifica
 
 App bundle: `/private/tmp/nowhere-happenings-device-20260915-dd/Build/Products/Debug-iphoneos/Nowhere.app`.
 
-Installation is NOT confirmed. The first Wi-Fi attempt timed out after 180 seconds. A second attempt failed with CoreDeviceError 3002 wrapping IXRemoteErrorDomain 6, Connection interrupted. The device still answers over localNetwork; USB connection was requested. The installed revision remains unconfirmed. Launch and physical-device UI verification were not performed.
+Installation and launch succeeded over Wi-Fi on iPhone Costa at 00:48 Europe/Belgrade on 2026-09-15. Installed Git revision: `0f8aec47ab0198fe6368ed6c839d11d82abee7a3`. The later documentation-only commit did not change the built app.
 
-Resume by installing the prepared app bundle over a stable connection, then launch `personal-project.StepsTrader` and update this record with the actual results.
+The first attempt timed out after 180 seconds; the second failed with Connection interrupted. After the user requested retrying over Wi-Fi, the third attempt completed successfully. `devicectl device process launch --terminate-existing` then confirmed app launch.
+
+Physical-device installation and launch are confirmed. Visual, gesture and typography checks remain the previously recorded simulator checks; no physical-device UI inspection was performed.

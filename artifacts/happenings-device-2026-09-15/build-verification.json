@@ -55,11 +55,25 @@
       "errorDomain": "IXRemoteErrorDomain",
       "errorCode": 6,
       "reason": "Connection interrupted"
+    },
+    {
+      "outcome": "success",
+      "transport": "Wi-Fi",
+      "date": "2026-09-15"
     }
   ],
-  "installationConfirmed": false,
-  "installedRevision": "unconfirmed",
-  "launchOutcome": "not attempted; installation did not complete",
+  "installationConfirmed": true,
+  "installedRevision": "0f8aec47ab0198fe6368ed6c839d11d82abee7a3",
+  "launchOutcome": "success",
   "lastConnection": "localNetwork, connected",
-  "physicalDeviceVisualVerification": "not performed"
+  "physicalDeviceVisualVerification": "not performed; installation and app launch confirmed by devicectl",
+  "installedApplication": {
+    "bundleID": "personal-project.StepsTrader",
+    "databaseSequenceNumber": 5104,
+    "databaseUUID": "032ADD01-E900-435A-8C63-40156A0DB1FA",
+    "installationURL": "file:///private/var/containers/Bundle/Application/9150F3CB-7FC0-4C79-985D-7FA8D423E154/Nowhere.app/",
+    "launchServicesIdentifier": "unknown",
+    "options": {}
+  },
+  "installedAndLaunchedLocalTime": "2026-09-15 00:48 Europe/Belgrade"
 }
