@@ -1,0 +1,65 @@
+{
+  "builtRevision": "0f8aec47ab0198fe6368ed6c839d11d82abee7a3",
+  "branch": "codex/happenings-field",
+  "app": "/private/tmp/nowhere-happenings-device-20260915-dd/Build/Products/Debug-iphoneos/Nowhere.app",
+  "bundles": [
+    {
+      "bundle": "Nowhere.app",
+      "id": "personal-project.StepsTrader",
+      "signature": "valid",
+      "deviceProvisioned": true,
+      "profileExpiry": "2027-08-08T09:56:59"
+    },
+    {
+      "bundle": "DeviceActivityMonitor.appex",
+      "id": "personal-project.StepsTrader.DeviceActivityMonitor",
+      "signature": "valid",
+      "deviceProvisioned": true,
+      "profileExpiry": "2027-08-08T09:56:52"
+    },
+    {
+      "bundle": "UnlockWidgetExtension.appex",
+      "id": "personal-project.StepsTrader.UnlockWidget",
+      "signature": "valid",
+      "deviceProvisioned": true,
+      "profileExpiry": "2027-08-08T09:56:49"
+    },
+    {
+      "bundle": "ShieldConfiguration.appex",
+      "id": "personal-project.StepsTrader.ShieldConfiguration",
+      "signature": "valid",
+      "deviceProvisioned": true,
+      "profileExpiry": "2027-08-08T09:56:54"
+    },
+    {
+      "bundle": "ShieldAction.appex",
+      "id": "personal-project.StepsTrader.ShieldAction",
+      "signature": "valid",
+      "deviceProvisioned": true,
+      "profileExpiry": "2027-08-08T09:56:56"
+    }
+  ],
+  "fonts": 11,
+  "gateImagesMatchingSource": 21,
+  "audioFiles": 122,
+  "requiredResources": "passed",
+  "installationScope": "User explicitly requested this feature build; current-integration is closed and must not be pushed.",
+  "deviceName": "iPhone Costa",
+  "installationAttempts": [
+    {
+      "outcome": "timeout",
+      "timeoutSeconds": 180
+    },
+    {
+      "outcome": "failed",
+      "errorDomain": "IXRemoteErrorDomain",
+      "errorCode": 6,
+      "reason": "Connection interrupted"
+    }
+  ],
+  "installationConfirmed": false,
+  "installedRevision": "unconfirmed",
+  "launchOutcome": "not attempted; installation did not complete",
+  "lastConnection": "localNetwork, connected",
+  "physicalDeviceVisualVerification": "not performed"
+}
