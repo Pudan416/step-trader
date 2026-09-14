@@ -162,7 +162,7 @@ struct HappeningPaletteTransitionTimeline {
                     return .init(
                         happeningID: slot.happeningID,
                         assignment: prior.assignment,
-                        source: prior.source,
+                        source: slot.source,
                         controls: withOpacity(prior.controls, multiplier: 1 - elapsedSinceTransition / fade)
                     )
                 }
@@ -201,7 +201,7 @@ struct HappeningPaletteTransitionTimeline {
         guard let current else { return false }
         return reduceMotionChanged
             || current.assignment != next.assignment
-            || current.source != next.source
+            || current.source.radius != next.source.radius
             || HappeningPaletteRenderControls.target(for: current.visualState)
                 != HappeningPaletteRenderControls.target(for: next.visualState)
     }
@@ -214,8 +214,8 @@ struct HappeningPaletteTransitionTimeline {
         HappeningFieldLayout.Source(
             index: target.index,
             center: CGPoint(
-                x: interpolate(Double(source.center.x), Double(target.center.x), progress),
-                y: interpolate(Double(source.center.y), Double(target.center.y), progress)
+                x: target.center.x,
+                y: target.center.y
             ),
             radius: interpolate(Double(source.radius), Double(target.radius), progress)
         )

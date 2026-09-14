@@ -1,9 +1,7 @@
 import SwiftUI
 
-/// Deterministic constellation for the configured happening slots.
-///
-/// The palette has no containing blob. Each source is a real, independent
-/// circle placed between the persistent energy bar and the bottom dock.
+/// Stable circle positions for the happening field. Larger catalogs extend
+/// beyond the viewport in both directions instead of shrinking their targets.
 enum HappeningFieldLayout {
     struct Source: Equatable {
         let index: Int
@@ -17,6 +15,18 @@ enum HappeningFieldLayout {
         let contourBounds: CGRect
         let dockAnchor: CGPoint
         let completionBounds: CGRect?
+        var contentSize: CGSize = .zero
+
+        /// Metal receives screen coordinates; ScrollView keeps the same sources
+        /// in content coordinates for labels, hit testing and accessibility.
+        func translated(by offset: CGPoint) -> Layout {
+            Layout(
+                sources: sources.map { Source(index: $0.index, center: CGPoint(x: $0.center.x - offset.x, y: $0.center.y - offset.y), radius: $0.radius) },
+                labelFrames: labelFrames.map { $0.offsetBy(dx: -offset.x, dy: -offset.y) },
+                contourBounds: contourBounds.offsetBy(dx: -offset.x, dy: -offset.y),
+                dockAnchor: dockAnchor, completionBounds: completionBounds, contentSize: contentSize
+            )
+        }
     }
 
     private static let edgeClearance: CGFloat = 17
@@ -89,6 +99,26 @@ enum HappeningFieldLayout {
                     height: completionSize.height
                 )
             )
+        }
+
+        if count > 10 {
+            let radius = max(68, min(96, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize / 14 * 68))
+            let columns = 5
+            let gap: CGFloat = 8
+            let step = radius * 2 + gap
+            let width = max(size.width, edgeClearance * 2 + CGFloat(columns) * step - gap)
+            let sources = (0..<count).map { index in
+                Source(index: index, center: CGPoint(
+                    x: edgeClearance + radius + CGFloat(index % columns) * step,
+                    y: contentTop + radius + CGFloat(index / columns) * step
+                ), radius: radius)
+            }
+            var result = makeLayout(sources: sources, dockAnchor: dockAnchor)
+            result.contentSize = CGSize(
+                width: width,
+                height: max(size.height, result.contourBounds.maxY + (size.height - dockAnchor.y) + 80)
+            )
+            return result
         }
 
         return standardLayout(

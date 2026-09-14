@@ -155,6 +155,8 @@ struct HappeningChooserView: View {
 
     private var currentList: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("These happenings appear first in the field.")
+                .font(.geist(.footnote))
             HStack {
                 Text("Tap to replace")
                 Spacer()
@@ -304,7 +306,7 @@ struct HappeningChooserView: View {
 #Preview {
     HappeningChooserView(
         catalog: HappeningDefaults.builtIns,
-        selected: HappeningDefaults.builtIns.map(\.id),
+        selected: Array(HappeningDefaults.builtIns.prefix(10)).map(\.id),
         protectedIDs: ["walk"], onSave: { _ in }, onCancel: {}
     )
 }

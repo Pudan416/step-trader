@@ -1111,11 +1111,11 @@ final class HappeningFieldPresentationStateTests: XCTestCase {
         XCTAssertEqual(state.layout(in: size, safeInsets: safeInsets), original)
     }
 
-    func testConfiguredReplacementTakesFirstTenAndPreservesTheirOrder() {
+    func testConfiguredReplacementPreservesTheWholeFieldOrder() {
         var state = HappeningFieldPresentationState(happenings: [])
         let configured = Array(HappeningDefaults.builtIns.reversed())
         state.receiveParent(configured)
-        XCTAssertEqual(state.presentedHappenings.map(\.id), Array(configured.prefix(10)).map(\.id))
+        XCTAssertEqual(state.presentedHappenings.map(\.id), configured.map(\.id))
     }
 }
 
@@ -1640,5 +1640,61 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
             ),
             actorColorVariants: actorColorVariants
         )
+    }
+}
+
+
+final class HappeningScrollableFieldTests: XCTestCase {
+    func testThirtyChoicesExtendBeyondBothEdgesWithoutShrinkingTouchTargets() {
+        let viewport = CGSize(width: 390, height: 844)
+        let layout = HappeningFieldLayout.layout(
+            count: 30, in: viewport, safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 170, dockCenterY: 770
+        )
+        XCTAssertEqual(layout.sources.count, 30)
+        XCTAssertGreaterThan(layout.contourBounds.width, viewport.width)
+        XCTAssertGreaterThan(layout.contourBounds.height, viewport.height - 170 - 74)
+        XCTAssertTrue(layout.sources.allSatisfy { $0.radius >= 64 })
+        for (index, source) in layout.sources.enumerated() {
+            for other in layout.sources.dropFirst(index + 1) {
+                XCTAssertGreaterThanOrEqual(hypot(source.center.x - other.center.x, source.center.y - other.center.y), source.radius + other.radius)
+            }
+        }
+    }
+
+    @MainActor
+    func testNativeScrollOffsetReachesTheRendererBindingOnBothAxes() throws {
+        var offset = CGPoint.zero
+        let layout = HappeningFieldLayout.layout(count: 30, in: CGSize(width: 390, height: 844), safeInsets: EdgeInsets())
+        let view = HappeningPaletteView(
+            happenings: HappeningDefaults.builtIns,
+            scrollOffset: Binding(get: { offset }, set: { offset = $0 }),
+            layout: layout, interaction: HappeningPaletteInteractionState(), addedIDs: [], instruction: nil,
+            onActivate: { _ in }, onCreate: { _ in .failed }
+        )
+        let host = UIHostingController(rootView: view)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        func findScroll(_ view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            return view.subviews.lazy.compactMap { findScroll($0) }.first
+        }
+        let scroll = try XCTUnwrap(findScroll(host.view))
+        scroll.setContentOffset(CGPoint(x: 120, y: 180), animated: false)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        XCTAssertEqual(offset.x, 120, accuracy: 1)
+        XCTAssertEqual(offset.y, 180, accuracy: 1)
+    }
+
+    func testPresentationKeepsTheWholeCatalogIncludingCustomChoices() {
+        let choices = (0..<37).map { Happening(id: "field_\($0)", title: "Choice \($0)", isBuiltIn: false) }
+        var state = HappeningFieldPresentationState(happenings: choices)
+        XCTAssertEqual(state.presentedHappenings, choices)
+        state.receiveParent(choices.reversed())
+        XCTAssertEqual(state.presentedHappenings, choices.reversed())
     }
 }

@@ -8,8 +8,8 @@ final class HappeningModelTests: XCTestCase {
 
     // MARK: - Built-in set
 
-    func testBuiltInSetIsExactlyTen() {
-        XCTAssertEqual(HappeningDefaults.builtIns.count, 10)
+    func testBuiltInSetIsExactlyThirty() {
+        XCTAssertEqual(HappeningDefaults.builtIns.count, 30)
     }
 
     func testBuiltInIdsAreUnique() {

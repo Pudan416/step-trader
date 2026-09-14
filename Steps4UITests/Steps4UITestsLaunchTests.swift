@@ -534,13 +534,13 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "Walk",
             "Workout",
             "Slept well",
-            "Called someone",
-            "Drinks together",
+            "Connected",
+            "Time together",
             "Read",
             "Laughed",
             "Made something",
             "Time outside",
-            "Did nothing",
+            "Rested",
         ]
     }
 
@@ -648,7 +648,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
     }
 
     private func assertPersistentPaletteChrome(in app: XCUIApplication) {
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")).count, 10)
+        XCTAssertGreaterThanOrEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")).count, 30)
         for id in [
             "walk", "workout", "slept_well", "called_someone", "drinks",
             "read", "laughed", "made_something", "outside", "did_nothing",
@@ -693,7 +693,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")
             ).count,
-            10
+            30
         )
         XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
         XCTAssertTrue(app.buttons["Close"].isHittable)
@@ -711,7 +711,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         assertPersistentPaletteChrome(in: app)
     }
 
-    func testHappeningPaletteAccessibilityKeepsFixedRows() throws {
+    func testHappeningPaletteAccessibilityKeepsReadableScrollableRows() throws {
         let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true)
         openPalette(in: app)
         assertPersistentPaletteChrome(in: app)
@@ -720,14 +720,12 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         ).allElementsBoundByIndex
         let rows = Dictionary(grouping: slots) { round($0.frame.midY) }
             .sorted { $0.key < $1.key }.map { $0.value.count }
-        XCTAssertEqual(rows, [3, 2, 3, 2])
+        XCTAssertEqual(rows, [5, 5, 5, 5, 5, 5])
         for slot in slots {
-            XCTAssertTrue(slot.isHittable)
             XCTAssertGreaterThanOrEqual(slot.frame.width, 44)
             XCTAssertGreaterThanOrEqual(slot.frame.height, 44)
-            XCTAssertTrue(app.frame.contains(slot.frame))
         }
-        attachScreenshot(named: "editorial-palette-accessibility5-fixed-rows")
+        attachScreenshot(named: "editorial-palette-accessibility5-scrollable-rows")
     }
 
     func testHappeningEditorReplacementCreationAndCancellation() throws {
@@ -807,6 +805,57 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "happening-editor-large-text-keyboard")
         done.tap()
         XCTAssertTrue(app.buttons["Tea"].waitForExistence(timeout: 5))
+    }
+
+    func testThirtyHappeningsPanDiagonallyAndKeepSelection() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+        let field = app.scrollViews["happening_field_scroll"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")).count, 30)
+        let walk = app.buttons["happening_choice_happening_walk"]
+        XCTAssertTrue(walk.isHittable)
+        let initial = walk.frame
+        attachScreenshot(named: "happenings-field-start")
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.72))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.38)))
+        Thread.sleep(forTimeInterval: 0.8)
+        XCTAssertLessThan(walk.frame.minX, initial.minX - 40)
+        XCTAssertLessThan(walk.frame.minY, initial.minY - 40)
+        let drew = app.buttons["happening_choice_happening_drew"]
+        XCTAssertTrue(drew.isHittable)
+        attachScreenshot(named: "happenings-field-diagonal")
+        drew.tap()
+        XCTAssertEqual(drew.value as? String, "Previewing addition to Canvas")
+        drew.tap()
+        XCTAssertEqual(drew.value as? String, "On Canvas")
+        Thread.sleep(forTimeInterval: 0.6)
+        attachScreenshot(named: "happenings-field-added")
+        let selectedFrame = drew.frame
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.4))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.65)))
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertEqual(drew.value as? String, "On Canvas")
+        XCTAssertGreaterThan(drew.frame.minX, selectedFrame.minX)
+        XCTAssertGreaterThan(drew.frame.minY, selectedFrame.minY)
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+    }
+
+    func testHappeningFieldLargeTypeCanReachTheLastChoice() throws {
+        let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true)
+        openPalette(in: app)
+        let field = app.scrollViews["happening_field_scroll"]
+        let last = app.buttons["happening_choice_happening_said_no"]
+        for _ in 0..<3 {
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.72))
+                .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.35)))
+        }
+        XCTAssertTrue(last.isHittable)
+        last.tap()
+        XCTAssertEqual(last.value as? String, "Previewing addition to Canvas")
+        Thread.sleep(forTimeInterval: 0.5)
+        attachScreenshot(named: "happenings-field-large-type")
+        XCTAssertTrue(app.buttons["Close"].isHittable)
     }
 
     private func launchTask7App(

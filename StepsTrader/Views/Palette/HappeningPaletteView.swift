@@ -100,6 +100,7 @@ struct HappeningPaletteView: View {
     let labelInks: [String: HappeningPaletteLabelInk]
     let catalog: [Happening]
     let selectedIDs: [String]
+    @Binding var scrollOffset: CGPoint
     @Binding var activePanel: HappeningPalettePanel?
     let layout: HappeningFieldLayout.Layout
     let interaction: HappeningPaletteInteractionState
@@ -121,6 +122,7 @@ struct HappeningPaletteView: View {
         catalog: [Happening]? = nil,
         selectedIDs: [String]? = nil,
         activePanel: Binding<HappeningPalettePanel?> = .constant(nil),
+        scrollOffset: Binding<CGPoint> = .constant(.zero),
         layout: HappeningFieldLayout.Layout,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
@@ -137,6 +139,7 @@ struct HappeningPaletteView: View {
         self.labelInks = labelInks
         self.catalog = catalog ?? happenings
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
+        _scrollOffset = scrollOffset
         _activePanel = activePanel
         self.layout = layout
         self.interaction = interaction
@@ -153,16 +156,33 @@ struct HappeningPaletteView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                HappeningShapeField(
-                    happenings: happenings,
-                    assignments: assignments,
-                    layout: layout,
-                    interaction: interaction,
-                    addedIDs: addedIDs,
-                    onActivate: onActivate,
-                    labelInks: labelInks
-                )
+                ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                    HappeningShapeField(
+                        happenings: happenings,
+                        assignments: assignments,
+                        layout: layout,
+                        interaction: interaction,
+                        addedIDs: addedIDs,
+                        onActivate: onActivate,
+                        labelInks: labelInks
+                    )
+                    .frame(
+                        width: max(proxy.size.width, layout.contentSize.width),
+                        height: max(proxy.size.height, layout.contentSize.height)
+                    )
+                    .background {
+                        GeometryReader { content in
+                            Color.clear.preference(
+                                key: HappeningScrollOffsetKey.self,
+                                value: content.frame(in: .named("happening-field-scroll")).origin
+                            )
+                        }
+                    }
+                }
+                .coordinateSpace(name: "happening-field-scroll")
+                .modifier(HappeningScrollTracking(offset: $scrollOffset))
                 .frame(width: proxy.size.width, height: proxy.size.height)
+                .accessibilityIdentifier("happening_field_scroll")
                 .accessibilityHidden(activePanel != nil)
                 .allowsHitTesting(activePanel == nil)
 
@@ -311,5 +331,38 @@ private struct HappeningPaletteInstructionView: View {
         .liquidGlassControl(in: Capsule())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("happening_palette_instruction")
+    }
+}
+
+private struct HappeningScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGPoint = .zero
+    static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) { value = nextValue() }
+}
+
+/// The compositor scrolls SwiftUI content without relaying GeometryReader
+/// preferences on newer iOS releases. Observe the native scroll geometry there.
+private struct HappeningScrollTracking: ViewModifier {
+    @Binding var offset: CGPoint
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGPoint.self) { geometry in
+                geometry.contentOffset
+            } action: { _, next in
+                update(next)
+            }
+        } else {
+            content.onPreferenceChange(HappeningScrollOffsetKey.self) { origin in
+                update(CGPoint(x: -origin.x, y: -origin.y))
+            }
+        }
+    }
+
+    private func update(_ next: CGPoint) {
+        guard offset != next else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { offset = next }
     }
 }

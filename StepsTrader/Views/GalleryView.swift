@@ -102,6 +102,7 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
+    @State private var paletteScrollOffset: CGPoint = .zero
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
@@ -390,8 +391,9 @@ struct GalleryView: View {
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
         paletteHappenings = model.configuredPaletteHappenings()
+            + HappeningPaletteSelection.alternatives(catalog: paletteCatalog, selected: paletteSelectedIDs)
         let request = HappeningEditorialAssignmentRequest(
-            happenings: model.configuredPaletteHappenings(),
+            happenings: paletteHappenings,
             baseInput: editorialRenderInput.sceneInput,
             committedElements: dayCanvas.elements,
             colorNonce: model.paletteColorNonce()
@@ -408,6 +410,7 @@ struct GalleryView: View {
         metricOverlay = nil
         send(.openHappeningPalette)
         refreshHappeningPalette()
+        paletteScrollOffset = .zero
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
             showHappeningPalette = true
@@ -472,6 +475,7 @@ struct GalleryView: View {
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
                 activePanel: $happeningPalettePanel,
+                scrollOffset: $paletteScrollOffset,
                 layout: layout,
                 interaction: paletteInteraction,
                 addedIDs: paletteAddedIDs,
@@ -518,7 +522,7 @@ struct GalleryView: View {
 
     private func happeningPaletteLayout(in viewport: GeometryProxy) -> HappeningFieldLayout.Layout {
         HappeningFieldLayout.layout(
-            count: min(10, paletteHappenings.count),
+            count: paletteHappenings.count,
             in: viewport.size,
             safeInsets: canvasSafeInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
@@ -532,10 +536,13 @@ struct GalleryView: View {
 
     private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize) -> DayObjectsPresentationMode {
         guard showHappeningPalette else { return .canvas }
-        let slots = paletteHappenings.prefix(10).enumerated().compactMap { index, happening
+        let slots = paletteHappenings.enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
             guard index < layout.sources.count,
                   let assignment = paletteEditorialAssignments[happening.id] else { return nil }
+            let source = layout.sources[index]
+            let bounds = CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius, width: source.radius * 2, height: source.radius * 2)
+            guard bounds.intersects(CGRect(origin: .zero, size: viewportSize).insetBy(dx: -32, dy: -32)) else { return nil }
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
@@ -826,7 +833,7 @@ struct GalleryView: View {
                     editorial: displayedEditorialRenderInput,
                     isAnimating: isCanvasSelected,
                     soundPulseBus: canvasSoundPulseBus,
-                    presentationMode: paletteRenderMode(layout: paletteLayout, viewportSize: viewport.size)
+                    presentationMode: paletteRenderMode(layout: paletteLayout.translated(by: paletteScrollOffset), viewportSize: viewport.size)
                 ) {
                     legacyCanvasLayers
                         .background {

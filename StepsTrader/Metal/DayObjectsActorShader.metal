@@ -826,18 +826,17 @@ fragment float4 dayObjectsActorFragment(
         return float4(premultiplied, alpha);
     }
 
-    // Match the native picker: a light translucent surface, independent of
-    // the gradient and app theme, with enough luminance for black labels.
+    // Match the native picker: a pale tint of the day with readable black labels.
     const float shoulder = smoothstep(0.65, 1.0, sphereRadius);
     const float rim = smoothstep(0.965, 0.985, sphereRadius);
-    const float neutralAlpha = (0.52 + shoulder * 0.06 + rim * 0.08)
+    const float neutralAlpha = (0.72 + shoulder * 0.06 + rim * 0.08)
         * baseBodyCoverage * actorOpacity;
-    const float3 neutralColor = float3(0.96);
+    const float3 neutralColor = mix(float3(0.96), clamp(backgroundTexture.sample(linearSampler, in.screenUV).rgb, 0.0, 1.0), 0.18);
     const float presentedAlpha = mix(neutralAlpha, alpha, paletteProgress);
     float3 presentedRGB = mix(neutralColor * neutralAlpha, premultiplied, paletteProgress);
     float3 straightRGB = presentedAlpha > 1e-6 ? presentedRGB / presentedAlpha : float3(0.0);
     const float luminance = dot(straightRGB, float3(0.2126, 0.7152, 0.0722));
-    straightRGB = mix(float3(luminance), straightRGB, in.presentationSaturation);
+    straightRGB = mix(float3(luminance), straightRGB, mix(1.0, in.presentationSaturation, paletteProgress));
 
     // A narrow band wholly inside the current contour. Neither the core nor
     // the exterior halo/trail gains colour or coverage during removal.

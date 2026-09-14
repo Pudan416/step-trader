@@ -144,7 +144,7 @@ struct HappeningFieldPresentationState: Equatable {
     var presentedCount: Int { presentedHappenings.count }
 
     init(happenings: [Happening]) {
-        presentedHappenings = Array(happenings.prefix(10))
+        presentedHappenings = happenings
     }
 
     func layout(
@@ -165,7 +165,7 @@ struct HappeningFieldPresentationState: Equatable {
     }
 
     mutating func receiveParent(_ configured: [Happening]) {
-        presentedHappenings = Array(configured.prefix(10))
+        presentedHappenings = configured
     }
 
     mutating func reset(with configured: [Happening]) {

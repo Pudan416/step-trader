@@ -3,13 +3,14 @@
 struct NativeAtlasPlacement { float4 pose; float4 canvas; float4 effects; float4 presentation; };
 static_assert(sizeof(NativeAtlasPlacement) == 64, "Native placement must match four Swift float4 values");
 
-static float4 nativeAtlasPickerCircle(float2 point, float coverage) {
+static float4 nativeAtlasPickerCircle(float2 point, float coverage, float3 dayColor) {
     const float radius = length(point);
     const float shoulder = smoothstep(0.65, 1.0, radius);
     const float rim = smoothstep(0.965, 0.985, radius);
-    const float alpha = coverage * (0.52 + shoulder * 0.06 + rim * 0.08);
-    // A light surface supports black ink even over a near-black gradient.
-    const float3 color = float3(0.96);
+    const float alpha = coverage * (0.72 + shoulder * 0.06 + rim * 0.08);
+    // A little of the day's local pigment, lifted by a light backing.
+    // Even over black, the centre has >11:1 contrast against black labels.
+    const float3 color = mix(float3(0.96), clamp(dayColor, 0.0, 1.0), 0.18);
     return float4(color * alpha, alpha);
 }
 
@@ -31,7 +32,7 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
         const float2 point = local * 2.72;
         const float distance = length(point) - 1.0;
         const float aa = max(fwidth(distance), 0.0025);
-        const float4 lens = nativeAtlasPickerCircle(point, smoothstep(aa, -aa, distance)) * placement.canvas.z;
+        const float4 lens = nativeAtlasPickerCircle(point, smoothstep(aa, -aa, distance), background.rgb) * placement.canvas.z;
         return float4(lens.rgb + background.rgb * (1.0 - lens.a), background.a);
     }
     MetalShapeVertexOut shapeIn = in; shapeIn.uv = local + 0.5;
@@ -44,7 +45,7 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
         const float aa = max(fwidth(distance), 0.0025);
         const float filled = smoothstep(aa, -aa, distance);
         const float reveal = smoothstep(0.45, 1.0, morph);
-        shape = mix(nativeAtlasPickerCircle(point, filled), shape, reveal);
+        shape = mix(nativeAtlasPickerCircle(point, filled, background.rgb), shape, reveal);
     }
     float4 foreground = shape * placement.canvas.z;
     const float a = clamp(foreground.a, 0.0, 1.0);

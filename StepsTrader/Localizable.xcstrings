@@ -2625,6 +2625,132 @@
         }
       }
     },
+    "These happenings appear first in the field." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "These happenings appear first in the field." } }
+      }
+    },
+    "option.title.happening_cooked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cooked" } }
+      }
+    },
+    "option.title.happening_shared_meal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shared a meal" } }
+      }
+    },
+    "option.title.happening_hugged" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hugged someone" } }
+      }
+    },
+    "option.title.happening_met_someone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Met someone new" } }
+      }
+    },
+    "option.title.happening_helped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Helped someone" } }
+      }
+    },
+    "option.title.happening_played" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Played" } }
+      }
+    },
+    "option.title.happening_danced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Danced" } }
+      }
+    },
+    "option.title.happening_sang" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sang" } }
+      }
+    },
+    "option.title.happening_drew" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drew" } }
+      }
+    },
+    "option.title.happening_wrote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Wrote" } }
+      }
+    },
+    "option.title.happening_photos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Took photos" } }
+      }
+    },
+    "option.title.happening_swam" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Swam" } }
+      }
+    },
+    "option.title.happening_bike" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rode a bike" } }
+      }
+    },
+    "option.title.happening_stretched" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stretched" } }
+      }
+    },
+    "option.title.happening_explored" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Explored" } }
+      }
+    },
+    "option.title.happening_film" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Watched a film" } }
+      }
+    },
+    "option.title.happening_plants" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tended plants" } }
+      }
+    },
+    "option.title.happening_daydreamed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Daydreamed" } }
+      }
+    },
+    "option.title.happening_asked_for_help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Asked for help" } }
+      }
+    },
+    "option.title.happening_said_no" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Said no" } }
+      }
+    },
     "option.title.happening_called_someone" : {
       "extractionState" : "manual",
       "localizations" : {

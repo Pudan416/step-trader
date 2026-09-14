@@ -1,7 +1,7 @@
 import SwiftUI
 import simd
 
-/// Transparent labels and hit targets over the renderer's fixed ten actors.
+/// Transparent labels and hit targets over the renderer's scrollable actors.
 struct HappeningShapeField: View {
     let happenings: [Happening]
     let assignments: [String: HappeningEditorialAssignment]
@@ -9,11 +9,12 @@ struct HappeningShapeField: View {
     let interaction: HappeningPaletteInteractionState
     let addedIDs: Set<String>
     let onActivate: (Happening) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var labelInks: [String: HappeningPaletteLabelInk] = [:]
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ForEach(Array(happenings.prefix(10).enumerated()), id: \.element.id) { index, happening in
+            ForEach(Array(happenings.enumerated()), id: \.element.id) { index, happening in
                 if index < layout.sources.count {
                     happeningButton(happening, source: layout.sources[index])
                 }
@@ -35,9 +36,9 @@ struct HappeningShapeField: View {
                 onActivate(happening)
             } label: {
                 Text(happening.localizedTitle())
-                    .font(.geist(size: 14, weight: .semibold))
+                    .font(.geist(size: min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
                     // Preview actions never participate in the title's layout.
                     .overlay {

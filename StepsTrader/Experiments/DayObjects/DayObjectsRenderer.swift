@@ -314,18 +314,21 @@ struct DayObjectsGlitchUniforms: Equatable {
 
 /// A depth-sorted frame snapshot ready for a single instanced actor draw.
 struct DayObjectsActorUpload: Equatable {
+    /// Palette browsing can expose more choices than a day's ten artwork actors.
+    static let maximumActorCount = 64
     let actors: [DayObjectGPUActor]
     let appearances: [DayObjectGPUAppearance]
     let uniforms: DayObjectsActorUniforms
 
     init(
         actors renderActors: [DayObjectRenderActor],
+        actorLimit: Int = DayObjectScene.maxActors,
         resolution: SIMD2<Float>,
         lightDirection: SIMD2<Float> = SIMD2(1, 0),
         lightSoftness: Float = 0.6,
         globalTime: Float = 0
     ) {
-        let boundedActors = Array(renderActors.prefix(DayObjectScene.maxActors))
+        let boundedActors = Array(renderActors.prefix(min(max(actorLimit, 1), Self.maximumActorCount)))
         self.init(
             gpuActors: boundedActors.map(\.gpuActor),
             gpuAppearances: boundedActors.map(\.gpuAppearance),
@@ -346,7 +349,7 @@ struct DayObjectsActorUpload: Equatable {
         lightSoftness: Float,
         globalTime: Float
     ) {
-        actors = Array(gpuActors.prefix(DayObjectScene.maxActors))
+        actors = gpuActors
         appearances = Array(gpuAppearances.prefix(actors.count))
         uniforms = DayObjectsActorUniforms(
             resolution: resolution,
@@ -546,7 +549,7 @@ final class DayObjectsActorBufferRing {
     ) {
         scheduler = DayObjectsInFlightScheduler(slotCount: requestedSlotCount)
         slotCount = scheduler.slotCount
-        let capacity = min(max(actorCapacity, 1), DayObjectScene.maxActors)
+        let capacity = min(max(actorCapacity, 1), DayObjectsActorUpload.maximumActorCount)
         bufferLength = DayObjectGPUActor.metalStride * capacity
         appearanceBufferLength = DayObjectGPUAppearance.metalStride * capacity
 
@@ -976,7 +979,7 @@ struct DayObjectsBackgroundRenderPolicy {
 }
 
 final class DayObjectsRenderer: NSObject, MTKViewDelegate {
-    static let actorCapacity = DayObjectScene.maxActors
+    static let actorCapacity = DayObjectsActorUpload.maximumActorCount
     static let colorPixelFormat: MTLPixelFormat = .bgra8Unorm_srgb
 
     /// The post shader writes linear light. An sRGB drawable performs the
@@ -1498,6 +1501,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
 
         let actorUpload = DayObjectsActorUpload(
             actors: frame.actors,
+            actorLimit: Self.actorCapacity,
             resolution: SIMD2(
                 Float(renderTargets.scene.width),
                 Float(renderTargets.scene.height)

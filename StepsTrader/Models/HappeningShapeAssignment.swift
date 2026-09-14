@@ -150,7 +150,7 @@ enum HappeningEditorialAssignmentResolver {
         variants[eventID] = colorVariant
         let eventIDs = baseInput.eventIDs.contains(eventID)
             ? baseInput.eventIDs
-            : baseInput.eventIDs + [eventID]
+            : Array(baseInput.eventIDs.prefix(DayObjectScene.maxActors - 1)) + [eventID]
         return DayObjectSceneInput(
             dayKey: baseInput.dayKey,
             identity: baseInput.identity,
