@@ -1,0 +1,33 @@
+{
+  "builtRevision": "59e0cf49c41439bba09180311536c2c0665c2171",
+  "branch": "codex/happenings-field",
+  "signedApp": "/private/tmp/nowhere-happenings-stationary-device-dd/Build/Products/Debug-iphoneos/Nowhere.app",
+  "sourceMirrorMatchesTrackedFiles": 1164,
+  "strictSignatures": "passed",
+  "extensions": [
+    "DeviceActivityMonitor.appex",
+    "ShieldAction.appex",
+    "ShieldConfiguration.appex",
+    "UnlockWidgetExtension.appex"
+  ],
+  "fonts": 11,
+  "gateImagesMatching": 21,
+  "audioFiles": 122,
+  "resources": "passed",
+  "installationScope": "User-requested feature build; no integration publication.",
+  "physicalDeviceVisualVerification": "not performed; automated regression checks used simulator",
+  "installationOutcome": "success",
+  "launchOutcome": "success",
+  "deviceName": "iPhone Costa",
+  "transport": "Wi-Fi",
+  "localTime": "2026-09-15T09:51:26.865070+02:00",
+  "installedRevision": "59e0cf49c41439bba09180311536c2c0665c2171",
+  "installedApplication": {
+    "bundleID": "personal-project.StepsTrader",
+    "databaseSequenceNumber": 5460,
+    "databaseUUID": "032ADD01-E900-435A-8C63-40156A0DB1FA",
+    "installationURL": "file:///private/var/containers/Bundle/Application/3F9455B3-95C7-4935-BDE0-3CCA6B7F6BEE/Nowhere.app/",
+    "launchServicesIdentifier": "unknown",
+    "options": {}
+  }
+}

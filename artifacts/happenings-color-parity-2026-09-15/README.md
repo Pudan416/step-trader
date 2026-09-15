@@ -13,3 +13,5 @@ The new regression reproduced the bug before the fix. It checks saved/restored n
 Result: `/tmp/nowhere-happenings-staggered-dd/Logs/Test/Test-Steps4-2026.09.15_09-47-41-+0200.xcresult`.
 
 No current-integration publication. Device installation and physical-device visual verification are recorded separately.
+
+Installed and launched revision `59e0cf49c41439bba09180311536c2c0665c2171` on iPhone Costa over Wi-Fi at 2026-09-15T09:51:26.865070+02:00. The app and all four embedded extensions passed signature/profile/resource verification. Physical-device visual verification was not performed.
