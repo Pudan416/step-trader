@@ -861,7 +861,6 @@ struct GalleryView: View {
                         }
                 }
                 .frame(width: viewport.size.width, height: viewport.size.height)
-                .opacity(showHappeningPalette ? 0 : 1)
                 .accessibilityHidden(showHappeningPalette)
 
                 if !presentation.isEditing {

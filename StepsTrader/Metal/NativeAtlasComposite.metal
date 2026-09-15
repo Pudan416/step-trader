@@ -25,7 +25,7 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
         const float distance = happeningPickerRadius(point) - 1.0;
         const float aa = max(fwidth(distance), 0.0025);
         const float4 lens = happeningPickerFill(happeningPickerRadius(point), smoothstep(aa, -aa, distance), pickerAccent.rgb) * placement.canvas.z;
-        return float4(lens.rgb + background.rgb * (1.0 - lens.a), background.a);
+        return float4(lens.rgb + background.rgb * (1.0 - lens.a), lens.a + background.a * (1.0 - lens.a));
     }
     MetalShapeVertexOut shapeIn = in; shapeIn.uv = local + 0.5;
     float4 shape = metalShapeGenomeShade(shapeIn, g, m);
@@ -67,6 +67,9 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
         // the outside background untouched and preserve the opacity transition.
         float neutral = (1.0 - placement.effects.z) * smoothstep(0.05, 0.9, a);
         combined = mix(combined, float3(dot(combined, float3(0.2126, 0.7152, 0.0722))), neutral);
+    }
+    if (placement.presentation.y > 0.5) {
+        return float4(combined, a + background.a * (1.0 - a));
     }
     return float4(combined, eligible ? a + background.a * (1.0 - a) : background.a * (1.0 - a));
 }

@@ -9,7 +9,6 @@ final class NativeAtlasMetalRenderer {
     private let finish: MTLRenderPipelineState
     private var targets: [MTLTexture] = []
     private var descriptors: [String: NativeAtlasRecipe.Actor] = [:]
-    private var paletteBackgroundElapsed: Double?
 
     init?(device: MTLDevice) {
         self.device = device
@@ -69,13 +68,14 @@ final class NativeAtlasMetalRenderer {
         clear.colorAttachments[0].loadAction = .clear; clear.colorAttachments[0].storeAction = .store
         clear.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
         guard let clearEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: clear) else { return false }
-        if isPalette {
-            if paletteBackgroundElapsed == nil { paletteBackgroundElapsed = elapsed }
-        } else { paletteBackgroundElapsed = nil }
-        var background = DayObjectsMeshGradientUniforms(scene: scene, resolution: SIMD2(Float(w), Float(h)), elapsedTime: paletteBackgroundElapsed ?? elapsed)
-        clearEncoder.setRenderPipelineState(gradient)
-        clearEncoder.setFragmentBytes(&background, length: DayObjectsMeshGradientUniforms.metalStride, index: 0)
-        clearEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        // Palette targets form a transparent layer above the stationary canvas.
+        // Canvas alpha retains its existing intersection-mask semantics.
+        if !isPalette {
+            var background = DayObjectsMeshGradientUniforms(scene: scene, resolution: SIMD2(Float(w), Float(h)), elapsedTime: elapsed)
+            clearEncoder.setRenderPipelineState(gradient)
+            clearEncoder.setFragmentBytes(&background, length: DayObjectsMeshGradientUniforms.metalStride, index: 0)
+            clearEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        }
         clearEncoder.endEncoding()
         let accent = CanvasChromePalette.resolve(backgroundColors: scene.meshGradientStyle.colors.map { DayObjectRGB(linearRGB: $0) }).accent.linearRGB
         var pickerAccent = SIMD4<Float>(accent.x, accent.y, accent.z, 1)
@@ -111,27 +111,33 @@ final class NativeAtlasMetalRenderer {
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); encoder.endEncoding()
             source = target
         }
-        let pass = MTLRenderPassDescriptor()
-        let traceTarget = 1 - source
-        pass.colorAttachments[0].texture = targets[traceTarget]
-        pass.colorAttachments[0].loadAction = .dontCare; pass.colorAttachments[0].storeAction = .store
-        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return false }
-        encoder.setRenderPipelineState(display); encoder.setFragmentTexture(targets[source], index: 0)
-        let seed = UInt64(recipe.seedHex, radix: 16) ?? 0
-        var effect = SIMD4<Float>(damage, Float(recipe.glitchType), Float(seed & 65535) / 65535, Float((seed >> 16) & 65535) / 65535)
-        encoder.setFragmentBytes(&effect, length: 16, index: 0)
         var post = DayObjectsPostUniforms(frame: frame, scene: scene, resolution: SIMD2(Float(output.width), Float(output.height)), pointToPixelScale: pointToPixelScale)
-        var focus = SIMD4<Float>(post.blurRadiusPixels / Float(max(output.width, output.height)), 0, 0, 0)
-        encoder.setFragmentBytes(&focus, length: 16, index: 1)
-        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); encoder.endEncoding()
+        var finishedSource = source
+        if !isPalette {
+            let pass = MTLRenderPassDescriptor()
+            let traceTarget = 1 - source
+            pass.colorAttachments[0].texture = targets[traceTarget]
+            pass.colorAttachments[0].loadAction = .dontCare; pass.colorAttachments[0].storeAction = .store
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return false }
+            encoder.setRenderPipelineState(display); encoder.setFragmentTexture(targets[source], index: 0)
+            let seed = UInt64(recipe.seedHex, radix: 16) ?? 0
+            var effect = SIMD4<Float>(damage, Float(recipe.glitchType), Float(seed & 65535) / 65535, Float((seed >> 16) & 65535) / 65535)
+            encoder.setFragmentBytes(&effect, length: 16, index: 0)
+            var focus = SIMD4<Float>(post.blurRadiusPixels / Float(max(output.width, output.height)), 0, 0, 0)
+            encoder.setFragmentBytes(&focus, length: 16, index: 1)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); encoder.endEncoding()
+            finishedSource = traceTarget
+        }
         let finalPass = MTLRenderPassDescriptor()
         finalPass.colorAttachments[0].texture = output
         finalPass.colorAttachments[0].loadAction = .dontCare
         finalPass.colorAttachments[0].storeAction = .store
         guard let finalEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: finalPass) else { return false }
         finalEncoder.setRenderPipelineState(finish)
-        finalEncoder.setFragmentTexture(targets[traceTarget], index: 0)
+        finalEncoder.setFragmentTexture(targets[finishedSource], index: 0)
         finalEncoder.setFragmentBytes(&post, length: DayObjectsPostUniforms.metalStride, index: 0)
+        var transparentOverlay: UInt32 = isPalette ? 1 : 0
+        finalEncoder.setFragmentBytes(&transparentOverlay, length: MemoryLayout<UInt32>.stride, index: 1)
         finalEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         finalEncoder.endEncoding()
         return true

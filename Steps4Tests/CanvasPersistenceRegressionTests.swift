@@ -1537,7 +1537,29 @@ final class NativeAtlasRecipeTests: XCTestCase {
     }
 
     @MainActor
-    private func pickerImage(presetID: String, state: HappeningPaletteSlotVisualState, material: MetalShapeMaterial = .solid, includesSlot: Bool = true, backgroundColors: [SIMD3<Float>]? = nil, canvasMode: Bool = false) async throws -> UIImage {
+    func testPickerLayerHasTransparentBackgroundAndVisibleTargetsInBothRenderers() async throws {
+        for native in [true, false] {
+            for state: HappeningPaletteSlotVisualState in [.available, .additionPreview, .added, .removalPreview] {
+                let image = try await pickerImage(presetID: "legacy.soft-square", state: state, native: native)
+                let data = try pixels(image)
+                for (x, y) in [(0, 0), (199, 0), (0, 199), (199, 199), (100, 10)] {
+                    let i = (y * 200 + x) * 4
+                    XCTAssertEqual(data[i + 3], 0, accuracy: 0.001, "Canvas must show through outside targets: native=\(native), \(state)")
+                    XCTAssertEqual(data[i] + data[i + 1] + data[i + 2], 0, accuracy: 0.001)
+                }
+                let alpha = data[(100 * 200 + 100) * 4 + 3]
+                XCTAssertGreaterThan(alpha, 0.3, "Target must remain visible")
+                if state == .available { XCTAssertLessThan(alpha, 0.95, "Day tint must remain translucent") }
+            }
+            let empty = try await pickerImage(presetID: "legacy.soft-square", state: .available, includesSlot: false, native: native)
+            XCTAssertTrue(try pixels(empty).allSatisfy { $0 == 0 }, "Empty picker must be fully transparent")
+            let canvas = try await pickerImage(presetID: "legacy.soft-square", state: .added, canvasMode: true, native: native)
+            XCTAssertEqual(try pixels(canvas)[3], 1, "The original canvas must retain its opaque background")
+        }
+    }
+
+    @MainActor
+    private func pickerImage(presetID: String, state: HappeningPaletteSlotVisualState, material: MetalShapeMaterial = .solid, includesSlot: Bool = true, backgroundColors: [SIMD3<Float>]? = nil, canvasMode: Bool = false, native: Bool = true) async throws -> UIImage {
         let base = DayObjectSceneInput(dayKey: "2026-09-10", identity: "native-picker-regression", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true)
         let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.assignments(happenings: [.init(id: "h0", title: "Test", isBuiltIn: true)], baseInput: base, colorNonce: 7)["h0"])
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == presetID })
@@ -1546,7 +1568,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
         let sharedMaterial = MetalShapeGenomeFrame.make(preset: referencePreset, material: material, seed: 71).material
         var recipe = NativeAtlasRecipe.make(dayKey: base.dayKey)
         recipe.actors = [.init(eventID: assignment.elementID.uuidString.lowercased(), presetID: presetID, materialID: material, seedHex: "47", geometry: generated.geometry, material: sharedMaterial, position: SIMD2(0.5, 0.5), size: 0.5, rotation: 0, slot: 0)]
-        let input = DayObjectSceneInput(dayKey: base.dayKey, identity: base.identity, eventIDs: canvasMode ? recipe.actors.map(\.eventID) : [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe)
+        let input = DayObjectSceneInput(dayKey: base.dayKey, identity: base.identity, eventIDs: canvasMode ? recipe.actors.map(\.eventID) : [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: native ? recipe : nil)
         let presentation = HappeningPaletteRenderPresentation(slots: includesSlot ? [.init(happeningID: "h0", assignment: assignment, visualState: state, source: .init(index: 0, center: CGPoint(x: 100, y: 100), radius: 60))] : [], viewportSize: CGSize(width: 200, height: 200), reduceMotion: true, isTransitionActive: false, backgroundRevision: 1)
         DayObjectsRenderer.prepareResources()
         var scene = DayObjectScene.make(input: input)

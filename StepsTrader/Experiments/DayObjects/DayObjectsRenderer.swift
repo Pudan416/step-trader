@@ -1535,15 +1535,17 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         scenePass.colorAttachments[0].texture = renderTargets.scene
         scenePass.colorAttachments[0].loadAction = .clear
         scenePass.colorAttachments[0].storeAction = .store
-        scenePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+        scenePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, presentationMode.isTransparentOverlay ? 0 : 1)
         guard let sceneEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: scenePass) else {
             return nil
         }
         sceneEncoder.label = "Day Objects full-resolution scene composite"
-        sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
-        sceneEncoder.setFragmentTexture(renderTargets.background, index: 0)
-        sceneEncoder.setFragmentSamplerState(linearSampler, index: 0)
-        sceneEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        if !presentationMode.isTransparentOverlay {
+            sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
+            sceneEncoder.setFragmentTexture(renderTargets.background, index: 0)
+            sceneEncoder.setFragmentSamplerState(linearSampler, index: 0)
+            sceneEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        }
 
         if !actorUpload.actors.isEmpty {
             var actorUniforms = actorUpload.uniforms
@@ -1695,6 +1697,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 index: 2
             )
         }
+        var transparentOverlay: UInt32 = presentationMode.isTransparentOverlay ? 1 : 0
+        presentEncoder.setFragmentBytes(&transparentOverlay, length: MemoryLayout<UInt32>.stride, index: 4)
         presentEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         presentEncoder.endEncoding()
 

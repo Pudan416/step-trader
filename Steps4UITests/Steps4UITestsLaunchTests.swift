@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class Steps4UITestsLaunchTests: XCTestCase {
 
@@ -811,6 +812,59 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "happening-editor-large-text-keyboard")
         done.tap()
         XCTAssertTrue(app.buttons["Tea"].waitForExistence(timeout: 5))
+    }
+
+    func testHappeningCanvasPixelsStayFixedWhileTargetsPan() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+        let field = app.scrollViews["happening_field_scroll"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'"))
+        func targets() -> [(CGRect, Bool)] {
+            choices.allElementsBoundByIndex.map { ($0.frame, ($0.value as? String) == "Available") }
+        }
+        func pixels(_ image: UIImage) throws -> (data: [UInt8], width: Int, height: Int) {
+            let cg = try XCTUnwrap(image.cgImage)
+            var data = [UInt8](repeating: 0, count: cg.width * cg.height * 4)
+            let context = try XCTUnwrap(CGContext(data: &data, width: cg.width, height: cg.height,
+                bitsPerComponent: 8, bytesPerRow: cg.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+            return (data, cg.width, cg.height)
+        }
+        let initialTargets = targets()
+        let before = try pixels(app.screenshot().image)
+        attachScreenshot(named: "stationary-canvas-before-pan")
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.35))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.7)))
+        Thread.sleep(forTimeInterval: 0.5)
+        let finalTargets = targets()
+        let after = try pixels(app.screenshot().image)
+        attachScreenshot(named: "stationary-canvas-after-pan")
+        XCTAssertEqual(before.width, after.width)
+        XCTAssertNotEqual(initialTargets[0].0.origin, finalTargets[0].0.origin)
+        func covers(_ target: (CGRect, Bool), _ point: CGPoint) -> Bool {
+            let (frame, available) = target
+            guard available else { return frame.insetBy(dx: -20, dy: -20).contains(point) }
+            let x = abs(point.x - frame.midX) / (frame.width / 2 + 8)
+            let y = abs(point.y - frame.midY) / (frame.height / 2 + 8)
+            return pow(x, 2.2) + pow(y, 2.2) <= 1
+        }
+        let scale = CGFloat(before.width) / app.frame.width
+        var compared = 0
+        var changed = 0
+        for y in stride(from: 200, to: Int(app.frame.height) - 140, by: 4) {
+            for x in stride(from: 8, to: Int(app.frame.width) - 8, by: 4) {
+                let point = CGPoint(x: x, y: y)
+                guard !(initialTargets + finalTargets).contains(where: { covers($0, point) }) else { continue }
+                let i = (Int(CGFloat(y) * scale) * before.width + Int(CGFloat(x) * scale)) * 4
+                compared += 1
+                if (0..<3).contains(where: { abs(Int(before.data[i + $0]) - Int(after.data[i + $0])) > 3 }) { changed += 1 }
+            }
+        }
+        XCTAssertGreaterThan(compared, 20, "Need visible canvas samples between targets")
+        XCTAssertLessThan(Double(changed) / Double(max(compared, 1)), 0.01,
+            "The same canvas pixels must remain stationary beneath the transparent field (\(changed)/\(compared) moved)")
     }
 
     func testStaggeredHappeningsOpenCenteredAndPanAsOneField() throws {

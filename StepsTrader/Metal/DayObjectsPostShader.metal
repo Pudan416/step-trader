@@ -114,6 +114,18 @@ static float3 dayObjectsDisplayColor(float3 source, float2 uv, constant DayObjec
     return color;
 }
 
+// Apply finish to straight color, then premultiply in the drawable's sRGB
+// space for Core Animation. The sRGB target encodes the returned linear RGB.
+static float4 happeningOverlayDisplayColor(float4 sample, float2 uv, constant DayObjectsPostUniforms &uniforms, bool photographic) {
+    const float alpha = saturate(sample.a);
+    if (alpha <= 0.00001) return float4(0.0);
+    const float3 straight = dayObjectsDisplayColor(sample.rgb / alpha, uv, uniforms, photographic);
+    const float3 encoded = select(1.055 * pow(straight, float3(1.0 / 2.4)) - 0.055, straight * 12.92, straight <= 0.0031308);
+    const float3 premultiplied = encoded * alpha;
+    const float3 linear = select(pow((premultiplied + 0.055) / 1.055, float3(2.4)), premultiplied / 12.92, premultiplied <= 0.04045);
+    return float4(linear, alpha);
+}
+
 fragment float4 dayObjectsDisplayFragment(
     DayObjectsPostVertexOut in [[stage_in]],
     texture2d<float> sceneTexture [[texture(0)]],
@@ -122,13 +134,15 @@ fragment float4 dayObjectsDisplayFragment(
     constant DayObjectsPostUniforms &uniforms [[buffer(0)]],
     constant DayObjectsGlitchUniforms &glitch [[buffer(1)]],
     constant DayObjectsGlitchBandUniform *glitchBands [[buffer(2)]],
-    constant float2 &echoDirection [[buffer(3)]]
+    constant float2 &echoDirection [[buffer(3)]],
+    constant uint &transparentOverlay [[buffer(4)]]
 ) {
     const float4 original = sceneTexture.sample(linearSampler, saturate(in.uv));
     const float4 sampled = dayObjectsApplyDigitalImpact(
         sceneTexture, actorEchoTexture, linearSampler, saturate(in.uv),
         original, glitch, glitchBands, echoDirection
     );
+    if (transparentOverlay != 0u) return happeningOverlayDisplayColor(sampled, in.uv, uniforms, false);
     return float4(dayObjectsDisplayColor(sampled.rgb, in.uv, uniforms), sampled.a);
 }
 
@@ -137,8 +151,10 @@ fragment float4 dayObjectsDisplayFragment(
 fragment float4 nativeAtlasFinishFragment(
     DayObjectsPostVertexOut in [[stage_in]],
     texture2d<float> sceneTexture [[texture(0)]],
-    constant DayObjectsPostUniforms &uniforms [[buffer(0)]]
+    constant DayObjectsPostUniforms &uniforms [[buffer(0)]],
+    constant uint &transparentOverlay [[buffer(1)]]
 ) {
     constexpr sampler linearSampler(coord::normalized, address::clamp_to_edge, filter::linear);
+    if (transparentOverlay != 0u) return happeningOverlayDisplayColor(sceneTexture.sample(linearSampler, in.uv), in.uv, uniforms, true);
     return float4(dayObjectsDisplayColor(sceneTexture.sample(linearSampler, in.uv).rgb, in.uv, uniforms, true), 1.0);
 }

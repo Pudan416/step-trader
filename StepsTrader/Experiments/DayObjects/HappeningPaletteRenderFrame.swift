@@ -20,6 +20,11 @@ enum DayObjectsPresentationMode: Equatable {
     case canvas
     case happeningPalette(HappeningPaletteRenderPresentation)
 
+    var isTransparentOverlay: Bool {
+        if case .happeningPalette = self { return true }
+        return false
+    }
+
     var prefersSixtyFPS: Bool {
         guard case let .happeningPalette(value) = self else { return false }
         return value.isTransitionActive
