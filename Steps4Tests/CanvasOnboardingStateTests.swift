@@ -10,6 +10,43 @@ final class CanvasOnboardingStateTests: XCTestCase {
         try test(defaults)
     }
 
+    func testLocalCanvasIsReadyWhileAuthenticationIsSuspended() async throws {
+        let model = AppModel(
+            healthKitService: ConfigurableHealthKitMock(),
+            familyControlsService: MockFamilyControlsService(),
+            notificationService: MockNotificationService(),
+            budgetEngine: MockBudgetEngine(),
+            subscriptionStore: SubscriptionStore()
+        )
+        let authenticationStarted = expectation(description: "Authentication is pending")
+        var resumeAuthentication: CheckedContinuation<Void, Never>?
+        let startup = Task { @MainActor in
+            await model.bootstrap(requestPermissions: false, waitForAuthentication: {
+                await withCheckedContinuation { continuation in
+                    resumeAuthentication = continuation
+                    authenticationStarted.fulfill()
+                }
+            })
+        }
+        await fulfillment(of: [authenticationStarted], timeout: 5)
+
+        XCTAssertFalse(model.isBootstrapping, "Canvas must allow editing before the network returns")
+        XCTAssertFalse(model.didCompleteBootstrap, "Background startup is still pending")
+        let entryID = UUID().uuidString
+        let entry = model.addHappening(
+            id: "offline-onboarding-\(entryID)", colorHex: "#AABBCC",
+            recordUse: false, entryId: entryID, syncToCloud: false
+        )
+        XCTAssertNotNil(entry)
+
+        resumeAuthentication?.resume()
+        await startup.value
+        XCTAssertTrue(model.didCompleteBootstrap)
+        XCTAssertTrue(model.todayAdditions.contains { $0.id == entryID },
+                      "Finishing background startup must preserve the first tour edit")
+        model.removeAddition(entryId: entryID, syncToCloud: false)
+    }
+
     func testFreshInstallClaimsAutomaticStartOnceWithoutCompleting() throws {
         try withDefaults { defaults in
             let state = CanvasOnboardingState(defaults: defaults)

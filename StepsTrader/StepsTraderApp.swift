@@ -150,7 +150,7 @@ private struct StepsTraderProductionRoot: View {
     }
     private var isPreparingAutomaticOnboarding: Bool {
         allowsAutomaticCanvasOnboarding && !onboardingState.isCompleted
-            && !model.didCompleteBootstrap && !CanvasTour.shared.isActive
+            && model.isBootstrapping && !CanvasTour.shared.isActive
     }
     private var hasBlockingSessionOverlay: Bool {
         guard canPresentSessionUI, !isUITest else { return false }
@@ -437,11 +437,7 @@ private struct StepsTraderProductionRoot: View {
                     Task { @MainActor in
                         await model.bootstrap(requestPermissions: false)
                         guard !Task.isCancelled else { return }
-                        if allowsAutomaticCanvasOnboarding,
-                           !CanvasTour.shared.isActive,
-                           onboardingState.claimAutomaticStart() {
-                            CanvasTour.shared.start(source: "firstLaunch")
-                        }
+                        startAutomaticCanvasOnboardingIfReady()
                         checkForPayGateFlags()
                         checkForHandoffToken()
                         processPendingWidgetUnlock()
@@ -458,6 +454,9 @@ private struct StepsTraderProductionRoot: View {
                     "🎭 PayGate state - showPayGate: \(model.userEconomyStore.showPayGate), targetGroupId: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")"
                 )
                 checkForHandoffToken()
+            }
+            .onChange(of: model.isBootstrapping) { _, preparingLocalState in
+                if !preparingLocalState { startAutomaticCanvasOnboardingIfReady() }
             }
             .onChange(of: onboardingState.isCompleted) { _, completed in
                 guard completed else {
@@ -637,6 +636,12 @@ private struct StepsTraderProductionRoot: View {
                 SharedKeys.recordWidgetInteraction("target open result=\(success) target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
             }
         }
+    }
+
+    private func startAutomaticCanvasOnboardingIfReady() {
+        guard !model.isBootstrapping, allowsAutomaticCanvasOnboarding,
+              !CanvasTour.shared.isActive, onboardingState.claimAutomaticStart() else { return }
+        CanvasTour.shared.start(source: "firstLaunch")
     }
 
     private func processPendingWidgetUnlock() {

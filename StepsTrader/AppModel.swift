@@ -168,7 +168,8 @@ final class AppModel: ObservableObject {
         scheduleSupabaseTicketUpsert(bundleId: bundleId)
     }
 
-    // Bootstrap state - prevent syncing during initialization
+    // Local bootstrap state: Canvas editing/persistence may begin once this is false.
+    // Authentication and background refresh can still be pending.
     @Published var isBootstrapping: Bool = true
     /// Set to true after the first `bootstrap()` routine finishes. Foreground refresh
     /// handlers gate on this so they don't double-fire during cold launch (the cold
@@ -478,7 +479,12 @@ final class AppModel: ObservableObject {
         await task.value
     }
 
-    func bootstrap(requestPermissions: Bool) async {
+    func bootstrap(
+        requestPermissions: Bool,
+        waitForAuthentication: @MainActor () async -> Void = {
+            await AuthenticationService.shared.waitForInitialization()
+        }
+    ) async {
         AppLogger.app.debug("🚀 Bootstrapping AppModel...")
         isBootstrapping = true
         
@@ -488,40 +494,6 @@ final class AppModel: ObservableObject {
 
         await prepareLocalPurchaseState()
 
-        // 1.6 On a genuine fresh install / data loss, restore from Supabase.
-        //
-        // §C2: this must NOT key off "today's selections are empty" — those reset
-        // at every day boundary, so that signal is also true every morning, which
-        // made a full server restore fire daily and unconditionally overwrite ~30
-        // local preference keys (reverting any setting whose push hadn't yet
-        // landed). Gate instead on a persisted per-install flag.
-        //
-        // The flag is absent on a true fresh install AND after a UserDefaults wipe
-        // (it's stored in the same suite as the data), so both correctly restore.
-        // For an existing user upgrading into this build the flag is also absent,
-        // but they already hold local state — seed the flag WITHOUT restoring so
-        // the upgrade itself doesn't trigger one clobbering restore.
-        await AuthenticationService.shared.waitForInitialization()
-        let isAuthenticated = AuthenticationService.shared.isAuthenticated
-        let g = UserDefaults.stepsTrader()
-        let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
-        if isAuthenticated && !hasCompletedInitialRestore {
-            let hasPriorLocalState = g.object(forKey: SharedKeys.dailyEnergyAnchor) != nil
-                || !todayAdditions.isEmpty
-                || !ticketGroups.isEmpty
-            if hasPriorLocalState {
-                // Existing install predating this flag — mark restored, don't clobber.
-                AppLogger.app.debug("🔄 Existing install detected — seeding initial-restore flag without restoring")
-            } else {
-                AppLogger.app.debug("🔄 Fresh install (authenticated) — restoring from Supabase")
-                let didRestore = await SupabaseSyncService.shared.restoreFromServer(model: self)
-                if didRestore {
-                    AppLogger.app.debug("✅ Restored from Supabase")
-                }
-            }
-            g.set(true, forKey: SharedKeys.hasCompletedInitialRestore)
-        }
-        
         // 1.7 Recalculate EXP from loaded selections immediately so baseEnergyToday
         // reflects current selections even before HealthKit data arrives. Without this,
         // baseEnergyToday stays at whatever stale value was in UserDefaults, and if
@@ -565,8 +537,48 @@ final class AppModel: ObservableObject {
         }
         recalculateDailyEnergy()
 
+        // The local Canvas is now safe to edit. Its first-launch tour must not
+        // wait for account initialization, server requests or HealthKit queries.
+        scheduleDayBoundaryTimer()
+        applyDailyRandomThemeIfNeeded()
         isBootstrapping = false
-        AppLogger.energy.debug("📊 BOOTSTRAP DONE (pre-refresh): base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
+        AppLogger.energy.debug("📊 LOCAL BOOTSTRAP DONE: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
+
+        // Keep the restore guard after authentication so it observes any local
+        // edits made while the network was unavailable.
+        // On a genuine fresh install / data loss, restore from Supabase.
+        //
+        // §C2: this must NOT key off "today's selections are empty" — those reset
+        // at every day boundary, so that signal is also true every morning, which
+        // made a full server restore fire daily and unconditionally overwrite ~30
+        // local preference keys (reverting any setting whose push hadn't yet
+        // landed). Gate instead on a persisted per-install flag.
+        //
+        // The flag is absent on a true fresh install AND after a UserDefaults wipe
+        // (it's stored in the same suite as the data), so both correctly restore.
+        // For an existing user upgrading into this build the flag is also absent,
+        // but they already hold local state — seed the flag WITHOUT restoring so
+        // the upgrade itself doesn't trigger one clobbering restore.
+        await waitForAuthentication()
+        let isAuthenticated = AuthenticationService.shared.isAuthenticated
+        let g = UserDefaults.stepsTrader()
+        let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
+        if isAuthenticated && !hasCompletedInitialRestore {
+            let hasPriorLocalState = g.object(forKey: SharedKeys.dailyEnergyAnchor) != nil
+                || !todayAdditions.isEmpty
+                || !ticketGroups.isEmpty
+            if hasPriorLocalState {
+                // Existing install predating this flag — mark restored, don't clobber.
+                AppLogger.app.debug("🔄 Existing install detected — seeding initial-restore flag without restoring")
+            } else {
+                AppLogger.app.debug("🔄 Fresh install (authenticated) — restoring from Supabase")
+                let didRestore = await SupabaseSyncService.shared.restoreFromServer(model: self)
+                if didRestore {
+                    AppLogger.app.debug("✅ Restored from Supabase")
+                }
+            }
+            g.set(true, forKey: SharedKeys.hasCompletedInitialRestore)
+        }
 
         // 4. Refresh data AFTER day boundary reset so fresh values aren't wiped
         await refreshStepsIfAuthorized()
@@ -582,18 +594,11 @@ final class AppModel: ObservableObject {
             UIApplication.shared.registerForRemoteNotifications()
         }
         
-        // 5. Schedule day boundary timer (was missing — only ran on foreground resume)
-        scheduleDayBoundaryTimer()
-        
         // 6. Check for workouts to suggest
         await refreshWorkoutSuggestions()
         
         AppLogger.app.debug("✅ AppModel bootstrap complete")
         didCompleteBootstrap = true
-
-        // Apply daily random theme on cold launch (no-op when toggle is OFF
-        // or already rolled today).
-        applyDailyRandomThemeIfNeeded()
 
         // HealthKit authorization is deferred until the scene is fully active.
         // A short delay gives the key window time to present so the system
