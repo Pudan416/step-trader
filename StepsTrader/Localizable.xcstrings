@@ -3616,6 +3616,91 @@
     },
     "Your day" : {
       "comment" : "Settings Your day card title\nSettings section title"
+    },
+    "Name your group" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name your group"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название группы"
+          }
+        }
+      }
+    },
+    "e.g. X, Social, Games" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. X, Social, Games"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Например, X, Соцсети, Игры"
+          }
+        }
+      }
+    },
+    "This name appears on the card and in widgets. Next, choose the apps for this group." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This name appears on the card and in widgets. Next, choose the apps for this group."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это название будет на карточке и в виджетах. На следующем шаге выберите приложения для группы."
+          }
+        }
+      }
+    },
+    "Tap +, name your group, then choose the apps you’d like to pause. You can also skip this step." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap +, name your group, then choose the apps you’d like to pause. You can also skip this step."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите +, укажите название группы, затем выберите приложения, от которых хотите отдохнуть. Этот шаг можно пропустить."
+          }
+        }
+      }
+    },
+    "Tap an existing group, or tap + to name a new group and choose its apps." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an existing group, or tap + to name a new group and choose its apps."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите на существующую группу или на +, чтобы назвать новую группу и выбрать приложения."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

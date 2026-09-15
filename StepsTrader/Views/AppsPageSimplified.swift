@@ -262,9 +262,10 @@ struct AppsPageSimplified: View {
                     selection: selection,
                     name: selectedGroupId.flatMap { id in
                         model.blockingStore.ticketGroups.first { $0.id == id.id }?.name
-                    } ?? ""
+                    } ?? "",
+                    isEditing: selectedGroupId != nil
                 ) { selection, name in
-                    guard selection.hasGroupTargets else { return }
+                    guard selection.hasGroupTargets, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     #if DEBUG
                     guard !pickerCommitted else { return }
                     if let pickerOperation {
