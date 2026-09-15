@@ -104,6 +104,9 @@ struct HappeningPaletteView: View {
     let compactLayout: HappeningFieldLayout.Layout?
     let artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)?
     @State private var modeTransition: HappeningFieldModeTransition?
+    @State private var visibleFieldRect: CGRect = .zero
+    @State private var isFieldScrolling = false
+    @State private var scrollSettleTask: Task<Void, Never>?
     @Binding var activePanel: HappeningPalettePanel?
     let layout: HappeningFieldLayout.Layout
     let mode: HappeningPaletteMode
@@ -173,11 +176,18 @@ struct HappeningPaletteView: View {
                     ScrollView([.horizontal, .vertical], showsIndicators: false) {
                         TimelineView(.animation(minimumInterval: 1.0 / 60, paused: modeTransition == nil)) { context in
                             let progress = modeTransition?.value(at: context.date) ?? (mode == .all ? 1 : 0)
-                            let displayed = compactLayout.map {
+                            let expanded = compactLayout.map {
                                 HappeningFieldExpansion.layout(compact: $0, expanded: layout, viewport: proxy.size, progress: progress)
                             } ?? layout
+                            let visibleRect = visibleFieldRect.isEmpty ? CGRect(
+                                x: max(0, (expanded.contentSize.width - proxy.size.width) / 2),
+                                y: max(0, (expanded.contentSize.height - proxy.size.height) / 2),
+                                width: proxy.size.width, height: proxy.size.height
+                            ) : visibleFieldRect
+                            let displayed = HappeningFieldEdgeScale.apply(to: expanded, visibleRect: visibleRect,
+                                strength: reduceMotion || artworkForLayout == nil ? 0 : progress)
                             ZStack(alignment: .topLeading) {
-                                (artworkForLayout?(displayed, modeTransition != nil) ?? artwork)
+                                (artworkForLayout?(displayed, modeTransition != nil || isFieldScrolling) ?? artwork)
                                     .accessibilityHidden(true)
                                     .allowsHitTesting(false)
                                 HappeningShapeField(
@@ -202,7 +212,15 @@ struct HappeningPaletteView: View {
                                    height: max(proxy.size.height, displayed.contentSize.height))
                             .transaction { $0.animation = nil }
                         }
+                        .onGeometryChange(for: CGRect.self) { content in
+                            let origin = content.frame(in: .named("happeningViewport")).origin
+                            return CGRect(x: -origin.x, y: -origin.y,
+                                width: proxy.size.width, height: proxy.size.height)
+                        } action: { rect in
+                            updateVisibleFieldRect(rect)
+                        }
                     }
+                    .coordinateSpace(name: "happeningViewport")
                     .defaultScrollAnchor(mode == .frequent && (compactLayout?.contentSize.height ?? 0) > proxy.size.height ? .top : .center)
                     .scrollDisabled(compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
                     .frame(width: proxy.size.width, height: proxy.size.height)
@@ -274,7 +292,24 @@ struct HappeningPaletteView: View {
             UIAccessibility.post(notification: .announcement, argument: next.announcement)
         }
         .onDisappear {
+            scrollSettleTask?.cancel()
+            isFieldScrolling = false
             onPanelPresentationChange(false)
+        }
+    }
+
+    // Observe size only; positions use ScrollView's native transform.
+    private func updateVisibleFieldRect(_ rect: CGRect) {
+        guard !rect.isEmpty, rect != visibleFieldRect else { return }
+        let hasMoved = !visibleFieldRect.isEmpty
+        visibleFieldRect = rect
+        guard hasMoved else { return }
+        isFieldScrolling = true
+        scrollSettleTask?.cancel()
+        scrollSettleTask = Task { @MainActor in
+            do { try await Task.sleep(for: .milliseconds(150)) }
+            catch { return }
+            isFieldScrolling = false
         }
     }
 

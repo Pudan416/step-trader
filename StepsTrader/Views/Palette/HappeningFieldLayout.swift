@@ -357,3 +357,30 @@ struct HappeningFieldModeTransition {
         return from + (to - from) * fraction
     }
 }
+
+/// Viewport-relative size only; scrolling remains the native content transform.
+enum HappeningFieldEdgeScale {
+    static func factor(at center: CGPoint, visibleRect: CGRect) -> CGFloat {
+        guard visibleRect.width > 0, visibleRect.height > 0 else { return 1 }
+        let horizontal = abs(center.x - visibleRect.midX) / (visibleRect.width / 2)
+        let vertical = abs(center.y - visibleRect.midY) / (visibleRect.height / 2)
+        // Preserve a broad central area; use the same minimum at corners so
+        // diagonal motion does not compound the shrink or compromise legibility.
+        let edge = min(1, max(0, (max(horizontal, vertical) - 0.45) / 0.55))
+        let smooth = edge * edge * (3 - 2 * edge)
+        return 1 - 0.16 * smooth
+    }
+
+    static func apply(to layout: HappeningFieldLayout.Layout, visibleRect: CGRect, strength: CGFloat) -> HappeningFieldLayout.Layout {
+        let amount = min(1, max(0, strength))
+        guard amount > 0, !visibleRect.isEmpty else { return layout }
+        let sources = layout.sources.map { source in
+            let scale = 1 + (factor(at: source.center, visibleRect: visibleRect) - 1) * amount
+            return HappeningFieldLayout.Source(index: source.index, center: source.center,
+                radius: source.radius * scale, appearanceScale: source.appearanceScale * scale)
+        }
+        var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: layout.dockAnchor)
+        result.contentSize = layout.contentSize
+        return result
+    }
+}

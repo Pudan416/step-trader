@@ -821,6 +821,34 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(app.buttons["Tea"].waitForExistence(timeout: 5))
     }
 
+    func testAllShrinksEdgeChoicesAndRestoresThemNearCenter() throws {
+        let app = launchTask7App(resetEditor: true)
+        openPalette(in: app)
+        XCTAssertTrue(waitForChoiceCount(31, in: app))
+        Thread.sleep(forTimeInterval: 0.7)
+        let field = app.scrollViews["happening_field_scroll"]
+        let centered = app.buttons["happening_choice_happening_read"]
+        XCTAssertTrue(centered.waitForExistence(timeout: 3))
+        let originalFrame = centered.frame
+        XCTAssertEqual(originalFrame.midX, field.frame.midX, accuracy: 2)
+        attachScreenshot(named: "happenings-edge-scale-centered")
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.58))
+            .press(forDuration: 0.08, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.38, dy: 0.58)),
+                   withVelocity: .slow, thenHoldForDuration: 0.2)
+        Thread.sleep(forTimeInterval: 0.25)
+        attachScreenshot(named: "happenings-edge-scale-panned")
+        XCTAssertLessThan(centered.frame.midX, originalFrame.midX - 80)
+        XCTAssertLessThan(centered.frame.width, originalFrame.width * 0.97)
+        XCTAssertGreaterThanOrEqual(centered.frame.width, 44)
+        app.buttons["happening_mode_frequent"].tap()
+        XCTAssertTrue(waitForChoiceCount(10, in: app))
+        app.buttons["happening_mode_all"].tap()
+        XCTAssertTrue(waitForChoiceCount(31, in: app))
+        Thread.sleep(forTimeInterval: 0.7)
+        XCTAssertEqual(centered.frame.width, originalFrame.width, accuracy: 1)
+        XCTAssertEqual(centered.frame.midX, originalFrame.midX, accuracy: 1)
+    }
+
     func testFrequentDefaultsIncludeHealthAndSwitchBackFromAll() throws {
         let app = launchTask7App(resetEditor: true)
         openPalette(in: app, all: false)

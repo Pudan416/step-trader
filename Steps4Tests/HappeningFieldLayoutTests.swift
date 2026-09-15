@@ -1784,3 +1784,48 @@ final class HappeningFieldExpansionTests: XCTestCase {
         XCTAssertEqual(opening.value(at: date.addingTimeInterval(2)), 1)
     }
 }
+
+final class HappeningFieldEdgeScaleTests: XCTestCase {
+    private let viewport = CGRect(x: 200, y: 300, width: 400, height: 800)
+
+    func testCenterKeepsItsSizeAndAllFourEdgesShrinkEqually() {
+        let center = CGPoint(x: viewport.midX, y: viewport.midY)
+        XCTAssertEqual(HappeningFieldEdgeScale.factor(at: center, visibleRect: viewport), 1, accuracy: 0.0001)
+        for edge in [CGPoint(x: viewport.minX, y: center.y), CGPoint(x: viewport.maxX, y: center.y),
+                     CGPoint(x: center.x, y: viewport.minY), CGPoint(x: center.x, y: viewport.maxY),
+                     CGPoint(x: viewport.minX, y: viewport.minY)] {
+            XCTAssertEqual(HappeningFieldEdgeScale.factor(at: edge, visibleRect: viewport), 0.84, accuracy: 0.0001)
+        }
+    }
+
+    func testPanningBackToCenterRestoresSizeWithoutMovingTheSource() {
+        let source = HappeningFieldLayout.Source(index: 0, center: CGPoint(x: 600, y: 700), radius: 68)
+        var layout = HappeningFieldLayout.makeLayout(sources: [source], dockAnchor: .zero)
+        layout.contentSize = CGSize(width: 1200, height: 1600)
+        let edge = HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport, strength: 1)
+        let centered = HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport.offsetBy(dx: 200, dy: 0), strength: 1)
+        XCTAssertEqual(edge.sources[0].radius, 68 * 0.84, accuracy: 0.0001)
+        XCTAssertEqual(edge.sources[0].appearanceScale, 0.84, accuracy: 0.0001)
+        XCTAssertEqual(centered.sources[0], source)
+        XCTAssertEqual(edge.sources[0].center, source.center)
+        XCTAssertEqual(edge.contentSize, layout.contentSize)
+        XCTAssertEqual(HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport, strength: 0), layout)
+    }
+
+    func testScaleChangesContinuouslyAndComposesWithBalloonAppearance() {
+        var previous: CGFloat = 1
+        for x in stride(from: viewport.midX, through: viewport.maxX + 100, by: 1) {
+            let scale = HappeningFieldEdgeScale.factor(at: CGPoint(x: x, y: viewport.midY), visibleRect: viewport)
+            XCTAssertLessThanOrEqual(scale, previous + 0.0001)
+            XCTAssertLessThan(abs(scale - previous), 0.005)
+            XCTAssertGreaterThanOrEqual(scale, 0.84)
+            previous = scale
+        }
+        let source = HappeningFieldLayout.Source(index: 0, center: CGPoint(x: viewport.minX, y: viewport.midY), radius: 34, appearanceScale: 0.5)
+        let layout = HappeningFieldLayout.makeLayout(sources: [source], dockAnchor: .zero)
+        let result = HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport, strength: 0.5)
+        XCTAssertEqual(result.sources[0].radius, 34 * 0.92, accuracy: 0.0001)
+        XCTAssertEqual(result.sources[0].appearanceScale, 0.5 * 0.92, accuracy: 0.0001)
+        XCTAssertEqual(HappeningFieldEdgeScale.factor(at: .zero, visibleRect: .zero), 1)
+    }
+}
