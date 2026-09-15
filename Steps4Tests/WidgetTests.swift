@@ -112,6 +112,40 @@ final class WidgetTests: XCTestCase {
         XCTAssertEqual(identity.detail, "1 app")
     }
 
+    func testWidgetDefaultsUseFeedsOrderAndAvailableCount() {
+        let feeds = ["third", "first", "second", "fourth"]
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: feeds, limit: 3), ["third", "first", "second"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: feeds, limit: 1), ["third"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: ["only"], limit: 3), ["only"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: [], limit: 3), [])
+    }
+
+    func testWidgetDefaultsDoNotReplaceManualOrderOrFillEmptySlots() {
+        let feeds = ["a", "b", "c", "d"]
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["d", "b"], feedIDs: feeds, limit: 3), ["d", "b"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["c"], feedIDs: feeds, limit: 3), ["c"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["deleted"], feedIDs: feeds, limit: 1), ["deleted"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["c", "c", "a"], feedIDs: feeds, limit: 3), ["c", "a"])
+    }
+
+    func testWidgetDefaultCatalogMatchesVisibleFeedsInPersistedOrder() throws {
+        let suite = "widget-defaults-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let settings = AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20)
+        let first = TicketGroup(name: "Z", selection: selection, settings: settings)
+        let hidden = TicketGroup(name: "Empty", selection: FamilyActivitySelection(), settings: settings)
+        let second = TicketGroup(name: "A", selection: selection, settings: settings)
+        defaults.set(try JSONEncoder().encode([first, hidden, second]), forKey: SharedKeys.ticketGroups)
+        XCTAssertEqual(WidgetGroupOption.loadVisibleFeeds(defaults: defaults).map(\.id), [first.id, second.id])
+        XCTAssertEqual(WidgetGroupOption.loadVisibleFeeds(defaults: defaults).map(\.name), ["Z", "A"])
+        defaults.removeObject(forKey: SharedKeys.ticketGroups)
+        defaults.set(try JSONEncoder().encode([second, first]), forKey: SharedKeys.legacyShieldGroups)
+        XCTAssertEqual(WidgetGroupOption.loadVisibleFeeds(defaults: defaults).map(\.id), [second.id, first.id])
+    }
+
     func testLargeWidgetKeepsOnlyThreeUniqueGroupsInSelectionOrder() {
         XCTAssertEqual(WidgetGroupSelection.largeIDs(["a", "b", "c", "d"]), ["a", "b", "c"])
         XCTAssertEqual(WidgetGroupSelection.largeIDs(["a", "a", "b", "c"]), ["a", "b", "c"])
