@@ -22,4 +22,6 @@ Result bundles (local):
 
 Local codex/happenings-field feature build; no integration publication. iPhone Costa was unavailable over Wi-Fi at the device check. Signed build/resource verification and any installation outcome are recorded separately.
 
-Signed revision `be636d5b790d15e7453524ac57e662f7131bfaa0` built successfully with all four extensions; signatures, provisioning and bundled resources passed verification. Installation attempt returned CoreDevice error 1011 because iPhone Costa remained unavailable over Wi-Fi. This revision is not installed yet.
+Signed revision `be636d5b790d15e7453524ac57e662f7131bfaa0` built successfully with all four extensions; signatures, provisioning and bundled resources passed verification. Installation attempt returned CoreDevice error 1011 because iPhone Costa remained unavailable over Wi-Fi. The initial attempt did not install this revision.
+
+On 2026-09-15T19:40:56.640210+02:00, the user requested installation again. Wi-Fi installation and launch both succeeded on iPhone Costa. Installed app and four extensions were built from `be636d5b790d15e7453524ac57e662f7131bfaa0`; the signed bundle was reverified before installation. Physical-device UI appearance was not inspected.
