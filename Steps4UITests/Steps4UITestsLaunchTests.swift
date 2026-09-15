@@ -10,7 +10,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testCreatingFeedRequiresNameBeforeSelectionAndCancelKeepsGroups() throws {
+    func testSingleScreenFeedRequiresAppsAndCancelKeepsGroups() throws {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -21,31 +21,22 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.buttons["feed.add"].tap()
         let name = app.textFields["feed.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        let next = app.buttons["feed.name.next"]
-        XCTAssertFalse(next.isEnabled)
-        XCTAssertFalse(app.navigationBars["Select Apps"].exists)
+        let done = app.buttons["feed.selection.create"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertEqual(done.label, "Done")
+        XCTAssertFalse(done.isEnabled)
+        XCTAssertFalse(app.buttons["feed.name.next"].exists)
+        attachScreenshot(named: "single-screen-feed-empty")
         name.tap()
-        name.typeText("   ")
-        XCTAssertFalse(next.isEnabled)
-        name.typeText("X")
-        XCTAssertTrue(next.isEnabled)
-        attachScreenshot(named: "new-feed-required-name")
-        app.buttons["feed.selection.cancel"].tap()
-        XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
-        XCTAssertEqual(groups.count, initialCount)
-        app.buttons["feed.add"].tap()
-        XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap()
-        name.typeText("No apps yet")
-        next.tap()
-        XCTAssertTrue(app.buttons["feed.selection.create"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["feed.selection.create"].isEnabled)
+        name.typeText("No apps yet\n")
+        XCTAssertTrue(name.exists)
+        XCTAssertFalse(done.isEnabled)
         app.buttons["feed.selection.cancel"].tap()
         XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
         XCTAssertEqual(groups.count, initialCount)
     }
 
-    func testFeedNameAndSelectionSurviveBackAndCancelKeepsGroups() throws {
+    func testSingleScreenFeedRequiresNameAndCancelKeepsGroups() throws {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
             "-AppleInterfaceStyle", "Light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL",
@@ -58,18 +49,18 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.buttons["feed.add"].tap()
         let name = app.textFields["feed.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
+        let done = app.buttons["feed.selection.create"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertFalse(done.isEnabled)
         name.tap()
-        name.typeText("Focus")
-        attachScreenshot(named: "new-feed-name-light-large")
-        app.buttons["feed.name.next"].tap()
-        let create = app.buttons["feed.selection.create"]
-        XCTAssertTrue(create.waitForExistence(timeout: 5))
-        XCTAssertTrue(create.isEnabled)
-        attachScreenshot(named: "new-feed-selection-light-large")
-        app.navigationBars.buttons["Name your group"].tap()
-        XCTAssertEqual(name.value as? String, "Focus")
-        app.buttons["feed.name.next"].tap()
-        XCTAssertTrue(create.isEnabled)
+        name.typeText("   ")
+        XCTAssertFalse(done.isEnabled)
+        name.typeText("Focus\n")
+        XCTAssertTrue(done.isEnabled)
+        XCTAssertTrue(name.isHittable)
+        XCTAssertTrue(done.isHittable)
+        XCTAssertFalse(app.buttons["feed.name.next"].exists)
+        attachScreenshot(named: "single-screen-feed-light-large")
         app.buttons["feed.selection.cancel"].tap()
         XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
         XCTAssertEqual(groups.count, initialCount)
@@ -86,14 +77,13 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
         name.typeText("  Named feed  ")
-        app.buttons["feed.name.next"].tap()
-        let create = app.buttons["feed.selection.create"]
-        XCTAssertTrue(create.waitForExistence(timeout: 5))
-        XCTAssertTrue(create.isEnabled)
-        create.tap()
+        let done = app.buttons["feed.selection.create"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertTrue(done.isEnabled)
+        done.tap()
         XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access' AND label CONTAINS 'Named feed'")).firstMatch.waitForExistence(timeout: 5))
-        attachScreenshot(named: "new-feed-created-with-name")
+        attachScreenshot(named: "single-screen-feed-created")
         app.terminate()
         app.launch()
         app.buttons["tab_feeds"].tap()

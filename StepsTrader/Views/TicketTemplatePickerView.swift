@@ -4,7 +4,7 @@ import FamilyControls
 import ManagedSettings
 #endif
 
-/// Name and selection stay local until Save. Cancel (including swipe dismissal)
+/// Name and selection stay local until Done. Cancel (including swipe dismissal)
 /// never creates a group or changes an existing one.
 struct NewAppGroupSheet: View {
     let onSave: (FamilyActivitySelection, String) -> Void
@@ -12,7 +12,6 @@ struct NewAppGroupSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selection: FamilyActivitySelection
     @State private var name: String
-    @State private var showSelection = false
     @State private var hasSaved = false
     @FocusState private var nameFocused: Bool
 
@@ -21,7 +20,7 @@ struct NewAppGroupSheet: View {
         var draftSelection = selection
         #if DEBUG && targetEnvironment(simulator)
         // Native simulator picker UI cannot supply a real authorized app token.
-        // Seed a single-app draft only for persistence/navigation UI tests.
+        // Seed a single-app draft only for validation/persistence UI tests.
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("ui-testing"), arguments.contains("ui-testing-feed-selection"),
            let token = try? JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8)) {
@@ -41,7 +40,7 @@ struct NewAppGroupSheet: View {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("ui-testing"), arguments.contains("ui-testing-feed-selection") {
             // The system picker rejects synthetic tokens. Preserve the fixture
-            // while testing our form's Back, Cancel and persistence behavior.
+            // while testing our form's validation, Cancel and persistence behavior.
             return .constant(selection)
         }
         #endif
@@ -50,45 +49,40 @@ struct NewAppGroupSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(String(localized: "Name your group"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                     TextField(String(localized: "e.g. X, Social, Games"), text: $name)
+                        .textFieldStyle(.roundedBorder)
                         .focused($nameFocused)
-                        .submitLabel(.next)
-                        .onSubmit { continueToSelection() }
+                        .submitLabel(.done)
+                        .onSubmit { nameFocused = false }
                         .accessibilityLabel(String(localized: "Name your group"))
                         .accessibilityIdentifier("feed.name")
-                } footer: {
-                    Text(String(localized: "This name appears on the card and in widgets. Next, choose the apps for this group."))
+                    Text(String(localized: "This name appears on the card and in widgets."))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+
+                FamilyActivityPicker(selection: pickerSelection)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle(String(localized: "Name your group"))
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(isEditing ? String(localized: "Edit group") : String(localized: "New group"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { cancelButton }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Next")) { continueToSelection() }
-                        .disabled(trimmedName.isEmpty || hasSaved)
-                        .accessibilityIdentifier("feed.name.next")
+                    Button(String(localized: "Done")) { save() }
+                        .disabled(trimmedName.isEmpty || !selection.hasGroupTargets || hasSaved)
+                        .accessibilityIdentifier("feed.selection.create")
                 }
-            }
-            .onAppear { nameFocused = true }
-            .navigationDestination(isPresented: $showSelection) {
-                FamilyActivityPicker(selection: pickerSelection)
-                    .navigationTitle(String(localized: "Select Apps"))
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button { dismiss() } label: { Image(systemName: "xmark") }
-                                .accessibilityLabel(String(localized: "Cancel"))
-                                .accessibilityIdentifier("feed.selection.cancel")
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button(isEditing ? String(localized: "Save") : String(localized: "Create")) { save() }
-                                .disabled(trimmedName.isEmpty || !selection.hasGroupTargets || hasSaved)
-                                .accessibilityIdentifier("feed.selection.create")
-                        }
-                    }
             }
         }
     }
@@ -96,12 +90,6 @@ struct NewAppGroupSheet: View {
     private var cancelButton: some View {
         Button(String(localized: "Cancel")) { dismiss() }
             .accessibilityIdentifier("feed.selection.cancel")
-    }
-
-    private func continueToSelection() {
-        guard !trimmedName.isEmpty, !hasSaved else { return }
-        nameFocused = false
-        showSelection = true
     }
 
     private func save() {
