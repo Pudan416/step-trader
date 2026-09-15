@@ -30,7 +30,8 @@ struct MetalShapeMaterialUniforms: Codable, Equatable, Sendable {
     }
 
     /// Rotate the frozen palette, retaining one/two-color material relationships.
-    func withColorVariant(_ variant: Int) -> Self {
+    func withColorVariant(_ variant: Int?) -> Self {
+        guard let variant else { return self }
         let angle = Float(variant % 97 + 1) * 2.3999632
         let axis = SIMD3<Float>(repeating: 1 / sqrt(3))
         func rotate(_ c: SIMD4<Float>) -> SIMD4<Float> {

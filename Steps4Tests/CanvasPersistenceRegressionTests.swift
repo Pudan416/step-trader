@@ -1211,6 +1211,36 @@ final class NativeAtlasRecipeTests: XCTestCase {
         XCTAssertEqual(preview, committed)
     }
 
+    func testCommittedNativePigmentMatchesCanvasWithMissingAndExplicitVariants() throws {
+        let happening = Happening(id: "happening_slept_well", title: "Slept well", isBuiltIn: true)
+        for variant: Int? in [nil, 0, 37] {
+            var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-15")
+            var element = CanvasElement.spawn(optionId: happening.id, label: happening.title,
+                existingElements: [], dayKey: canvas.dayKey,
+                composition: .forDay(dayKey: canvas.dayKey, happeningCount: 0))
+            element.editorialColorVariant = variant
+            canvas.elements.append(element)
+            canvas = try JSONDecoder().decode(DayCanvas.self, from: JSONEncoder().encode(canvas))
+            let input = EditorialCanvasInputFactory.make(canvas: canvas,
+                metrics: .init(stepsProgress: 0.5, sleepProgress: 1, spentProgress: 0),
+                paletteCategories: ModernPaletteSelection.all).sceneInput
+            let frozen = try XCTUnwrap(input.nativeAtlasRecipe?.actors.first)
+            var canvasMaterial = frozen.material.primaryCanvasMaterial
+            if let value = input.actorColorVariants[frozen.eventID] {
+                canvasMaterial = canvasMaterial.withColorVariant(value)
+            }
+            for nonce: UInt64 in [0, 42, 999] {
+                let assignment = try XCTUnwrap(HappeningEditorialAssignmentResolver.snapshot(request: .init(
+                    happenings: [happening], baseInput: input, committedElements: canvas.elements,
+                    colorNonce: nonce)).assignments[happening.id])
+                XCTAssertEqual(assignment.colorVariant, variant, "Missing variant is distinct from variant zero")
+                let material = try XCTUnwrap(assignment.nativeActor).material.primaryCanvasMaterial
+                XCTAssertEqual(material.withColorVariant(assignment.colorVariant), canvasMaterial,
+                    "The palette and its label contrast must use the same pigment as the saved canvas")
+            }
+        }
+    }
+
     func testNewNativeCanvasCapturesChosenPalette() throws {
         let pastel = DayCanvas.newDailyCanvas(dayKey: "2026-09-10", paletteCategories: [.pastel])
         let neon = DayCanvas.newDailyCanvas(dayKey: "2026-09-10", paletteCategories: [.neon])
