@@ -24,13 +24,19 @@
 | --- | --- | --- | --- | --- |
 | SE 3 / iOS 26.3 | 375 × 667 | 375 × 667, origin 0/0 | То же | То же |
 | iPhone 17 / iOS 26.3 | 402 × 874 | 402 × 874, origin 0/0 | То же | То же |
+| iPhone 13 mini / iOS 26.3 | 375 × 812 | 375 × 812, origin 0/0 | То же | То же |
 
 - Финальный SE: 4 UI tests passed, 0 failures, `/tmp/nowhere-tour-viewport-final-se.xcresult`. Полные размеры рендера, drag drawer → Share cancel → Finish, Next/ручка при максимальном тексте, вложенные страницы setup и возврат.
 - iPhone 17: 1 UI test passed, 0 failures, `/tmp/nowhere-tour-viewport-final-17.xcresult`; тот же замер Welcome/Add/обычного Canvas.
+- iPhone 13 mini: 1 UI test passed, 0 failures, `/tmp/nowhere-tour-viewport-mini-retry.xcresult`, код `49715c9f`; тот же замер. Первая попытка запуска runner не завершилась; повторный последовательный запуск прошёл.
 - Дополнительная проверка Share в Me подтверждает, что она расположена ниже строки выхода и открывает настоящий системный share sheet.
 - `git diff --check` passed.
 
 Тексты замеров: [SE](canvas-tour-viewport/se-frames.txt), [iPhone 17](canvas-tour-viewport/iphone17-frames.txt).
+
+Дополнительный замер: [iPhone 13 mini](canvas-tour-viewport/iphone13mini-frames.txt). Эта проверка проходит только Welcome → Add → Stop и не добавляет happening, не создаёт группы и не списывает colors. Проверка размера Canvas не является проверкой всех подсказок и системных разрешений на этой модели.
+
+Проверка на выделенных новых симуляторах iPhone 15 Pro и iPhone 17 Pro Max не завершилась: общий multi-destination прогон остановлен до начала тестов, отдельный запуск на 15 Pro также не начал тест. Эти модели не считаются прошедшими проверку. Логи попыток: `/tmp/nowhere-tour-viewport-models.log`, `/tmp/nowhere-tour-viewport-15pro.log`. Исправление размещения root chrome общее, без условий по модели телефона; ожидаемый результат по коду не заменяет замер.
 
 Промежуточный прогон после переноса строки обнаружил пересечение Share в Me; исправлен отступ именно содержимого Me. Этот красный прогон не считается финальным результатом.
 
@@ -44,3 +50,4 @@
 - [SE после исправления](canvas-tour-viewport/after-se-welcome.png)
 - [Обычный Canvas SE](canvas-tour-viewport/normal-se.png)
 - [iPhone 17 после исправления](canvas-tour-viewport/after-iphone17-welcome.png)
+- [iPhone 13 mini после исправления](canvas-tour-viewport/after-iphone13mini-welcome.png)
