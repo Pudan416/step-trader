@@ -22,8 +22,60 @@ final class DebugCanvasTourTests: XCTestCase {
         XCTAssertEqual(t.step, .happening)
         t.send(.happeningAdded("duplicate"))
         t.send(.paletteDismissed)
-        XCTAssertEqual(t.step, .balance)
+        XCTAssertEqual(t.step, .momentResult)
         XCTAssertEqual(t.addedEntryID, "entry")
+    }
+
+    func testMomentConfirmationRequiresNextBeforeUserCanOpenDrawer() {
+        let t = tour(); t.start(at: .happening); t.hostReady()
+        t.send(.happeningAdded("saved"))
+        t.send(.momentAcknowledged)
+        XCTAssertEqual(t.step, .happening)
+        t.send(.paletteDismissed)
+        XCTAssertEqual(t.step, .momentResult)
+        XCTAssertFalse(t.allowsControl("canvas.balanceHandle"))
+        XCTAssertTrue(t.isContextualControl("canvas.balanceSummary"))
+        t.send(.dataPanelExpanded)
+        XCTAssertEqual(t.step, .momentResult)
+        t.send(.momentAcknowledged)
+        XCTAssertEqual(t.step, .balance)
+        XCTAssertTrue(t.allowsControl("canvas.balanceHandle"))
+        t.send(.momentAcknowledged)
+        XCTAssertEqual(t.step, .balance)
+        t.send(.dataPanelExpanded)
+        XCTAssertEqual(t.step, .healthValue)
+        XCTAssertEqual(t.addedEntryID, "saved")
+    }
+
+    func testUsingExistingDayAlsoWaitsForMomentAcknowledgement() {
+        let t = tour(); t.start(at: .happening); t.hostReady()
+        t.send(.useExistingDay)
+        XCTAssertEqual(t.step, .momentResult)
+        XCTAssertNil(t.addedEntryID)
+        XCTAssertTrue(t.skippedBranches.contains("addHappening"))
+        t.send(.momentAcknowledged)
+        XCTAssertEqual(t.step, .balance)
+    }
+
+    func testVersionOneBalanceResumesAtNewConfirmationWithoutLosingEntry() throws {
+        let name = "CanvasTourTests.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let t = DebugCanvasTour(defaults: defaults)
+        t.start(at: .balance); t.hostReady()
+        let key = "debug.canvasOnboarding.session.v1"
+        var saved = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(defaults.data(forKey: key))) as? [String: Any])
+        saved["flowVersion"] = 1
+        saved["addedEntryID"] = "existing-entry"
+        defaults.set(try JSONSerialization.data(withJSONObject: saved), forKey: key)
+        let restored = DebugCanvasTour(defaults: defaults)
+        XCTAssertFalse(restored.isActive)
+        XCTAssertEqual(restored.flowVersion, 2)
+        restored.resume(groupIDs: []); restored.hostReady()
+        XCTAssertEqual(restored.step, .momentResult)
+        XCTAssertEqual(restored.addedEntryID, "existing-entry")
+        restored.send(.momentAcknowledged)
+        XCTAssertEqual(restored.step, .balance)
     }
 
     func testRestartAndStopInvalidateLateOperations() {
@@ -189,6 +241,7 @@ final class DebugCanvasTourTests: XCTestCase {
     func testExitConfirmationPreservesStepAndSavedResultsUntilConfirmed() {
         let t = tour(); t.start(); t.hostReady(); t.send(.begin)
         t.send(.palettePresented); t.send(.happeningAdded("saved")); t.send(.paletteDismissed)
+        t.send(.momentAcknowledged)
         t.send(.skipRequested)
         XCTAssertTrue(t.isActive)
         XCTAssertEqual(t.step, .balance)

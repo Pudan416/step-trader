@@ -428,6 +428,11 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         choice.tap()
         XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.happening"].exists)
         choice.tap()
+        let next = app.buttons["canvas_tour.momentNext"]
+        XCTAssertTrue(next.waitForExistence(timeout: 8))
+        capture(app, "tour-moment-result")
+        XCTAssertFalse(app.buttons["canvas_tour.healthLater"].exists)
+        next.tap()
         let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
         XCTAssertTrue(handle.waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.balance"].waitForExistence(timeout: 8))
@@ -441,6 +446,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertFalse(panelFrame.intersects(healthCardFrame), "The Health coach must clear the drawer footer")
         XCTAssertTrue(app.buttons["canvas_tour.health"].isHittable, "Connect must stay outside the text scroll area")
         XCTAssertTrue(app.buttons["canvas_tour.healthLater"].isHittable, "Later must be visible without scrolling")
+        XCTAssertFalse(app.scrollViews["canvas_tour.textScroll"].exists, "The Health explanation must fit at the default text size")
         capture(app, "tour-health")
         app.buttons["canvas_tour.healthLater"].tap()
         app.buttons["canvas_tour.healthContinue"].tap()
@@ -498,6 +504,8 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["canvas_add_button"].tap()
         XCTAssertTrue(app.buttons["canvas_tour.existingDay"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.existingDay"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.momentNext"].tap()
         let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
         let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
@@ -535,6 +543,8 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["canvas_tour.begin"].tap()
         app.buttons["canvas_add_button"].tap()
         app.buttons["canvas_tour.existingDay"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.momentNext"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.balance"].waitForExistence(timeout: 5))
         let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
@@ -576,6 +586,29 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["canvas_tour.skipExport"].tap()
         app.buttons["canvas_tour.finish"].tap()
         XCTAssertFalse(app.buttons["canvas_tour.skip"].exists)
+    }
+
+    func testLargeTextMomentNextKeepsRealHandleAccessible() {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "debug-canvas-tour-welcome", "debug-canvas-tour-fixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "-AppleLanguages", "(en)"]
+        app.launch()
+        XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 20))
+        app.buttons["canvas_tour.begin"].tap()
+        app.buttons["canvas_add_button"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.existingDay"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.existingDay"].tap()
+        let next = app.buttons["canvas_tour.momentNext"]
+        XCTAssertTrue(next.waitForExistence(timeout: 5))
+        XCTAssertTrue(next.isHittable, "Next must remain outside the scrolling explanation")
+        capture(app, "tour-moment-accessibility")
+        next.tap()
+        let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 5))
+        XCTAssertTrue(handle.isHittable, "The Pull it down coach must leave the real handle accessible")
+        capture(app, "tour-balance-accessibility")
+        app.buttons["canvas_tour.skip"].tap()
+        app.buttons["canvas_tour.exit.confirm"].tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].isHittable)
     }
 
     func testLargeTextKeepsSkipAndActualTargetAccessible() {

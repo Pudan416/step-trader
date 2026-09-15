@@ -38,7 +38,7 @@ private struct CanvasTourControlModifier: ViewModifier {
 extension DebugCanvasTour {
     func isContextualControl(_ id: String) -> Bool {
         guard isActive else { return true }
-        if id == "canvas.balanceSummary" { return [.balance, .healthValue, .healthResult, .chooseDuration, .meTab].contains(step) }
+        if id == "canvas.balanceSummary" { return [.momentResult, .balance, .healthValue, .healthResult, .chooseDuration, .meTab].contains(step) }
         if step == .meTab, let group = selectedGroupID { return id == "feeds.group.\(group)" }
         return false
     }
@@ -87,6 +87,7 @@ private struct DebugCanvasTourHost: ViewModifier {
         switch tour.step {
         case .add: "canvas.addHappening"
         case .happening: "canvas.happenings"
+        case .momentResult: "canvas.balanceSummary"
         case .balance: "canvas.balanceHandle"
         case .healthValue, .healthResult: "canvas.health"
         case .feedsTab: "tabs.feeds"
@@ -206,6 +207,7 @@ private struct DebugCanvasTourHost: ViewModifier {
                 cardContent.fixedSize(horizontal: false, vertical: true)
                 ScrollView { cardContent.fixedSize(horizontal: false, vertical: true) }
                     .scrollIndicators(.visible)
+                    .accessibilityIdentifier("canvas_tour.textScroll")
             }
             VStack(spacing: 10) {
                 actions
@@ -220,7 +222,8 @@ private struct DebugCanvasTourHost: ViewModifier {
             .layoutPriority(1)
         }
         .foregroundStyle(coachInk)
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.vertical, [.healthValue, .healthResult].contains(tour.step) ? 12 : 20)
         .frame(maxWidth: .infinity)
         .background(coachSurface, in: RoundedRectangle(cornerRadius: 24))
         .accessibilityElement(children: .contain)
@@ -259,6 +262,7 @@ private struct DebugCanvasTourHost: ViewModifier {
     @ViewBuilder private var actions: some View {
         switch tour.step {
         case .welcome: action(String(localized: "Let’s begin"), id: "begin") { tour.send(.begin) }
+        case .momentResult: action(String(localized: "Next"), id: "momentNext") { tour.send(.momentAcknowledged) }
         case .healthValue:
             HStack(spacing: 10) {
                 action(String(localized: "Connect Health"), id: "health") { requestHealth() }
@@ -295,8 +299,9 @@ private struct DebugCanvasTourHost: ViewModifier {
         case .welcome: String(localized: "Hey, I’m Kosta.")
         case .add: String(localized: "Start with a moment.")
         case .happening: String(localized: "What happened today?")
-        case .balance: String(localized: "You now have \(model.totalStepsBalance) colors")
-        case .healthValue: String(localized: "Your day has colors.")
+        case .momentResult: String(localized: "You already have \(model.totalStepsBalance) colors.")
+        case .balance: String(localized: "Pull it down.")
+        case .healthValue: String(localized: "Activity and Sleep")
         case .healthResult: healthFailed ? String(localized: "Couldn’t check Health") : String(localized: "Apple Health")
         case .feedsTab: String(localized: "Unlock apps with your colors.")
         case .addApps: String(localized: "Choose your apps.")
@@ -315,14 +320,20 @@ private struct DebugCanvasTourHost: ViewModifier {
         case .welcome: String(localized: "I made Nowhere to scroll less and notice more. Want a quick tour?")
         case .add: String(localized: "Tap + to add something from your day.")
         case .happening: String(localized: "Tap once to preview. Tap again to add.")
-        case .balance: String(localized: "Pull the top panel down, or tap it, to see what else adds color to your day.")
-        case .healthValue: String(localized: "Steps: up to \(EnergyDefaults.stepsMaxPoints) colors a day.\nSleep: up to \(EnergyDefaults.sleepMaxPoints) colors a day.")
+        case .momentResult: String(localized: "By adding happenings, you can get up to \(HappeningDefaults.happeningsMaxPoints) colors a day.")
+        case .balance: String(localized: "To see where the other \(EnergyDefaults.stepsMaxPoints + EnergyDefaults.sleepMaxPoints) colors can come from. You can also tap the handle.")
+        case .healthValue:
+            if EnergyDefaults.stepsMaxPoints == EnergyDefaults.sleepMaxPoints {
+                String(localized: "Apple Health data can add up to \(EnergyDefaults.stepsMaxPoints)\ncolors each for Steps and Sleep a day.")
+            } else {
+                String(localized: "Apple Health: Steps up to \(EnergyDefaults.stepsMaxPoints),\nSleep up to \(EnergyDefaults.sleepMaxPoints) colors a day.")
+            }
         case .healthResult:
             if !HKHealthStore.isHealthDataAvailable() { String(localized: "Health is unavailable on this device. You can continue without it.") }
             else if healthFailed { String(localized: "Try again, or continue without Health. The panel may show earlier values.") }
-            else if model.stepsToday > 0 || model.dailySleepHours > 0 { String(localized: "Health data is available. The panel shows your calculated colors for today.") }
-            else if healthAttempted || model.hasStepsData || model.hasSleepData { String(localized: "Your colors will update as Health data becomes available. An empty result does not tell us which read permissions you allowed.") }
-            else { String(localized: "You can check Health access later in Settings.") }
+            else if model.stepsToday > 0 || model.dailySleepHours > 0 { String(localized: "The panel shows colors from available Health data. You can change Health access in Settings.") }
+            else if healthAttempted || model.hasStepsData || model.hasSleepData { String(localized: "Colors can update as Health data becomes available. You can change Health access in Settings.") }
+            else { String(localized: "You can connect Health later or change access in Settings.") }
         case .feedsTab: String(localized: "Tap Feeds to choose the apps you’d like to pause.")
         case .addApps: model.ticketGroups.isEmpty ? String(localized: "Tap + to choose the apps you’d like to pause. App access is optional for finishing this tour.") : String(localized: "Tap an existing group to use it, or tap + to choose another set of apps.")
         case .selectionResult: String(localized: "Your group is saved. You can change it later in Feeds.")

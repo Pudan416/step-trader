@@ -1113,7 +1113,7 @@ struct GalleryView: View {
             // Continue with an existing day also closes the real palette. This
             // only prepares the next context; it never adds or removes a moment.
             guard DebugCanvasTour.shared.isActive else { return }
-            if step == .welcome || step == .balance {
+            if step == .welcome || step == .momentResult || step == .balance {
                 send(.exitFullScreen)
                 send(.hideData)
                 if showHappeningPalette { closeHappeningPalette() }

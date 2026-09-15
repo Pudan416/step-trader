@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 enum CanvasTourStep: String, CaseIterable, Codable, Identifiable {
-    case welcome, add, happening, balance, healthValue, healthResult, feedsTab
+    case welcome, add, happening, momentResult, balance, healthValue, healthResult, feedsTab
     case addApps, selectionResult, selectFeed, chooseDuration, meTab, saveDays, setup, poster, finish
     var id: String { rawValue }
     var expectedEvent: String {
@@ -11,6 +11,7 @@ enum CanvasTourStep: String, CaseIterable, Codable, Identifiable {
         case .welcome: "begin"
         case .add: "palettePresented"
         case .happening: "happeningAdded → paletteDismissed"
+        case .momentResult: "momentAcknowledged"
         case .balance: "dataPanelExpanded"
         case .healthValue: "healthUpdated / healthDeferred"
         case .healthResult: "continueHealth"
@@ -37,7 +38,7 @@ enum CanvasTourStep: String, CaseIterable, Codable, Identifiable {
 
 enum CanvasTourEvent: Equatable {
     case begin, palettePresented, happeningAdded(String), paletteDismissed, useExistingDay
-    case dataPanelExpanded, healthUpdated, healthDeferred, continueHealth, tabSelected(Int)
+    case momentAcknowledged, dataPanelExpanded, healthUpdated, healthDeferred, continueHealth, tabSelected(Int)
     case appSelectionCommitted(String), selectionAcknowledged, groupOpened(String), unlockSucceeded(String)
     case skipApps, skipUnlock, addMoreColors, posterReady(String), showSetup, setupCompleted
     case shareDismissed(Bool), exportSkipped, finish, skipRequested
@@ -56,7 +57,7 @@ struct CanvasTourOperation: Equatable, Codable {
 
 private struct CanvasTourSession: Codable {
     var sessionID = UUID()
-    var flowVersion = 1
+    var flowVersion = 2
     var mode = "Live"
     var status = CanvasTourStatus.inactive
     var currentStep = CanvasTourStep.welcome
@@ -100,8 +101,10 @@ final class DebugCanvasTour {
         self.defaults = defaults
         self.suppressesAnalytics = suppressesAnalytics
         if let data = defaults?.data(forKey: Self.storageKey),
-           let saved = try? JSONDecoder().decode(CanvasTourSession.self, from: data), saved.flowVersion == 1 {
+           let saved = try? JSONDecoder().decode(CanvasTourSession.self, from: data), (1...2).contains(saved.flowVersion) {
             session = saved
+            if saved.flowVersion == 1, saved.currentStep == .balance { session.currentStep = .momentResult }
+            session.flowVersion = 2
             session.pendingOperation = nil
             if ![.completed, .skipped, .inactive].contains(saved.status) { session.status = .paused }
         }
@@ -252,8 +255,8 @@ final class DebugCanvasTour {
         if case .skipRequested = event { requestExit(reason: "skip"); return }
         if case .posterReady(let id) = event { posterDayID = id; return }
         if pendingDestination != nil {
-            if event == .paletteDismissed, pendingDestination == .balance {
-                pendingDestination = nil; enter(.balance, reason: "persisted happening and palette dismissed")
+            if event == .paletteDismissed, pendingDestination == .momentResult {
+                pendingDestination = nil; enter(.momentResult, reason: "persisted happening and palette dismissed")
             } else { report("transition ignored: waiting for presentation dismissal") }
             return
         }
@@ -262,11 +265,12 @@ final class DebugCanvasTour {
         case (.welcome, .begin): destination = .add
         case (.add, .palettePresented): destination = .happening
         case (.happening, .happeningAdded(let id)) where !id.isEmpty:
-            session.addedEntryID = id; pendingDestination = .balance
+            session.addedEntryID = id; pendingDestination = .momentResult
             session.status = .resolvingResult; report("happening persisted; waiting for palette dismiss"); return
         case (.happening, .paletteDismissed): destination = .add
         case (.happening, .useExistingDay):
-            session.skippedBranches.insert("addHappening"); destination = .balance
+            session.skippedBranches.insert("addHappening"); destination = .momentResult
+        case (.momentResult, .momentAcknowledged): destination = .balance
         case (.balance, .dataPanelExpanded): destination = .healthValue
         case (.healthValue, .healthUpdated): destination = .healthResult
         case (.healthValue, .healthDeferred):
