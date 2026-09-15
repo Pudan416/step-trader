@@ -8,7 +8,6 @@
 import ManagedSettings
 import ManagedSettingsUI
 import UIKit
-import WidgetKit
 
 // Override the functions below to customize the shields used in various situations.
 // The system provides a default appearance for any methods that your subclass doesn't override.
@@ -45,38 +44,6 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
         return application.localizedDisplayName ?? NSLocalizedString("App", comment: "Fallback name for unknown app")
     }
 
-    /// Debug-only, local diagnostics. Never write app names or opaque tokens.
-    private func recordNameCapture(for application: Application, stage: String) {
-        #if DEBUG
-        let defaults = sharedDefaults()
-        var fields: [String: Any] = [
-            "timestamp": ISO8601DateFormatter().string(from: Date()),
-            "stage": stage,
-            "hasToken": application.token != nil,
-            "hasName": application.localizedDisplayName != nil,
-            "hasBundleIdentifier": application.bundleIdentifier != nil
-        ]
-        if let token = application.token {
-            do {
-                _ = try JSONEncoder().encode(token)
-                fields["tokenEncodes"] = true
-            } catch {
-                fields["tokenEncodes"] = false
-                fields["encodingErrorType"] = String(describing: type(of: error))
-            }
-            fields["nameCacheReadable"] = FamilyControlsAppNameCache.name(for: token, defaults: defaults) != nil
-        }
-        let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId)
-        fields["hasSharedContainer"] = container != nil
-        defaults.set(fields, forKey: "widgetNameCaptureDiagnostic_v1")
-        defaults.synchronize()
-        // Also write a file so device inspection does not depend on the preferences daemon.
-        if let container, let data = try? JSONSerialization.data(withJSONObject: fields, options: .sortedKeys) {
-            try? data.write(to: container.appendingPathComponent("widget-name-capture.json"), options: .atomic)
-        }
-        #endif
-    }
-    
     private var dailyPalette: DailyInterfacePalette {
         DailyInterfacePalette.load(from: sharedDefaults())
     }
@@ -128,35 +95,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
     
     override func configuration(shielding application: Application) -> ShieldConfiguration {
-        recordNameCapture(for: application, stage: "entered")
+        // Shield metadata stays in this extension's sandbox; it cannot be exported
+        // to the app or widget through shared preferences or files.
         let appName = getAppName(for: application)
-        // Only this extension receives the real name through the public API.
-        // Persist it separately from the user's group name for widget pickers.
-        if let token = application.token, let name = application.localizedDisplayName,
-           FamilyControlsAppNameCache.store(name, for: token, defaults: sharedDefaults()) {
-            sharedDefaults().synchronize()
-            WidgetCenter.shared.reloadAllTimelines()
-        }
-        recordNameCapture(for: application, stage: "captureCompleted")
         let artworkTarget = application.token.flatMap(Self.base64).map { "app:\($0)" }
             ?? "app-name:\(appName)"
         let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: artworkTarget)
-        
-        if let token = application.token,
-           let base64 = Self.base64(for: token) {
-            let defaults = sharedDefaults()
-            if defaults.string(forKey: SharedKeys.fcAppNameKey(base64)) != appName {
-                defaults.set(appName, forKey: SharedKeys.fcAppNameKey(base64))
-            }
-            if let bid = application.bundleIdentifier,
-               defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) != bid {
-                defaults.set(bid, forKey: SharedKeys.fcBundleIdKey(base64))
-            }
-            if defaults.string(forKey: SharedKeys.fcAppNameKey(base64)) != appName
-                || (application.bundleIdentifier != nil && defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) != application.bundleIdentifier) {
-                defaults.synchronize()
-            }
-        }
         
         let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked app"), appName)
 

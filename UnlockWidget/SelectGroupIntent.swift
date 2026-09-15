@@ -13,7 +13,7 @@ struct TicketGroupEntity: AppEntity {
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)", subtitle: needsAppName
-            ? "Open the blocked app once to show its name."
+            ? "Name this feed in Nowhere using Rename."
             : nil)
     }
 }
@@ -40,7 +40,7 @@ struct TicketGroupQuery: EntityQuery {
             return []
         }
         return decoded.enumerated().map { index, group in
-            let display = group.pickerName(index: index, defaults: g)
+            let display = group.pickerName(index: index)
             return TicketGroupEntity(id: group.id, name: display.title, needsAppName: display.needsAppName)
         }
     }

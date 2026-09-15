@@ -172,19 +172,14 @@ struct WidgetGroupOption: Decodable {
         let needsAppName: Bool
     }
 
-    func pickerName(index: Int, defaults: UserDefaults) -> PickerName {
+    func pickerName(index: Int) -> PickerName {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return PickerName(title: trimmed, needsAppName: false) }
         if let templateApp, let title = AppGroupIdentity.applicationNames[templateApp] {
             return PickerName(title: title, needsAppName: false)
         }
-        let identity = AppGroupIdentity(name: name, templateApp: templateApp, selectionData: selectionData)
-        if let token = identity.applicationToken {
-            if let title = FamilyControlsAppNameCache.name(for: token, defaults: defaults) {
-                return PickerName(title: title, needsAppName: false)
-            }
-            return PickerName(title: String(localized: "App group \(index + 1)"), needsAppName: true)
-        }
-        return PickerName(title: String(localized: "App group \(index + 1)"), needsAppName: false)
+        // AppEntity requires text; the privacy-preserving Family Controls Label
+        // cannot supply a string for the system widget configuration picker.
+        return PickerName(title: String(localized: "App group \(index + 1)"), needsAppName: true)
     }
 }

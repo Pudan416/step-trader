@@ -341,19 +341,19 @@
         }
       }
     },
-    "Open the blocked app once to show its name.": {
+    "Name this feed in Nowhere using Rename.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open the blocked app once to show its name."
+            "value": "Name this feed in Nowhere using Rename."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Откройте заблокированное приложение, чтобы появилось его название."
+            "value": "Задайте название в Nowhere через «Переименовать»."
           }
         }
       }
