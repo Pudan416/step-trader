@@ -336,6 +336,7 @@ struct FeedRowView: View {
                 .buttonStyle(.plain)
                 .frame(height: headerHeight)
                 .accessibilityIdentifier("feed.\(group.id).access")
+                .canvasTourControl("feeds.group.\(group.id)")
                 .accessibilityElement(children: .combine)
                 .accessibilityHint(accessibilityHint)
                 .accessibilityAction(named: String(localized: "Settings"), onSettings)
@@ -408,9 +409,11 @@ struct FeedRowView: View {
             Button(action: onSettings) {
                 Label(String(localized: "Settings"), systemImage: "gearshape")
             }
+            .accessibilityIdentifier("feed.\(group.id).settings")
             Button(role: .destructive, action: onDelete) {
                 Label(String(localized: "Delete"), systemImage: "trash")
             }
+            .canvasTourControl("feeds.delete.\(group.id)")
         } label: {
             HStack(spacing: 4) {
                 ForEach(0..<3, id: \.self) { index in
@@ -431,6 +434,7 @@ struct FeedRowView: View {
         }
         .accessibilityLabel(String(localized: "Options for \(group.displayIdentity.title)"))
         .accessibilityIdentifier("feed.\(group.id).options")
+        .canvasTourControl("feeds.settings.\(group.id)")
     }
 
     private var accessibilityLabel: String {
@@ -536,6 +540,7 @@ struct FeedInlineDurationOptions: View {
             String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors")
         )
         .accessibilityIdentifier("feed.\(group.id).duration.\(window.minutes)")
+        .canvasTourControl("feeds.duration.\(group.id).\(window.minutes)")
         .accessibilityHint(
             canAfford
                 ? String(localized: "Double tap to unlock")
@@ -545,6 +550,27 @@ struct FeedInlineDurationOptions: View {
 
     private func purchase(window: AccessWindow, cost: Int) {
         guard purchasingWindow == nil else { return }
+        #if DEBUG
+        if DebugCanvasTour.shared.isActive {
+            guard let current = model.blockingStore.ticketGroups.first(where: { $0.id == group.id }),
+                  current.selection.hasGroupTargets, current.selection == group.selection else {
+                DebugCanvasTour.shared.recover("This feed changed. Choose an available feed again.")
+                return
+            }
+            guard model.blockingStore.isAuthorized else {
+                DebugCanvasTour.shared.recover("App access is needed. Check Your setup or skip this unlock.")
+                return
+            }
+            guard model.totalStepsBalance >= group.cost(for: window), group.enabledIntervals.contains(window) else {
+                DebugCanvasTour.shared.recover("This duration is no longer available with your colors. Choose another or skip.")
+                return
+            }
+        }
+        #endif
+        #if DEBUG
+        let tourOperation = DebugCanvasTour.shared.beginOperation("unlock", returnContext: DebugCanvasTour.shared.step == .setup ? "setup" : "flow")
+        if DebugCanvasTour.shared.isActive, tourOperation == nil { return }
+        #endif
         purchasingWindow = window
         Task { @MainActor in
             await model.handlePayGatePaymentForGroup(
@@ -554,7 +580,33 @@ struct FeedInlineDurationOptions: View {
             )
             purchasingWindow = nil
 
-            guard model.unspentUsageBudgetMatchingShield(for: group.id) > 0 else { return }
+            guard model.unspentUsageBudgetMatchingShield(for: group.id) > 0 else {
+                #if DEBUG
+                if DebugCanvasTour.shared.isCurrent(tourOperation) {
+                    DebugCanvasTour.shared.endOperation(tourOperation, error: "Unlock did not start. Check app access and your colors, then try again.")
+                }
+                #endif
+                return
+            }
+            #if DEBUG
+            if let tourOperation, DebugCanvasTour.shared.isCurrent(tourOperation) {
+                guard let current = model.blockingStore.ticketGroups.first(where: { $0.id == group.id }),
+                      current.selection.hasGroupTargets, current.selection == group.selection else {
+                    DebugCanvasTour.shared.endOperation(tourOperation, error: "The feed changed during unlock. Choose an available feed again.")
+                    return
+                }
+                if model.blockingStore.isAuthorized {
+                    DebugCanvasTour.shared.send(.unlockSucceeded(group.id), token: tourOperation)
+                    // Setup purchases do not advance the tour, but must release
+                    // their operation so another optional action can run.
+                    if DebugCanvasTour.shared.isCurrent(tourOperation) {
+                        DebugCanvasTour.shared.endOperation(tourOperation)
+                    }
+                } else {
+                    DebugCanvasTour.shared.endOperation(tourOperation, error: "App access changed during unlock. Check Your setup or skip this section.")
+                }
+            }
+            #endif
             onPurchased()
         }
     }

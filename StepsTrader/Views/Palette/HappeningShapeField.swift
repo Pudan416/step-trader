@@ -26,7 +26,13 @@ struct HappeningShapeField: View {
         source: HappeningFieldLayout.Source
     ) -> some View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
-        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
+        #if DEBUG
+        let existingTourMoment = DebugCanvasTour.shared.isActive
+            && DebugCanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
+        #else
+        let existingTourMoment = false
+        #endif
+        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil || existingTourMoment
         let side = max(44, source.radius * 2)
         let ink = labelInks[happening.id] ?? .dark
 
@@ -60,7 +66,9 @@ struct HappeningShapeField: View {
             .disabled(locked)
             .accessibilityLabel(happening.localizedTitle())
             .accessibilityValue(HappeningPaletteAccessibility.value(for: state))
-            .accessibilityHint(hint(for: state, locked: locked))
+            .accessibilityHint(existingTourMoment
+                ? String(localized: "Already in your day. Choose another happening, or continue with your existing day.")
+                : hint(for: state, locked: locked))
             .accessibilityIdentifier("happening_choice_\(happening.id)")
 
             if state == .added {

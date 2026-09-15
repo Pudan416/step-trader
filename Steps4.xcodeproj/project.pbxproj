@@ -606,6 +606,11 @@
 		A71300000000000000000021 /* DailyInterfaceColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71300000000000000000002 /* DailyInterfaceColors.swift */; };
 		FA0111111111111111111101 /* UnlockGroupWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */; };
 		A291D7C74CA84690A433F038 /* DayBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DB000A2F85000000000001 /* DayBoundary.swift */; };
+		CB0915000000000000000002 /* DebugCanvasTour.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000001 /* DebugCanvasTour.swift */; };
+		CB0915000000000000000012 /* DebugCanvasTourUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000011 /* DebugCanvasTourUI.swift */; };
+		CB0915000000000000000022 /* DebugCanvasTourDeveloperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000021 /* DebugCanvasTourDeveloperPage.swift */; };
+		CB0915000000000000000032 /* DebugCanvasTourSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000031 /* DebugCanvasTourSetup.swift */; };
+		CB0915000000000000000042 /* DebugCanvasTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000041 /* DebugCanvasTourTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1264,6 +1269,11 @@
 		A71300000000000000000001 /* DailyInterfacePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DailyInterfacePalette.swift; path = Shared/DailyInterfacePalette.swift; sourceTree = SOURCE_ROOT; };
 		A71300000000000000000002 /* DailyInterfaceColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DailyInterfaceColors.swift; path = StepsTrader/Theme/DailyInterfaceColors.swift; sourceTree = SOURCE_ROOT; };
 		FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockWidget/UnlockGroupWidgetIntent.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000001 /* DebugCanvasTour.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTour.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTour.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000011 /* DebugCanvasTourUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourUI.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTourUI.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000021 /* DebugCanvasTourDeveloperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourDeveloperPage.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTourDeveloperPage.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000031 /* DebugCanvasTourSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourSetup.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTourSetup.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000041 /* DebugCanvasTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourTests.swift; path = Steps4Tests/DebugCanvasTourTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -2067,6 +2077,10 @@
 			children = (
 				70CM00013004000070CM0001 /* CoachMarkAnchorKey.swift */,
 				70CM00013004000070CM0002 /* CoachMarkManager.swift */,
+				CB0915000000000000000031 /* DebugCanvasTourSetup.swift */,
+				CB0915000000000000000021 /* DebugCanvasTourDeveloperPage.swift */,
+				CB0915000000000000000011 /* DebugCanvasTourUI.swift */,
+				CB0915000000000000000001 /* DebugCanvasTour.swift */,
 				70CM00013004000070CM0003 /* CoachMarkOverlay.swift */,
 			);
 			path = CoachMark;
@@ -2161,6 +2175,7 @@
 				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
 				PREF5702570057005700F002 /* PreferencesStoreTests.swift */,
 				CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */,
+				CB0915000000000000000041 /* DebugCanvasTourTests.swift */,
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
 				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
 				A71000000000000000000003 /* GateArtworkTests.swift */,
@@ -2834,6 +2849,10 @@
 				A0B10004A0B10004A0B10004 /* OnboardingCoordinator.swift in Sources */,
 				70CM00023004000070CM0001 /* CoachMarkAnchorKey.swift in Sources */,
 				70CM00023004000070CM0002 /* CoachMarkManager.swift in Sources */,
+				CB0915000000000000000032 /* DebugCanvasTourSetup.swift in Sources */,
+				CB0915000000000000000022 /* DebugCanvasTourDeveloperPage.swift in Sources */,
+				CB0915000000000000000012 /* DebugCanvasTourUI.swift in Sources */,
+				CB0915000000000000000002 /* DebugCanvasTour.swift in Sources */,
 				70CM00023004000070CM0003 /* CoachMarkOverlay.swift in Sources */,
 				2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */,
 				A3C000020000000000000001 /* SettingsAccountPage.swift in Sources */,
@@ -3127,6 +3146,7 @@
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
 				PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */,
 				CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */,
+				CB0915000000000000000042 /* DebugCanvasTourTests.swift in Sources */,
 				T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */,
 				20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */,
 				C5A510010906202600000002 /* CanvasVisualStyleTests.swift in Sources */,

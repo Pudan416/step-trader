@@ -90,6 +90,7 @@ struct CanvasBottomActionRow: View {
         )
         .accessibilityValue(soundAppearance.accessibilityValue)
         .accessibilityIdentifier("canvas_sound_button")
+        .canvasTourControl("canvas.sound")
     }
 
     private var listControl: some View {
@@ -104,6 +105,7 @@ struct CanvasBottomActionRow: View {
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Choose happenings"))
         .accessibilityIdentifier("canvas_happening_list_button")
+        .canvasTourControl("canvas.paletteEditor")
     }
 
     // MARK: - Right: add
@@ -131,6 +133,7 @@ struct CanvasBottomActionRow: View {
         )
         .anchorPreference(key: CanvasHintAnchorKey.self, value: .bounds) { $0 }
         .coachMarkAnchor(.tapPlusButton)
+        .canvasTourControl(isHappeningPalettePresented ? "canvas.paletteClose" : "canvas.addHappening")
         // The palette docks on this button's line rather than re-deriving it
         // from tab-bar height and paddings.
         .background(

@@ -28,6 +28,13 @@ struct SettingsDeveloperPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     SettingsGroupedSurface {
+                        NavigationLink {
+                            DebugCanvasTourDeveloperPage(model: model)
+                        } label: {
+                            diagButton(icon: "hand.point.up.left", text: "Canvas onboarding (Debug)", trailing: "chevron.right")
+                        }
+                        .accessibilityIdentifier("settings.developer.canvasOnboarding")
+                        rowDivider
                         shieldDiagnosticsRows
                     }
                 }

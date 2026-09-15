@@ -15,22 +15,34 @@ final class CoachMarkManager {
     }
 
     static func postAction(for step: CoachMarkStep) {
+        #if DEBUG
+        guard !DebugCanvasTour.shared.isActive else { return }
+        #endif
         NotificationCenter.default.post(name: actionNotification, object: step)
     }
 
     func start() {
+        #if DEBUG
+        guard !DebugCanvasTour.shared.isActive else { return }
+        #endif
         currentStep = .colorBalance
         isActive = true
         trackStepViewed()
     }
 
     func advance() {
+        #if DEBUG
+        guard !DebugCanvasTour.shared.isActive else { return }
+        #endif
         guard let current = currentStep else { finish(); return }
         trackStepCompleted(action: "next")
         goToNext(after: current)
     }
 
     func completeAction(for step: CoachMarkStep) {
+        #if DEBUG
+        guard !DebugCanvasTour.shared.isActive else { return }
+        #endif
         guard currentStep == step else { return }
         trackStepCompleted(action: "action")
         goToNext(after: step)

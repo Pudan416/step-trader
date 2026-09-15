@@ -118,6 +118,22 @@ struct CanvasDataPanel: View {
     @Environment(\.canvasChromePalette) private var palette
     private var ink: Color { palette.textColor }
 
+    private var tourAllowsDrawerGesture: Bool {
+        #if DEBUG
+        !DebugCanvasTour.shared.isActive || [.balance, .healthValue, .healthResult].contains(DebugCanvasTour.shared.step)
+        #else
+        true
+        #endif
+    }
+
+    private var tourIsActive: Bool {
+        #if DEBUG
+        DebugCanvasTour.shared.isActive
+        #else
+        false
+        #endif
+    }
+
     private var rowsMaxHeight: CGFloat? {
         guard let availableHeight else { return nil }
         let overhead = Self.topPadding + Self.rowsToHandleSpacing + Self.handleVisualHeight
@@ -196,6 +212,7 @@ struct CanvasDataPanel: View {
             }
             .overlay(alignment: .top) {
                 rowsStack
+                    .canvasTourAnchor("canvas.health")
                     .padding(.horizontal, 14)
                     .padding(.top, Self.topPadding)
                     .frame(
@@ -253,7 +270,29 @@ struct CanvasDataPanel: View {
     /// Visually this is only a 16pt footer, about one third of the former
     /// empty header. The negative inset preserves a forgiving 44pt gesture
     /// target without making the panel look thick.
-    private var handle: some View {
+    @ViewBuilder
+    private var handleSurface: some View {
+        #if DEBUG
+        if tourIsActive {
+            Button(action: onToggle) {
+                VStack(spacing: 0) {
+                    handleVisual
+                    Color.clear.frame(height: Self.handleHitExtension)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.handleHitHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            handleVisual
+        }
+        #else
+        handleVisual
+        #endif
+    }
+
+    private var handleVisual: some View {
         ZStack {
             Color.clear
             Capsule()
@@ -262,6 +301,10 @@ struct CanvasDataPanel: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.handleVisualHeight)
+    }
+
+    private var handle: some View {
+        handleSurface
         .accessibilityElement()
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(
@@ -291,6 +334,10 @@ struct CanvasDataPanel: View {
         }
         .accessibilityIdentifier("canvas_show_data_button")
         .coachMarkAnchor(.expandChevron)
+        .canvasTourControl("canvas.balanceHandle")
+        // Keep the 16pt visual footer. The anchor and button above measure the
+        // full 44pt hit region, which extends into the existing bottom padding.
+        .padding(.bottom, tourIsActive ? -Self.handleHitExtension : 0)
     }
 
     private func rowTitle(_ row: CanvasDataRow) -> some View {
@@ -348,6 +395,7 @@ struct CanvasDataPanel: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .allowsHitTesting(!tourIsActive)
         .accessibilityLabel("\(row.title), \(row.value) of \(row.maxValue)")
         .accessibilityValue(
             selectedKind == row.kind
@@ -389,13 +437,13 @@ struct CanvasDataPanel: View {
     private var toggleDrag: some Gesture {
         DragGesture(minimumDistance: 8)
             .updating($localDragDistance) { value, distance, _ in
-                guard dragStartsOnHandle(at: value.startLocation.y) else { return }
+                guard tourAllowsDrawerGesture, dragStartsOnHandle(at: value.startLocation.y) else { return }
                 distance = isExpanded
                     ? max(0, -value.translation.height)
                     : max(0, value.translation.height)
             }
             .onEnded { value in
-                guard dragStartsOnHandle(at: value.startLocation.y) else { return }
+                guard tourAllowsDrawerGesture, dragStartsOnHandle(at: value.startLocation.y) else { return }
                 let crossedThreshold = isExpanded
                     ? CanvasDataPanelGesture.shouldClose(
                         translation: value.translation.height,

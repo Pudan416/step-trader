@@ -371,3 +371,136 @@ final class CanvasSimplificationUITests: XCTestCase {
         )
     }
 }
+
+/// Uses an otherwise empty, dedicated QA simulator with the real product views.
+/// The fixture flag isolates coordinator persistence only; it never grants colors or tokens.
+final class DebugCanvasOnboardingUITests: XCTestCase {
+    override func setUpWithError() throws { continueAfterFailure = false }
+    private func launch() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "debug-canvas-tour-welcome", "debug-canvas-tour-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 20), app.debugDescription)
+        return app
+    }
+    private func capture(_ app: XCUIApplication, _ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    func testRealMomentDrawerAndOptionalBranches() {
+        let app = launch()
+        capture(app, "tour-welcome")
+        app.buttons["canvas_tour.begin"].tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+        app.buttons["canvas_add_button"].tap()
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
+        XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5))
+        capture(app, "tour-happenings")
+        guard let choice = choices.allElementsBoundByIndex.first(where: { $0.isEnabled && $0.isHittable }) else {
+            XCTFail("No available actual happening"); return
+        }
+        choice.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.happening"].exists)
+        choice.tap()
+        let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.balance"].waitForExistence(timeout: 8))
+        capture(app, "tour-balance")
+        handle.tap()
+        XCTAssertTrue(app.buttons["canvas_tour.healthLater"].waitForExistence(timeout: 5))
+        capture(app, "tour-health")
+        app.buttons["canvas_tour.healthLater"].tap()
+        app.buttons["canvas_tour.healthContinue"].tap()
+        XCTAssertFalse(app.buttons["feed.add"].exists)
+        app.buttons["tab_feeds"].tap()
+        XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.skipApps"].tap()
+        app.buttons["tab_me"].tap()
+        let later = app.buttons["canvas_tour.later"]
+        XCTAssertTrue(later.waitForExistence(timeout: 15))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in later.isEnabled }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        capture(app, "tour-save-days")
+        later.tap()
+        XCTAssertTrue(app.buttons["canvas_tour.setup.continue"].waitForExistence(timeout: 5))
+        capture(app, "tour-setup")
+        app.buttons["canvas_tour.setup.continue"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.skipExport"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.skipExport"].tap()
+        app.buttons["canvas_tour.finish"].tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["canvas_sound_button"].isHittable)
+        XCTAssertTrue(app.buttons["tab_me"].isHittable)
+        XCTAssertFalse(app.buttons["canvas_tour.skip"].exists)
+        capture(app, "tour-finished")
+    }
+    func testStopRestoresControlsAndRestartAlwaysShowsWelcome() {
+        let app = launch()
+        app.buttons["canvas_tour.begin"].tap()
+        app.buttons["canvas_tour.controls"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.debug.restart"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.debug.restart"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.skip"].tap()
+        XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab_feeds"].isHittable)
+        XCTAssertTrue(app.buttons["canvas_add_button"].isHittable)
+    }
+    func testDragDrawerAndShareCancellation() {
+        let app = launch()
+        app.buttons["canvas_tour.begin"].tap()
+        app.buttons["canvas_add_button"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.existingDay"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.existingDay"].tap()
+        let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 5))
+        let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 120)))
+        XCTAssertTrue(app.buttons["canvas_tour.healthLater"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.healthLater"].tap()
+        app.buttons["canvas_tour.healthContinue"].tap()
+        app.buttons["tab_feeds"].tap()
+        app.buttons["canvas_tour.skipApps"].tap()
+        app.buttons["tab_me"].tap()
+        let later = app.buttons["canvas_tour.later"]
+        XCTAssertTrue(later.waitForExistence(timeout: 15))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in later.isEnabled }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        later.tap()
+        app.buttons["canvas_tour.setup.continue"].tap()
+        let share = app.buttons["me_share_selected_day"]
+        XCTAssertTrue(share.waitForExistence(timeout: 5))
+        share.tap()
+        let close = app.buttons["Close"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 25), app.debugDescription)
+        capture(app, "tour-real-share")
+        close.tap()
+        XCTAssertTrue(app.buttons["canvas_tour.finish"].waitForExistence(timeout: 8))
+        app.buttons["canvas_tour.finish"].tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+    }
+
+    func testLargeTextKeepsSkipAndActualTargetAccessible() {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "debug-canvas-tour-welcome", "debug-canvas-tour-fixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "-AppleLanguages", "(en)"]
+        app.launch()
+        let begin = app.buttons["canvas_tour.begin"]
+        XCTAssertTrue(begin.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["canvas_tour.skip"].isHittable)
+        begin.tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].isHittable)
+        app.buttons["canvas_add_button"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.skip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["canvas_tour.skip"].isHittable)
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
+        XCTAssertTrue(choices.allElementsBoundByIndex.contains { $0.isEnabled && $0.isHittable })
+        capture(app, "tour-accessibility-text")
+        app.buttons["canvas_tour.skip"].tap()
+        // The ordinary product palette intentionally hides tabs until closed.
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].isHittable)
+        app.buttons["canvas_palette_close_button"].tap()
+        XCTAssertTrue(app.buttons["tab_me"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab_me"].isHittable)
+    }
+
+}

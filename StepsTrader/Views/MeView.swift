@@ -119,6 +119,7 @@ struct MeView: View {
             posterCarousel
 
             calendarSection
+                .canvasTourControl("me.calendar")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -137,7 +138,43 @@ struct MeView: View {
     }
 
     private var posterDayKeys: [String] {
-        cachedDayKeys.isEmpty ? Self.computeDayKeys() : cachedDayKeys
+        #if DEBUG
+        // A single real page removes VoiceOver's adjacent-page destinations,
+        // while the poster itself and its accessible content remain available.
+        if DebugCanvasTour.shared.isActive { return [AppModel.dayKey(for: .now)] }
+        #endif
+        return cachedDayKeys.isEmpty ? Self.computeDayKeys() : cachedDayKeys
+    }
+
+    private var displayedPosterDayKey: String {
+        #if DEBUG
+        if DebugCanvasTour.shared.isActive { return AppModel.dayKey(for: .now) }
+        #endif
+        return selectedPosterDayKey
+    }
+
+    private var posterSelection: Binding<String> {
+        #if DEBUG
+        Binding(
+            get: { displayedPosterDayKey },
+            set: { key in
+                selectedPosterDayKey = DebugCanvasTour.shared.isActive
+                    ? AppModel.dayKey(for: .now) : key
+            }
+        )
+        #else
+        $selectedPosterDayKey
+        #endif
+    }
+
+    private var canShareDisplayedPoster: Bool {
+        #if DEBUG
+        if DebugCanvasTour.shared.isActive {
+            return DebugCanvasTour.shared.posterDayID == AppModel.dayKey(for: .now)
+                && posterShareAvailability[displayedPosterDayKey] == true
+        }
+        #endif
+        return selectedPosterCanShare
     }
 
     private var posterCarousel: some View {
@@ -145,7 +182,7 @@ struct MeView: View {
             viewportWidth: posterCarouselWidth
         )
 
-        return TabView(selection: $selectedPosterDayKey) {
+        return TabView(selection: posterSelection) {
             ForEach(posterDayKeys, id: \.self) { key in
                 MeSelectedDayPoster(
                     model: model,
@@ -157,7 +194,7 @@ struct MeView: View {
                     handlesShareRequest: shareRequestedDayKey == key,
                     onShareAvailabilityChange: { available in
                         posterShareAvailability[key] = available
-                        if selectedPosterDayKey == key {
+                        if displayedPosterDayKey == key {
                             selectedPosterCanShare = available
                         }
                     }
@@ -171,7 +208,7 @@ struct MeView: View {
                     height: sizing.posterHeight
                 )
                 .clipped()
-                .environment(\.renderingIsActive, renderingIsActive && selectedPosterDayKey == key)
+                .environment(\.renderingIsActive, renderingIsActive && displayedPosterDayKey == key)
                 .tag(key)
             }
         }
@@ -179,7 +216,8 @@ struct MeView: View {
         .frame(height: sizing.posterHeight)
         .clipped()
         .accessibilityIdentifier("me_poster_carousel")
-        .accessibilityValue(selectedPosterDayKey)
+        .canvasTourAnchor("me.poster")
+        .accessibilityValue(displayedPosterDayKey)
         .onChange(of: selectedPosterDayKey) { _, key in
             selectedPosterCanShare = posterShareAvailability[key] ?? false
         }
@@ -189,9 +227,23 @@ struct MeView: View {
             guard width > 0 else { return }
             posterCarouselWidth = width
         }
+        #if DEBUG
+        .allowsHitTesting(!DebugCanvasTour.shared.isActive)
+        .onChange(of: DebugCanvasTour.shared.step) { _, step in
+            guard DebugCanvasTour.shared.isActive,
+                  step == .saveDays || step == .poster else { return }
+            // Restoring the current day is display preparation, never an export.
+            selectPosterDay(AppModel.dayKey(for: .now))
+        }
+        #endif
     }
 
-    private func selectPosterDay(_ key: String) {
+    private func selectPosterDay(_ requestedKey: String) {
+        #if DEBUG
+        let key = DebugCanvasTour.shared.isActive ? AppModel.dayKey(for: .now) : requestedKey
+        #else
+        let key = requestedKey
+        #endif
         guard key != selectedPosterDayKey else { return }
         selectedPosterCanShare = posterShareAvailability[key] ?? false
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {
@@ -316,12 +368,14 @@ struct MeView: View {
                     .foregroundStyle(theme.isLightTheme ? Color.black : palette.accentColor)
             }
             .buttonStyle(.plain)
+            .canvasTourControl("me.account")
             .accessibilityLabel(String(localized: "Profile, \(userName). Double tap to edit.", comment: "MeView – profile pill VoiceOver label"))
 
             Spacer(minLength: 12)
 
             Button {
-                shareRequestedDayKey = selectedPosterDayKey
+                guard canShareDisplayedPoster else { return }
+                shareRequestedDayKey = displayedPosterDayKey
                 shareRequestID &+= 1
             } label: {
                 Image(systemName: "square.and.arrow.up")
@@ -331,9 +385,10 @@ struct MeView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!selectedPosterCanShare)
-            .opacity(selectedPosterCanShare ? 1 : 0.28)
+            .disabled(!canShareDisplayedPoster)
+            .opacity(canShareDisplayedPoster ? 1 : 0.28)
             .accessibilityIdentifier("me_share_selected_day")
+            .canvasTourControl("me.share")
             .accessibilityLabel(String(localized: "Share this day", comment: "Me poster – share action"))
 
             Button { onOpenSettings() } label: {
@@ -355,6 +410,7 @@ struct MeView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("me_settings_button")
+            .canvasTourControl("me.settings")
             .accessibilityLabel(String(localized: "Settings", comment: "MeView – settings button VoiceOver label"))
         }
     }

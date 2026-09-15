@@ -1,6 +1,20 @@
 import HealthKit
 import os.log
 
+#if DEBUG
+/// Query-scoped transport for a failure that the product intentionally handles
+/// by returning cache. A HealthKit callback may run off the requesting actor.
+/// The trace contains one boolean, never samples, credentials or error text.
+final class DebugHealthQueryTrace: @unchecked Sendable {
+    @TaskLocal static var current: DebugHealthQueryTrace?
+    private let lock = NSLock()
+    private var failureRecorded = false
+
+    var didFail: Bool { lock.withLock { failureRecorded } }
+    func recordFailure() { lock.withLock { failureRecorded = true } }
+}
+#endif
+
 // MARK: - HealthKit Logger
 private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "StepsTrader", category: "HealthKit")
 
@@ -219,8 +233,16 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
     
     func fetchSteps(from start: Date, to end: Date) async throws -> Double {
+        #if DEBUG
+        // Capture before entering HealthKit's callback; TaskLocal context is
+        // not inherited by arbitrary framework completion handlers.
+        let debugTrace = DebugHealthQueryTrace.current
+        #endif
         let usesLiveCache = Self.shouldUseLiveStepCache(queryEnd: end)
         guard let stepType = stepType else {
+            #if DEBUG
+            debugTrace?.recordFailure()
+            #endif
             if usesLiveCache {
                 log.warning("Step type not available, returning cached: \(self.lastStepCount)")
                 return lastStepCount
@@ -281,6 +303,9 @@ final class HealthKitService: HealthKitServiceProtocol {
                         continuation.resume(returning: 0)
                         return
                     }
+                    #if DEBUG
+                    debugTrace?.recordFailure()
+                    #endif
                     log.error("HealthKit error: \(error.localizedDescription)")
                     if usesLiveCache, self.lastStepCount > 0 {
                         continuation.resume(returning: self.lastStepCount)

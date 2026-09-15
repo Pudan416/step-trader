@@ -40,6 +40,9 @@ struct MainTabView: View {
             if animated {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selection = destination.rawValue }
             } else { selection = destination.rawValue }
+            #if DEBUG
+            DebugCanvasTour.shared.send(.tabSelected(destination.rawValue))
+            #endif
         }
     }
 
@@ -346,19 +349,34 @@ struct MainTabView: View {
                     }
                 )
                 .coachMarkAnchor(.colorBalance)
+                .canvasTourControl("canvas.balanceSummary")
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         // Settings left the tab bar; `embeddedInTab` defaults to false, which
         // drops the topCardHeight inset the tab version needed.
-        .sheet(isPresented: $showSettings) {
+        .sheet(isPresented: $showSettings, onDismiss: {
+            #if DEBUG
+            if DebugCanvasTour.shared.isActive && DebugCanvasTour.shared.status == .preparing { DebugCanvasTour.shared.hostReady() }
+            #endif
+        }) {
             SettingsSheet(model: model, featureTipRouteBinding: $settingsDeepLinkRoute)
         }
         .onPreferenceChange(CoachMarkAnchorKey.self) { coachAnchors = $0 }
         .overlay {
+            #if DEBUG
+            if !DebugCanvasTour.shared.isActive {
+                CoachMarkOverlay(manager: coachMarkManager, anchors: coachAnchors)
+            }
+            #else
             CoachMarkOverlay(manager: coachMarkManager, anchors: coachAnchors)
+            #endif
         }
+        .canvasTourHost(model: model)
         .onChange(of: coachMarkManager.currentStep) { _, newStep in
+            #if DEBUG
+            guard !DebugCanvasTour.shared.isActive else { return }
+            #endif
             guard let step = newStep,
                   let tabRaw = coachMarkManager.tabRawValue(for: step) else { return }
             if selection != tabRaw {
@@ -382,6 +400,25 @@ struct MainTabView: View {
                 coachMarkManager.completeAction(for: .tapFeedsTab)
             }
         }
+        #if DEBUG
+        .onChange(of: DebugCanvasTour.shared.launchRevision) { _, _ in prepareCanvasTour() }
+        .onChange(of: DebugCanvasTour.shared.step) { _, step in
+            guard DebugCanvasTour.shared.isActive else { return }
+            if step == .feedsTab { canvasPresentation = .canvas }
+            if step == .add && selection != Tab.canvas.rawValue { selection = Tab.canvas.rawValue }
+        }
+        .onChange(of: DebugCanvasTour.shared.isActive) { _, active in
+            if !active && DebugCanvasTour.shared.status == .completed { selection = Tab.canvas.rawValue }
+        }
+        .onChange(of: DebugCanvasTour.shared.status) { _, status in
+            if status == .completed { selection = Tab.canvas.rawValue }
+        }
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") {
+                DebugCanvasTour.shared.start(source: "launchArgument")
+            }
+        }
+        #endif
         .onPreferenceChange(TopCardHeightPreferenceKey.self) { value in
             guard value != topCardHeight else { return }
             topCardHeight = value
@@ -420,6 +457,30 @@ struct MainTabView: View {
         }
     }
 
+    #if DEBUG
+    private func prepareCanvasTour() {
+        let tour = DebugCanvasTour.shared
+        guard tour.isActive else { return }
+        tabTransition?.cancel(); tabTransition = nil; pendingTab = nil
+        metricOverlay = nil
+        canvasPresentation = .canvas
+        dataPanelPullDistance = 0
+        selection = tour.step.preparationTab
+        if showSettings { showSettings = false }
+        else { tour.hostReady() }
+    }
+    #endif
+
+    private var tourTabSurfaceOpacity: Double {
+        #if DEBUG
+        let tour = DebugCanvasTour.shared
+        guard tour.isActive, ![.feedsTab, .meTab].contains(tour.step), tour.quietMode != .normal else { return 1 }
+        return tour.quietMode == .hide ? 0 : 0.12
+        #else
+        return 1
+        #endif
+    }
+
     private var customTabBar: some View {
         Group {
             if #available(iOS 26.0, *) {
@@ -444,7 +505,7 @@ struct MainTabView: View {
         GlassEffectContainer(spacing: 8) {
             tabBarItems(animated: true)
                 .padding(6)
-                .background(tabBarSurfaceColor, in: Capsule(style: .continuous))
+                .background(tabBarSurfaceColor.opacity(tourTabSurfaceOpacity), in: Capsule(style: .continuous))
         }
         .padding(.bottom, 4)
     }
@@ -452,7 +513,7 @@ struct MainTabView: View {
     private var legacyTabBar: some View {
         tabBarItems(animated: false)
             .padding(6)
-            .background(tabBarSurfaceColor, in: Capsule(style: .continuous))
+            .background(tabBarSurfaceColor.opacity(tourTabSurfaceOpacity), in: Capsule(style: .continuous))
             .clipShape(Capsule(style: .continuous))
             .padding(.bottom, 4)
     }
@@ -503,6 +564,7 @@ struct MainTabView: View {
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .accessibilityIdentifier(tab.accessibilityId)
                 .modifier(FeedsTabCoachAnchor(tab: tab))
+                .canvasTourControl("tabs.\(tab == .feeds ? "feeds" : tab == .me ? "me" : "canvas")")
             }
         }
         .frame(width: 228, height: 48)

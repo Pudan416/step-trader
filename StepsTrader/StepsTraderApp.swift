@@ -149,7 +149,10 @@ private struct StepsTraderProductionRoot: View {
     @State private var hasPresentedFeatureTipThisSession = false
 
     private var hasCompletedOnboarding: Bool {
-        onboardingStateRaw >= OnboardingState.completed.rawValue
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") { return true }
+        #endif
+        return onboardingStateRaw >= OnboardingState.completed.rawValue
     }
     private let cleanupTimer = Timer.publish(every: AppConstants.Timing.cleanupTimerInterval, on: .main, in: .common).autoconnect()
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
@@ -290,6 +293,10 @@ private struct StepsTraderProductionRoot: View {
     /// requested). Called from the `.task` on the post-onboarding root view.
     @MainActor
     private func runCoachMarksIfRequested() async {
+        #if DEBUG
+        guard !DebugCanvasTour.shared.isActive,
+              !ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") else { return }
+        #endif
         let defaults = UserDefaults.standard
         let wantsTour = defaults.bool(forKey: "shouldStartCoachMark")
 
@@ -302,6 +309,12 @@ private struct StepsTraderProductionRoot: View {
             // overlay positions resolve against laid-out geometry.
             try? await Task.sleep(for: .milliseconds(800))
             if Task.isCancelled { return }
+            #if DEBUG
+            if DebugCanvasTour.shared.isActive {
+                defaults.set(true, forKey: "shouldStartCoachMark")
+                return
+            }
+            #endif
             coachMarkManager.start()
         }
 
@@ -830,6 +843,9 @@ private struct StepsTraderProductionRoot: View {
     /// all at once. The caller guarantees this never runs in the same session as
     /// the App Store review prompt.
     private func presentFeatureTipIfNeeded() {
+        #if DEBUG
+        guard !DebugCanvasTour.shared.isActive else { return }
+        #endif
         guard hasCompletedOnboarding, !isUITest else { return }
         guard !hasPresentedFeatureTipThisSession, activeFeatureTip == nil else { return }
         for tip in FeatureTip.orderedByPriority where tip.isEligible(launchCount: appLaunchCount) {
@@ -840,6 +856,12 @@ private struct StepsTraderProductionRoot: View {
             // so a tip can't be consumed invisibly.
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
+                #if DEBUG
+                guard !DebugCanvasTour.shared.isActive else {
+                    hasPresentedFeatureTipThisSession = false
+                    return
+                }
+                #endif
                 tip.markSeen()
                 activeFeatureTip = tip
             }

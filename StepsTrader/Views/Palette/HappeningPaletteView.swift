@@ -163,6 +163,7 @@ struct HappeningPaletteView: View {
                     labelInks: labelInks
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
+                .canvasTourAnchor("canvas.happenings")
                 .accessibilityHidden(activePanel != nil)
                 .allowsHitTesting(activePanel == nil)
 
@@ -195,6 +196,9 @@ struct HappeningPaletteView: View {
             NotificationCenter.default.post(name: UIDevice.deviceDidShakeNotification, object: nil)
         }
         .onShake {
+            #if DEBUG
+            guard !DebugCanvasTour.shared.isActive else { return }
+            #endif
             guard activePanel == nil else { return }
             if reduceMotion {
                 onReroll()

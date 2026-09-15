@@ -71,6 +71,15 @@ struct AppsPageSimplified: View {
     @State private var deleteHapticTick = 0
     @State private var showPickerAfterDismiss = false
     @State private var groupIdToDelete: String? = nil
+    #if DEBUG
+    @State private var pickerOperation: CanvasTourOperation?
+    @State private var requestingTourAccess = false
+    @State private var pickerCommitted = false
+    @State private var pickerDismissalPending = false
+    @State private var pickerPresentedForTour = false
+    @State private var settingsTourSessionID: UUID?
+    @State private var tourAuthorizationTask: Task<Void, Never>?
+    #endif
 
     /// Single entry point for the "create new feed" buttons. Feeds are
     /// unlimited — this stays a named function so the call sites keep reading
@@ -78,8 +87,76 @@ struct AppsPageSimplified: View {
     private func attemptCreateGroup() {
         selection = FamilyActivitySelection()
         selectedGroupId = nil
+        #if DEBUG
+        if DebugCanvasTour.shared.isActive {
+            guard !requestingTourAccess, !showPicker, !pickerDismissalPending else { return }
+            pickerCommitted = false
+            guard let operation = DebugCanvasTour.shared.beginOperation("appSelection", returnContext: tourReturnContext) else { return }
+            pickerOperation = operation
+            if !model.blockingStore.isAuthorized {
+                requestingTourAccess = true
+                DebugCanvasTour.shared.sheetPresented("screenTimeAuthorization", returnContext: tourReturnContext)
+                tourAuthorizationTask = Task { @MainActor in
+                    do {
+                        try await model.blockingStore.requestAuthorization()
+                        guard !Task.isCancelled, DebugCanvasTour.shared.isCurrent(operation) else { return }
+                        requestingTourAccess = false
+                        DebugCanvasTour.shared.sheetDismissed("screenTimeAuthorization", sessionID: operation.sessionID)
+                        restoreSetupContextIfNeeded(sessionID: operation.sessionID)
+                        guard model.blockingStore.isAuthorized else {
+                            pickerOperation = nil
+                            DebugCanvasTour.shared.recover("App access is needed. Try again or skip this section.")
+                            return
+                        }
+                        guard let pickerToken = DebugCanvasTour.shared.beginOperation("appSelection", returnContext: tourReturnContext) else { return }
+                        pickerOperation = pickerToken
+                        showPicker = true
+                    } catch {
+                        guard !Task.isCancelled, DebugCanvasTour.shared.isCurrent(operation) else { return }
+                        requestingTourAccess = false
+                        DebugCanvasTour.shared.sheetDismissed("screenTimeAuthorization", sessionID: operation.sessionID)
+                        pickerOperation = nil
+                        restoreSetupContextIfNeeded(sessionID: operation.sessionID)
+                        DebugCanvasTour.shared.recover("App access was not granted. Try again or skip this section.")
+                    }
+                }
+                return
+            }
+        }
+        #endif
         showPicker = true
     }
+
+    #if DEBUG
+    private var tourReturnContext: String { DebugCanvasTour.shared.step == .setup ? "setup" : "flow" }
+
+    private func restoreSetupContextIfNeeded(sessionID: UUID) {
+        if DebugCanvasTour.shared.isActive, DebugCanvasTour.shared.sessionID == sessionID,
+           DebugCanvasTour.shared.step == .setup {
+            DebugCanvasTour.shared.sheetPresented("setup", returnContext: "setup")
+        }
+    }
+
+    private func dismissStaleTourPresentation() {
+        let tour = DebugCanvasTour.shared
+        if let operation = pickerOperation, !tour.isActive || operation.sessionID != tour.sessionID {
+            tourAuthorizationTask?.cancel()
+            tourAuthorizationTask = nil
+            requestingTourAccess = false
+            showPickerAfterDismiss = false
+            if pickerPresentedForTour || showPicker {
+                pickerDismissalPending = true
+                showPicker = false
+            } else if !pickerDismissalPending {
+                pickerOperation = nil
+            }
+        }
+        if let owner = settingsTourSessionID, !tour.isActive || owner != tour.sessionID {
+            showPickerAfterDismiss = false
+            expandedSheetGroupId = nil
+        }
+    }
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -106,6 +183,7 @@ struct AppsPageSimplified: View {
                         }
                         .accessibilityLabel(String(localized: "Add apps"))
                         .accessibilityIdentifier("feed.add")
+                        .canvasTourControl("feeds.add")
                         #if DEBUG
                         .coachMarkAnchor(.unlockSuccess)
                         #endif
@@ -132,6 +210,16 @@ struct AppsPageSimplified: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $expandedSheetGroupId, onDismiss: {
+                #if DEBUG
+                if let owner = settingsTourSessionID {
+                    DebugCanvasTour.shared.sheetDismissed("feedSettings", sessionID: owner)
+                    restoreSetupContextIfNeeded(sessionID: owner)
+                    if !DebugCanvasTour.shared.isActive || DebugCanvasTour.shared.sessionID != owner {
+                        showPickerAfterDismiss = false
+                    }
+                    settingsTourSessionID = nil
+                }
+                #endif
                 if showPickerAfterDismiss {
                     showPickerAfterDismiss = false
                     showPicker = true
@@ -148,26 +236,89 @@ struct AppsPageSimplified: View {
                         set: { updated in model.updateTicketGroup(updated) }
                     )
                     ticketSettingsSheet(group: groupBinding, onDismiss: { expandedSheetGroupId = nil })
+                        .onAppear {
+                            #if DEBUG
+                            if DebugCanvasTour.shared.isActive, settingsTourSessionID == nil {
+                                settingsTourSessionID = DebugCanvasTour.shared.sessionID
+                                DebugCanvasTour.shared.sheetPresented("feedSettings", returnContext: tourReturnContext)
+                            }
+                            #endif
+                        }
                 }
             }
-            .sheet(isPresented: $showPicker, onDismiss: { selectedGroupId = nil }) {
+            .sheet(isPresented: $showPicker, onDismiss: {
+                selectedGroupId = nil
+                #if DEBUG
+                if let owner = pickerOperation?.sessionID {
+                    DebugCanvasTour.shared.sheetDismissed("appPicker", sessionID: owner)
+                    restoreSetupContextIfNeeded(sessionID: owner)
+                }
+                pickerOperation = nil
+                pickerDismissalPending = false
+                pickerPresentedForTour = false
+                #endif
+            }) {
                 NewAppGroupSheet(
                     selection: selection,
                     name: selectedGroupId.flatMap { id in
                         model.blockingStore.ticketGroups.first { $0.id == id.id }?.name
                     } ?? ""
                 ) { selection, name in
+                    guard selection.hasGroupTargets else { return }
+                    #if DEBUG
+                    guard !pickerCommitted else { return }
+                    if let pickerOperation {
+                        guard DebugCanvasTour.shared.isCurrent(pickerOperation) else { return }
+                        if let editingID = selectedGroupId?.id {
+                            guard let existing = model.blockingStore.ticketGroups.first(where: { $0.id == editingID }),
+                                  existing.selection == self.selection else {
+                                DebugCanvasTour.shared.endOperation(pickerOperation, error: "This feed changed while you were choosing apps. Open it again to edit the current selection.")
+                                return
+                            }
+                        }
+                    }
+                    pickerCommitted = true
+                    #endif
+                    let savedGroupID: String
                     if let id = selectedGroupId,
                        var group = model.blockingStore.ticketGroups.first(where: { $0.id == id.id }) {
                         if group.selection != selection { group.templateApp = nil }
                         group.selection = selection
                         group.name = name
                         model.updateTicketGroup(group)
+                        savedGroupID = group.id
                     } else {
-                        _ = model.createTicketGroup(name: name, selection: selection, stickerThemeIndex: 0)
+                        savedGroupID = model.createTicketGroup(name: name, selection: selection, stickerThemeIndex: 0).id
                     }
+                    #if DEBUG
+                    if let pickerOperation, DebugCanvasTour.shared.isCurrent(pickerOperation),
+                       model.blockingStore.ticketGroups.contains(where: { $0.id == savedGroupID && $0.selection.hasGroupTargets }) {
+                        DebugCanvasTour.shared.send(.appSelectionCommitted(savedGroupID), token: pickerOperation)
+                    }
+                    #endif
+                }
+                .onAppear {
+                    #if DEBUG
+                    if DebugCanvasTour.shared.isActive, pickerOperation == nil {
+                        pickerOperation = DebugCanvasTour.shared.beginOperation("appSelection", returnContext: tourReturnContext)
+                    }
+                    if let pickerOperation, DebugCanvasTour.shared.isCurrent(pickerOperation) {
+                        pickerPresentedForTour = true
+                        DebugCanvasTour.shared.sheetPresented("appPicker", returnContext: tourReturnContext)
+                    }
+                    #endif
                 }
             }
+            .onChange(of: showPicker) { _, presented in
+                #if DEBUG
+                if presented { pickerCommitted = false }
+                else if pickerPresentedForTour { pickerDismissalPending = true }
+                #endif
+            }
+            #if DEBUG
+            .onChange(of: DebugCanvasTour.shared.sessionID) { _, _ in dismissStaleTourPresentation() }
+            .onChange(of: DebugCanvasTour.shared.isActive) { _, _ in dismissStaleTourPresentation() }
+            #endif
             .onAppear { selection = model.appSelection }
             .task {
                 // The honest signal steps once a minute (the monitor
@@ -231,9 +382,15 @@ struct AppsPageSimplified: View {
                                 showsUnlockOptions: showsUnlockOptions,
                                 onTap: { handleRowTap(group: group, state: state, canOpen: canOpen) },
                                 onSettings: {
+                                    #if DEBUG
+                                    guard !DebugCanvasTour.shared.isActive || DebugCanvasTour.shared.step == .setup else { return }
+                                    #endif
                                     expandedSheetGroupId = TicketGroupId(id: group.id)
                                 },
                                 onDelete: {
+                                    #if DEBUG
+                                    guard !DebugCanvasTour.shared.isActive || DebugCanvasTour.shared.step == .setup else { return }
+                                    #endif
                                     groupIdToDelete = group.id
                                 },
                                 onPurchased: {
@@ -241,6 +398,11 @@ struct AppsPageSimplified: View {
                                 }
                             )
                             .id("\(group.id)-unlock-options")
+                            .onChange(of: showsUnlockOptions) { _, expanded in
+                                #if DEBUG
+                                if expanded { DebugCanvasTour.shared.send(.groupOpened(group.id)) }
+                                #endif
+                            }
                             .background {
                                 if showsUnlockOptions {
                                     GeometryReader { cardGeometry in
@@ -323,6 +485,8 @@ struct AppsPageSimplified: View {
                     .background(Capsule().fill(palette.accentColor))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("feed.addDuplicate")
+            .canvasTourControl("feeds.addDuplicate")
         }
         .foregroundStyle(buttonTint)
         .padding(.horizontal, 40)
@@ -386,6 +550,35 @@ struct AppsPageSimplified: View {
         state: FeedRowAccessState,
         canOpen: Bool
     ) {
+        #if DEBUG
+        let tour = DebugCanvasTour.shared
+        if tour.isActive {
+            guard let current = model.blockingStore.ticketGroups.first(where: { $0.id == group.id }),
+                  current.selection.hasGroupTargets, current.selection == group.selection else {
+                tour.revalidate(groupIDs: Set(visibleGroups.map(\.id)))
+                tour.recover("This feed changed. Choose an available feed again.")
+                return
+            }
+        }
+        if tour.isActive, tour.step == .addApps, group.selection.hasGroupTargets {
+            // Reusing a group selects its identity; the next teaching step
+            // still waits for a fresh user tap to disclose its durations.
+            inlineExpansion = inlineExpansion.collapsing(groupID: group.id)
+            tour.send(.appSelectionCommitted(group.id))
+            return
+        }
+        if tour.isActive, tour.step == .selectFeed,
+           tour.selectedGroupID == group.id,
+           model.unspentUsageBudgetMatchingShield(for: group.id) > 0 {
+            guard model.blockingStore.isAuthorized else {
+                tour.recover("App access is needed before this feed can be unlocked. Skip this section or check Your setup.")
+                return
+            }
+            tour.send(.groupOpened(group.id))
+            tour.send(.unlockSucceeded(group.id))
+            return
+        }
+        #endif
         switch FeedRowModel.tapAction(for: state, canOpen: canOpen) {
         case .chooseDuration:
             withAnimation(feedExpansionAnimation) {
