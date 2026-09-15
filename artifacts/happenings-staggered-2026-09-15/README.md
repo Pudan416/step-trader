@@ -26,3 +26,7 @@ The lag came from two independently updated surfaces: labels scrolled natively, 
 ## Device installation
 
 Built and installed revision `4c7146b4f3532f47ea80a0150a350028a184ce29` on iPhone Costa over Wi-Fi on 2026-09-15 at approximately 01:19 Europe/Belgrade. devicectl confirmed installation. The subsequent launch was denied because the phone was locked (FBSOpenApplicationErrorDomain 7). App and all four embedded extensions passed strict signing and resource validation. No remote publication or current-integration change. Physical-device visual/gesture inspection was not performed.
+
+### Installation retry
+
+Reinstalled revision `4c7146b4f3532f47ea80a0150a350028a184ce29` on iPhone Costa over Wi-Fi at 2026-09-15T09:23:13.694284+02:00. Installation and launch both succeeded according to devicectl. Physical-device visual verification was not performed.
