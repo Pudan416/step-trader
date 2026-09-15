@@ -17,9 +17,9 @@
   "installationScope": "User-requested feature build; no integration publication.",
   "physicalDeviceVisualVerification": "not performed; automated regression checks used simulator",
   "uiVerification": {
-    "status": "blocked by simulator infrastructure",
-    "error": "Timed out trying to boot simulator after waiting 60.00s; retries stalled before assertions",
-    "successfulUITests": 0
+    "status": "passed subsequently on three simulator models",
+    "successfulUITests": 6,
+    "report": "../happenings-multiphone-2026-09-15/README.md"
   },
   "installation": {
     "outcome": "success",

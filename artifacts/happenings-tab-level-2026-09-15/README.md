@@ -13,3 +13,5 @@ Failed setup result: `/tmp/nowhere-happenings-staggered-dd/Logs/Test/Test-Steps4
 Isolated feature build, as requested. No integration push. Device installation and launch results are recorded in `device-verification.json`; physical-device visual verification was not performed.
 
 Wi-Fi installation on iPhone Costa succeeded; normal launch succeeded at 21:29 Europe/Belgrade. Installed revision: `95c698d9ba76066c0472580aa726fccc99b86e62`.
+
+Follow-up: [three-model UI verification](../happenings-multiphone-2026-09-15/README.md) completed successfully with 6 passing tests and visual screenshot review.
