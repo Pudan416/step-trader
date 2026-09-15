@@ -349,7 +349,7 @@ private struct DebugCanvasTourHost: ViewModifier {
         case .saveDays: tour.posterDayID == nil ? String(localized: "Your current day is getting ready. Account and permissions are optional.") : String(localized: "Sign in with Apple to keep your account, or continue to your optional setup.")
         case .setup: String(localized: "Everything here is optional.")
         case .poster: String(localized: "Save your poster, or share it with someone. Tap the poster’s share button.")
-        case .finish: String(localized: "Make room for your day. Enjoy exploring.")
+        case .finish: String(localized: "Nowhere = now + here.\nStart living Nowhere.")
         }
     }
     private func requestHealth() {
