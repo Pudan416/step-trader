@@ -35,6 +35,7 @@ struct TicketGroupQuery: EntityQuery {
     func loadAllGroups() -> [TicketGroupEntity] {
         guard let g = UserDefaults(suiteName: SharedKeys.appGroupId) else { return [] }
         let decoded = WidgetGroupOption.loadVisibleFeeds(defaults: g)
+        SharedKeys.recordWidgetInteraction("catalog visible=\(decoded.map(\.id)) stored=\(g.data(forKey: SharedKeys.ticketGroups)?.count ?? -1)", source: "widget-groups")
         return decoded.enumerated().map { index, group in
             let display = group.pickerName(index: index)
             return TicketGroupEntity(id: group.id, name: display.title, needsAppName: display.needsAppName)
@@ -93,7 +94,9 @@ struct SelectGroupIntent: WidgetConfigurationIntent {
     var selectedIds: [String] {
         let selected = [group1, group2, group3].compactMap { $0?.id }
         let defaults = selected.isEmpty ? TicketGroupQuery().loadAllGroups().map(\.id) : []
-        return WidgetGroupSelection.resolvedIDs(selected, feedIDs: defaults, limit: WidgetGroupSelection.largeLimit)
+        let resolved = WidgetGroupSelection.resolvedIDs(selected, feedIDs: defaults, limit: WidgetGroupSelection.largeLimit)
+        SharedKeys.recordWidgetInteraction("large selected=\(selected) resolved=\(resolved)", source: "widget-groups")
+        return resolved
     }
 }
 
