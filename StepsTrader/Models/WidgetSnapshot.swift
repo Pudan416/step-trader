@@ -158,3 +158,33 @@ enum WidgetWallpaperFile {
         return UIImage(cgImage: image)
     }
 }
+
+
+/// Persisted fields used by the widget configuration picker.
+struct WidgetGroupOption: Decodable {
+    let id: String
+    let name: String
+    let templateApp: String?
+    let selectionData: Data?
+
+    struct PickerName {
+        let title: String
+        let needsAppName: Bool
+    }
+
+    func pickerName(index: Int, defaults: UserDefaults) -> PickerName {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return PickerName(title: trimmed, needsAppName: false) }
+        if let templateApp, let title = AppGroupIdentity.applicationNames[templateApp] {
+            return PickerName(title: title, needsAppName: false)
+        }
+        let identity = AppGroupIdentity(name: name, templateApp: templateApp, selectionData: selectionData)
+        if let token = identity.applicationToken {
+            if let title = FamilyControlsAppNameCache.name(for: token, defaults: defaults) {
+                return PickerName(title: title, needsAppName: false)
+            }
+            return PickerName(title: String(localized: "App group \(index + 1)"), needsAppName: true)
+        }
+        return PickerName(title: String(localized: "App group \(index + 1)"), needsAppName: false)
+    }
+}

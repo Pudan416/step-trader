@@ -8,6 +8,7 @@
 import ManagedSettings
 import ManagedSettingsUI
 import UIKit
+import WidgetKit
 
 // Override the functions below to customize the shields used in various situations.
 // The system provides a default appearance for any methods that your subclass doesn't override.
@@ -96,6 +97,13 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     
     override func configuration(shielding application: Application) -> ShieldConfiguration {
         let appName = getAppName(for: application)
+        // Only this extension receives the real name through the public API.
+        // Persist it separately from the user's group name for widget pickers.
+        if let token = application.token, let name = application.localizedDisplayName,
+           FamilyControlsAppNameCache.store(name, for: token, defaults: sharedDefaults()) {
+            sharedDefaults().synchronize()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         let artworkTarget = application.token.flatMap(Self.base64).map { "app:\($0)" }
             ?? "app-name:\(appName)"
         let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: artworkTarget)
