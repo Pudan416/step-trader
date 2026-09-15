@@ -18,72 +18,8 @@ enum FeatureTipSettingsPage: String {
 
 // MARK: - Feature Tip Model
 
-/// Lightweight, one-shot promotional nudges shown a few launches in, pointing
-/// users at features that are easy to miss (wallpaper auto-export, home-screen
-/// widgets).
-///
-/// Design mirrors the existing review-prompt gating in `StepsTraderApp`
-/// (`requestAppReviewIfNeeded`): a launch-count threshold plus a per-tip
-/// one-shot `@AppStorage` flag. At most one tip is shown per launch, and never
-/// in the same session the App Store review prompt fires (see the scenePhase
-/// `.active` handler).
-///
-/// Timeline (one "quiet" launch between each prompt):
-///   - launch 3 → App Store review (existing)
-///   - launch 5 → widgets tip
-///   - launch 7 → wallpaper tip
-enum FeatureTip: String, Identifiable, CaseIterable {
-    case widgets
-    case wallpaper
-
-    var id: String { rawValue }
-
-    /// Evaluated in priority order; the first eligible & unseen tip wins for a
-    /// given launch. Widgets first so a user updating from an old build (with an
-    /// already-high launch count) sees widgets one session, wallpaper the next.
-    static var orderedByPriority: [FeatureTip] { [.widgets, .wallpaper] }
-
-    /// Minimum cold-launch count before the tip becomes eligible.
-    var minLaunch: Int {
-        switch self {
-        case .widgets:   return 5
-        case .wallpaper: return 7
-        }
-    }
-
-    /// One-shot `UserDefaults` flag key. Versioned so copy/behavior changes can
-    /// re-show the tip later by bumping the suffix.
-    private var seenKey: String { "featureTipSeen_\(rawValue)_v1" }
-
-    var hasBeenSeen: Bool {
-        UserDefaults.standard.bool(forKey: seenKey)
-    }
-
-    func markSeen() {
-        UserDefaults.standard.set(true, forKey: seenKey)
-    }
-
-    /// Debug helper: clears every tip's one-shot flag (Settings → diagnostics).
-    static func resetAllSeenFlags() {
-        for tip in allCases {
-            UserDefaults.standard.removeObject(forKey: tip.seenKey)
-        }
-    }
-
-    /// Per-tip preconditions beyond the launch threshold. The wallpaper tip only
-    /// makes sense once the user actually has a canvas to put on their wallpaper.
-    private var preconditionMet: Bool {
-        switch self {
-        case .widgets:
-            return true
-        case .wallpaper:
-            return !CanvasStorageService.shared.availableDayKeys().isEmpty
-        }
-    }
-
-    func isEligible(launchCount: Int) -> Bool {
-        launchCount >= minLaunch && !hasBeenSeen && preconditionMet
-    }
+extension FeatureTip {
+    static func resetAllSeenFlags() { FeatureTipStore.shared.reset() }
 
     // MARK: Presentation content
 
@@ -137,6 +73,9 @@ enum FeatureTip: String, Identifiable, CaseIterable {
 /// primary CTA that deep-links into the relevant Settings page.
 struct FeatureTipSheet: View {
     let tip: FeatureTip
+    /// Production host routes after the sheet's actual dismissal. Debug previews
+    /// retain the standalone notification fallback.
+    var onContinue: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
@@ -178,14 +117,16 @@ struct FeatureTipSheet: View {
 
             VStack(spacing: 12) {
                 Button {
+                    if let onContinue {
+                        onContinue()
+                    } else {
+                        NotificationCenter.default.post(
+                            name: .openFeatureTipSettings,
+                            object: nil,
+                            userInfo: ["page": tip.settingsPage.rawValue]
+                        )
+                    }
                     dismiss()
-                    // Deep-link into the relevant Settings sub-page. MainTabView
-                    // opens the Settings sheet on Me; SettingsSheet pushes the page.
-                    NotificationCenter.default.post(
-                        name: .openFeatureTipSettings,
-                        object: nil,
-                        userInfo: ["page": tip.settingsPage.rawValue]
-                    )
                 } label: {
                     Text(tip.primaryActionTitle)
                         .font(.geist(.headline))
@@ -195,6 +136,7 @@ struct FeatureTipSheet: View {
                         .background(AppColors.brandAccent, in: RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("featureTip.continue")
 
                 Button {
                     dismiss()
@@ -206,11 +148,14 @@ struct FeatureTipSheet: View {
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("featureTip.later")
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("featureTip.sheet")
         .todayCanvasBackground(detail: true)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

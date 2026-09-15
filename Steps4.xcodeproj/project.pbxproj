@@ -383,6 +383,7 @@
 		DA0018001800180018001801 /* DayCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0018001800180018001802 /* DayCompositionTests.swift */; };
 		20F6C0022F3E100100000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20F6C0012F3E100100000001 /* Localizable.xcstrings */; };
 		20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20FE17A12F90000000000001 /* FeatureTipSheet.swift */; };
+		FA7150012026091500000002 /* FeatureTipPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7150012026091500000001 /* FeatureTipPolicy.swift */; };
 		20GC00022F86100000000002 /* GlassCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20GC00012F86100000000001 /* GlassCardModifier.swift */; };
 		20RM00022F90000000000002 /* ReduceMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20RM00012F90000000000001 /* ReduceMotion.swift */; };
 		20HV0003AAAA000100000003 /* DayCanvasViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */; };
@@ -556,8 +557,10 @@
 		PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PREF5702570057005700F002 /* PreferencesStoreTests.swift */; };
 		CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
+		FA7150012026091500000004 /* FeatureTipPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7150012026091500000003 /* FeatureTipPolicyTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 		CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */; };
+		FA7150012026091500000006 /* FeatureTipFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7150012026091500000005 /* FeatureTipFlowUITests.swift */; };
 		20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */; };
 		WK000001AAAA000100000001 /* AppModel+WorkoutSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */; };
 		WK000002AAAA000200000001 /* WorkoutSuggestionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */; };
@@ -1030,6 +1033,7 @@
 		DA0017001700170017001702 /* DayComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DayComposition.swift; path = StepsTrader/Models/DayComposition.swift; sourceTree = SOURCE_ROOT; };
 		20F6C0012F3E100100000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		20FE17A12F90000000000001 /* FeatureTipSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipSheet.swift; sourceTree = "<group>"; };
+		FA7150012026091500000001 /* FeatureTipPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipPolicy.swift; sourceTree = "<group>"; };
 		20GC00012F86100000000001 /* GlassCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCardModifier.swift; sourceTree = "<group>"; };
 		20RM00012F90000000000001 /* ReduceMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReduceMotion.swift; sourceTree = "<group>"; };
 		20HV0004AAAA000100000004 /* DayCanvasViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCanvasViewerView.swift; sourceTree = "<group>"; };
@@ -1199,8 +1203,10 @@
 		PREF5702570057005700F002 /* PreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStoreTests.swift; sourceTree = "<group>"; };
 		CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkTourTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
+		FA7150012026091500000003 /* FeatureTipPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipPolicyTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSimplificationUITests.swift; sourceTree = "<group>"; };
+		FA7150012026091500000005 /* FeatureTipFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipFlowUITests.swift; sourceTree = "<group>"; };
 		20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRedesignUITests.swift; sourceTree = "<group>"; };
 		WK000001AAAA000100000002 /* AppModel+WorkoutSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+WorkoutSuggestions.swift"; sourceTree = "<group>"; };
 		WK000002AAAA000200000002 /* WorkoutSuggestionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSuggestionBanner.swift; sourceTree = "<group>"; };
@@ -2015,6 +2021,7 @@
 			isa = PBXGroup;
 			children = (
 				20FE17A12F90000000000001 /* FeatureTipSheet.swift */,
+				FA7150012026091500000001 /* FeatureTipPolicy.swift */,
 			);
 			path = FeatureTips;
 			sourceTree = "<group>";
@@ -2162,6 +2169,7 @@
 				PREF5702570057005700F002 /* PreferencesStoreTests.swift */,
 				CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */,
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
+				FA7150012026091500000003 /* FeatureTipPolicyTests.swift */,
 				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
 				A71000000000000000000003 /* GateArtworkTests.swift */,
 				20095A8A2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift */,
@@ -2228,6 +2236,7 @@
 			children = (
 				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
 				CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */,
+				FA7150012026091500000005 /* FeatureTipFlowUITests.swift */,
 				20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */,
 				D0B10000000000000000000A /* DayObjectsLabUITests.swift */,
 			);
@@ -2984,6 +2993,7 @@
 				20CC020E2F86000000000014 /* SettingsWidgetsWallpaperPage.swift in Sources */,
 				20CC020F2F86000000000015 /* SettingsDeveloperPage.swift in Sources */,
 				20FE17A22F90000000000002 /* FeatureTipSheet.swift in Sources */,
+				FA7150012026091500000002 /* FeatureTipPolicy.swift in Sources */,
 				20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */,
 				20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */,
 				70CF00023004000070CF0002 /* CanvasFrameView.swift in Sources */,
@@ -3128,6 +3138,7 @@
 				PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */,
 				CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */,
 				T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */,
+				FA7150012026091500000004 /* FeatureTipPolicyTests.swift in Sources */,
 				20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */,
 				C5A510010906202600000002 /* CanvasVisualStyleTests.swift in Sources */,
 				C5A510020906202600000002 /* EditorialCanvasInputFactoryTests.swift in Sources */,
@@ -3192,6 +3203,7 @@
 			files = (
 				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
 				CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */,
+				FA7150012026091500000006 /* FeatureTipFlowUITests.swift in Sources */,
 				20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */,
 				D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */,
 			);

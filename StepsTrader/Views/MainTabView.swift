@@ -11,6 +11,7 @@ extension EnvironmentValues {
 struct MainTabView: View {
     @ObservedObject private var canvasBackdrop = TodayCanvasBackdropStore.shared
     @ObservedObject var model: AppModel
+    var allowsCanvasTipEngagement = true
     // Persisted across process death within the same scene so users return to the
     // tab they last had open after a deep link or relaunch.
     @SceneStorage("selectedTab") private var storedSelection: Int = Tab.canvas.rawValue
@@ -69,11 +70,18 @@ struct MainTabView: View {
     @State private var tabBarCenterY: CGFloat?
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Environment(CoachMarkManager.self) private var coachMarkManager
     @State private var coachAnchors: [CoachMarkAnchor] = []
+
+    private var canRecordCanvasUseForFeatureTips: Bool {
+        return !isUITest && scenePhase == .active && selection == Tab.canvas.rawValue
+            && !showSettings && allowsCanvasTipEngagement
+            && !model.showHandoffProtection && !model.userEconomyStore.showPayGate
+    }
 
     enum Tab: Int, CaseIterable {
         case canvas = 0
@@ -239,6 +247,10 @@ struct MainTabView: View {
                     .flatMap(FeatureTipSettingsPage.init(rawValue:))
                 withAnimation { selection = Tab.me.rawValue }
                 guard !showSettings else { return }
+                if note.userInfo?["dismissalCompleted"] as? Bool == true {
+                    showSettings = true
+                    return
+                }
                 // The poster (FeatureTipSheet) is itself a sheet and calls
                 // dismiss() immediately before posting. Presenting on top of a
                 // dismissal already in flight gets dropped by UIKit, so wait for
@@ -376,6 +388,9 @@ struct MainTabView: View {
             if let step = notification.object as? CoachMarkStep {
                 coachMarkManager.completeAction(for: step)
             }
+        }
+        .onChange(of: canRecordCanvasUseForFeatureTips, initial: true) { _, visible in
+            if visible { FeatureTipStore.shared.recordCanvasUse() }
         }
         .onChange(of: selection) { _, newValue in
             if coachMarkManager.currentStep == .tapFeedsTab && newValue == Tab.feeds.rawValue {

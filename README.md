@@ -122,3 +122,11 @@ xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS S
 
 - **admin-panel/** — Next.js dashboard for user management, global stats, and energy ledger. Password-protected, uses Supabase service role key.
 - **tg-admin/** — Telegram bot on Cloudflare Workers for interactive admin commands (`/stats`, `/user`, `/grant`, `/ban`, etc.) with LLM-powered natural language queries.
+
+## Widget and wallpaper suggestions
+
+First offers become eligible after cold launches 5 (widget) and 7 (wallpaper), once onboarding is complete. Wallpaper also requires a saved Canvas. All suggestions and App Store review requests share a 48-hour cooldown; a process session shows at most one suggestion and never combines it with a review request.
+
+“Maybe later” and swipe dismissal allow one repeat after at least seven days and Canvas visits on three distinct subsequent calendar days. The dismissal day does not count. Canvas must be foregrounded and visible, without Settings, a feature suggestion, PayGate or handoff protection covering it. The second dismissal ends automatic offers. Accepting the settings link also ends that offer. WidgetKit-confirmed widgets and a successfully used wallpaper export suppress their respective offers. An unknown WidgetKit response does not mean the widget is absent.
+
+History persists locally. Existing v1 seen flags remain terminal because they do not record whether the user accepted or dismissed. Developer “Reset Feature Tips” clears this history.
