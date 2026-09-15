@@ -1,6 +1,60 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Health activities are always close at hand. You can replace another happening." : {
+      "comment": "Health activities pinned in Frequent happenings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health activities are always close at hand. You can replace another happening."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "События Health всегда под рукой. Можно заменить другое событие."
+          }
+        }
+      }
+    },
+    "Health happenings stay in Frequent" : {
+      "comment": "Health activities pinned in Frequent happenings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health happenings stay in Frequent"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "События Health остаются в «Частых»"
+          }
+        }
+      }
+    },
+    "Frequent" : {
+      "comment": "Happening chooser: automatic frequent set",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frequent"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Частые"
+          }
+        }
+      }
+    },
     "Band shifts": {
       "comment": "Native Canvas editing control",
       "extractionState": "manual",

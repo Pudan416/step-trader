@@ -54,7 +54,8 @@ enum HappeningFieldLayout {
         safeInsets: EdgeInsets,
         dynamicTypeSize: DynamicTypeSize = .large,
         contentTopInset: CGFloat? = nil,
-        dockCenterY: CGFloat? = nil
+        dockCenterY: CGFloat? = nil,
+        allowsAccessibleScrolling: Bool = false
     ) -> Layout {
         let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
         guard !safeBounds.isEmpty else {
@@ -134,6 +135,19 @@ enum HappeningFieldLayout {
             }
             var result = makeLayout(sources: sources, dockAnchor: dockAnchor)
             result.contentSize = CGSize(width: width, height: height)
+            return result
+        }
+
+        if allowsAccessibleScrolling, dynamicTypeSize.isAccessibilitySize {
+            let radius = max(88, min(132, (safeBounds.width - edgeClearance * 2) / 2))
+            let step = radius * 2 + 16
+            let sources = (0..<itemCount).map { index in
+                Source(index: index, center: CGPoint(x: safeBounds.midX,
+                    y: contentTop + radius + CGFloat(index) * step), radius: radius)
+            }
+            var result = makeLayout(sources: sources, dockAnchor: dockAnchor)
+            result.contentSize = CGSize(width: size.width,
+                height: max(size.height, contentTop + CGFloat(itemCount) * step + size.height - dockAnchor.y + 80))
             return result
         }
 

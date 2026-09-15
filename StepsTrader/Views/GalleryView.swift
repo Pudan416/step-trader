@@ -102,6 +102,7 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
+    @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
@@ -387,10 +388,12 @@ struct GalleryView: View {
     }
 
     private func refreshHappeningPalette() {
+        let frequent = model.frequentPaletteHappenings(on: dayCanvas.dayKey, addedIDs: paletteAddedIDs)
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
-        paletteHappenings = model.configuredPaletteHappenings()
-            + HappeningPaletteSelection.alternatives(catalog: paletteCatalog, selected: paletteSelectedIDs)
+        paletteHappenings = paletteMode == .frequent ? frequent
+            : model.configuredPaletteHappenings()
+                + HappeningPaletteSelection.alternatives(catalog: paletteCatalog, selected: paletteSelectedIDs)
         let request = HappeningEditorialAssignmentRequest(
             happenings: paletteHappenings,
             baseInput: editorialRenderInput.sceneInput,
@@ -408,6 +411,7 @@ struct GalleryView: View {
     private func openHappeningPalette() {
         metricOverlay = nil
         send(.openHappeningPalette)
+        paletteMode = .frequent
         refreshHappeningPalette()
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -481,8 +485,10 @@ struct GalleryView: View {
                     presentationMode: paletteRenderMode(layout: layout, viewportSize: layout.contentSize)
                 )),
                 layout: layout,
+                mode: paletteMode,
                 interaction: paletteInteraction,
                 addedIDs: paletteAddedIDs,
+                fixedIDs: paletteHealthIDs,
                 instruction: paletteInstruction,
                 onActivate: handlePaletteActivation,
                 onCreate: { handlePaletteCreation($0) },
@@ -498,6 +504,10 @@ struct GalleryView: View {
             )
             .transition(.opacity)
         }
+    }
+
+    private var paletteHealthIDs: Set<String> {
+        Set(FrequentHappeningSelection.healthCoreIDs + paletteSelectedIDs.filter { $0.hasPrefix("health_workout_") })
     }
 
     private var paletteAddedIDs: Set<String> {
@@ -525,7 +535,7 @@ struct GalleryView: View {
     }
 
     private func happeningPaletteLayout(in viewport: GeometryProxy) -> HappeningFieldLayout.Layout {
-        HappeningFieldLayout.layout(
+        var layout = HappeningFieldLayout.layout(
             count: paletteHappenings.count,
             in: viewport.size,
             safeInsets: canvasSafeInsets,
@@ -534,8 +544,14 @@ struct GalleryView: View {
                 + HappeningPaletteChromeLayout.panelTopInset(
                     topCardHeight: topCardHeight, hidesSurroundingChrome: true
                 ) + 10,
-            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
+            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY },
+            allowsAccessibleScrolling: paletteMode == .frequent
         )
+        // Compact layouts have viewport coordinates too; Metal needs a real
+        // drawable size even when there is no overflow to scroll.
+        layout.contentSize = CGSize(width: max(viewport.size.width, layout.contentSize.width),
+                                    height: max(viewport.size.height, layout.contentSize.height))
+        return layout
     }
 
     private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize) -> DayObjectsPresentationMode {
@@ -665,7 +681,7 @@ struct GalleryView: View {
         do {
             _ = try model.createPaletteHappening(
                 title: title,
-                protectedIDs: paletteAddedIDs,
+                protectedIDs: paletteAddedIDs.union(paletteHealthIDs),
                 selection: selection,
                 replacingID: replacingID
             )
@@ -1467,6 +1483,17 @@ struct GalleryView: View {
             onToggleHappeningPalette: {
                 CoachMarkManager.postAction(for: .tapPlusButton)
                 showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
+            },
+            happeningMode: showHappeningPalette ? paletteMode : nil,
+            onSelectHappeningMode: { mode in
+                guard mode != paletteMode else { return }
+                paletteConfirmationTask?.cancel()
+                paletteTransitionTask?.cancel()
+                paletteInteraction = HappeningPaletteInteractionState()
+                paletteErrorID = nil
+                paletteTransitionActive = false
+                paletteMode = mode
+                refreshHappeningPalette()
             }
         )
     }

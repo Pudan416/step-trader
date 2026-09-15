@@ -182,6 +182,7 @@ final class AppModel: ObservableObject {
     @Published var todayAdditions: [OptionEntry] = []
     let happeningStore = HappeningStore()
     let happeningPaletteSelectionStore = HappeningPaletteSelectionStore()
+    let frequentHappeningStore = FrequentHappeningStore()
     let happeningShapeNonceStore = HappeningShapeNonceStore()
     @Published var savedRoutines: [EnergyRoutine] = []
     

@@ -103,8 +103,10 @@ struct HappeningPaletteView: View {
     let artwork: AnyView
     @Binding var activePanel: HappeningPalettePanel?
     let layout: HappeningFieldLayout.Layout
+    let mode: HappeningPaletteMode
     let interaction: HappeningPaletteInteractionState
     let addedIDs: Set<String>
+    let fixedIDs: Set<String>
     let instruction: HappeningPaletteInstruction?
     let onActivate: (Happening) -> Void
     let onCreate: (String) -> HappeningPaletteCreationOutcome
@@ -124,8 +126,10 @@ struct HappeningPaletteView: View {
         activePanel: Binding<HappeningPalettePanel?> = .constant(nil),
         artwork: AnyView = AnyView(Color.clear),
         layout: HappeningFieldLayout.Layout,
+        mode: HappeningPaletteMode = .all,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
+        fixedIDs: Set<String> = [],
         instruction: HappeningPaletteInstruction?,
         onActivate: @escaping (Happening) -> Void,
         onCreate: @escaping (String) -> HappeningPaletteCreationOutcome,
@@ -142,8 +146,10 @@ struct HappeningPaletteView: View {
         self.artwork = artwork
         _activePanel = activePanel
         self.layout = layout
+        self.mode = mode
         self.interaction = interaction
         self.addedIDs = addedIDs
+        self.fixedIDs = fixedIDs
         self.instruction = instruction
         self.onActivate = onActivate
         self.onCreate = onCreate
@@ -178,7 +184,8 @@ struct HappeningPaletteView: View {
                         height: max(proxy.size.height, layout.contentSize.height)
                     )
                 }
-                .defaultScrollAnchor(.center)
+                .defaultScrollAnchor(mode == .all ? .center : .top)
+                .id(mode)
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .accessibilityIdentifier("happening_field_scroll")
                 .accessibilityHidden(activePanel != nil)
@@ -239,7 +246,8 @@ struct HappeningPaletteView: View {
             HappeningChooserView(
                 catalog: catalog,
                 selected: selectedIDs,
-                protectedIDs: addedIDs,
+                protectedIDs: addedIDs.union(fixedIDs),
+                healthIDs: fixedIDs,
                 onCreateNew: { title, replacementID, selection in
                     let outcome = onCreateReplacement(title, replacementID, selection)
                     if outcome.closesCreator { activePanel = nil }

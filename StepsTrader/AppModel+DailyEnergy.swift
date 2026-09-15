@@ -116,6 +116,7 @@ extension AppModel {
         var replacement = selected
         replacement[index] = happening.id
         try happeningPaletteSelectionStore.save(replacement, catalog: happeningStore.all)
+        frequentHappeningStore.saveExplicitSelection(replacement, dayKey: Self.dayKey(for: date))
         objectWillChange.send()
         syncCustomHappenings(happeningStore.all)
         return happening
@@ -146,6 +147,28 @@ extension AppModel {
         }
     }
 
+    /// Health choices are available before accepting a suggestion. This only
+    /// ensures catalog identity; adding a choice still uses the normal action.
+    func frequentPaletteHappenings(on dayKey: String, addedIDs: Set<String>) -> [Happening] {
+        let detected = pendingActivitySuggestions.compactMap { suggestion -> String? in
+            guard case .workout = suggestion.source else { return nil }
+            let id = HappeningPaletteSelection.choiceID(suggestion.optionId)
+            if happeningStore.happening(id: id) == nil {
+                happeningStore.ensureExternalHappening(id: id, title: suggestion.title)
+            }
+            return id
+        }
+        let knownHealth = happeningStore.all.filter { $0.id.hasPrefix("health_workout_") }.map(\.id)
+        let todayHealth = knownHealth.filter { addedIDs.contains($0) }
+        let ids = frequentHappeningStore.resolve(catalog: happeningStore.all,
+            healthIDs: todayHealth + detected + knownHealth, protectedIDs: addedIDs, dayKey: dayKey,
+            seedIDs: happeningPaletteSelectionStore.ids)
+        if ids.count == 10, ids != happeningPaletteSelectionStore.ids {
+            try? happeningPaletteSelectionStore.save(ids, catalog: happeningStore.all)
+        }
+        return ids.compactMap { happeningStore.happening(id: $0) }
+    }
+
     func paletteHappeningCatalog() -> [Happening] {
         happeningStore.all
     }
@@ -156,6 +179,7 @@ extension AppModel {
 
     func savePaletteHappeningSelection(_ ids: [String]) throws {
         try happeningPaletteSelectionStore.save(ids, catalog: happeningStore.all)
+        frequentHappeningStore.saveExplicitSelection(ids, dayKey: Self.dayKey(for: .now))
         objectWillChange.send()
     }
 

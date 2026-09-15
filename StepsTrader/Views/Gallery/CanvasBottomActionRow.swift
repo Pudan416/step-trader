@@ -22,6 +22,8 @@ struct CanvasBottomActionRow: View {
     let onSound: () -> Void
     let onOpenHappeningList: () -> Void
     let onToggleHappeningPalette: () -> Void
+    var happeningMode: HappeningPaletteMode? = nil
+    var onSelectHappeningMode: (HappeningPaletteMode) -> Void = { _ in }
 
     @Environment(\.canvasChromePalette) private var palette
     private var ink: Color { palette.textColor }
@@ -59,6 +61,10 @@ struct CanvasBottomActionRow: View {
                 }
             }
             Spacer(minLength: 8)
+            if !isDataPanelOpen, isHappeningPalettePresented, let happeningMode {
+                modeControl(selection: happeningMode)
+                Spacer(minLength: 8)
+            }
             if !isDataPanelOpen {
                 addControl
             }
@@ -68,6 +74,32 @@ struct CanvasBottomActionRow: View {
         // pull Resting down underneath the floating tab bar.
         .frame(height: 52)
         .environment(\.layoutDirection, .leftToRight)
+    }
+
+    private func modeControl(selection: HappeningPaletteMode) -> some View {
+        HStack(spacing: 0) {
+            ForEach(HappeningPaletteMode.allCases, id: \.self) { mode in
+                Button { onSelectHappeningMode(mode) } label: {
+                    Text(mode.title)
+                        .font(.custom("Onest-SemiBold", size: 14, relativeTo: .subheadline))
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .foregroundStyle(selection == mode ? palette.onAccentColor : palette.textColor)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(selection == mode ? palette.accentColor : .clear, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == mode ? .isSelected : [])
+                .accessibilityIdentifier("happening_mode_" + mode.rawValue)
+            }
+        }
+        .padding(4)
+        .frame(maxWidth: 188)
+        .background(palette.surfaceColor, in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("happening_mode_switch")
     }
 
     // MARK: - Left: sound + full screen

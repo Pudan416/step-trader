@@ -155,6 +155,7 @@ enum SharedKeys {
 
     /// JSON-encoded `[Happening]` — the ten built-ins plus everything the user
     /// created or carried over from the old 31-option set.
+    static let happeningFrequentPalette = "happeningFrequentPalette_v1"
     static let happeningCatalog = "happeningCatalog_v1"
 
     /// The user's persistent, ordered ten-slot palette selection.

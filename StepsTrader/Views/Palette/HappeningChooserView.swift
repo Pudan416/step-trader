@@ -28,6 +28,7 @@ enum HappeningPanelAccessibilityOrder {
 struct HappeningChooserView: View {
     let catalog: [Happening]
     let protectedIDs: Set<String>
+    let healthIDs: Set<String>
     let onCreateNew: (String, String, [String]) -> HappeningPaletteCreationOutcome
     let onSave: ([String]) -> Void
     let onCancel: () -> Void
@@ -39,18 +40,20 @@ struct HappeningChooserView: View {
     @State private var name = ""
     @State private var feedback: HappeningPaletteCreationFeedback?
     @State private var showsProtectedMessage = false
+    @State private var protectedHealth = false
     @FocusState private var nameFocused: Bool
 
     private let surface = Color(hex: "F4F5EF")
     private let ink = Color(hex: "24372B")
 
     init(
-        catalog: [Happening], selected: [String], protectedIDs: Set<String> = [],
+        catalog: [Happening], selected: [String], protectedIDs: Set<String> = [], healthIDs: Set<String> = [],
         onCreateNew: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
         onSave: @escaping ([String]) -> Void, onCancel: @escaping () -> Void
     ) {
         self.catalog = catalog
         self.protectedIDs = protectedIDs
+        self.healthIDs = healthIDs
         self.onCreateNew = onCreateNew
         self.onSave = onSave
         self.onCancel = onCancel
@@ -146,10 +149,10 @@ struct HappeningChooserView: View {
         .tint(ink)
         .preferredColorScheme(.light)
         .interactiveDismissDisabled(draft.hasChanges || !name.isEmpty)
-        .alert("Already on Canvas", isPresented: $showsProtectedMessage) {
+        .alert(protectedHealth ? String(localized: "Health happenings stay in Frequent") : String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Remove this happening from Canvas before replacing it.")
+            Text(protectedHealth ? String(localized: "Health activities are always close at hand. You can replace another happening.") : String(localized: "Remove this happening from Canvas before replacing it."))
         }
     }
 
@@ -169,6 +172,7 @@ struct HappeningChooserView: View {
                 ForEach(selected) { happening in
                     Button {
                         if protectedIDs.contains(happening.id) {
+                            protectedHealth = healthIDs.contains(happening.id)
                             showsProtectedMessage = true
                         } else {
                             replacementID = happening.id
@@ -183,13 +187,13 @@ struct HappeningChooserView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(happening.localizedTitle())
                                 if protectedIDs.contains(happening.id) {
-                                    Text("On Canvas")
+                                    Text(healthIDs.contains(happening.id) ? String(localized: "Health") : String(localized: "On Canvas"))
                                         .font(.geist(.caption))
                                         .foregroundStyle(ink.opacity(0.7))
                                 }
                             }
                             Spacer(minLength: 8)
-                            Image(systemName: protectedIDs.contains(happening.id) ? "checkmark" : "chevron.right")
+                            Image(systemName: healthIDs.contains(happening.id) ? "pin.fill" : protectedIDs.contains(happening.id) ? "checkmark" : "chevron.right")
                                 .font(.geist(.footnote).weight(.semibold))
                                 .foregroundStyle(ink.opacity(0.65))
                         }
