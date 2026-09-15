@@ -44,7 +44,10 @@ final class CanvasSimplificationUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launchCanvas(additionalArguments: [String] = []) -> XCUIApplication {
+    private func launchCanvas(
+        additionalArguments: [String] = [],
+        accessibilitySize: String? = nil
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "ui-testing",
@@ -52,6 +55,9 @@ final class CanvasSimplificationUITests: XCTestCase {
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
         ] + additionalArguments
+        if let accessibilitySize {
+            app.launchEnvironment["TASK7_DYNAMIC_TYPE_SIZE"] = accessibilitySize
+        }
         app.launch()
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 12))
         return app
@@ -133,7 +139,7 @@ final class CanvasSimplificationUITests: XCTestCase {
     }
 
     func testActivitySuggestionAppearsDirectlyAboveTheBottomMenu() {
-        let app = launchCanvas()
+        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-resting"])
         let suggestion = app.descendants(matching: .any)["canvas_activity_suggestions"]
         let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
 
@@ -143,6 +149,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         let geometry = "suggestion=\(suggestion.frame), tab=\(tabBar.frame), gap=\(gap)"
         XCTAssertGreaterThanOrEqual(gap, 8, geometry)
         XCTAssertLessThanOrEqual(gap, 18, geometry)
+        captureSuggestion(app, name: "activity-suggestion-resting")
     }
 
     func testActivitySuggestionsFormACompactTwoLayerStack() {
@@ -158,6 +165,42 @@ final class CanvasSimplificationUITests: XCTestCase {
             NSPredicate(format: "label CONTAINS[c] 'more'")
         ).firstMatch.exists)
         XCTAssertFalse(app.buttons["Dismiss all"].exists)
+        captureSuggestion(app, name: "activity-suggestion-queue")
+
+        app.buttons["canvas_activity_suggestion_dismiss"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Resting")).firstMatch.waitForExistence(timeout: 3))
+        app.buttons["canvas_activity_suggestion_add"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Screen Detoxing")).firstMatch.waitForExistence(timeout: 3))
+    }
+
+    func testActivitySuggestionLargeTextKeepsCopyAndActionsAboveNavigation() {
+        let app = launchCanvas(
+            additionalArguments: ["ui-testing-suggestion-stack", "-AppleInterfaceStyle", "Dark", "-appTheme", "night"],
+            accessibilitySize: "accessibility5"
+        )
+        let dismiss = app.buttons["canvas_activity_suggestion_dismiss"]
+        XCTAssertTrue(dismiss.waitForExistence(timeout: 5))
+        dismiss.tap() // Resting has the longest explanatory copy in this fixture.
+        let copy = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Resting")).firstMatch
+        XCTAssertTrue(copy.waitForExistence(timeout: 3))
+        let accept = app.buttons["canvas_activity_suggestion_add"]
+        let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
+        for control in [accept, dismiss] {
+            XCTAssertTrue(control.isHittable)
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44 - 0.01)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44 - 0.01)
+            XCTAssertTrue(app.frame.contains(control.frame))
+            XCTAssertLessThan(control.frame.maxY, tabBar.frame.minY)
+        }
+        XCTAssertLessThanOrEqual(copy.frame.maxY, accept.frame.minY)
+        captureSuggestion(app, name: "activity-suggestion-accessibility-dark")
+    }
+
+    private func captureSuggestion(_ app: XCUIApplication, name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testPullingTheEnergyPillOpensAndBottomHandleClosesWithoutMovingThePill() {
@@ -248,7 +291,7 @@ final class CanvasSimplificationUITests: XCTestCase {
     }
 
     func testActivitySuggestionDoesNotMoveWhenDataPanelOpens() {
-        let app = launchCanvas()
+        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-resting"])
         let suggestion = app.descendants(matching: .any)["canvas_activity_suggestions"]
         XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
         let frameBefore = suggestion.frame

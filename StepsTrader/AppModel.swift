@@ -479,6 +479,9 @@ final class AppModel: ObservableObject {
     }
 
     func bootstrap(requestPermissions: Bool) async {
+        #if DEBUG
+        seedActivitySuggestionsForUITesting()
+        #endif
         AppLogger.app.debug("🚀 Bootstrapping AppModel...")
         isBootstrapping = true
         

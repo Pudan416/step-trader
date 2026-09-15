@@ -1,57 +1,54 @@
 import SwiftUI
 
-/// A two-layer queue of HealthKit and behavioral suggestions.
-///
-/// Only the front capsule is actionable. The next suggestion stays visible as
-/// a quieter glass layer behind it; accepting or dismissing the front advances
-/// the queue without turning the canvas into a list of cards.
+/// A compact queue above the Canvas controls, using the same readable pigment
+/// colors. Only the front card is actionable; the inset edge previews the queue.
 struct ActivitySuggestionBanner: View {
     let suggestions: [ActivitySuggestion]
     let onAccept: (ActivitySuggestion) -> Void
     let onDismiss: (ActivitySuggestion) -> Void
 
-    @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var acceptHapticTick = 0
 
-    private let backLayerOffset: CGFloat = 14
-    private let backLayerScale: CGFloat = 0.94
+    private let backLayerOffset: CGFloat = 10
+    private let cardShape = RoundedRectangle(cornerRadius: 24, style: .continuous)
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            if suggestions.count > 1 {
-                depthCapsule(suggestions[1])
-                    .scaleEffect(backLayerScale, anchor: .bottom)
-                    .offset(y: -backLayerOffset)
-                    .zIndex(0)
-                    .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
-            }
-
+        Group {
             if let first = suggestions.first {
-                suggestionCapsule(first)
-                    .zIndex(1)
-                    .transition(.asymmetric(
+                suggestionCard(first)
+                    .background {
+                        if suggestions.count > 1 {
+                            depthCard(suggestions[1])
+                                .padding(.horizontal, 10)
+                                .offset(y: -backLayerOffset)
+                                .transition(.opacity)
+                        }
+                    }
+                    .id(first.id)
+                    .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .scale(scale: 0.96, anchor: .bottom).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
                     ))
             }
         }
         .padding(.top, suggestions.count > 1 ? backLayerOffset : 0)
-        .animation(
-            reduceMotion
-                ? .easeOut(duration: 0.16)
-                : .spring(response: 0.34, dampingFraction: 0.82),
-            value: suggestions.map(\.id)
-        )
+        .frame(maxWidth: 560)
+        .animation(queueAnimation, value: suggestions.map(\.id))
         .sensoryFeedback(.impact(weight: .light), trigger: acceptHapticTick)
     }
 
-    private func depthCapsule(_ suggestion: ActivitySuggestion) -> some View {
-        Capsule(style: .continuous)
-            .fill(.clear)
-            .frame(maxWidth: .infinity, minHeight: 66, maxHeight: 66)
-            .liquidGlassControl(in: Capsule(style: .continuous), tint: .off)
+    private var queueAnimation: Animation {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.34, dampingFraction: 0.82)
+    }
+
+    private func depthCard(_ suggestion: ActivitySuggestion) -> some View {
+        // Match the front card's measured height, including wrapped copy and
+        // Dynamic Type, so the queue edge always stays just above its top.
+        cardShape.fill(palette.earnedColor)
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
@@ -63,70 +60,87 @@ struct ActivitySuggestionBanner: View {
             .accessibilityIdentifier("canvas_activity_suggestion_back")
     }
 
-    private func suggestionCapsule(_ suggestion: ActivitySuggestion) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: suggestion.icon)
-                .font(.geist(17, weight: .semibold, relativeTo: .body))
-                .foregroundStyle(theme.accentColor)
-                .frame(width: 38, height: 38)
-                .background(theme.accentColor.opacity(0.13), in: Circle())
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(suggestion.title)
-                    .font(.geist(14, weight: .semibold, relativeTo: .subheadline))
-                    .foregroundStyle(.primary)
-
-                Text(suggestion.subtitle)
-                    .font(.geist(12, relativeTo: .caption))
-                    .foregroundStyle(.secondary)
-            }
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .layoutPriority(1)
-
-            Spacer(minLength: 0)
-
-            Button {
-                withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.32, dampingFraction: 0.8)) {
-                    onAccept(suggestion)
+    private func suggestionCard(_ suggestion: ActivitySuggestion) -> some View {
+        Group {
+            if dynamicTypeSize >= .xxxLarge {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 8) {
+                        suggestionText(suggestion)
+                        dismissButton(suggestion)
+                    }
+                    acceptButton(suggestion, fullWidth: true)
                 }
-                acceptHapticTick &+= 1
-            } label: {
-                Text(String(localized: "Add"))
-                    .font(.geist(13, weight: .semibold, relativeTo: .subheadline))
-                    .foregroundStyle(theme.accentColor)
-                    .padding(.horizontal, 15)
-                    .frame(minHeight: 44)
-                    .liquidGlassControl(in: Capsule(style: .continuous), tint: .off)
-                    .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .fixedSize(horizontal: true, vertical: false)
-
-            Button {
-                withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.3, dampingFraction: 0.82)) {
-                    onDismiss(suggestion)
+            } else {
+                HStack(spacing: 8) {
+                    suggestionText(suggestion)
+                    acceptButton(suggestion)
+                    dismissButton(suggestion)
                 }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.geist(12, weight: .semibold, relativeTo: .body))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                String(localized: "Dismiss suggestion", comment: "ActivitySuggestionBanner – dismiss VoiceOver label")
-            )
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 7)
-        .padding(.vertical, 7)
-        .frame(maxWidth: .infinity, minHeight: 66)
-        .liquidGlassControl(in: Capsule(style: .continuous))
-        .contentShape(Capsule(style: .continuous))
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 76)
+        .background(palette.surfaceColor, in: cardShape)
+        .contentShape(cardShape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_activity_suggestion_front")
+    }
+
+    private func suggestionText(_ suggestion: ActivitySuggestion) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: suggestion.icon)
+                    .font(.geist(16, weight: .medium, relativeTo: .headline))
+                    .foregroundStyle(palette.accentColor)
+                    .accessibilityHidden(true)
+                Text(suggestion.title)
+                    .font(.geist(15, weight: .semibold, relativeTo: .headline))
+                    .foregroundStyle(palette.textColor)
+            }
+            Text(suggestion.subtitle)
+                .font(.geist(13, relativeTo: .subheadline))
+                .foregroundStyle(palette.secondaryColor)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func acceptButton(_ suggestion: ActivitySuggestion, fullWidth: Bool = false) -> some View {
+        Button {
+            withAnimation(queueAnimation) { onAccept(suggestion) }
+            acceptHapticTick &+= 1
+        } label: {
+            Text(String(localized: "Add"))
+                .font(.geist(14, weight: .semibold, relativeTo: .body))
+                .foregroundStyle(palette.onAccentColor)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 44)
+                .background(palette.accentColor, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: !fullWidth, vertical: false)
+        .accessibilityIdentifier("canvas_activity_suggestion_add")
+    }
+
+    private func dismissButton(_ suggestion: ActivitySuggestion) -> some View {
+        Button {
+            withAnimation(queueAnimation) { onDismiss(suggestion) }
+        } label: {
+            Image(systemName: "xmark")
+                .font(.geist(14, weight: .medium, relativeTo: .body))
+                .foregroundStyle(palette.secondaryColor)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            String(localized: "Dismiss suggestion", comment: "ActivitySuggestionBanner – dismiss VoiceOver label")
+        )
+        .accessibilityIdentifier("canvas_activity_suggestion_dismiss")
     }
 }
