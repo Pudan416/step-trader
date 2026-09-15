@@ -16,3 +16,7 @@ Seven staggered rows and the centered starting position remain unchanged.
 UI result: `/tmp/nowhere-happenings-staggered-dd/Logs/Test/Test-Steps4-2026.09.15_09-31-31-+0200.xcresult`.
 
 This remains an isolated feature build; the user requested no current-integration publication.
+
+## Physical device installation
+
+Installed and launched revision `eee054729af962a58e8df3abca67c217dd18f426` on iPhone Costa over Wi-Fi at 2026-09-15T09:41:18.819891+02:00. The first transmission timed out; the second succeeded. Signed application and all four embedded extensions were checked, with 11 fonts, 21 matching gate images, 122 audio resources, Assets.car and default.metallib present. No physical-device visual verification was performed.
