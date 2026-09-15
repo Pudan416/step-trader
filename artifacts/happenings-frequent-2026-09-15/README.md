@@ -17,3 +17,5 @@ Accessibility text uses a vertically scrollable single column. The Metal drawabl
 ## Build scope
 
 User-authorized isolated codex/happenings-field build. No integration publication. Device install evidence is recorded in device-verification.json after installation.
+
+Signed build revision: `1d66b829c86e4389946101ebe99d84a809062ab3`. Initial Wi-Fi installation was blocked: CoreDevice error 1011, paired iPhone Costa unavailable, tunnel unavailable. The new revision has not yet been installed.
