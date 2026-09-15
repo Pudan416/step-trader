@@ -282,6 +282,13 @@ final class HealthActivitySuggestionTests: XCTestCase {
         })
     }
 
+    func testMorningSuggestionUsesTheSleepHappeningTitle() throws {
+        let suggestion = ActivitySuggestion.fromMorningResting()
+        let happening = try XCTUnwrap(HappeningDefaults.builtIns.first { $0.id == suggestion.optionId })
+        XCTAssertEqual(suggestion.optionId, "happening_slept_well")
+        XCTAssertEqual(suggestion.title, happening.localizedTitle())
+    }
+
     func testRefreshDoesNotSuggestRestingWhenSleepIsAlreadyOnCanvas() async {
         let model = makeModel()
         model.todayAdditions = [todayEntry(optionId: "happening_slept_well")]

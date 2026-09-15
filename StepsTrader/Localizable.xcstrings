@@ -3286,9 +3286,6 @@
     "Reset Feature Tip Flags" : {
       "comment" : "Developer diagnostic action"
     },
-    "Resting" : {
-      "comment" : "Morning resting suggestion – title"
-    },
     "Restore Colors to Max" : {
       "comment" : "Developer diagnostic action"
     },

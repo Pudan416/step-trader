@@ -4,6 +4,54 @@ import HealthKit
 
 final class HappeningPaletteSelectionTests: XCTestCase {
 
+    func testRestingAndRestedOfferOneChoiceWhileKeepingCustomTitles() {
+        let catalog = [
+            Happening(id: "body_resting", title: "Resting", isBuiltIn: false, useCount: 7),
+            Happening(id: "happening_did_nothing", title: "Rested", isBuiltIn: true),
+            Happening(id: "user_resting", title: "Resting", isBuiltIn: false)
+        ]
+        XCTAssertEqual(
+            HappeningPaletteSelection.alternatives(catalog: catalog, selected: []).map(\.id),
+            ["happening_did_nothing", "user_resting"]
+        )
+        for selected in ["body_resting", "happening_did_nothing"] {
+            XCTAssertEqual(
+                HappeningPaletteSelection.alternatives(catalog: catalog, selected: [selected]).map(\.id),
+                ["user_resting"]
+            )
+        }
+        XCTAssertEqual(
+            HappeningPaletteSelection.alternatives(catalog: Array(catalog.prefix(2)), selected: [], query: "resting").map(\.id),
+            ["happening_did_nothing"], "Old wording stays searchable"
+        )
+    }
+
+    func testRestingPaletteMigrationPreservesHistoricalCatalogAndDoesNotReturnAfterReload() throws {
+        let catalogStore = HappeningStore(defaults: defaults)
+        catalogStore.load()
+        catalogStore.reconstituteOrphans(fromHistoryIds: ["body_resting"], titleResolver: { _ in "Resting" })
+        catalogStore.recordUse(id: "body_resting", at: Date(timeIntervalSince1970: 100))
+        let catalogBefore = catalogStore.all
+        let selected = ["body_resting", "happening_did_nothing"]
+            + Array(HappeningDefaults.builtIns.prefix(8)).map(\.id)
+        for key in [SharedKeys.happeningPaletteSelection, SharedKeys.legacyHappeningPaletteOrderIds] {
+            defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            defaults.set(selected, forKey: key)
+            let selectionStore = HappeningPaletteSelectionStore(defaults: defaults)
+            selectionStore.load(catalog: catalogStore.all)
+            XCTAssertEqual(selectionStore.ids.first, "happening_did_nothing")
+            XCTAssertEqual(selectionStore.ids.count, 10)
+            XCTAssertFalse(selectionStore.ids.contains("body_resting"))
+            XCTAssertEqual(selectionStore.ids.filter { $0 == "happening_did_nothing" }.count, 1)
+            XCTAssertThrowsError(try selectionStore.save(selected, catalog: catalogStore.all))
+            let reloaded = HappeningPaletteSelectionStore(defaults: defaults)
+            reloaded.load(catalog: catalogStore.all)
+            XCTAssertEqual(reloaded.ids, selectionStore.ids)
+        }
+        catalogStore.load()
+        XCTAssertEqual(catalogStore.all, catalogBefore, "Historical IDs, titles and use counts must not change")
+    }
+
     func testAlternativesOfferOneWalkAcrossBuiltInHistoryAndHealthKit() {
         let catalog = [
             Happening(id: "body_walking", title: "Walking", isBuiltIn: false),
