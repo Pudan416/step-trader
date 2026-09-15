@@ -103,6 +103,7 @@ struct GalleryView: View {
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
     @State private var paletteMode: HappeningPaletteMode = .frequent
+    @State private var paletteTourSessionID: UUID?
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
@@ -157,6 +158,8 @@ struct GalleryView: View {
     /// doesn't grow up under the banner the way it can under the pill alone.
     @State private var suggestionBannerHeight: CGFloat = 0
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.canvasBalanceBottomGlobalY) private var balanceBottomGlobalY
+    @State private var dataPanelHostGlobalY: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
@@ -372,7 +375,11 @@ struct GalleryView: View {
     private var isCanvasEmpty: Bool { dayCanvas.elements.isEmpty }
 
     /// Show routines/repeat/hint when canvas is empty
-    private var showQuickStartArea: Bool { isCanvasEmpty }
+    private var showQuickStartArea: Bool { isCanvasEmpty && !isCanvasTourActive }
+
+    private var isCanvasTourActive: Bool {
+        CanvasTour.shared.isActive
+    }
 
     /// How long a single nudge lingers before it fades on its own.
     private static let addHintVisibleSeconds: Double = 8
@@ -506,6 +513,18 @@ struct GalleryView: View {
                 }
             )
             .transition(.opacity)
+            .onAppear {
+                let tour = CanvasTour.shared
+                paletteTourSessionID = tour.isActive ? tour.sessionID : nil
+                tour.send(.palettePresented)
+            }
+            .onDisappear {
+                let tour = CanvasTour.shared
+                if paletteTourSessionID == tour.sessionID {
+                    tour.send(.paletteDismissed)
+                }
+                paletteTourSessionID = nil
+            }
         }
     }
 
@@ -538,15 +557,26 @@ struct GalleryView: View {
     }
 
     private func happeningPaletteLayout(in viewport: GeometryProxy, compact: Bool = false) -> HappeningFieldLayout.Layout {
+        var contentTopInset = canvasSafeInsets.top
+            + HappeningPaletteChromeLayout.panelTopInset(
+                topCardHeight: topCardHeight, hidesSurroundingChrome: true
+            ) + 10
+        let tour = CanvasTour.shared
+        if tour.isActive, tour.step == .happening, tour.cardBottomGlobalY > 0 {
+            // The coach has a fixed top position independent of this field.
+            // Convert its measured bottom into this viewport exactly once,
+            // then let the product's existing packing algorithm fit below it.
+            contentTopInset = max(
+                contentTopInset,
+                CGFloat(tour.cardBottomGlobalY) - viewport.frame(in: .global).minY + 12
+            )
+        }
         var layout = HappeningFieldLayout.layout(
             count: compact ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
             safeInsets: canvasSafeInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
-            contentTopInset: canvasSafeInsets.top
-                + HappeningPaletteChromeLayout.panelTopInset(
-                    topCardHeight: topCardHeight, hidesSurroundingChrome: true
-                ) + 10,
+            contentTopInset: contentTopInset,
             dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY },
             allowsAccessibleScrolling: compact
         )
@@ -606,6 +636,11 @@ struct GalleryView: View {
 
     private func handlePaletteActivation(_ happening: Happening) {
         guard let assignment = paletteEditorialAssignments[happening.id] else { return }
+        let isTourAddition = CanvasTour.shared.isActive && CanvasTour.shared.step == .happening
+        if isTourAddition && paletteAddedIDs.contains(happening.id) {
+            CanvasTour.shared.report("Happening already exists today; choose another or continue with the existing day")
+            return
+        }
         paletteConfirmationTask?.cancel()
         paletteErrorID = nil
         switch paletteInteraction.tap(id: happening.id, addedIDs: paletteAddedIDs) {
@@ -643,6 +678,10 @@ struct GalleryView: View {
                     notification: .announcement,
                     argument: "\(happening.localizedTitle()). \(String(localized: "Removed from Canvas"))"
                 )
+            }
+            if isTourAddition, case .add = mutation {
+                closeHappeningPalette()
+                return
             }
             paletteConfirmationTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(900))
@@ -726,7 +765,7 @@ struct GalleryView: View {
     /// delay so it doesn't flash during canvas load. It then auto-dismisses.
     private func refreshAddHint() {
         addHintTask?.cancel()
-        guard addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else {
+        guard !isCanvasTourActive, addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else {
             if showAddHint {
                 withAnimation(.easeOut(duration: 0.25)) { showAddHint = false }
             }
@@ -753,7 +792,7 @@ struct GalleryView: View {
         guard !hasShownHintWindow(window) else { return }
         addHintTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(1500))
-            guard !Task.isCancelled, addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else { return }
+            guard !Task.isCancelled, !isCanvasTourActive, addHintQualifies, !showHappeningPalette, !presentation.isWideCanvas else { return }
             activeHintWindow = window
             markHintWindowShown(window)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { showAddHint = true }
@@ -918,6 +957,17 @@ struct GalleryView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showHappeningPalette)
+            #if DEBUG
+            .overlay {
+                if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-fixtures") {
+                    Color.clear
+                        .accessibilityElement()
+                        .accessibilityLabel("Canvas render viewport")
+                        .accessibilityIdentifier("canvas_render_viewport")
+                        .allowsHitTesting(false)
+                }
+            }
+            #endif
             // Labels and Metal share this exact viewport, including safe areas.
             // An overlay outside canvasLayers inherits a different screen origin.
             .overlay {
@@ -939,7 +989,7 @@ struct GalleryView: View {
         let visualCanvas = canvasLayers
             .contentShape(Rectangle())
             .onTapGesture {
-                guard presentation.showsDataPanel else { return }
+                guard !isCanvasTourActive, presentation.showsDataPanel else { return }
                 metricOverlay = nil
                 send(.hideData)
                 lightHapticTick &+= 1
@@ -971,7 +1021,7 @@ struct GalleryView: View {
             if presentation.showsEditingChrome,
                (dayCanvas.resolvedVisualStyle == .legacy || dayCanvas.artworkRecipe?.isSupported == true) {
                 CanvasEditingDock(
-                    showsDragHint: showsEditDragHint && dayCanvas.artworkRecipe == nil,
+                    showsDragHint: showsEditDragHint && !isCanvasTourActive && dayCanvas.artworkRecipe == nil,
                     onDone: {
                         send(.endEditing)
                         lightHapticTick &+= 1
@@ -1026,7 +1076,7 @@ struct GalleryView: View {
                             let canvasW = GenerativeCanvasView.canonicalPortraitSize.width
                             let wide = size.width > canvasW * 1.15
                             if wide != isNaturallyWide { isNaturallyWide = wide }
-                            if wide && !userCollapsedWide && !isManuallyExpanded {
+                            if wide && !isCanvasTourActive && !userCollapsedWide && !isManuallyExpanded {
                                 // Naturally wide is a viewing state. It must
                                 // never walk the user into editing.
                                 send(.enterFullScreen)
@@ -1052,13 +1102,15 @@ struct GalleryView: View {
             loadCanvas()
             refreshAddHint()
             consumePaletteOpenRequestIfReady()
-            let dayKey = AppModel.dayKey(for: Date.now)
-            Task {
-                await SupabaseSyncService.shared.trackAnalyticsEvent(
-                    name: "canvas_viewed",
-                    properties: ["day_key": dayKey, "surface": "canvas_tab"],
-                    dedupeKey: "canvas_viewed_\(dayKey)"
-                )
+            if !isCanvasTourActive {
+                let dayKey = AppModel.dayKey(for: Date.now)
+                Task {
+                    await SupabaseSyncService.shared.trackAnalyticsEvent(
+                        name: "canvas_viewed",
+                        properties: ["day_key": dayKey, "surface": "canvas_tab"],
+                        dedupeKey: "canvas_viewed_\(dayKey)"
+                    )
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .todayCanvasStorageDidChange)) { _ in
@@ -1093,6 +1145,24 @@ struct GalleryView: View {
             refreshAddHint()
             onPalettePresentationChange(isPresented)
         }
+        .onChange(of: isCanvasTourActive, initial: true) { _, active in
+            if active {
+                send(.exitFullScreen)
+                send(.hideData)
+                closeHappeningPalette()
+            }
+            refreshAddHint()
+        }
+        .onChange(of: CanvasTour.shared.step) { _, step in
+            // Continue with an existing day also closes the real palette. This
+            // only prepares the next context; it never adds or removes a moment.
+            guard CanvasTour.shared.isActive else { return }
+            if step == .welcome || step == .momentResult || step == .balance {
+                send(.exitFullScreen)
+                send(.hideData)
+                if showHappeningPalette { closeHappeningPalette() }
+            }
+        }
         .onChange(of: paletteRoute) {
             consumePaletteOpenRequestIfReady()
         }
@@ -1117,13 +1187,16 @@ struct GalleryView: View {
         }
         .onChange(of: presentation, initial: true) { old, new in
             AppDelegate.allowCanvasRotation(new == .fullScreen)
+            if new.showsDataPanel && !old.showsDataPanel {
+                CanvasTour.shared.send(.dataPanelExpanded)
+            }
             if !new.showsDataPanel {
                 metricOverlay = nil
             }
 
             // Names only. No energy values, HealthKit values, happening labels
             // or element IDs ever go into an analytics property.
-            if let event = CanvasPresentationState.analyticsEventName(from: old, to: new) {
+            if !isCanvasTourActive, let event = CanvasPresentationState.analyticsEventName(from: old, to: new) {
                 Task { await SupabaseSyncService.shared.trackAnalyticsEvent(name: event) }
             }
 
@@ -1141,7 +1214,7 @@ struct GalleryView: View {
                 editState.editFreezeTime = Date.now
             }
 
-            if new.isEditing, !editDragHintShown {
+            if new.isEditing, !editDragHintShown, !isCanvasTourActive {
                 editDragHintShown = true
                 showsEditDragHint = true
                 editDragHintTask?.cancel()
@@ -1334,7 +1407,7 @@ struct GalleryView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                if !model.pendingActivitySuggestions.isEmpty
+                if !isCanvasTourActive && !model.pendingActivitySuggestions.isEmpty
                     && !presentation.isWideCanvas
                     && !showHappeningPalette {
                     ActivitySuggestionBanner(
@@ -1415,7 +1488,10 @@ struct GalleryView: View {
         // The visible 4pt grabber is vertically centred in its new 16pt
         // footer. Pull the drawer up by that 6pt inner inset so the line itself
         // keeps the established 8pt gap below the energy pill.
-        max(0, deviceTopSafeAreaInset - safeAreaTop) + topCardHeight - 6
+        if isCanvasTourActive, let bottom = balanceBottomGlobalY, let origin = dataPanelHostGlobalY {
+            return max(0, bottom - origin - 6)
+        }
+        return max(0, deviceTopSafeAreaInset - safeAreaTop) + topCardHeight - 6
     }
 
     /// The space actually available for the data drawer's rows, from just
@@ -1465,7 +1541,6 @@ struct GalleryView: View {
                         }
                     },
                     onToggle: {
-                        CoachMarkManager.postAction(for: .expandChevron)
                         if presentation.showsDataPanel {
                             metricOverlay = nil
                         }
@@ -1478,6 +1553,7 @@ struct GalleryView: View {
                 Spacer(minLength: 0)
             }
             .padding(.top, dataPanelTopOffset)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { dataPanelHostGlobalY = $0 }
             .transition(
                 reduceMotion
                     ? .opacity
@@ -1495,7 +1571,7 @@ struct GalleryView: View {
             isDataPanelOpen: presentation.showsDataPanel,
             isHappeningPalettePresented: showHappeningPalette,
             soundAppearance: canvasSoundAppearance,
-            addHint: showAddHint && !presentation.isWideCanvas
+            addHint: showAddHint && !isCanvasTourActive && !presentation.isWideCanvas
                 && model.pendingActivitySuggestions.isEmpty ? activeHintWindow.prompt : nil,
             onSound: handleCanvasSoundControl,
             onOpenHappeningList: {
@@ -1504,7 +1580,6 @@ struct GalleryView: View {
                 }
             },
             onToggleHappeningPalette: {
-                CoachMarkManager.postAction(for: .tapPlusButton)
                 showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
             },
             happeningMode: showHappeningPalette ? paletteMode : nil,
@@ -1989,9 +2064,13 @@ struct GalleryView: View {
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
+        let tourOperation = CanvasTour.shared.beginOperation("addHappening")
         let now = Date.now
         let transactionDayKey = AppModel.dayKey(for: now)
-        guard dayCanvas.dayKey == transactionDayKey else { return false }
+        guard dayCanvas.dayKey == transactionDayKey else {
+            CanvasTour.shared.endOperation(tourOperation, error: "The day changed; wait for the current Canvas to finish loading")
+            return false
+        }
         var element = CanvasElement.spawn(
             id: elementID,
             optionId: optionId,
@@ -2034,6 +2113,7 @@ struct GalleryView: View {
                     : CanvasStorageService.shared.saveCanvas(canvas)
             }
         ) else {
+            CanvasTour.shared.endOperation(tourOperation, error: "Happening was not saved; choose an available moment or continue with the existing day")
             return false
         }
 
@@ -2050,6 +2130,7 @@ struct GalleryView: View {
         if showHappeningPalette {
             refreshHappeningPalette()
         }
+        CanvasTour.shared.send(.happeningAdded(result.entry.id), token: tourOperation)
         return true
     }
 

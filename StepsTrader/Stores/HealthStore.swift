@@ -2,6 +2,13 @@ import Foundation
 import HealthKit
 import Combine
 
+/// The latest explicit refresh result, separate from cached values and write
+/// authorization. `empty` means the aggregate was zero; it does not prove that
+/// the user denied reads or that HealthKit contains no samples.
+enum HealthQueryOutcome: String, Equatable {
+    case idle, loading, available, empty, failed
+}
+
 @MainActor
 final class HealthStore: ObservableObject {
     // Dependencies
@@ -18,6 +25,10 @@ final class HealthStore: ObservableObject {
     @Published var hasStepsData: Bool = false
     /// True once HealthKit has returned sleep data.
     @Published var hasSleepData: Bool = false
+    @Published private(set) var stepsQueryOutcome: HealthQueryOutcome = .idle
+    @Published private(set) var sleepQueryOutcome: HealthQueryOutcome = .idle
+    private var stepsQueryID: UUID?
+    private var sleepQueryID: UUID?
     
     init(healthKitService: any HealthKitServiceProtocol) {
         self.healthKitService = healthKitService
@@ -51,12 +62,22 @@ final class HealthStore: ObservableObject {
         // or .sharingDenied, so guarding on .sharingAuthorized silently blocks step fetching
         // for most users.
         let before = stepsToday
+        let queryID = UUID()
+        stepsQueryID = queryID
+        stepsQueryOutcome = .loading
         do {
-            stepsToday = try await fetchStepsForCurrentDay()
+            let trace = HealthQueryTrace()
+            stepsToday = try await HealthQueryTrace.$current.withValue(trace) {
+                try await fetchStepsForCurrentDay()
+            }
+            if stepsQueryID == queryID {
+                stepsQueryOutcome = trace.didFail ? .failed : stepsToday > 0 ? .available : .empty
+            }
             hasStepsData = true
             cacheStepsToday()
             AppLogger.healthKit.info("👣 refreshSteps: \(Int(before)) → \(Int(self.stepsToday)) (fetched OK, cached)")
         } catch {
+            if stepsQueryID == queryID { stepsQueryOutcome = .failed }
             AppLogger.healthKit.error("👣 refreshSteps FAILED: \(error.localizedDescription), was \(Int(before))")
             loadCachedStepsToday()
             if Self.isUnavailableHealthData(error) {
@@ -70,6 +91,9 @@ final class HealthStore: ObservableObject {
     }
     
     func refreshSleepIfAuthorized() async {
+        let queryID = UUID()
+        sleepQueryID = queryID
+        sleepQueryOutcome = .loading
         let status = healthKitService.sleepAuthorizationStatus()
         AppLogger.healthKit.debug("🛌 HealthKit sleep write-status: \(status.rawValue)")
         // authorizationStatus reports WRITE permission. Read access can still be allowed when status is denied.
@@ -77,10 +101,14 @@ final class HealthStore: ObservableObject {
             let now = Date.now
             let start = currentDayStart(for: now)
             dailySleepHours = try await healthKitService.fetchSleep(from: start, to: now)
+            if sleepQueryID == queryID {
+                sleepQueryOutcome = dailySleepHours > 0 ? .available : .empty
+            }
             hasSleepData = true
             cacheSleepToday()
             AppLogger.healthKit.debug("🛌 Fetched sleep hours: \(String(format: "%.2f", self.dailySleepHours))h")
         } catch {
+            if sleepQueryID == queryID { sleepQueryOutcome = .failed }
             AppLogger.healthKit.error("⚠️ Failed to refresh sleep: \(error.localizedDescription)")
             loadCachedSleepToday()
             if Self.isUnavailableHealthData(error) {

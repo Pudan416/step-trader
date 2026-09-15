@@ -224,6 +224,7 @@ struct HappeningPaletteView: View {
                     .defaultScrollAnchor(mode == .frequent && (compactLayout?.contentSize.height ?? 0) > proxy.size.height ? .top : .center)
                     .scrollDisabled(compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
                     .frame(width: proxy.size.width, height: proxy.size.height)
+                    .canvasTourAnchor("canvas.happenings")
                     .accessibilityIdentifier("happening_field_scroll")
                     .accessibilityHidden(activePanel != nil)
                     .allowsHitTesting(activePanel == nil && modeTransition == nil)
@@ -277,6 +278,7 @@ struct HappeningPaletteView: View {
             NotificationCenter.default.post(name: UIDevice.deviceDidShakeNotification, object: nil)
         }
         .onShake {
+            guard !CanvasTour.shared.isActive else { return }
             guard activePanel == nil else { return }
             if reduceMotion {
                 onReroll()

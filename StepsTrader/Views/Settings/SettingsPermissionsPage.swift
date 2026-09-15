@@ -63,7 +63,13 @@ struct SettingsPermissionsPage: View {
     }
 
     private var healthPresentation: SettingsPermissionPresentation {
-        SettingsPermissionPresentation.health(
+        if CanvasTour.shared.isActive {
+            return SettingsPermissionPresentation.health(
+                isAvailable: isHealthKitAvailable,
+                hasReturnedData: model.stepsToday > 0 || model.dailySleepHours > 0
+            )
+        }
+        return SettingsPermissionPresentation.health(
             isAvailable: isHealthKitAvailable,
             hasReturnedData: !usesPermissionActionsFixture
                 && (usesSuccessfulZeroHealthFixture
