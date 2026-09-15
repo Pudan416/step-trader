@@ -36,6 +36,18 @@ struct NewAppGroupSheet: View {
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    private var pickerSelection: Binding<FamilyActivitySelection> {
+        #if DEBUG && targetEnvironment(simulator)
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("ui-testing"), arguments.contains("ui-testing-feed-selection") {
+            // The system picker rejects synthetic tokens. Preserve the fixture
+            // while testing our form's Back, Cancel and persistence behavior.
+            return .constant(selection)
+        }
+        #endif
+        return $selection
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -62,7 +74,7 @@ struct NewAppGroupSheet: View {
             }
             .onAppear { nameFocused = true }
             .navigationDestination(isPresented: $showSelection) {
-                FamilyActivityPicker(selection: $selection)
+                FamilyActivityPicker(selection: pickerSelection)
                     .navigationTitle(String(localized: "Select Apps"))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
