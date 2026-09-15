@@ -339,7 +339,7 @@ private struct DebugCanvasTourHost: ViewModifier {
             else if healthAttempted || model.hasStepsData || model.hasSleepData { String(localized: "Colors can update as Health data becomes available. You can change Health access in Settings.") }
             else { String(localized: "You can connect Health later or change access in Settings.") }
         case .feedsTab: String(localized: "Tap Feeds to choose the apps you’d like to pause.")
-        case .addApps: model.ticketGroups.isEmpty ? String(localized: "Tap +, name your group, then choose the apps you’d like to pause. You can also skip this step.") : String(localized: "Tap an existing group, or tap + to name a new group and choose its apps.")
+        case .addApps: model.ticketGroups.isEmpty ? String(localized: "Tap +, enter a name and choose your apps, then tap Done. You can also skip this step.") : String(localized: "Tap an existing group, or tap + to name a new group and choose its apps.")
         case .selectionResult: String(localized: "Your group is saved. You can change it later in Feeds.")
         case .selectFeed: String(localized: "Tap your chosen group to see available times and their costs.")
         case .chooseDuration:
