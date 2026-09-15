@@ -102,9 +102,7 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
-    #if DEBUG
     @State private var paletteTourSessionID: UUID?
-    #endif
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
@@ -379,11 +377,7 @@ struct GalleryView: View {
     private var showQuickStartArea: Bool { isCanvasEmpty && !isCanvasTourActive }
 
     private var isCanvasTourActive: Bool {
-        #if DEBUG
-        DebugCanvasTour.shared.isActive
-        #else
-        false
-        #endif
+        CanvasTour.shared.isActive
     }
 
     /// How long a single nudge lingers before it fades on its own.
@@ -503,20 +497,16 @@ struct GalleryView: View {
             )
             .transition(.opacity)
             .onAppear {
-                #if DEBUG
-                let tour = DebugCanvasTour.shared
+                let tour = CanvasTour.shared
                 paletteTourSessionID = tour.isActive ? tour.sessionID : nil
                 tour.send(.palettePresented)
-                #endif
             }
             .onDisappear {
-                #if DEBUG
-                let tour = DebugCanvasTour.shared
+                let tour = CanvasTour.shared
                 if paletteTourSessionID == tour.sessionID {
                     tour.send(.paletteDismissed)
                 }
                 paletteTourSessionID = nil
-                #endif
             }
         }
     }
@@ -550,8 +540,7 @@ struct GalleryView: View {
             + HappeningPaletteChromeLayout.panelTopInset(
                 topCardHeight: topCardHeight, hidesSurroundingChrome: true
             ) + 10
-        #if DEBUG
-        let tour = DebugCanvasTour.shared
+        let tour = CanvasTour.shared
         if tour.isActive, tour.step == .happening, tour.cardBottomGlobalY > 0 {
             // The coach has a fixed top position independent of this field.
             // Convert its measured bottom into this viewport exactly once,
@@ -561,7 +550,6 @@ struct GalleryView: View {
                 CGFloat(tour.cardBottomGlobalY) - viewport.frame(in: .global).minY + 12
             )
         }
-        #endif
         return HappeningFieldLayout.layout(
             count: min(10, paletteHappenings.count),
             in: viewport.size,
@@ -617,13 +605,11 @@ struct GalleryView: View {
 
     private func handlePaletteActivation(_ happening: Happening) {
         guard let assignment = paletteEditorialAssignments[happening.id] else { return }
-        #if DEBUG
-        let isTourAddition = DebugCanvasTour.shared.isActive && DebugCanvasTour.shared.step == .happening
+        let isTourAddition = CanvasTour.shared.isActive && CanvasTour.shared.step == .happening
         if isTourAddition && paletteAddedIDs.contains(happening.id) {
-            DebugCanvasTour.shared.report("Happening already exists today; choose another or continue with the existing day")
+            CanvasTour.shared.report("Happening already exists today; choose another or continue with the existing day")
             return
         }
-        #endif
         paletteConfirmationTask?.cancel()
         paletteErrorID = nil
         switch paletteInteraction.tap(id: happening.id, addedIDs: paletteAddedIDs) {
@@ -662,12 +648,10 @@ struct GalleryView: View {
                     argument: "\(happening.localizedTitle()). \(String(localized: "Removed from Canvas"))"
                 )
             }
-            #if DEBUG
             if isTourAddition, case .add = mutation {
                 closeHappeningPalette()
                 return
             }
-            #endif
             paletteConfirmationTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(900))
                 guard !Task.isCancelled else { return }
@@ -1119,18 +1103,16 @@ struct GalleryView: View {
             }
             refreshAddHint()
         }
-        #if DEBUG
-        .onChange(of: DebugCanvasTour.shared.step) { _, step in
+        .onChange(of: CanvasTour.shared.step) { _, step in
             // Continue with an existing day also closes the real palette. This
             // only prepares the next context; it never adds or removes a moment.
-            guard DebugCanvasTour.shared.isActive else { return }
+            guard CanvasTour.shared.isActive else { return }
             if step == .welcome || step == .momentResult || step == .balance {
                 send(.exitFullScreen)
                 send(.hideData)
                 if showHappeningPalette { closeHappeningPalette() }
             }
         }
-        #endif
         .onChange(of: paletteRoute) {
             consumePaletteOpenRequestIfReady()
         }
@@ -1155,11 +1137,9 @@ struct GalleryView: View {
         }
         .onChange(of: presentation, initial: true) { old, new in
             AppDelegate.allowCanvasRotation(new == .fullScreen)
-            #if DEBUG
             if new.showsDataPanel && !old.showsDataPanel {
-                DebugCanvasTour.shared.send(.dataPanelExpanded)
+                CanvasTour.shared.send(.dataPanelExpanded)
             }
-            #endif
             if !new.showsDataPanel {
                 metricOverlay = nil
             }
@@ -1457,11 +1437,9 @@ struct GalleryView: View {
         // The visible 4pt grabber is vertically centred in its new 16pt
         // footer. Pull the drawer up by that 6pt inner inset so the line itself
         // keeps the established 8pt gap below the energy pill.
-        #if DEBUG
         if isCanvasTourActive, let bottom = balanceBottomGlobalY, let origin = dataPanelHostGlobalY {
             return max(0, bottom - origin - 6)
         }
-        #endif
         return max(0, deviceTopSafeAreaInset - safeAreaTop) + topCardHeight - 6
     }
 
@@ -1512,7 +1490,6 @@ struct GalleryView: View {
                         }
                     },
                     onToggle: {
-                        if !isCanvasTourActive { CoachMarkManager.postAction(for: .expandChevron) }
                         if presentation.showsDataPanel {
                             metricOverlay = nil
                         }
@@ -1552,7 +1529,6 @@ struct GalleryView: View {
                 }
             },
             onToggleHappeningPalette: {
-                if !isCanvasTourActive { CoachMarkManager.postAction(for: .tapPlusButton) }
                 showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
             }
         )
@@ -2027,15 +2003,11 @@ struct GalleryView: View {
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
-        #if DEBUG
-        let tourOperation = DebugCanvasTour.shared.beginOperation("addHappening")
-        #endif
+        let tourOperation = CanvasTour.shared.beginOperation("addHappening")
         let now = Date.now
         let transactionDayKey = AppModel.dayKey(for: now)
         guard dayCanvas.dayKey == transactionDayKey else {
-            #if DEBUG
-            DebugCanvasTour.shared.endOperation(tourOperation, error: "The day changed; wait for the current Canvas to finish loading")
-            #endif
+            CanvasTour.shared.endOperation(tourOperation, error: "The day changed; wait for the current Canvas to finish loading")
             return false
         }
         var element = CanvasElement.spawn(
@@ -2080,9 +2052,7 @@ struct GalleryView: View {
                     : CanvasStorageService.shared.saveCanvas(canvas)
             }
         ) else {
-            #if DEBUG
-            DebugCanvasTour.shared.endOperation(tourOperation, error: "Happening was not saved; choose an available moment or continue with the existing day")
-            #endif
+            CanvasTour.shared.endOperation(tourOperation, error: "Happening was not saved; choose an available moment or continue with the existing day")
             return false
         }
 
@@ -2099,9 +2069,7 @@ struct GalleryView: View {
         if showHappeningPalette {
             refreshHappeningPalette()
         }
-        #if DEBUG
-        DebugCanvasTour.shared.send(.happeningAdded(result.entry.id), token: tourOperation)
-        #endif
+        CanvasTour.shared.send(.happeningAdded(result.entry.id), token: tourOperation)
         return true
     }
 

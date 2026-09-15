@@ -32,11 +32,9 @@ struct MeView: View {
     @State private var shareRequestID = 0
     @State private var shareRequestedDayKey: String?
     @State private var posterCarouselWidth: CGFloat = 350
-    #if DEBUG
     @Environment(\.canvasTourContentTopInset) private var canvasTourContentTopInset
     @State private var posterTopGlobalY: CGFloat = 0
     @State private var lastTourPosterHeight: CGFloat?
-    #endif
     @State private var paymentLoadTask: Task<Void, Never>?
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
@@ -120,12 +118,10 @@ struct MeView: View {
         VStack(alignment: .leading, spacing: useTightMeLayout ? 14 : 24) {
             greetingRow
                 .padding(.top, useTightMeLayout ? 14 : 22)
-                #if DEBUG
                 // NavigationStack starts a fresh safe-area region on this tab.
                 // Reserve the tour chrome in the content, leaving its full-bleed
                 // background and the root canvas viewport at the window size.
                 .padding(.top, canvasTourContentTopInset)
-                #endif
 
             posterCarousel
 
@@ -149,49 +145,38 @@ struct MeView: View {
     }
 
     private var posterDayKeys: [String] {
-        #if DEBUG
         // A single real page removes VoiceOver's adjacent-page destinations,
         // while the poster itself and its accessible content remain available.
-        if DebugCanvasTour.shared.isActive { return [AppModel.dayKey(for: .now)] }
-        #endif
+        if CanvasTour.shared.isActive { return [AppModel.dayKey(for: .now)] }
         return cachedDayKeys.isEmpty ? Self.computeDayKeys() : cachedDayKeys
     }
 
     private var displayedPosterDayKey: String {
-        #if DEBUG
-        if DebugCanvasTour.shared.isActive { return AppModel.dayKey(for: .now) }
-        #endif
+        if CanvasTour.shared.isActive { return AppModel.dayKey(for: .now) }
         return selectedPosterDayKey
     }
 
     private var posterSelection: Binding<String> {
-        #if DEBUG
         Binding(
             get: { displayedPosterDayKey },
             set: { key in
-                selectedPosterDayKey = DebugCanvasTour.shared.isActive
+                selectedPosterDayKey = CanvasTour.shared.isActive
                     ? AppModel.dayKey(for: .now) : key
             }
         )
-        #else
-        $selectedPosterDayKey
-        #endif
     }
 
     private var canShareDisplayedPoster: Bool {
-        #if DEBUG
-        if DebugCanvasTour.shared.isActive {
-            return DebugCanvasTour.shared.posterDayID == AppModel.dayKey(for: .now)
+        if CanvasTour.shared.isActive {
+            return CanvasTour.shared.posterDayID == AppModel.dayKey(for: .now)
                 && posterShareAvailability[displayedPosterDayKey] == true
         }
-        #endif
         return selectedPosterCanShare
     }
 
     private var tourPosterSizing: MePosterCarouselSizing {
         let normal = MePosterCarouselLayout.sizing(viewportWidth: posterCarouselWidth)
-        #if DEBUG
-        let tour = DebugCanvasTour.shared
+        let tour = CanvasTour.shared
         if tour.isActive && [.saveDays, .poster, .finish].contains(tour.step) {
             // The coach is docked independently below this real poster. Scale only
             // the on-screen preview; exported artwork retains its original size.
@@ -204,7 +189,6 @@ struct MeView: View {
                 posterWidth: height * 604 / 842, posterHeight: height,
                 pageSpacing: normal.pageSpacing, outerContentInset: normal.outerContentInset)
         }
-        #endif
         return normal
     }
 
@@ -246,14 +230,12 @@ struct MeView: View {
         .clipped()
         .accessibilityIdentifier("me_poster_carousel")
         .canvasTourAnchor("me.poster")
-        #if DEBUG
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
             posterTopGlobalY = frame.minY
-            if DebugCanvasTour.shared.isActive, [.saveDays, .poster].contains(DebugCanvasTour.shared.step) {
+            if CanvasTour.shared.isActive, [.saveDays, .poster].contains(CanvasTour.shared.step) {
                 lastTourPosterHeight = frame.height
             }
         }
-        #endif
         .accessibilityValue(displayedPosterDayKey)
         .onChange(of: selectedPosterDayKey) { _, key in
             selectedPosterCanShare = posterShareAvailability[key] ?? false
@@ -264,23 +246,17 @@ struct MeView: View {
             guard width > 0 else { return }
             posterCarouselWidth = width
         }
-        #if DEBUG
-        .allowsHitTesting(!DebugCanvasTour.shared.isActive)
-        .onChange(of: DebugCanvasTour.shared.step) { _, step in
-            guard DebugCanvasTour.shared.isActive,
+        .allowsHitTesting(!CanvasTour.shared.isActive)
+        .onChange(of: CanvasTour.shared.step) { _, step in
+            guard CanvasTour.shared.isActive,
                   step == .saveDays || step == .poster else { return }
             // Restoring the current day is display preparation, never an export.
             selectPosterDay(AppModel.dayKey(for: .now))
         }
-        #endif
     }
 
     private func selectPosterDay(_ requestedKey: String) {
-        #if DEBUG
-        let key = DebugCanvasTour.shared.isActive ? AppModel.dayKey(for: .now) : requestedKey
-        #else
-        let key = requestedKey
-        #endif
+        let key = CanvasTour.shared.isActive ? AppModel.dayKey(for: .now) : requestedKey
         guard key != selectedPosterDayKey else { return }
         selectedPosterCanShare = posterShareAvailability[key] ?? false
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {

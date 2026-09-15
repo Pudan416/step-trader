@@ -1,11 +1,10 @@
-#if DEBUG
 import SwiftUI
 import HealthKit
 
 /// The tour's optional setup sheet reuses the product settings and services.
 /// The presenter sends `.setupCompleted` on `onContinue`, then dismisses this
 /// sheet. The coordinator waits for the presenter's actual sheet dismissal.
-struct DebugCanvasTourSetup: View {
+struct CanvasTourSetup: View {
     @ObservedObject var model: AppModel
     var openAccountOnAppear = false
     var onContinue: () -> Void
@@ -71,7 +70,7 @@ struct DebugCanvasTourSetup: View {
                             accountRow
                             DetailDivider()
                             NavigationLink {
-                                DebugCanvasTourNotificationsPage(model: model)
+                                CanvasTourNotificationsPage(model: model)
                             } label: {
                                 SettingsNavRow(icon: "bell.fill", title: String(localized: "Notifications"), value: notifications.status.displayText)
                             }
@@ -104,11 +103,11 @@ struct DebugCanvasTourSetup: View {
             .navigationTitle(String(localized: "Your setup"))
             .navigationBarTitleDisplayMode(.inline)
             .task {
-                let sessionID = DebugCanvasTour.shared.sessionID
+                let sessionID = CanvasTour.shared.sessionID
                 await model.refreshNotificationAuthorizationStatus()
-                guard !Task.isCancelled, DebugCanvasTour.shared.isActive,
-                      DebugCanvasTour.shared.step == .setup,
-                      DebugCanvasTour.shared.sessionID == sessionID else { return }
+                guard !Task.isCancelled, CanvasTour.shared.isActive,
+                      CanvasTour.shared.step == .setup,
+                      CanvasTour.shared.sessionID == sessionID else { return }
                 if openAccountOnAppear, !openedInitialAccount, !authService.hasAppleAccount {
                     openedInitialAccount = true
                     presentLogin()
@@ -118,11 +117,11 @@ struct DebugCanvasTourSetup: View {
                 if phase == .active { Task { await model.refreshNotificationAuthorizationStatus() } }
             }
             .sheet(isPresented: $showLogin, onDismiss: {
-                guard DebugCanvasTour.shared.isActive, DebugCanvasTour.shared.step == .setup,
-                      DebugCanvasTour.shared.sessionID == loginSessionID else { return }
-                DebugCanvasTour.shared.sheetDismissed("setup.login", sessionID: loginSessionID)
-                DebugCanvasTour.shared.sheetPresented("setup", returnContext: "setup")
-                DebugCanvasTour.shared.report(authService.hasAppleAccount
+                guard CanvasTour.shared.isActive, CanvasTour.shared.step == .setup,
+                      CanvasTour.shared.sessionID == loginSessionID else { return }
+                CanvasTour.shared.sheetDismissed("setup.login", sessionID: loginSessionID)
+                CanvasTour.shared.sheetPresented("setup", returnContext: "setup")
+                CanvasTour.shared.report(authService.hasAppleAccount
                     ? "Account: Apple account is present; sync status is separate"
                     : "Account: login dismissed without Apple account")
             }) {
@@ -130,10 +129,10 @@ struct DebugCanvasTourSetup: View {
                     .canvasTourExitChrome(context: "setup.login")
             }
             .sheet(isPresented: $showApps, onDismiss: {
-                guard DebugCanvasTour.shared.isActive, DebugCanvasTour.shared.step == .setup,
-                      DebugCanvasTour.shared.sessionID == appsSessionID else { return }
-                DebugCanvasTour.shared.sheetDismissed("setup.apps", sessionID: appsSessionID)
-                DebugCanvasTour.shared.sheetPresented("setup", returnContext: "setup")
+                guard CanvasTour.shared.isActive, CanvasTour.shared.step == .setup,
+                      CanvasTour.shared.sessionID == appsSessionID else { return }
+                CanvasTour.shared.sheetDismissed("setup.apps", sessionID: appsSessionID)
+                CanvasTour.shared.sheetPresented("setup", returnContext: "setup")
             }) {
                 VStack(spacing: 0) {
                     HStack {
@@ -148,10 +147,10 @@ struct DebugCanvasTourSetup: View {
                 .todayCanvasBackground(detail: true)
                 .canvasTourExitChrome(context: "setup.apps")
             }
-            .onChange(of: DebugCanvasTour.shared.isActive) { _, active in
+            .onChange(of: CanvasTour.shared.isActive) { _, active in
                 if !active { showLogin = false; showApps = false }
             }
-            .onChange(of: DebugCanvasTour.shared.sessionID) { _, sessionID in
+            .onChange(of: CanvasTour.shared.sessionID) { _, sessionID in
                 if loginSessionID != sessionID { showLogin = false }
                 if appsSessionID != sessionID { showApps = false }
             }
@@ -189,8 +188,8 @@ struct DebugCanvasTourSetup: View {
                     }
                     DetailDivider()
                     Button {
-                        appsSessionID = DebugCanvasTour.shared.sessionID
-                        DebugCanvasTour.shared.sheetPresented("setup.apps", returnContext: "setup")
+                        appsSessionID = CanvasTour.shared.sessionID
+                        CanvasTour.shared.sheetPresented("setup.apps", returnContext: "setup")
                         showApps = true
                     } label: {
                         SettingsNavRow(icon: "app.badge", title: String(localized: "Choose apps"), value: hasValidGroup ? String(localized: "Apps selected") : String(localized: "Choose apps"))
@@ -210,16 +209,16 @@ struct DebugCanvasTourSetup: View {
     }
 
     private func presentLogin() {
-        guard DebugCanvasTour.shared.isActive, DebugCanvasTour.shared.step == .setup else { return }
-        loginSessionID = DebugCanvasTour.shared.sessionID
-        DebugCanvasTour.shared.sheetPresented("setup.login", returnContext: "setup")
+        guard CanvasTour.shared.isActive, CanvasTour.shared.step == .setup else { return }
+        loginSessionID = CanvasTour.shared.sessionID
+        CanvasTour.shared.sheetPresented("setup.login", returnContext: "setup")
         showLogin = true
     }
 }
 
 /// Explanation around the actual notification settings page. Its existing
 /// permission action performs the system request and preserves reminder toggles.
-private struct DebugCanvasTourNotificationsPage: View {
+private struct CanvasTourNotificationsPage: View {
     @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
@@ -245,4 +244,3 @@ private struct DebugCanvasTourNotificationsPage: View {
             }
     }
 }
-#endif

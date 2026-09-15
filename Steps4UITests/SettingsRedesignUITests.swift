@@ -931,6 +931,25 @@ final class SettingsRedesignUITests: XCTestCase {
         capture(app, name: "Wallpaper setup")
     }
 
+    func testCanvasOnboardingFirstLaunchResetFromDeveloper() {
+        let app = launchSettings()
+        openSettingsDestination("settings.destination.developer", in: app)
+        XCTAssertTrue(app.buttons["settings.developer.canvasOnboarding"].waitForExistence(timeout: 5))
+        app.buttons["settings.developer.canvasOnboarding"].tap()
+        let reset = app.buttons["canvas_tour.debug.testFirstLaunch"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 5))
+        reset.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.debug.firstLaunchReset"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.otherElements["canvas_tour.card.welcome"].exists, "Reset waits for an explicit app restart")
+        app.terminate()
+        app.launchArguments = ["ui-testing", "canvas-onboarding-enable-first-launch", "-AppleLanguages", "(en)"]
+        app.launch()
+        XCTAssertTrue(app.otherElements["canvas_tour.card.welcome"].waitForExistence(timeout: 20))
+        app.buttons["canvas_tour.skip"].tap()
+        app.buttons["canvas_tour.exit.confirm"].tap()
+        XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 5))
+    }
+
     func testDeveloperDiagnosticsHaveOneDestination() {
         let app = launchSettings()
 

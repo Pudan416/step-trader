@@ -375,6 +375,38 @@ final class CanvasSimplificationUITests: XCTestCase {
 /// Uses an otherwise empty, dedicated QA simulator with the real product views.
 /// The fixture flag isolates coordinator persistence only; it never grants colors or tokens.
 final class DebugCanvasOnboardingUITests: XCTestCase {
+    func testAutomaticFirstLaunchExitPersistsAcrossRelaunch() {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "canvas-onboarding-test-first-launch", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.otherElements["canvas_tour.card.welcome"].waitForExistence(timeout: 20))
+        app.buttons["canvas_tour.skip"].tap()
+        app.buttons["canvas_tour.exit.confirm"].tap()
+        XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchArguments = ["ui-testing", "canvas-onboarding-enable-first-launch", "-AppleLanguages", "(en)"]
+        app.launch()
+        XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.otherElements["canvas_tour.card.welcome"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["canvas_tour.skip"].exists)
+    }
+
+    func testInterruptedFirstLaunchReturnsToWelcome() {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "canvas-onboarding-test-first-launch", "-AppleLanguages", "(en)"]
+        app.launch()
+        XCTAssertTrue(app.otherElements["canvas_tour.card.welcome"].waitForExistence(timeout: 20))
+        app.buttons["canvas_tour.begin"].tap()
+        XCTAssertTrue(app.otherElements["canvas_tour.card.add"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchArguments = ["ui-testing", "canvas-onboarding-enable-first-launch", "-AppleLanguages", "(en)"]
+        app.launch()
+        XCTAssertTrue(app.otherElements["canvas_tour.card.welcome"].waitForExistence(timeout: 20))
+        XCTAssertFalse(app.otherElements["canvas_tour.card.add"].exists)
+        app.buttons["canvas_tour.skip"].tap()
+        app.buttons["canvas_tour.exit.confirm"].tap()
+    }
+
     override func setUpWithError() throws { continueAfterFailure = false }
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()

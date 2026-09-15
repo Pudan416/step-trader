@@ -267,7 +267,6 @@
 		2061EB832F269C99009FEC24 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7E2F269C99009FEC24 /* MainTabView.swift */; };
 		2061EB842F269C99009FEC24 /* PayGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB802F269C99009FEC24 /* PayGateView.swift */; };
 		2061EB852F269C99009FEC24 /* HandoffProtectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */; };
-		2061EB862F269C99009FEC24 /* OnboardingStoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */; };
 		2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */; };
 		2061EB8C2F269CD5009FEC24 /* PayGateBackgroundStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8B2F269CD5009FEC24 /* PayGateBackgroundStyle.swift */; };
 		2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2061EB8E2F269CE6009FEC24 /* ProfileEditorView.swift */; };
@@ -459,14 +458,9 @@
 		6E084403B0B19A902D745C32 /* HealthKitServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0E4AEDA351917685252CC5 /* HealthKitServiceProtocol.swift */; };
 		7006BD0F3FCF41D192D99AB8 /* ManagedSettings.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 200AC4892F1402CF0018004E /* ManagedSettings.framework */; };
 		70CF00023004000070CF0002 /* CanvasFrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CF00013004000070CF0001 /* CanvasFrameView.swift */; };
-		70CM00023004000070CM0001 /* CoachMarkAnchorKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CM00013004000070CM0001 /* CoachMarkAnchorKey.swift */; };
-		70CM00023004000070CM0002 /* CoachMarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CM00013004000070CM0002 /* CoachMarkManager.swift */; };
-		70CM00023004000070CM0003 /* CoachMarkOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CM00013004000070CM0003 /* CoachMarkOverlay.swift */; };
 		70DB3A6D3B5C4A1A9E0F0001 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */; };
 		70SL0001300000000070SL0001 /* SpotlightShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 70SL0002300000000070SL0002 /* SpotlightShader.metal */; };
 		746D440DB0B70DEB8DC115D9 /* Tariff.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A644F2816949A05C4C7FEE /* Tariff.swift */; };
-		7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */; };
-		7C2B2D3E4F5A6B7C8D9E0F10 /* OnboardingDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2B2D3E4F5A6B7C8D9E0F11 /* OnboardingDemoView.swift */; };
 		80FB00023005000080FB0002 /* CanvasFullBleedPoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80FB00013005000080FB0001 /* CanvasFullBleedPoster.swift */; };
 		80FD00023005000080FD0002 /* CanvasFramedDarkPoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80FD00013005000080FD0001 /* CanvasFramedDarkPoster.swift */; };
 		80PS00023005000080PS0002 /* PosterStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80PS00013005000080PS0001 /* PosterStyle.swift */; };
@@ -477,10 +471,6 @@
 		8B384FC0B75371B21BDF1BC6 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4C408A95DD73B3A9D51628 /* WidgetSnapshot.swift */; };
 		8C9B956134A14413AB328FC1 /* SnowflakeShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C860AD1856984A189E6B70A9 /* SnowflakeShapeRenderer.swift */; };
 		8D1D4911B9ACA814299FD1AD /* EnergyDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A214D7EB007648A8206D56D /* EnergyDefaults.swift */; };
-		A0B10001A0B10001A0B10001 /* OnboardingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B10001A0B10001A0B10010 /* OnboardingModels.swift */; };
-		A0B10002A0B10002A0B10002 /* OnboardingFloaters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B10002A0B10002A0B10020 /* OnboardingFloaters.swift */; };
-		A0B10003A0B10003A0B10003 /* AppleSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B10003A0B10003A0B10030 /* AppleSignInCoordinator.swift */; };
-		A0B10004A0B10004A0B10004 /* OnboardingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B10004A0B10004A0B10040 /* OnboardingCoordinator.swift */; };
 		A77A483EB05551DF8B9C7528 /* HeartShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795B4773B7FDBF974114BA9F /* HeartShapeGenerator.swift */; };
 		AA000001AA000001AA000002 /* SharedMocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AA000001AA000001 /* SharedMocks.swift */; };
 		AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001AAAA000100000002 /* TariffDecodingTests.swift */; };
@@ -533,7 +523,6 @@
 		BA2C944BDF2E4A9FAF9E3D81 /* AppModel+Payment.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A0EFF57C944F958DDA1052 /* AppModel+Payment.swift */; };
 		BB000001BB000001BB000002 /* WidgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000001BB000001BB000001 /* WidgetTests.swift */; };
 		BB000001BBBB000100000001 /* CachedFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000001BBBB000100000002 /* CachedFormatters.swift */; };
-		BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000002BB000002BB000001 /* OnboardingFlowTests.swift */; };
 		BE254EC2A686412E10D5F41D /* CanvasRenderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF354BA8B84F3623DFC56E52 /* CanvasRenderModels.swift */; };
 		C0AA553BDAC248AE9599AB12 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		C131435BA6E0DC0B711B9400 /* FamilyControlsCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46724AC5844969F96A85B5DA /* FamilyControlsCompat.swift */; };
@@ -554,7 +543,6 @@
 		F6494E388E7886039A147EA3 /* HandoffToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF6441CB730DE1DF44F4310 /* HandoffToken.swift */; };
 		T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */; };
 		PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PREF5702570057005700F002 /* PreferencesStoreTests.swift */; };
-		CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
 		CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */; };
@@ -606,11 +594,13 @@
 		A71300000000000000000021 /* DailyInterfaceColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71300000000000000000002 /* DailyInterfaceColors.swift */; };
 		FA0111111111111111111101 /* UnlockGroupWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */; };
 		A291D7C74CA84690A433F038 /* DayBoundary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DB000A2F85000000000001 /* DayBoundary.swift */; };
-		CB0915000000000000000002 /* DebugCanvasTour.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000001 /* DebugCanvasTour.swift */; };
-		CB0915000000000000000012 /* DebugCanvasTourUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000011 /* DebugCanvasTourUI.swift */; };
-		CB0915000000000000000022 /* DebugCanvasTourDeveloperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000021 /* DebugCanvasTourDeveloperPage.swift */; };
-		CB0915000000000000000032 /* DebugCanvasTourSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000031 /* DebugCanvasTourSetup.swift */; };
-		CB0915000000000000000042 /* DebugCanvasTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000041 /* DebugCanvasTourTests.swift */; };
+		CB0915000000000000000002 /* CanvasTour.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000001 /* CanvasTour.swift */; };
+		CB0915000000000000000012 /* CanvasTourUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000011 /* CanvasTourUI.swift */; };
+		CB0915000000000000000022 /* CanvasTourDeveloperPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000021 /* CanvasTourDeveloperPage.swift */; };
+		CB0915000000000000000032 /* CanvasTourSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000031 /* CanvasTourSetup.swift */; };
+		CB0915000000000000000042 /* CanvasTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000041 /* CanvasTourTests.swift */; };
+		CB0915000000000000000052 /* CanvasOnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000051 /* CanvasOnboardingState.swift */; };
+		CB0915000000000000000062 /* CanvasOnboardingStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000061 /* CanvasOnboardingStateTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -929,7 +919,6 @@
 		2061EB652F250A0B009FEC24 /* ShieldAction.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShieldAction.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffProtectionView.swift; sourceTree = "<group>"; };
 		2061EB7E2F269C99009FEC24 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
-		2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStoriesView.swift; sourceTree = "<group>"; };
 		2061EB802F269C99009FEC24 /* PayGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayGateView.swift; sourceTree = "<group>"; };
 		2061EB812F269C99009FEC24 /* QuickStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickStatusView.swift; sourceTree = "<group>"; };
 		2061EB882F269CC7009FEC24 /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
@@ -1108,17 +1097,12 @@
 		6566493AB846569B72E1684D /* NotificationServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NotificationServiceProtocol.swift; path = StepsTrader/Protocols/NotificationServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
 		6C7F473D8EA05B52428ABD08 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppColors.swift; path = StepsTrader/Theme/AppColors.swift; sourceTree = SOURCE_ROOT; };
 		70CF00013004000070CF0001 /* CanvasFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFrameView.swift; sourceTree = "<group>"; };
-		70CM00013004000070CM0001 /* CoachMarkAnchorKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkAnchorKey.swift; sourceTree = "<group>"; };
-		70CM00013004000070CM0002 /* CoachMarkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkManager.swift; sourceTree = "<group>"; };
-		70CM00013004000070CM0003 /* CoachMarkOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkOverlay.swift; sourceTree = "<group>"; };
 		70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClient.swift; sourceTree = "<group>"; };
 		70SL0002300000000070SL0002 /* SpotlightShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = SpotlightShader.metal; sourceTree = "<group>"; };
 		74354085AF5838FDBCB636B7 /* MindShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MindShapeGenerator.swift; path = StepsTrader/Shapes/MindShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
 		77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PastDaySnapshot.swift; path = StepsTrader/Models/PastDaySnapshot.swift; sourceTree = SOURCE_ROOT; };
 		795B4773B7FDBF974114BA9F /* HeartShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HeartShapeGenerator.swift; path = StepsTrader/Shapes/HeartShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
 		7A214D7EB007648A8206D56D /* EnergyDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyDefaults.swift; path = StepsTrader/Models/EnergyDefaults.swift; sourceTree = SOURCE_ROOT; };
-		7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
-		7C2B2D3E4F5A6B7C8D9E0F11 /* OnboardingDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDemoView.swift; sourceTree = "<group>"; };
 		7EF6441CB730DE1DF44F4310 /* HandoffToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HandoffToken.swift; path = StepsTrader/Models/HandoffToken.swift; sourceTree = SOURCE_ROOT; };
 		80FB00013005000080FB0001 /* CanvasFullBleedPoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFullBleedPoster.swift; sourceTree = "<group>"; };
 		80FD00013005000080FD0001 /* CanvasFramedDarkPoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFramedDarkPoster.swift; sourceTree = "<group>"; };
@@ -1126,10 +1110,6 @@
 		80PV00013005000080PV0001 /* CanvasPosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPosterView.swift; sourceTree = "<group>"; };
 		8C8648A4882378AF2E1E742F /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Color+Hex.swift"; path = "StepsTrader/Extensions/Color+Hex.swift"; sourceTree = SOURCE_ROOT; };
 		9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementService.swift; sourceTree = "<group>"; };
-		A0B10001A0B10001A0B10010 /* OnboardingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingModels.swift; sourceTree = "<group>"; };
-		A0B10002A0B10002A0B10020 /* OnboardingFloaters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFloaters.swift; sourceTree = "<group>"; };
-		A0B10003A0B10003A0B10030 /* AppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCoordinator.swift; sourceTree = "<group>"; };
-		A0B10004A0B10004A0B10040 /* OnboardingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCoordinator.swift; sourceTree = "<group>"; };
 		A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryNotifications.swift; path = StepsTrader/Views/Gallery/GalleryNotifications.swift; sourceTree = SOURCE_ROOT; };
 		A5C740A8AB5D3805CDEA4A99 /* CanvasRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasRenderCache.swift; path = StepsTrader/Views/Canvas/CanvasRenderCache.swift; sourceTree = SOURCE_ROOT; };
 		A7B3E91D4C6F47E2A0D8F5B1 /* CircleShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CircleShapeRenderer.swift; path = StepsTrader/Shapes/CircleShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
@@ -1185,7 +1165,6 @@
 		B0C269990B0B0B020B0B0B02 /* OrganicBlobShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OrganicBlobShapeRenderer.swift; path = StepsTrader/Shapes/OrganicBlobShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
 		BB000001BB000001BB000001 /* WidgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTests.swift; sourceTree = "<group>"; };
 		BB000001BBBB000100000002 /* CachedFormatters.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CachedFormatters.swift; sourceTree = "<group>"; };
-		BB000002BB000002BB000001 /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowTests.swift; sourceTree = "<group>"; };
 		BE1146D29605946EC6B4301B /* ThemeModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ThemeModifiers.swift; path = StepsTrader/Theme/ThemeModifiers.swift; sourceTree = SOURCE_ROOT; };
 		C669447E94C63E9A8EB39A0B /* ShapeStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ShapeStyles.swift; path = StepsTrader/Models/ShapeStyles.swift; sourceTree = SOURCE_ROOT; };
 		C860AD1856984A189E6B70A9 /* SnowflakeShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnowflakeShapeRenderer.swift; path = StepsTrader/Shapes/SnowflakeShapeRenderer.swift; sourceTree = SOURCE_ROOT; };
@@ -1202,7 +1181,6 @@
 		E1F7434BB0F6950FD43B46FB /* GallerySubviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GallerySubviews.swift; path = StepsTrader/Views/Gallery/GallerySubviews.swift; sourceTree = SOURCE_ROOT; };
 		T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetEngineTests.swift; sourceTree = "<group>"; };
 		PREF5702570057005700F002 /* PreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStoreTests.swift; sourceTree = "<group>"; };
-		CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMarkTourTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
 		CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSimplificationUITests.swift; sourceTree = "<group>"; };
@@ -1269,11 +1247,13 @@
 		A71300000000000000000001 /* DailyInterfacePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DailyInterfacePalette.swift; path = Shared/DailyInterfacePalette.swift; sourceTree = SOURCE_ROOT; };
 		A71300000000000000000002 /* DailyInterfaceColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DailyInterfaceColors.swift; path = StepsTrader/Theme/DailyInterfaceColors.swift; sourceTree = SOURCE_ROOT; };
 		FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockWidget/UnlockGroupWidgetIntent.swift; sourceTree = SOURCE_ROOT; };
-		CB0915000000000000000001 /* DebugCanvasTour.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTour.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTour.swift; sourceTree = SOURCE_ROOT; };
-		CB0915000000000000000011 /* DebugCanvasTourUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourUI.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTourUI.swift; sourceTree = SOURCE_ROOT; };
-		CB0915000000000000000021 /* DebugCanvasTourDeveloperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourDeveloperPage.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTourDeveloperPage.swift; sourceTree = SOURCE_ROOT; };
-		CB0915000000000000000031 /* DebugCanvasTourSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourSetup.swift; path = StepsTrader/Views/CoachMark/DebugCanvasTourSetup.swift; sourceTree = SOURCE_ROOT; };
-		CB0915000000000000000041 /* DebugCanvasTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DebugCanvasTourTests.swift; path = Steps4Tests/DebugCanvasTourTests.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000001 /* CanvasTour.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasTour.swift; path = StepsTrader/Views/Onboarding/CanvasTour.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000011 /* CanvasTourUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasTourUI.swift; path = StepsTrader/Views/Onboarding/CanvasTourUI.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000021 /* CanvasTourDeveloperPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasTourDeveloperPage.swift; path = StepsTrader/Views/Onboarding/CanvasTourDeveloperPage.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000031 /* CanvasTourSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasTourSetup.swift; path = StepsTrader/Views/Onboarding/CanvasTourSetup.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000041 /* CanvasTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasTourTests.swift; path = Steps4Tests/CanvasTourTests.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000051 /* CanvasOnboardingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasOnboardingState.swift; path = StepsTrader/Views/Onboarding/CanvasOnboardingState.swift; sourceTree = SOURCE_ROOT; };
+		CB0915000000000000000061 /* CanvasOnboardingStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasOnboardingStateTests.swift; path = Steps4Tests/CanvasOnboardingStateTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1890,7 +1870,6 @@
 			children = (
 				FE000008FEED000100000003 /* Feeds */,
 				209424BA2E8593DA00904A0A /* Components */,
-				70CM00003004000070CM0000 /* CoachMark */,
 				20FE17A02F90000000000000 /* FeatureTips */,
 				20CC03012F86000000000001 /* Settings */,
 				30CA000B300000000000CA0B /* Gallery */,
@@ -1905,9 +1884,6 @@
 				200AC5A72F16DA570018004E /* LoginView.swift */,
 				2061EB7D2F269C99009FEC24 /* HandoffProtectionView.swift */,
 				2061EB7E2F269C99009FEC24 /* MainTabView.swift */,
-				2061EB7F2F269C99009FEC24 /* OnboardingStoriesView.swift */,
-				7C1A1D2E3F4A5B6C7D8E9F01 /* OnboardingFlowView.swift */,
-				7C2B2D3E4F5A6B7C8D9E0F11 /* OnboardingDemoView.swift */,
 				A0B10000A0B10000A0B10000 /* Onboarding */,
 				2061EB802F269C99009FEC24 /* PayGateView.swift */,
 				2061EB812F269C99009FEC24 /* QuickStatusView.swift */,
@@ -2072,27 +2048,15 @@
 			path = Metal;
 			sourceTree = "<group>";
 		};
-		70CM00003004000070CM0000 /* CoachMark */ = {
-			isa = PBXGroup;
-			children = (
-				70CM00013004000070CM0001 /* CoachMarkAnchorKey.swift */,
-				70CM00013004000070CM0002 /* CoachMarkManager.swift */,
-				CB0915000000000000000031 /* DebugCanvasTourSetup.swift */,
-				CB0915000000000000000021 /* DebugCanvasTourDeveloperPage.swift */,
-				CB0915000000000000000011 /* DebugCanvasTourUI.swift */,
-				CB0915000000000000000001 /* DebugCanvasTour.swift */,
-				70CM00013004000070CM0003 /* CoachMarkOverlay.swift */,
-			);
-			path = CoachMark;
-			sourceTree = "<group>";
-		};
+
 		A0B10000A0B10000A0B10000 /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
-				A0B10001A0B10001A0B10010 /* OnboardingModels.swift */,
-				A0B10002A0B10002A0B10020 /* OnboardingFloaters.swift */,
-				A0B10003A0B10003A0B10030 /* AppleSignInCoordinator.swift */,
-				A0B10004A0B10004A0B10040 /* OnboardingCoordinator.swift */,
+				CB0915000000000000000031 /* CanvasTourSetup.swift */,
+				CB0915000000000000000021 /* CanvasTourDeveloperPage.swift */,
+				CB0915000000000000000011 /* CanvasTourUI.swift */,
+				CB0915000000000000000001 /* CanvasTour.swift */,
+				CB0915000000000000000051 /* CanvasOnboardingState.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -2174,8 +2138,8 @@
 				AA000001AA000001AA000003 /* TestHelpers */,
 				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
 				PREF5702570057005700F002 /* PreferencesStoreTests.swift */,
-				CM7A00CM7A00CM7A00F003 /* CoachMarkTourTests.swift */,
-				CB0915000000000000000041 /* DebugCanvasTourTests.swift */,
+				CB0915000000000000000041 /* CanvasTourTests.swift */,
+				CB0915000000000000000061 /* CanvasOnboardingStateTests.swift */,
 				T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */,
 				201816132F33C8CC0006B350 /* DayBoundaryTests.swift */,
 				A71000000000000000000003 /* GateArtworkTests.swift */,
@@ -2193,7 +2157,6 @@
 				FE000005FEED000100000002 /* UsageBudgetMonitoringErrorTests.swift */,
 				FE00000BFEED000100000002 /* UnspentUsageBudgetTests.swift */,
 				BB000001BB000001BB000001 /* WidgetTests.swift */,
-				BB000002BB000002BB000001 /* OnboardingFlowTests.swift */,
 				AABB001100110011AABB0010 /* SubscriptionGateTests.swift */,
 				ME7A00ME7A00ME7A00F010 /* MainTabSelectionTests.swift */,
 				CA51F0130000000000000013 /* CanvasRemixTests.swift */,
@@ -2840,20 +2803,11 @@
 				70DB3A6D3B5C4A1A9E0F0001 /* NetworkClient.swift in Sources */,
 				2061EB852F269C99009FEC24 /* HandoffProtectionView.swift in Sources */,
 				201DF6FB2F377E5E007D716B /* AppModel+TicketManagement.swift in Sources */,
-				2061EB862F269C99009FEC24 /* OnboardingStoriesView.swift in Sources */,
-				7C1A1D2E3F4A5B6C7D8E9F02 /* OnboardingFlowView.swift in Sources */,
-				7C2B2D3E4F5A6B7C8D9E0F10 /* OnboardingDemoView.swift in Sources */,
-				A0B10001A0B10001A0B10001 /* OnboardingModels.swift in Sources */,
-				A0B10002A0B10002A0B10002 /* OnboardingFloaters.swift in Sources */,
-				A0B10003A0B10003A0B10003 /* AppleSignInCoordinator.swift in Sources */,
-				A0B10004A0B10004A0B10004 /* OnboardingCoordinator.swift in Sources */,
-				70CM00023004000070CM0001 /* CoachMarkAnchorKey.swift in Sources */,
-				70CM00023004000070CM0002 /* CoachMarkManager.swift in Sources */,
-				CB0915000000000000000032 /* DebugCanvasTourSetup.swift in Sources */,
-				CB0915000000000000000022 /* DebugCanvasTourDeveloperPage.swift in Sources */,
-				CB0915000000000000000012 /* DebugCanvasTourUI.swift in Sources */,
-				CB0915000000000000000002 /* DebugCanvasTour.swift in Sources */,
-				70CM00023004000070CM0003 /* CoachMarkOverlay.swift in Sources */,
+				CB0915000000000000000032 /* CanvasTourSetup.swift in Sources */,
+				CB0915000000000000000022 /* CanvasTourDeveloperPage.swift in Sources */,
+				CB0915000000000000000012 /* CanvasTourUI.swift in Sources */,
+				CB0915000000000000000002 /* CanvasTour.swift in Sources */,
+				CB0915000000000000000052 /* CanvasOnboardingState.swift in Sources */,
 				2061EB8D2F269CE6009FEC24 /* ProfileEditorView.swift in Sources */,
 				A3C000020000000000000001 /* SettingsAccountPage.swift in Sources */,
 				2061EB912F269CE6009FEC24 /* ImagePicker.swift in Sources */,
@@ -3145,8 +3099,8 @@
 				A71000000000000000000017 /* GateArtworkTests.swift in Sources */,
 				T1E5T5B22E71A18F00ABF5FA /* BudgetEngineTests.swift in Sources */,
 				PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */,
-				CM7A00CM7A00CM7A00B003 /* CoachMarkTourTests.swift in Sources */,
-				CB0915000000000000000042 /* DebugCanvasTourTests.swift in Sources */,
+				CB0915000000000000000042 /* CanvasTourTests.swift in Sources */,
+				CB0915000000000000000062 /* CanvasOnboardingStateTests.swift in Sources */,
 				T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */,
 				20095A8B2F55BE6600ADF5EE /* CanvasPersistenceRegressionTests.swift in Sources */,
 				C5A510010906202600000002 /* CanvasVisualStyleTests.swift in Sources */,
@@ -3162,7 +3116,6 @@
 				FE000005FEED000100000001 /* UsageBudgetMonitoringErrorTests.swift in Sources */,
 				FE00000BFEED000100000001 /* UnspentUsageBudgetTests.swift in Sources */,
 				BB000001BB000001BB000002 /* WidgetTests.swift in Sources */,
-				BB000002BB000002BB000002 /* OnboardingFlowTests.swift in Sources */,
 				AABB001100110011AABB0011 /* SubscriptionGateTests.swift in Sources */,
 				ME7A00ME7A00ME7A00F011 /* MainTabSelectionTests.swift in Sources */,
 				CA51B0130000000000000013 /* CanvasRemixTests.swift in Sources */,

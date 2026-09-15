@@ -42,7 +42,7 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     func fetchSteps(from: Date, to: Date) async throws -> Double {
         if let error = stepsError { throw error }
         #if DEBUG
-        if returnsStepCacheAfterQueryFailure { DebugHealthQueryTrace.current?.recordFailure() }
+        if returnsStepCacheAfterQueryFailure { HealthQueryTrace.current?.recordFailure() }
         #endif
         return stepsToReturn
     }
@@ -591,60 +591,60 @@ final class HealthStoreTests: XCTestCase {
     }
 
     #if DEBUG
-    func testDebugStepOutcomeSeparatesCachedDataFromFailedRefreshAndRetry() async {
-        XCTAssertEqual(store.debugStepsQueryOutcome, .idle)
+    func testStepOutcomeSeparatesCachedDataFromFailedRefreshAndRetry() async {
+        XCTAssertEqual(store.stepsQueryOutcome, .idle)
         mock.stepsToReturn = 3000
         await store.refreshStepsIfAuthorized()
-        XCTAssertEqual(store.debugStepsQueryOutcome, .available)
+        XCTAssertEqual(store.stepsQueryOutcome, .available)
 
         mock.stepsError = NSError(domain: "test", code: 99)
         await store.refreshStepsIfAuthorized()
-        XCTAssertEqual(store.debugStepsQueryOutcome, .failed)
+        XCTAssertEqual(store.stepsQueryOutcome, .failed)
         XCTAssertEqual(store.stepsToday, 3000, "A failed query must preserve the product cache fallback")
         XCTAssertTrue(store.hasStepsData, "Diagnostic failure must not change the economic data flag")
 
         mock.stepsError = nil
         mock.stepsToReturn = 0
         await store.refreshStepsIfAuthorized()
-        XCTAssertEqual(store.debugStepsQueryOutcome, .empty)
+        XCTAssertEqual(store.stepsQueryOutcome, .empty)
         XCTAssertTrue(store.hasStepsData, "Zero remains a completed query, not proof of denied read permission")
     }
 
-    func testDebugSleepOutcomeSeparatesCachedDataFromFailedRefreshAndRetry() async {
-        XCTAssertEqual(store.debugSleepQueryOutcome, .idle)
+    func testSleepOutcomeSeparatesCachedDataFromFailedRefreshAndRetry() async {
+        XCTAssertEqual(store.sleepQueryOutcome, .idle)
         mock.sleepToReturn = 7.5
         await store.refreshSleepIfAuthorized()
-        XCTAssertEqual(store.debugSleepQueryOutcome, .available)
+        XCTAssertEqual(store.sleepQueryOutcome, .available)
 
         mock.sleepError = NSError(domain: "test", code: 42)
         await store.refreshSleepIfAuthorized()
-        XCTAssertEqual(store.debugSleepQueryOutcome, .failed)
+        XCTAssertEqual(store.sleepQueryOutcome, .failed)
         XCTAssertEqual(store.dailySleepHours, 7.5, accuracy: 0.01)
         XCTAssertTrue(store.hasSleepData)
 
         mock.sleepError = nil
         mock.sleepToReturn = 0
         await store.refreshSleepIfAuthorized()
-        XCTAssertEqual(store.debugSleepQueryOutcome, .empty)
+        XCTAssertEqual(store.sleepQueryOutcome, .empty)
         XCTAssertTrue(store.hasSleepData)
     }
 
-    func testDebugStepOutcomeReportsServiceFailureEvenWhenServiceReturnsPositiveCache() async {
+    func testStepOutcomeReportsServiceFailureEvenWhenServiceReturnsPositiveCache() async {
         mock.stepsToReturn = 4200
         mock.returnsStepCacheAfterQueryFailure = true
 
         await store.refreshStepsIfAuthorized()
 
-        XCTAssertEqual(store.debugStepsQueryOutcome, .failed)
+        XCTAssertEqual(store.stepsQueryOutcome, .failed)
         XCTAssertEqual(store.stepsToday, 4200, "Cached product value must remain available")
         XCTAssertTrue(store.hasStepsData, "Diagnostic reporting must not alter existing cache/economy semantics")
 
         mock.returnsStepCacheAfterQueryFailure = false
         await store.refreshStepsIfAuthorized()
-        XCTAssertEqual(store.debugStepsQueryOutcome, .available, "A retry gets a fresh query trace")
+        XCTAssertEqual(store.stepsQueryOutcome, .available, "A retry gets a fresh query trace")
     }
 
-    func testDebugReadOutcomesDoNotUseWriteAuthorizationAsReadPermission() async {
+    func testReadOutcomesDoNotUseWriteAuthorizationAsReadPermission() async {
         mock.authStatus = .sharingDenied
         mock.sleepAuthStatus = .notDetermined
         mock.stepsToReturn = 1200
@@ -653,8 +653,8 @@ final class HealthStoreTests: XCTestCase {
         await store.refreshStepsIfAuthorized()
         await store.refreshSleepIfAuthorized()
 
-        XCTAssertEqual(store.debugStepsQueryOutcome, .available)
-        XCTAssertEqual(store.debugSleepQueryOutcome, .available)
+        XCTAssertEqual(store.stepsQueryOutcome, .available)
+        XCTAssertEqual(store.sleepQueryOutcome, .available)
     }
     #endif
 

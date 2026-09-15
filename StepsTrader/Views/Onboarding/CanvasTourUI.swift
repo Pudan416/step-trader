@@ -1,5 +1,4 @@
 import SwiftUI
-#if DEBUG
 import HealthKit
 import UIKit
 
@@ -18,7 +17,7 @@ private struct CanvasTourControlModifier: ViewModifier {
     let id: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
-    private var tour: DebugCanvasTour { .shared }
+    private var tour: CanvasTour { .shared }
     func body(content: Content) -> some View {
         let enabled = !tour.isActive || (tour.exitRequest == nil && tour.allowsControl(id))
         let isTarget = tour.isActive && tour.targetID == id
@@ -39,7 +38,7 @@ private struct CanvasTourControlModifier: ViewModifier {
     }
 }
 
-extension DebugCanvasTour {
+extension CanvasTour {
     func isContextualControl(_ id: String) -> Bool {
         guard isActive else { return true }
         if id == "canvas.balanceSummary" { return [.momentResult, .balance, .healthValue, .healthResult, .chooseDuration, .meTab].contains(step) }
@@ -66,7 +65,7 @@ extension DebugCanvasTour {
     }
 }
 
-private struct DebugCanvasTourHost: ViewModifier {
+private struct CanvasTourHost: ViewModifier {
     @ObservedObject var model: AppModel
     let context: String
     @Environment(\.scenePhase) private var scenePhase
@@ -80,7 +79,7 @@ private struct DebugCanvasTourHost: ViewModifier {
     @State private var diagnosticsSession: UUID?
     @State private var healthAttempted = false
     @State private var healthFailed = false
-    private var tour: DebugCanvasTour { .shared }
+    private var tour: CanvasTour { .shared }
 
     private var recommendedWindow: AccessWindow? {
         guard let group = model.ticketGroups.first(where: { $0.id == tour.selectedGroupID }) else { return nil }
@@ -146,11 +145,11 @@ private struct DebugCanvasTourHost: ViewModifier {
 
                 }
             }
-            .canvasTourExitChrome(context: "flow", onDiagnostics: { showDiagnostics = true })
+            .canvasTourExitChrome(context: "flow", onDiagnostics: diagnosticsAction)
             .sheet(isPresented: $showSetup, onDismiss: {
                 tour.sheetDismissed("setup", sessionID: setupSession)
             }) {
-                DebugCanvasTourSetup(model: model, openAccountOnAppear: tour.openAccountOnSetup) {
+                CanvasTourSetup(model: model, openAccountOnAppear: tour.openAccountOnSetup) {
                     tour.send(.setupCompleted)
                     showSetup = false
                 }
@@ -163,15 +162,17 @@ private struct DebugCanvasTourHost: ViewModifier {
             .onChange(of: tour.status) { _, status in
                 if status == .waitingForAction && tour.step == .setup && !showSetup && tour.isActive { showSetup = true }
             }
+            #if DEBUG
             .sheet(isPresented: $showDiagnostics, onDismiss: {
                 tour.sheetDismissed("diagnostics", sessionID: diagnosticsSession)
             }) {
                 NavigationStack {
-                    DebugCanvasTourDeveloperPage(model: model)
+                    CanvasTourDeveloperPage(model: model)
                         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Back to tour") { showDiagnostics = false } } }
                 }
                 .onAppear { diagnosticsSession = tour.sessionID; tour.sheetPresented("diagnostics", returnContext: "flow") }
             }
+            #endif
             .onChange(of: tour.launchRevision) { _, _ in showDiagnostics = false; showSetup = false }
             .onChange(of: tour.isActive) { _, active in if !active { showSetup = false; showDiagnostics = false } }
             .onChange(of: scenePhase) { _, phase in
@@ -182,6 +183,13 @@ private struct DebugCanvasTourHost: ViewModifier {
             }
             .onChange(of: Set(model.ticketGroups.filter { $0.selection.hasGroupTargets }.map(\.id))) { _, ids in tour.revalidate(groupIDs: ids) }
             .onChange(of: tour.sessionID) { _, _ in healthAttempted = false; healthFailed = false }
+    }
+    private var diagnosticsAction: (() -> Void)? {
+        #if DEBUG
+        { showDiagnostics = true }
+        #else
+        nil
+        #endif
     }
     private func updateTarget(_ rect: CGRect?) {
         tour.targetID = target
@@ -366,7 +374,7 @@ private struct DebugCanvasTourHost: ViewModifier {
                 await model.refreshStepsIfAuthorized()
                 await model.refreshSleepIfAuthorized()
                 guard tour.isCurrent(token) else { return }
-                healthFailed = model.healthStore.debugStepsQueryOutcome == .failed || model.healthStore.debugSleepQueryOutcome == .failed
+                healthFailed = model.healthStore.stepsQueryOutcome == .failed || model.healthStore.sleepQueryOutcome == .failed
                 tour.send(.healthUpdated, token: token)
                 tour.sheetDismissed("health", sessionID: token.sessionID)
                 if healthFailed { tour.recover(String(localized: "Some Health data couldn’t refresh. The panel may show cached values. Retry or continue.")) }
@@ -475,7 +483,7 @@ private struct CanvasTourMissedTapObserver: UIViewRepresentable {
         }
         func detach() { observedWindow?.removeGestureRecognizer(tap); observedWindow = nil }
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            guard DebugCanvasTour.shared.overlayVisible, DebugCanvasTour.shared.exitRequest == nil else { return false }
+            guard CanvasTour.shared.overlayVisible, CanvasTour.shared.exitRequest == nil else { return false }
             let point = touch.location(in: self)
             return bounds.contains(point) && !excludedRects.contains { $0.contains(point) }
         }
@@ -493,7 +501,7 @@ private struct CanvasTourExitChrome: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AccessibilityFocusState private var focusConfirmation: Bool
     @State private var exitHeaderHeight: CGFloat = 56
-    private var tour: DebugCanvasTour { .shared }
+    private var tour: CanvasTour { .shared }
     private var isOwner: Bool { context == "flow" ? tour.presentedSheet == nil : tour.presentedSheet == context }
     private var confirmationVisible: Bool { tour.isActive && isOwner && tour.isForeground && tour.exitRequest != nil }
     private var surface: Color {
@@ -591,36 +599,18 @@ private struct CanvasTourExitChrome: ViewModifier {
     }
 }
 
-#endif
-
 extension View {
     @ViewBuilder func canvasTourExitChrome(context: String, onDiagnostics: (() -> Void)? = nil) -> some View {
-        #if DEBUG
         modifier(CanvasTourExitChrome(context: context, onDiagnostics: onDiagnostics))
-        #else
-        self
-        #endif
     }
 
     @ViewBuilder func canvasTourControl(_ id: String) -> some View {
-        #if DEBUG
         modifier(CanvasTourControlModifier(id: id))
-        #else
-        self
-        #endif
     }
     @ViewBuilder func canvasTourAnchor(_ id: String) -> some View {
-        #if DEBUG
         transformAnchorPreference(key: CanvasTourAnchors.self, value: .bounds) { anchors, anchor in anchors[id] = anchor }
-        #else
-        self
-        #endif
     }
     @ViewBuilder func canvasTourHost(model: AppModel, context: String = "root") -> some View {
-        #if DEBUG
-        modifier(DebugCanvasTourHost(model: model, context: context))
-        #else
-        self
-        #endif
+        modifier(CanvasTourHost(model: model, context: context))
     }
 }

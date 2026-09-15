@@ -2,17 +2,13 @@ import SwiftUI
 
 struct CanvasShareSheet: UIViewControllerRepresentable {
     let items: [Any]
-    #if DEBUG
     var onCompletion: ((Bool, Error?) -> Void)? = nil
-    #endif
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        #if DEBUG
         controller.completionWithItemsHandler = { _, completed, _, error in
             onCompletion?(completed, error)
         }
-        #endif
         return controller
     }
 

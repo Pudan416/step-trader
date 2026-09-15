@@ -119,19 +119,11 @@ struct CanvasDataPanel: View {
     private var ink: Color { palette.textColor }
 
     private var tourAllowsDrawerGesture: Bool {
-        #if DEBUG
-        !DebugCanvasTour.shared.isActive || [.balance, .healthValue, .healthResult].contains(DebugCanvasTour.shared.step)
-        #else
-        true
-        #endif
+        !CanvasTour.shared.isActive || [.balance, .healthValue, .healthResult].contains(CanvasTour.shared.step)
     }
 
     private var tourIsActive: Bool {
-        #if DEBUG
-        DebugCanvasTour.shared.isActive
-        #else
-        false
-        #endif
+        CanvasTour.shared.isActive
     }
 
     private var rowsMaxHeight: CGFloat? {
@@ -194,7 +186,6 @@ struct CanvasDataPanel: View {
             if isExpanded {
                 drawerContent
                     .accessibilityIdentifier("canvas_data_panel")
-                    .coachMarkAnchor(.categoriesRevealed)
             } else {
                 drawerContent
             }
@@ -274,7 +265,6 @@ struct CanvasDataPanel: View {
     /// target without making the panel look thick.
     @ViewBuilder
     private var handleSurface: some View {
-        #if DEBUG
         if tourIsActive {
             Button(action: onToggle) {
                 VStack(spacing: 0) {
@@ -289,9 +279,6 @@ struct CanvasDataPanel: View {
         } else {
             handleVisual
         }
-        #else
-        handleVisual
-        #endif
     }
 
     private var handleVisual: some View {
@@ -335,7 +322,6 @@ struct CanvasDataPanel: View {
             onToggle()
         }
         .accessibilityIdentifier("canvas_show_data_button")
-        .coachMarkAnchor(.expandChevron)
         .canvasTourControl("canvas.balanceHandle")
         // Keep the 16pt visual footer. The anchor and button above measure the
         // full 44pt hit region, which extends into the existing bottom padding.

@@ -6,16 +6,12 @@ import DeviceActivity
 
 struct SettingsDeveloperPage: View {
     @ObservedObject var model: AppModel
-    @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.appTheme) private var theme
-    @Environment(CoachMarkManager.self) private var coachMarkManager
 
     @State private var diagCopied = false
     @State private var budgetsReset = false
     @State private var colorsRestored = false
     @State private var healthReset = false
-    @State private var showOnboardingDemo = false
-    @State private var replayOnboardingLive = false
     @State private var debugFeatureTip: FeatureTip?
     @State private var featureTipsReset = false
     @State private var shieldActionLogs: [String] = []
@@ -29,7 +25,7 @@ struct SettingsDeveloperPage: View {
                 VStack(alignment: .leading, spacing: 28) {
                     SettingsGroupedSurface {
                         NavigationLink {
-                            DebugCanvasTourDeveloperPage(model: model)
+                            CanvasTourDeveloperPage(model: model)
                         } label: {
                             diagButton(icon: "hand.point.up.left", text: "Canvas onboarding (Debug)", trailing: "chevron.right")
                         }
@@ -43,18 +39,7 @@ struct SettingsDeveloperPage: View {
             }
         }
         .settingsDetailPage(title: String(localized: "Developer", comment: "Settings developer page title"))
-        .fullScreenCover(isPresented: $showOnboardingDemo) {
-            OnboardingDemoView()
-        }
-        .fullScreenCover(isPresented: $replayOnboardingLive) {
-            OnboardingFlowView(
-                model: model,
-                authService: authService,
-                showsDebugSkip: true
-            ) {
-                replayOnboardingLive = false
-            }
-        }
+
     }
 
     @ViewBuilder
@@ -193,45 +178,6 @@ struct SettingsDeveloperPage: View {
                     : String(localized: "Force Health Reset (New Day)", comment: "Developer diagnostic action"),
                 highlight: healthReset,
                 trailing: "arrow.clockwise"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            showOnboardingDemo = true
-        } label: {
-            diagButton(
-                icon: "play.rectangle",
-                text: String(localized: "Preview Onboarding (Demo)", comment: "Developer diagnostic action"),
-                trailing: "eye"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            replayOnboardingLive = true
-        } label: {
-            diagButton(
-                icon: "arrow.counterclockwise.circle",
-                text: String(localized: "Replay Onboarding (Live)", comment: "Developer diagnostic action"),
-                trailing: "restart"
-            )
-        }
-        .buttonStyle(MattePressStyle())
-
-        rowDivider
-
-        Button {
-            coachMarkManager.start()
-        } label: {
-            diagButton(
-                icon: "hand.point.up.left",
-                text: String(localized: "Preview Coach Marks", comment: "Developer diagnostic action"),
-                trailing: "questionmark.circle"
             )
         }
         .buttonStyle(MattePressStyle())

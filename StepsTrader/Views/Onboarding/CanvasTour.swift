@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 import Observation
 
@@ -74,9 +73,21 @@ private struct CanvasTourSession: Codable {
 /// Progress only. Product mutations and permission semantics belong to existing services.
 /// No analytics service, model storage, Health samples or FamilyControls tokens enter this object.
 @Observable @MainActor
-final class DebugCanvasTour {
-    static let shared = DebugCanvasTour(defaults: ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-fixtures") ? nil : .standard, suppressesAnalytics: true)
-    private static let storageKey = "debug.canvasOnboarding.session.v1"
+final class CanvasTour {
+    static let shared: CanvasTour = {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        let defaults: UserDefaults? = arguments.contains("debug-canvas-tour-fixtures") ? nil : .standard
+        let suppressesAnalytics = arguments.contains("ui-testing") || arguments.contains("debug-canvas-tour-fixtures")
+        #else
+        let defaults: UserDefaults? = .standard
+        let suppressesAnalytics = false
+        #endif
+        return CanvasTour(defaults: defaults, suppressesAnalytics: suppressesAnalytics,
+                          onStart: { _ = CanvasOnboardingState.shared.claimAutomaticStart() },
+                          onFirstLaunchCompleted: { CanvasOnboardingState.shared.complete() })
+    }()
+    private static let storageKey = "canvas.onboarding.session.v2"
     private var session = CanvasTourSession()
     private(set) var isActive = false
     private(set) var presentedSheet: String?
@@ -96,10 +107,15 @@ final class DebugCanvasTour {
     var openAccountOnSetup = false
     @ObservationIgnored private let defaults: UserDefaults?
     @ObservationIgnored private let suppressesAnalytics: Bool
+    @ObservationIgnored private let onStart: (() -> Void)?
+    @ObservationIgnored private let onFirstLaunchCompleted: (() -> Void)?
 
-    init(defaults: UserDefaults?, suppressesAnalytics: Bool = false) {
+    init(defaults: UserDefaults?, suppressesAnalytics: Bool = false,
+         onStart: (() -> Void)? = nil, onFirstLaunchCompleted: (() -> Void)? = nil) {
         self.defaults = defaults
         self.suppressesAnalytics = suppressesAnalytics
+        self.onStart = onStart
+        self.onFirstLaunchCompleted = onFirstLaunchCompleted
         if let data = defaults?.data(forKey: Self.storageKey),
            let saved = try? JSONDecoder().decode(CanvasTourSession.self, from: data), (1...2).contains(saved.flowVersion) {
             session = saved
@@ -131,6 +147,7 @@ final class DebugCanvasTour {
     }
 
     func start(at step: CanvasTourStep = .welcome, source: String = "developer", selectedGroupID: String? = nil) {
+        onStart?()
         let quiet = quietMode
         session = CanvasTourSession()
         session.currentStep = step
@@ -139,7 +156,7 @@ final class DebugCanvasTour {
         session.quietMode = quiet
         session.status = .preparing
         isActive = true
-        if suppressesAnalytics { CanvasTourAnalyticsGate.shared.setSuppressed(true) }
+        updateAnalyticsGate()
         presentedSheet = nil; pendingDestination = nil; posterDayID = nil; shareCompleted = false
         errorMessage = nil; targetVisible = false; targetFrameDescription = "unresolved"
         openAccountOnSetup = false; exitRequest = nil
@@ -152,7 +169,7 @@ final class DebugCanvasTour {
         // Every continuation has fresh identity; callbacks from the prior process/session cannot apply.
         session.sessionID = UUID(); session.pendingOperation = nil
         session.status = .preparing; isActive = true
-        if suppressesAnalytics { CanvasTourAnalyticsGate.shared.setSuppressed(true) }
+        updateAnalyticsGate()
         revalidate(groupIDs: groupIDs)
         if step == .healthValue || step == .healthResult { enter(.balance, reason: "open Health panel again") }
         if step == .happening { enter(.add, reason: "palette must be opened again") }
@@ -170,7 +187,7 @@ final class DebugCanvasTour {
         cardTopGlobalY = 0; cardBottomGlobalY = 0
         session.status = skipped ? .skipped : .inactive
         session.pendingOperation = nil
-        if suppressesAnalytics { CanvasTourAnalyticsGate.shared.setSuppressed(false) }
+        CanvasTourAnalyticsGate.shared.setSuppressed(false)
         isActive = false; pendingDestination = nil; presentedSheet = nil
         targetVisible = false; targetID = nil; errorMessage = nil
         report(skipped ? "tour skipped" : "tour stopped")
@@ -190,6 +207,7 @@ final class DebugCanvasTour {
     }
     func confirmExit() {
         guard exitRequest != nil else { return }
+        completeFirstLaunchIfNeeded()
         stop(skipped: true)
     }
     func setForeground(_ active: Bool) {
@@ -308,6 +326,7 @@ final class DebugCanvasTour {
         case (.poster, .exportSkipped):
             session.skippedBranches.insert("export"); destination = .finish
         case (.finish, .finish):
+            completeFirstLaunchIfNeeded()
             session.completedSteps.insert(.finish); stop(); session.status = .completed; persist(); return
         default: destination = nil
         }
@@ -326,8 +345,16 @@ final class DebugCanvasTour {
         guard let data = try? JSONEncoder().encode(session) else { return }
         defaults?.set(data, forKey: Self.storageKey)
     }
+    private func completeFirstLaunchIfNeeded() {
+        if entrySource == "firstLaunch" { onFirstLaunchCompleted?() }
+    }
+    private func updateAnalyticsGate() {
+        #if DEBUG
+        CanvasTourAnalyticsGate.shared.setSuppressed(suppressesAnalytics || entrySource != "firstLaunch")
+        #endif
+    }
 }
-/// Cross-actor gate for existing product analytics while the DEBUG experiment runs.
+/// Cross-actor gate for DEBUG replays; first-run product mutations keep normal analytics.
 final class CanvasTourAnalyticsGate: @unchecked Sendable {
     static let shared = CanvasTourAnalyticsGate()
     private let lock = NSLock()
@@ -335,4 +362,3 @@ final class CanvasTourAnalyticsGate: @unchecked Sendable {
     var isSuppressed: Bool { lock.withLock { suppressed } }
     func setSuppressed(_ value: Bool) { lock.withLock { suppressed = value } }
 }
-#endif

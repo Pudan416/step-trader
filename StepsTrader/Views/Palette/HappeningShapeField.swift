@@ -26,12 +26,8 @@ struct HappeningShapeField: View {
         source: HappeningFieldLayout.Source
     ) -> some View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
-        #if DEBUG
-        let existingTourMoment = DebugCanvasTour.shared.isActive
-            && DebugCanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
-        #else
-        let existingTourMoment = false
-        #endif
+        let existingTourMoment = CanvasTour.shared.isActive
+            && CanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
         let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil || existingTourMoment
         let side = max(44, source.radius * 2)
         let ink = labelInks[happening.id] ?? .dark
@@ -91,11 +87,7 @@ struct HappeningShapeField: View {
     }
 
     private var tourLabelScale: CGFloat {
-        #if DEBUG
-        DebugCanvasTour.shared.isActive ? 0.80 : 1
-        #else
-        1
-        #endif
+        CanvasTour.shared.isActive ? 0.80 : 1
     }
 
     private func hint(for state: HappeningPaletteSlotVisualState, locked: Bool) -> String {

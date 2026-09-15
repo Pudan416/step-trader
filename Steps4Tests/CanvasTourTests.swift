@@ -3,8 +3,44 @@ import XCTest
 @testable import Steps4
 
 @MainActor
-final class DebugCanvasTourTests: XCTestCase {
-    private func tour() -> DebugCanvasTour { DebugCanvasTour(defaults: nil) }
+final class CanvasTourTests: XCTestCase {
+    private func tour() -> CanvasTour { CanvasTour(defaults: nil) }
+
+    func testFinishCompletesFirstLaunchExactlyOnce() {
+        var completions = 0
+        let t = CanvasTour(defaults: nil, onFirstLaunchCompleted: { completions += 1 })
+        t.start(at: .finish, source: "firstLaunch"); t.hostReady()
+        t.send(.finish); t.send(.finish)
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(t.status, .completed)
+    }
+
+    func testConfirmedExitCompletesFirstLaunchButStopAndReplayDoNot() {
+        var completions = 0
+        let t = CanvasTour(defaults: nil, onFirstLaunchCompleted: { completions += 1 })
+        t.start(source: "firstLaunch"); t.hostReady(); t.stop()
+        XCTAssertEqual(completions, 0)
+        t.start(source: "developer"); t.hostReady()
+        t.requestExit(reason: "skip"); t.confirmExit()
+        XCTAssertEqual(completions, 0)
+        t.start(source: "firstLaunch"); t.hostReady()
+        t.requestExit(reason: "outside tap"); t.continueTour()
+        XCTAssertEqual(completions, 0)
+        t.requestExit(reason: "skip"); t.confirmExit(); t.confirmExit()
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(t.status, .skipped)
+    }
+
+    func testOldDebugSessionCannotBecomePublicProgress() throws {
+        let name = "CanvasTourTests.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(Data("{\"currentStep\":\"chooseDuration\"}".utf8), forKey: "debug.canvasOnboarding.session.v1")
+        let t = CanvasTour(defaults: defaults)
+        XCTAssertEqual(t.step, .welcome)
+        XCTAssertFalse(t.canResume)
+        XCTAssertFalse(t.isActive)
+    }
 
     func testUnexpectedAndRepeatedEventsCannotCompleteAction() {
         let t = tour(); t.start(); t.hostReady()
@@ -61,14 +97,14 @@ final class DebugCanvasTourTests: XCTestCase {
         let name = "CanvasTourTests.\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let t = DebugCanvasTour(defaults: defaults)
+        let t = CanvasTour(defaults: defaults)
         t.start(at: .balance); t.hostReady()
-        let key = "debug.canvasOnboarding.session.v1"
+        let key = "canvas.onboarding.session.v2"
         var saved = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(defaults.data(forKey: key))) as? [String: Any])
         saved["flowVersion"] = 1
         saved["addedEntryID"] = "existing-entry"
         defaults.set(try JSONSerialization.data(withJSONObject: saved), forKey: key)
-        let restored = DebugCanvasTour(defaults: defaults)
+        let restored = CanvasTour(defaults: defaults)
         XCTAssertFalse(restored.isActive)
         XCTAssertEqual(restored.flowVersion, 2)
         restored.resume(groupIDs: []); restored.hostReady()
@@ -135,9 +171,9 @@ final class DebugCanvasTourTests: XCTestCase {
         let name = "CanvasTourTests.\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let t = DebugCanvasTour(defaults: defaults)
+        let t = CanvasTour(defaults: defaults)
         t.start(); t.hostReady(); t.send(.begin)
-        let restored = DebugCanvasTour(defaults: defaults)
+        let restored = CanvasTour(defaults: defaults)
         XCTAssertFalse(restored.isActive)
         XCTAssertEqual(restored.step, .add)
         restored.start()
@@ -221,9 +257,9 @@ final class DebugCanvasTourTests: XCTestCase {
         let name = "CanvasTourTests.\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
-        let t = DebugCanvasTour(defaults: defaults)
+        let t = CanvasTour(defaults: defaults)
         t.start(at: .healthValue); t.hostReady()
-        let restored = DebugCanvasTour(defaults: defaults)
+        let restored = CanvasTour(defaults: defaults)
         restored.resume(groupIDs: [])
         XCTAssertEqual(restored.step, .balance)
     }

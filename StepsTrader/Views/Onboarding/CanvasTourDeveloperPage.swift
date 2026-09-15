@@ -1,12 +1,13 @@
 #if DEBUG
 import SwiftUI
 
-struct DebugCanvasTourDeveloperPage: View {
+struct CanvasTourDeveloperPage: View {
     @ObservedObject var model: AppModel
     @State private var jumpStep: CanvasTourStep = .welcome
     @State private var prerequisite: String?
     @State private var jumpGroupID = ""
-    private var tour: DebugCanvasTour { .shared }
+    @State private var firstLaunchReset = false
+    private var tour: CanvasTour { .shared }
 
     var body: some View {
         @Bindable var tour = tour
@@ -16,6 +17,17 @@ struct DebugCanvasTourDeveloperPage: View {
                     .font(.geist(.callout))
                 Button("Start from welcome") { tour.start() }
                     .accessibilityIdentifier("canvas_tour.debug.start")
+                Button("Test first launch") {
+                    tour.stop()
+                    CanvasOnboardingState.shared.resetForFirstLaunchTest()
+                    firstLaunchReset = true
+                }
+                .accessibilityIdentifier("canvas_tour.debug.testFirstLaunch")
+                if firstLaunchReset {
+                    Text("Close the app completely, then reopen it. Welcome will start automatically. Your days, apps, colors and permissions are kept; this is not an empty installation.")
+                        .font(.geist(.callout))
+                        .accessibilityIdentifier("canvas_tour.debug.firstLaunchReset")
+                }
                 Button("Restart tour") { tour.start(source: "restart") }
                     .accessibilityIdentifier("canvas_tour.debug.restart")
                 Button("Resume") { tour.resume(groupIDs: Set(model.ticketGroups.map(\.id))) }
@@ -66,8 +78,8 @@ struct DebugCanvasTourDeveloperPage: View {
                 LabeledContent("Group", value: tour.selectedGroupID ?? "none")
                 LabeledContent("Entry", value: tour.addedEntryID ?? "none")
                 LabeledContent("Colors available", value: model.totalStepsBalance.formatted())
-                LabeledContent("Steps query", value: model.healthStore.debugStepsQueryOutcome.rawValue)
-                LabeledContent("Sleep query", value: model.healthStore.debugSleepQueryOutcome.rawValue)
+                LabeledContent("Steps query", value: model.healthStore.stepsQueryOutcome.rawValue)
+                LabeledContent("Sleep query", value: model.healthStore.sleepQueryOutcome.rawValue)
                 LabeledContent("App access", value: model.blockingStore.isAuthorized ? "authorized" : "needed")
                 LabeledContent("Prerequisite", value: missingPrerequisite(for: jumpStep) ?? "available")
                 Button("Copy local log") {

@@ -550,27 +550,23 @@ struct FeedInlineDurationOptions: View {
 
     private func purchase(window: AccessWindow, cost: Int) {
         guard purchasingWindow == nil else { return }
-        #if DEBUG
-        if DebugCanvasTour.shared.isActive {
+        if CanvasTour.shared.isActive {
             guard let current = model.blockingStore.ticketGroups.first(where: { $0.id == group.id }),
                   current.selection.hasGroupTargets, current.selection == group.selection else {
-                DebugCanvasTour.shared.recover("This feed changed. Choose an available feed again.")
+                CanvasTour.shared.recover("This feed changed. Choose an available feed again.")
                 return
             }
             guard model.blockingStore.isAuthorized else {
-                DebugCanvasTour.shared.recover("App access is needed. Check Your setup or skip this unlock.")
+                CanvasTour.shared.recover("App access is needed. Check Your setup or skip this unlock.")
                 return
             }
             guard model.totalStepsBalance >= group.cost(for: window), group.enabledIntervals.contains(window) else {
-                DebugCanvasTour.shared.recover("This duration is no longer available with your colors. Choose another or skip.")
+                CanvasTour.shared.recover("This duration is no longer available with your colors. Choose another or skip.")
                 return
             }
         }
-        #endif
-        #if DEBUG
-        let tourOperation = DebugCanvasTour.shared.beginOperation("unlock", returnContext: DebugCanvasTour.shared.step == .setup ? "setup" : "flow")
-        if DebugCanvasTour.shared.isActive, tourOperation == nil { return }
-        #endif
+        let tourOperation = CanvasTour.shared.beginOperation("unlock", returnContext: CanvasTour.shared.step == .setup ? "setup" : "flow")
+        if CanvasTour.shared.isActive, tourOperation == nil { return }
         purchasingWindow = window
         Task { @MainActor in
             await model.handlePayGatePaymentForGroup(
@@ -581,32 +577,28 @@ struct FeedInlineDurationOptions: View {
             purchasingWindow = nil
 
             guard model.unspentUsageBudgetMatchingShield(for: group.id) > 0 else {
-                #if DEBUG
-                if DebugCanvasTour.shared.isCurrent(tourOperation) {
-                    DebugCanvasTour.shared.endOperation(tourOperation, error: "Unlock did not start. Check app access and your colors, then try again.")
+                if CanvasTour.shared.isCurrent(tourOperation) {
+                    CanvasTour.shared.endOperation(tourOperation, error: "Unlock did not start. Check app access and your colors, then try again.")
                 }
-                #endif
                 return
             }
-            #if DEBUG
-            if let tourOperation, DebugCanvasTour.shared.isCurrent(tourOperation) {
+            if let tourOperation, CanvasTour.shared.isCurrent(tourOperation) {
                 guard let current = model.blockingStore.ticketGroups.first(where: { $0.id == group.id }),
                       current.selection.hasGroupTargets, current.selection == group.selection else {
-                    DebugCanvasTour.shared.endOperation(tourOperation, error: "The feed changed during unlock. Choose an available feed again.")
+                    CanvasTour.shared.endOperation(tourOperation, error: "The feed changed during unlock. Choose an available feed again.")
                     return
                 }
                 if model.blockingStore.isAuthorized {
-                    DebugCanvasTour.shared.send(.unlockSucceeded(group.id), token: tourOperation)
+                    CanvasTour.shared.send(.unlockSucceeded(group.id), token: tourOperation)
                     // Setup purchases do not advance the tour, but must release
                     // their operation so another optional action can run.
-                    if DebugCanvasTour.shared.isCurrent(tourOperation) {
-                        DebugCanvasTour.shared.endOperation(tourOperation)
+                    if CanvasTour.shared.isCurrent(tourOperation) {
+                        CanvasTour.shared.endOperation(tourOperation)
                     }
                 } else {
-                    DebugCanvasTour.shared.endOperation(tourOperation, error: "App access changed during unlock. Check Your setup or skip this section.")
+                    CanvasTour.shared.endOperation(tourOperation, error: "App access changed during unlock. Check Your setup or skip this section.")
                 }
             }
-            #endif
             onPurchased()
         }
     }

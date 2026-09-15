@@ -132,7 +132,6 @@ struct CanvasBottomActionRow: View {
             isHappeningPalettePresented ? "canvas_palette_close_button" : "canvas_add_button"
         )
         .anchorPreference(key: CanvasHintAnchorKey.self, value: .bounds) { $0 }
-        .coachMarkAnchor(.tapPlusButton)
         .canvasTourControl(isHappeningPalettePresented ? "canvas.paletteClose" : "canvas.addHappening")
         // The palette docks on this button's line rather than re-deriving it
         // from tab-bar height and paddings.

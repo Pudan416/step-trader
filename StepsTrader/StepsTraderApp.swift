@@ -127,13 +127,9 @@ private struct StepsTraderProductionRoot: View {
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
     @StateObject private var announcementService = AnnouncementService.shared
-    @State private var coachMarkManager = CoachMarkManager()
+    @State private var onboardingState = CanvasOnboardingState.shared
+    @State private var hasStartedBootstrap = false
     @AppStorage("appTheme") private var appThemeRaw: String = AppTheme.system.rawValue
-    /// Single versioned int that replaces the old 4-flag onboarding state machine
-    /// (`hasSeenIntro_v3`, `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
-    /// `hasMigratedOnboarding_v1`). Migration from those flags happens once on
-    /// first read in `migrateOnboardingStateIfNeeded()`.
-    @AppStorage("onboarding_state_v1") private var onboardingStateRaw: Int = OnboardingState.notStarted.rawValue
     @AppStorage("appLaunchCount") private var appLaunchCount: Int = 0
     @AppStorage("hasRequestedReview_v1") private var hasRequestedReview: Bool = false
     @Environment(\.requestReview) private var requestReview
@@ -148,18 +144,36 @@ private struct StepsTraderProductionRoot: View {
     /// background→foreground cycles must not stack tips in one session.
     @State private var hasPresentedFeatureTipThisSession = false
 
-    private var hasCompletedOnboarding: Bool {
+    private var hasCompletedOnboarding: Bool { onboardingState.isCompleted }
+    private var canPresentSessionUI: Bool {
+        hasCompletedOnboarding && !CanvasTour.shared.isActive
+    }
+    private var isPreparingAutomaticOnboarding: Bool {
+        allowsAutomaticCanvasOnboarding && !onboardingState.isCompleted
+            && !model.didCompleteBootstrap && !CanvasTour.shared.isActive
+    }
+    private var hasBlockingSessionOverlay: Bool {
+        guard canPresentSessionUI, !isUITest else { return false }
+        if model.userEconomyStore.showPayGate { return true }
+        if model.showHandoffProtection,
+           let token = model.handoffToken,
+           token.targetBundleId != "com.burbn.instagram" { return true }
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") { return true }
+        return model.showQuickStatusPage
+        #else
+        return false
         #endif
-        return onboardingStateRaw >= OnboardingState.completed.rawValue
     }
     private let cleanupTimer = Timer.publish(every: AppConstants.Timing.cleanupTimerInterval, on: .main, in: .common).autoconnect()
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
 
-    enum OnboardingState: Int {
-        case notStarted = 0
-        case completed = 1
+    private var allowsAutomaticCanvasOnboarding: Bool {
+        #if DEBUG
+        !isUITest || ProcessInfo.processInfo.arguments.contains("canvas-onboarding-test-first-launch")
+            || ProcessInfo.processInfo.arguments.contains("canvas-onboarding-enable-first-launch")
+        #else
+        !isUITest
+        #endif
     }
 
     init() {
@@ -286,51 +300,11 @@ private struct StepsTraderProductionRoot: View {
         UITabBar.appearance().scrollEdgeAppearance = tabAppearance
     }
 
-    /// Run the in-app coach mark tour if the user opted into it on the last
-    /// onboarding slide (see `OnboardingStoriesView.finish(wantsTour:)`).
-    ///
-    /// Blocks until the tour completes (or returns immediately if no tour was
-    /// requested). Called from the `.task` on the post-onboarding root view.
-    @MainActor
-    private func runCoachMarksIfRequested() async {
-        #if DEBUG
-        guard !DebugCanvasTour.shared.isActive,
-              !ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") else { return }
-        #endif
-        let defaults = UserDefaults.standard
-        let wantsTour = defaults.bool(forKey: "shouldStartCoachMark")
-
-        // Start the tour if it was requested and not already running. We read
-        // & clear `shouldStartCoachMark` here (instead of in `onFinish`) so
-        // the start is sequenced inside the `.task` that calls this function.
-        if wantsTour && !coachMarkManager.isActive {
-            defaults.removeObject(forKey: "shouldStartCoachMark")
-            // Let the canvas render before the first coach mark anchors so
-            // overlay positions resolve against laid-out geometry.
-            try? await Task.sleep(for: .milliseconds(800))
-            if Task.isCancelled { return }
-            #if DEBUG
-            if DebugCanvasTour.shared.isActive {
-                defaults.set(true, forKey: "shouldStartCoachMark")
-                return
-            }
-            #endif
-            coachMarkManager.start()
-        }
-
-        // Wait for any in-progress tour to complete (covers both the fresh
-        // start above and the `.task` re-firing mid-tour after a view rebuild).
-        while coachMarkManager.isActive {
-            try? await Task.sleep(for: .milliseconds(300))
-            if Task.isCancelled { return }
-        }
-    }
-
     /// Binding for the §5.1 PayGate-failure alert. Extracted so `body` stays
     /// inside the SwiftUI type-checker's complexity budget.
     private var payGateErrorBinding: Binding<Bool> {
         Binding(
-            get: { model.payGateError != nil },
+            get: { canPresentSessionUI && model.payGateError != nil },
             set: { isPresented in if !isPresented { model.payGateError = nil } }
         )
     }
@@ -367,66 +341,36 @@ private struct StepsTraderProductionRoot: View {
     private var appBody: some View {
             GlassShimmerProvider {
             ZStack {
-                if hasCompletedOnboarding || isUITest {
-                    Group {
-                        if !isUITest && model.userEconomyStore.showPayGate {
-                            PayGateView(model: model)
-                                .onAppear {
-                                    AppLogger.app.debug("🎯 PayGateView appeared - target group: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
-                                }
-                        } else if !isUITest && model.showQuickStatusPage {
-                            #if DEBUG
-                            QuickStatusView(model: model)
-                            #else
-                            MainTabView(model: model, theme: currentTheme)
-                            #endif
-                        } else {
-                            MainTabView(model: model, theme: currentTheme)
-                        }
-                    }
-                    // Run the optional in-app coach mark tour once onboarding
-                    // completes. Driven from a `.task` here (not from the
-                    // onboarding-completion closure) so it survives the case
-                    // where the user kills the app between completing
-                    // onboarding and the closure's deferred presentation.
-                    .task {
-                        guard !isUITest else { return }
-                        await runCoachMarksIfRequested()
-                    }
+                // The Canvas tour anchors to the real app throughout first launch.
+                MainTabView(model: model, theme: currentTheme)
+                    .allowsHitTesting(!hasBlockingSessionOverlay && !isPreparingAutomaticOnboarding)
+                    .accessibilityHidden(hasBlockingSessionOverlay || isPreparingAutomaticOnboarding)
 
-                    // Handoff protection screen (disabled for Instagram flow and UI tests)
-                    if !isUITest, model.showHandoffProtection, let token = model.handoffToken {
-                        // Only show handoff protection for non-Instagram targets
-                        if token.targetBundleId != "com.burbn.instagram" {
-                            HandoffProtectionView(model: model, token: token) {
-                                model.handleHandoffContinue()
-                            } onCancel: {
-                                model.handleHandoffCancel()
+                if isPreparingAutomaticOnboarding {
+                    ProgressView()
+                        .accessibilityLabel(String(localized: "Preparing your canvas"))
+                }
+
+                if canPresentSessionUI && !isUITest {
+                    if model.userEconomyStore.showPayGate {
+                        PayGateView(model: model)
+                            .onAppear {
+                                AppLogger.app.debug("🎯 PayGateView appeared - target group: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
                             }
-                        }
+                    } else if model.showQuickStatusPage {
+                        #if DEBUG
+                        QuickStatusView(model: model)
+                        #endif
                     }
-                } else {
-                    OnboardingFlowView(
-                        model: model,
-                        authService: authService
-                    ) {
-                        onboardingStateRaw = OnboardingState.completed.rawValue
-                        Task {
-                            await model.refreshStepsIfAuthorized()
-                            await model.refreshSleepIfAuthorized()
-                        }
 
-                        // NOTE: The optional coach mark tour is triggered from
-                        // the `.task` on the `hasCompletedOnboarding` branch
-                        // above — that path always fires when the root flips,
-                        // even if the user kills the app immediately after
-                        // onboarding completes (the tour request is persisted
-                        // via `shouldStartCoachMark`, so a kill right after
-                        // onboarding still lets it run on the next cold
-                        // launch).
+                    if model.showHandoffProtection, let token = model.handoffToken,
+                       token.targetBundleId != "com.burbn.instagram" {
+                        HandoffProtectionView(model: model, token: token) {
+                            model.handleHandoffContinue()
+                        } onCancel: {
+                            model.handleHandoffCancel()
+                        }
                     }
-                    .transition(.opacity)
-                    .zIndex(3)
                 }
 
             }
@@ -448,7 +392,6 @@ private struct StepsTraderProductionRoot: View {
             }
             .themed(currentTheme)
             .grayscale(0)
-            .environment(coachMarkManager)
             .modifier(
                 Task7UITestAccessibilityModifier(
                     configuration: .current
@@ -464,8 +407,8 @@ private struct StepsTraderProductionRoot: View {
             .alert(
                 announcementService.activeAnnouncement?.title ?? "",
                 isPresented: Binding(
-                    get: { announcementService.activeAnnouncement != nil },
-                    set: { if !$0, let a = announcementService.activeAnnouncement { announcementService.dismiss(a) } }
+                    get: { canPresentSessionUI && !isUITest && announcementService.activeAnnouncement != nil },
+                    set: { if !$0, canPresentSessionUI, !isUITest, let a = announcementService.activeAnnouncement { announcementService.dismiss(a) } }
                 )
             ) {
                 Button("OK", role: .cancel) {
@@ -484,20 +427,25 @@ private struct StepsTraderProductionRoot: View {
 
                 // Language selection was removed — English only for v1.
 
-                migrateOnboardingStateIfNeeded()
-
                 // Setup notification handling ASAP so model is set for delegate callbacks
                 setupNotificationHandling()
 
-                // Ensure bootstrap runs once; defer permission prompts to onboarding flow if needed.
-                // IMPORTANT: checkForPayGateFlags runs AFTER bootstrap so ticket groups are loaded.
-                if hasCompletedOnboarding {
-                    Task {
-                        await model.bootstrap(requestPermissions: !isUITest)
+                // Startup reads existing authorization only. The tour and Settings
+                // own explicit permission requests, including after choosing Later.
+                if !hasStartedBootstrap {
+                    hasStartedBootstrap = true
+                    Task { @MainActor in
+                        await model.bootstrap(requestPermissions: false)
+                        guard !Task.isCancelled else { return }
+                        if allowsAutomaticCanvasOnboarding,
+                           !CanvasTour.shared.isActive,
+                           onboardingState.claimAutomaticStart() {
+                            CanvasTour.shared.start(source: "firstLaunch")
+                        }
                         checkForPayGateFlags()
+                        checkForHandoffToken()
+                        processPendingWidgetUnlock()
                     }
-                } else {
-                    Task { await model.bootstrap(requestPermissions: false) }
                 }
                 Task { await announcementService.fetchActiveAnnouncement() }
                 AppLogger.app.debug(
@@ -510,6 +458,31 @@ private struct StepsTraderProductionRoot: View {
                     "🎭 PayGate state - showPayGate: \(model.userEconomyStore.showPayGate), targetGroupId: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")"
                 )
                 checkForHandoffToken()
+            }
+            .onChange(of: onboardingState.isCompleted) { _, completed in
+                guard completed else {
+                    activeFeatureTip = nil
+                    return
+                }
+                Task { @MainActor in
+                    await model.refreshStepsIfAuthorized()
+                    await model.refreshSleepIfAuthorized()
+                    checkForPayGateFlags()
+                    checkForHandoffToken()
+                    processPendingWidgetUnlock()
+                }
+            }
+            .onChange(of: CanvasTour.shared.isActive) { _, active in
+                if active {
+                    // An explicitly started replay must consume the pending
+                    // automatic start even if bootstrap is still awaiting data.
+                    _ = onboardingState.claimAutomaticStart()
+                    activeFeatureTip = nil
+                } else {
+                    checkForPayGateFlags()
+                    checkForHandoffToken()
+                    processPendingWidgetUnlock()
+                }
             }
             .onReceive(cleanupTimer) { _ in
                 model.checkDayBoundary()
@@ -561,7 +534,7 @@ private struct StepsTraderProductionRoot: View {
                 model.handleAppWillEnterForeground()
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.showIntro")) ) { _ in
-                onboardingStateRaw = OnboardingState.notStarted.rawValue
+                CanvasTour.shared.start(source: "replay")
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.paygate")))
             { notification in
@@ -578,6 +551,13 @@ private struct StepsTraderProductionRoot: View {
                     }
                     AppLogger.app.debug("📱 PayGate notification - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
+                        guard canPresentSessionUI, !isUITest else {
+                            g.set(true, forKey: SharedKeys.shouldShowPayGate)
+                            g.removeObject(forKey: SharedKeys.payGateTargetGroupId)
+                            g.set(bundleId, forKey: SharedKeys.payGateTargetBundleId)
+                            g.set(Date.now, forKey: SharedKeys.payGateRequestedAt)
+                            return
+                        }
                         model.openPayGateForBundleId(bundleId)
                     }
                 }
@@ -607,6 +587,13 @@ private struct StepsTraderProductionRoot: View {
                     }
                     AppLogger.app.debug("📱 Local notification PayGate - target: \(target), bundleId: \(bundleId)")
                     Task { @MainActor in
+                        guard canPresentSessionUI, !isUITest else {
+                            g.set(true, forKey: SharedKeys.shouldShowPayGate)
+                            g.removeObject(forKey: SharedKeys.payGateTargetGroupId)
+                            g.set(bundleId, forKey: SharedKeys.payGateTargetBundleId)
+                            g.set(Date.now, forKey: SharedKeys.payGateRequestedAt)
+                            return
+                        }
                         model.openPayGateForBundleId(bundleId)
                         AppLogger.app.debug("📱 PayGate state after setting - showPayGate: \(model.userEconomyStore.showPayGate), targetGroupId: \(model.userEconomyStore.payGateTargetGroupId ?? "nil")")
                     }
@@ -654,6 +641,7 @@ private struct StepsTraderProductionRoot: View {
 
     private func processPendingWidgetUnlock() {
         guard model.didCompleteBootstrap, scenePhase == .active,
+              canPresentSessionUI, !isUITest,
               !isProcessingWidgetUnlock, let pending = pendingWidgetUnlock else { return }
         pendingWidgetUnlock = nil
         guard Date().timeIntervalSince(pending.receivedAt) < 120 else {
@@ -705,6 +693,7 @@ private struct StepsTraderProductionRoot: View {
     }
 
     private func checkForHandoffToken() {
+        guard canPresentSessionUI, !isUITest else { return }
         let userDefaults = UserDefaults.stepsTrader()
 
         AppLogger.app.debug("🔍 Checking for handoff token...")
@@ -749,6 +738,7 @@ private struct StepsTraderProductionRoot: View {
     }
     
     private func checkForPayGateFlags() {
+        guard canPresentSessionUI, !isUITest, model.didCompleteBootstrap else { return }
         let userDefaults = UserDefaults.stepsTrader()
         
         // Check if flags set to show PayGate (only set by notification intent)
@@ -821,7 +811,7 @@ private struct StepsTraderProductionRoot: View {
     /// caller can suppress other same-session prompts (feature tips).
     @discardableResult
     private func requestAppReviewIfNeeded() -> Bool {
-        guard hasCompletedOnboarding, !isUITest else { return false }
+        guard canPresentSessionUI, !isUITest else { return false }
         // `appLaunchCount` is incremented exactly once per process launch in `init()`.
         // Use `>= 3` (not strict equality) plus a one-shot `hasRequestedReview` flag so
         // users coming from earlier buggy builds with inflated counts (10–30) still see
@@ -830,6 +820,10 @@ private struct StepsTraderProductionRoot: View {
         hasRequestedReview = true
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, canPresentSessionUI else {
+                hasRequestedReview = false
+                return
+            }
             requestReview()
         }
         return true
@@ -843,10 +837,7 @@ private struct StepsTraderProductionRoot: View {
     /// all at once. The caller guarantees this never runs in the same session as
     /// the App Store review prompt.
     private func presentFeatureTipIfNeeded() {
-        #if DEBUG
-        guard !DebugCanvasTour.shared.isActive else { return }
-        #endif
-        guard hasCompletedOnboarding, !isUITest else { return }
+        guard canPresentSessionUI, !isUITest else { return }
         guard !hasPresentedFeatureTipThisSession, activeFeatureTip == nil else { return }
         for tip in FeatureTip.orderedByPriority where tip.isEligible(launchCount: appLaunchCount) {
             hasPresentedFeatureTipThisSession = true
@@ -856,34 +847,16 @@ private struct StepsTraderProductionRoot: View {
             // so a tip can't be consumed invisibly.
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(1))
-                #if DEBUG
-                guard !DebugCanvasTour.shared.isActive else {
+                guard !Task.isCancelled, canPresentSessionUI else {
                     hasPresentedFeatureTipThisSession = false
                     return
                 }
-                #endif
                 tip.markSeen()
                 activeFeatureTip = tip
             }
             return
         }
     }
-
-    /// Migrates the legacy 4-flag onboarding state (`hasSeenIntro_v3`,
-    /// `hasSeenEnergySetup_v1`, `hasCompletedOnboarding_v1`,
-    /// `hasMigratedOnboarding_v1`) into the single `onboarding_state_v1` int.
-    /// Idempotent and cheap — runs on every `.onAppear` and no-ops once migrated.
-    private func migrateOnboardingStateIfNeeded() {
-        guard onboardingStateRaw == OnboardingState.notStarted.rawValue else { return }
-        let defaults = UserDefaults.standard
-        let legacyComplete = defaults.bool(forKey: "hasCompletedOnboarding_v1")
-        let legacyIntro = defaults.bool(forKey: "hasSeenIntro_v3")
-        let legacyEnergy = defaults.bool(forKey: "hasSeenEnergySetup_v1")
-        if legacyComplete || (legacyIntro && legacyEnergy) {
-            onboardingStateRaw = OnboardingState.completed.rawValue
-        }
-    }
-
 }
 
 #if DEBUG
