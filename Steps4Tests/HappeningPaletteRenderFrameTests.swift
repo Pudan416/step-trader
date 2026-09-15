@@ -118,6 +118,20 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(actor.gpuActor.halfSize.y, Float(source.radius / 390) * silhouette.aspect, accuracy: 0.0001)
     }
 
+    func testSharedModeGeometryReachesRendererWithoutASecondSizeAnimation() throws {
+        var initial = makePresentation(stateForFirstSlot: .available)
+        initial.usesSharedGeometry = true
+        var updated = makePresentation(stateForFirstSlot: .available,
+            firstSourceOffset: CGSize(width: 64, height: 32), firstSourceRadiusDelta: 16)
+        updated.usesSharedGeometry = true
+        var timeline = HappeningPaletteTransitionTimeline()
+        timeline.update(to: initial, elapsed: 0)
+        timeline.update(to: updated, elapsed: 1)
+        let sampled = try slot(for: "h0", in: timeline.sample(at: 1))
+        XCTAssertEqual(sampled.source, updated.slots[0].source)
+        XCTAssertFalse(timeline.hasActiveTransitions(at: 1))
+    }
+
     func testTransitionInterpolatesShapeButKeepsItsCenterAttachedToTheLabel() {
         let initial = makePresentation(stateForFirstSlot: .available)
         let updated = makePresentation(

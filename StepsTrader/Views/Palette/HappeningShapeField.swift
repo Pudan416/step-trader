@@ -15,7 +15,7 @@ struct HappeningShapeField: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(happenings.enumerated()), id: \.element.id) { index, happening in
-                if index < layout.sources.count {
+                if index < layout.sources.count, layout.sources[index].appearanceScale > 0.001 {
                     happeningButton(happening, source: layout.sources[index])
                 }
             }
@@ -28,7 +28,7 @@ struct HappeningShapeField: View {
     ) -> some View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
         let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
-        let side = max(44, source.radius * 2)
+        let side = max(44, source.radius * 2 / max(0.001, source.appearanceScale))
         let ink = labelInks[happening.id] ?? .dark
 
         return ZStack {
@@ -78,6 +78,7 @@ struct HappeningShapeField: View {
             }
         }
         .frame(width: side, height: side)
+        .scaleEffect(source.appearanceScale)
         .position(source.center)
     }
 

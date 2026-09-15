@@ -1593,8 +1593,8 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
         XCTAssertNotEqual(original.material.colors, rerolled.material.colors)
     }
 
-    /// Catches a regression back to irregular or loosely spaced templates.
-    func testTenItemsUseTouchingThreeTwoThreeTwoRows() {
+    /// Frequent preserves its staggered rhythm with visible separation.
+    func testTenItemsUseSeparatedThreeTwoThreeTwoRows() {
         let layout = HappeningFieldLayout.layout(
             count: 10,
             in: CGSize(width: 402, height: 874),
@@ -1612,8 +1612,7 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
             let ordered = row.sorted { $0.center.x < $1.center.x }
             for pair in zip(ordered, ordered.dropFirst()) {
                 let gap = pair.1.center.x - pair.0.center.x - pair.0.radius - pair.1.radius
-                XCTAssertGreaterThanOrEqual(gap, -0.01)
-                XCTAssertLessThanOrEqual(gap, 0.5)
+                XCTAssertEqual(gap, 8, accuracy: 0.01)
             }
         }
     }
@@ -1645,6 +1644,17 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
 
 
 final class HappeningScrollableFieldTests: XCTestCase {
+    func testFrequentCirclesHaveAtLeastEightPointsOfBreathingRoom() {
+        let layout = HappeningFieldLayout.layout(count: 10, in: CGSize(width: 390, height: 844),
+            safeInsets: EdgeInsets(), contentTopInset: 170, dockCenterY: 770)
+        for (index, source) in layout.sources.enumerated() {
+            for other in layout.sources.dropFirst(index + 1) {
+                XCTAssertGreaterThanOrEqual(hypot(source.center.x - other.center.x, source.center.y - other.center.y)
+                    - source.radius - other.radius, 7.99)
+            }
+        }
+    }
+
     func testSevenStaggeredRowsAreCenteredInTheirScrollableSpace() {
         let viewport = CGSize(width: 390, height: 844)
         let layout = HappeningFieldLayout.layout(count: 31, in: viewport, safeInsets: EdgeInsets(), contentTopInset: 170)
@@ -1723,4 +1733,54 @@ private struct HappeningScrollArtworkProbe: UIViewRepresentable {
     let view: UIView
     func makeUIView(context: Context) -> UIView { view }
     func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+final class HappeningFieldExpansionTests: XCTestCase {
+    func testExpansionRetainsTenIdentitiesAndRevealsEveryOtherSlotAroundThem() {
+        let viewport = CGSize(width: 390, height: 844)
+        let compact = HappeningFieldLayout.layout(count: 10, in: viewport, safeInsets: EdgeInsets())
+        let expanded = HappeningFieldLayout.layout(count: 31, in: viewport, safeInsets: EdgeInsets())
+        let start = HappeningFieldExpansion.layout(compact: compact, expanded: expanded, viewport: viewport, progress: 0)
+        let middle = HappeningFieldExpansion.layout(compact: compact, expanded: expanded, viewport: viewport, progress: 0.45)
+        let end = HappeningFieldExpansion.layout(compact: compact, expanded: expanded, viewport: viewport, progress: 1)
+        XCTAssertEqual(start.sources.filter { $0.appearanceScale > 0 }.count, 10)
+        XCTAssertEqual(end.sources.filter { $0.appearanceScale == 1 }.count, 31)
+        XCTAssertEqual(start.contentSize, end.contentSize)
+        XCTAssertEqual(end.sources.map { $0.center.x + $0.center.y * 10000 }.sorted(), expanded.sources.map { $0.center.x + $0.center.y * 10000 }.sorted())
+        XCTAssertEqual(Array(end.sources.prefix(10)).map(\.index), Array(0..<10))
+        XCTAssertTrue(middle.sources.dropFirst(10).allSatisfy { $0.appearanceScale > 0 && $0.appearanceScale < 1.05 })
+        for index in 0..<10 {
+            XCTAssertEqual(start.sources[index].radius, compact.sources[index].radius)
+        }
+        let homeBounds = end.sources.prefix(10).map { $0.center.y }
+        XCTAssertGreaterThan(homeBounds.min()!, end.sources.map { $0.center.y }.min()!)
+        XCTAssertLessThan(homeBounds.max()!, end.sources.map { $0.center.y }.max()!)
+    }
+
+    func testInflatingBalloonsNeverOverlapTheirVisibleNeighbors() {
+        let viewport = CGSize(width: 390, height: 844)
+        let compact = HappeningFieldLayout.layout(count: 10, in: viewport, safeInsets: EdgeInsets())
+        let expanded = HappeningFieldLayout.layout(count: 31, in: viewport, safeInsets: EdgeInsets())
+        for frame in 0...30 {
+            let layout = HappeningFieldExpansion.layout(compact: compact, expanded: expanded,
+                viewport: viewport, progress: CGFloat(frame) / 30)
+            let visible = layout.sources.filter { $0.appearanceScale > 0.001 }
+            for (index, source) in visible.enumerated() {
+                for neighbor in visible.dropFirst(index + 1) {
+                    XCTAssertGreaterThanOrEqual(hypot(source.center.x - neighbor.center.x, source.center.y - neighbor.center.y)
+                        - source.radius - neighbor.radius, 7.99)
+                }
+            }
+        }
+    }
+
+    func testRapidReversalStartsAtCurrentFrameAndEndsExactlyAtFrequent() {
+        let date = Date(timeIntervalSinceReferenceDate: 100)
+        let opening = HappeningFieldModeTransition(from: 0, to: 1, startedAt: date)
+        let mid = opening.value(at: date.addingTimeInterval(0.2))
+        let closing = HappeningFieldModeTransition(from: mid, to: 0, startedAt: date.addingTimeInterval(0.2))
+        XCTAssertEqual(closing.value(at: date.addingTimeInterval(0.2)), mid)
+        XCTAssertEqual(closing.value(at: date.addingTimeInterval(2)), 0)
+        XCTAssertEqual(opening.value(at: date.addingTimeInterval(2)), 1)
+    }
 }

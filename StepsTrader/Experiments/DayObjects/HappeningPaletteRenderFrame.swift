@@ -14,6 +14,7 @@ struct HappeningPaletteRenderPresentation: Equatable {
     let reduceMotion: Bool
     let isTransitionActive: Bool
     let backgroundRevision: UInt64
+    var usesSharedGeometry: Bool = false
 }
 
 enum DayObjectsPresentationMode: Equatable {
@@ -125,7 +126,8 @@ struct HappeningPaletteTransitionTimeline {
             if destinationChanged(
                 from: currentSlots[slot.happeningID],
                 to: slot,
-                reduceMotionChanged: presentation.reduceMotion != next.reduceMotion
+                reduceMotionChanged: presentation.reduceMotion != next.reduceMotion,
+                usesSharedGeometry: next.usesSharedGeometry
             ), let current = existingByID[slot.happeningID] {
                 nextTransitions[slot.happeningID] = Transition(
                     prior: PriorSlot(
@@ -192,7 +194,7 @@ struct HappeningPaletteTransitionTimeline {
             return .init(
                 happeningID: slot.happeningID,
                 assignment: slot.assignment,
-                source: interpolatedSource(from: prior.source, to: slot.source, progress: smoothProgress),
+                source: presentation.usesSharedGeometry ? slot.source : interpolatedSource(from: prior.source, to: slot.source, progress: smoothProgress),
                 controls: prior.controls.interpolated(to: target, progress: smoothProgress)
             )
         })
@@ -201,12 +203,13 @@ struct HappeningPaletteTransitionTimeline {
     private func destinationChanged(
         from current: HappeningPaletteRenderSlot?,
         to next: HappeningPaletteRenderSlot,
-        reduceMotionChanged: Bool
+        reduceMotionChanged: Bool,
+        usesSharedGeometry: Bool
     ) -> Bool {
         guard let current else { return false }
         return reduceMotionChanged
             || current.assignment != next.assignment
-            || current.source.radius != next.source.radius
+            || (!usesSharedGeometry && current.source.radius != next.source.radius)
             || HappeningPaletteRenderControls.target(for: current.visualState)
                 != HappeningPaletteRenderControls.target(for: next.visualState)
     }

@@ -822,7 +822,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
     }
 
     func testFrequentDefaultsIncludeHealthAndSwitchBackFromAll() throws {
-        let app = launchTask7App()
+        let app = launchTask7App(resetEditor: true)
         openPalette(in: app, all: false)
         let frequent = app.buttons["happening_mode_frequent"]
         let all = app.buttons["happening_mode_all"]
@@ -836,7 +836,8 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "happenings-frequent-health")
         all.tap()
         XCTAssertTrue(all.isSelected)
-        XCTAssertEqual(choices.count, 31)
+        XCTAssertTrue(waitForChoiceCount(31, in: app))
+        Thread.sleep(forTimeInterval: 0.7)
         attachScreenshot(named: "happenings-all-with-switch")
         let field = app.scrollViews["happening_field_scroll"]
         let switchFrame = all.frame
@@ -844,8 +845,9 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.4)))
         XCTAssertEqual(all.frame, switchFrame)
         frequent.tap()
-        XCTAssertEqual(choices.count, 10)
+        XCTAssertTrue(waitForChoiceCount(10, in: app))
         XCTAssertEqual(choices.allElementsBoundByIndex.map(\.frame), initialFrames)
+        attachScreenshot(named: "happenings-frequent-returned")
         all.tap()
         app.buttons["Close"].tap()
         openPalette(in: app, all: false)
@@ -896,7 +898,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.buttons["happening_mode_all"].tap()
         XCTAssertTrue(app.buttons["happening_mode_all"].isSelected)
         app.buttons["happening_mode_frequent"].tap()
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'" )).count, 10)
+        XCTAssertTrue(waitForChoiceCount(10, in: app))
     }
 
     func testHappeningCanvasPixelsStayFixedWhileTargetsPan() throws {
@@ -1018,6 +1020,13 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.5)
         attachScreenshot(named: "happenings-field-large-type")
         XCTAssertTrue(app.buttons["Close"].isHittable)
+    }
+
+    private func waitForChoiceCount(_ count: Int, in app: XCUIApplication) -> Bool {
+        let predicate = NSPredicate { _, _ in
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'" )).count == count
+        }
+        return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: nil)], timeout: 3) == .completed
     }
 
     private func launchTask7App(

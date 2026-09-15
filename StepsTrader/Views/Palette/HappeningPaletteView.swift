@@ -101,6 +101,9 @@ struct HappeningPaletteView: View {
     let catalog: [Happening]
     let selectedIDs: [String]
     let artwork: AnyView
+    let compactLayout: HappeningFieldLayout.Layout?
+    let artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)?
+    @State private var modeTransition: HappeningFieldModeTransition?
     @Binding var activePanel: HappeningPalettePanel?
     let layout: HappeningFieldLayout.Layout
     let mode: HappeningPaletteMode
@@ -127,6 +130,8 @@ struct HappeningPaletteView: View {
         artwork: AnyView = AnyView(Color.clear),
         layout: HappeningFieldLayout.Layout,
         mode: HappeningPaletteMode = .all,
+        compactLayout: HappeningFieldLayout.Layout? = nil,
+        artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)? = nil,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
         fixedIDs: Set<String> = [],
@@ -144,6 +149,8 @@ struct HappeningPaletteView: View {
         self.catalog = catalog ?? happenings
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         self.artwork = artwork
+        self.compactLayout = compactLayout
+        self.artworkForLayout = artworkForLayout
         _activePanel = activePanel
         self.layout = layout
         self.mode = mode
@@ -162,34 +169,66 @@ struct HappeningPaletteView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                    // One scroll-content transform moves the Metal surface and
-                    // labels together, without forwarding offsets through SwiftUI.
-                    ZStack(alignment: .topLeading) {
-                        artwork
-                            .accessibilityHidden(true)
-                            .allowsHitTesting(false)
-                        HappeningShapeField(
-                            happenings: happenings,
-                            assignments: assignments,
-                            layout: layout,
-                            interaction: interaction,
-                            addedIDs: addedIDs,
-                            onActivate: onActivate,
-                            labelInks: labelInks
-                        )
+                ScrollViewReader { scroll in
+                    ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: modeTransition == nil)) { context in
+                            let progress = modeTransition?.value(at: context.date) ?? (mode == .all ? 1 : 0)
+                            let displayed = compactLayout.map {
+                                HappeningFieldExpansion.layout(compact: $0, expanded: layout, viewport: proxy.size, progress: progress)
+                            } ?? layout
+                            ZStack(alignment: .topLeading) {
+                                (artworkForLayout?(displayed, modeTransition != nil) ?? artwork)
+                                    .accessibilityHidden(true)
+                                    .allowsHitTesting(false)
+                                HappeningShapeField(
+                                    happenings: happenings, assignments: assignments, layout: displayed,
+                                    interaction: interaction, addedIDs: addedIDs,
+                                    onActivate: onActivate, labelInks: labelInks
+                                )
+                                if let compactLayout {
+                                    let compactHeight = max(proxy.size.height, compactLayout.contentSize.height)
+                                    Color.clear.frame(width: proxy.size.width, height: proxy.size.height)
+                                        .id(HappeningPaletteMode.frequent.rawValue)
+                                        .position(x: displayed.contentSize.width / 2,
+                                            y: (displayed.contentSize.height - compactHeight + proxy.size.height) / 2)
+                                        .allowsHitTesting(false).accessibilityHidden(true)
+                                    Color.clear.frame(width: proxy.size.width, height: proxy.size.height)
+                                        .id(HappeningPaletteMode.all.rawValue)
+                                        .position(x: displayed.contentSize.width / 2, y: displayed.contentSize.height / 2)
+                                        .allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
+                            .frame(width: max(proxy.size.width, displayed.contentSize.width),
+                                   height: max(proxy.size.height, displayed.contentSize.height))
+                            .transaction { $0.animation = nil }
+                        }
                     }
-                    .frame(
-                        width: max(proxy.size.width, layout.contentSize.width),
-                        height: max(proxy.size.height, layout.contentSize.height)
-                    )
+                    .defaultScrollAnchor(mode == .frequent && (compactLayout?.contentSize.height ?? 0) > proxy.size.height ? .top : .center)
+                    .scrollDisabled(compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .accessibilityIdentifier("happening_field_scroll")
+                    .accessibilityHidden(activePanel != nil)
+                    .allowsHitTesting(activePanel == nil && modeTransition == nil)
+                    .onChange(of: mode) { oldMode, newMode in
+                        guard compactLayout != nil else { return }
+                        let now = Date()
+                        let from = modeTransition?.value(at: now) ?? (oldMode == .all ? 1 : 0)
+                        modeTransition = reduceMotion ? nil : .init(from: from, to: newMode == .all ? 1 : 0, startedAt: now)
+                        if reduceMotion {
+                            scroll.scrollTo(newMode.rawValue, anchor: .center)
+                        } else {
+                            withAnimation(.smooth(duration: HappeningFieldModeTransition.duration)) {
+                                scroll.scrollTo(newMode.rawValue, anchor: .center)
+                            }
+                        }
+                    }
+                    .task(id: mode) {
+                        guard modeTransition != nil else { return }
+                        do { try await Task.sleep(for: .seconds(HappeningFieldModeTransition.duration + 0.05)) }
+                        catch { return }
+                        modeTransition = nil
+                    }
                 }
-                .defaultScrollAnchor(mode == .all ? .center : .top)
-                .id(mode)
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .accessibilityIdentifier("happening_field_scroll")
-                .accessibilityHidden(activePanel != nil)
-                .allowsHitTesting(activePanel == nil)
 
                 // Actions live on the selected object. Keep only failures here;
                 // the full state announcements remain available to VoiceOver.
