@@ -907,6 +907,17 @@ struct GalleryView: View {
                 }
             }
             .frame(width: viewport.size.width, height: viewport.size.height)
+            // A native backdrop can sample CAMetalLayer; SwiftUI's raster blur cannot.
+            .overlay {
+                if showHappeningPalette {
+                    HappeningCanvasBackdropBlur()
+                        .opacity(0.5)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: showHappeningPalette)
             // Labels and Metal share this exact viewport, including safe areas.
             // An overlay outside canvasLayers inherits a different screen origin.
             .overlay {
@@ -2523,4 +2534,17 @@ struct SuggestionBannerHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
+}
+
+
+/// Subtle backdrop blur below the picker, including live Metal canvas content.
+private struct HappeningCanvasBackdropBlur: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+
 }
