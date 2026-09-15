@@ -1071,6 +1071,40 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
     }
 }
 final class NativeAtlasRecipeTests: XCTestCase {
+    @MainActor
+    func testNoirNativeCanvasRendersFourMonochromeVariations() async throws {
+        for (day, damage) in (15...18).flatMap({ day in [Float(0), 1].map { (day, $0) } }) {
+            let key = "2026-09-\(day)"
+            let ids = ["noir-one", "noir-two", "noir-three"]
+            var recipe = NativeAtlasRecipe.make(dayKey: key, paletteCategories: [.noir]).reconciled(eventIDs: ids)
+            recipe.glitchType = 1 // RGB separation must also respect Noir.
+            recipe.glitchStrength = damage
+            let input = DayObjectSceneInput(dayKey: key, identity: "primary-canvas", eventIDs: ids,
+                motionEnergy: 0.5, visualClarity: 1, paletteCategories: [.noir],
+                usesEditorialField: true, nativeAtlasRecipe: recipe)
+            let scene = DayObjectScene.make(input: input)
+            DayObjectsRenderer.prepareResources()
+            let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: scene, environment: .init(motionEnergy: 0.5, visualClarity: 1)))
+            let rendered: UIImage? = await withCheckedContinuation { continuation in
+                renderer.renderOffscreen(size: CGSize(width: 300, height: 500), pointScale: 1, elapsedTime: 4) { texture, _ in
+                    continuation.resume(returning: texture.flatMap { DayObjectsImageRenderer.makeImage(texture: $0, scale: 1) })
+                }
+            }
+            let image = try XCTUnwrap(rendered)
+            let values = try pixels(image)
+            var maximumChroma = 0.0
+            for i in stride(from: 0, to: values.count, by: 4) {
+                let rgb = DayObjectRGB(sRGB: SIMD3(Float(values[i]), Float(values[i + 1]), Float(values[i + 2])))
+                let lab = rgb.perceptualOKLab
+                maximumChroma = max(maximumChroma, Double(sqrt(lab.y * lab.y + lab.z * lab.z)))
+            }
+            // Paper and Silver retain a slight warm/cool tint, including through translucent actors.
+            XCTAssertLessThan(maximumChroma, 0.08, "Noir must retain low perceptual chroma, including grain and digital damage")
+            let attachment = XCTAttachment(image: image)
+            attachment.name = "Noir-\(key)-damage-\(damage)"; attachment.lifetime = .keepAlways; add(attachment)
+        }
+    }
+
     func testCanvasGenerationAndRestorationNeverChooseSunset() {
         let ids = (0..<10).map { "event-\($0)" }
         for day in 0..<200 {
@@ -1256,7 +1290,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
 
         updated.artworkRecipe?.locks.insert("artwork")
         XCTAssertTrue(storage.saveCanvas(updated))
-        draft.categories = ModernPaletteSelection.encode([.winter])
+        draft.categories = ModernPaletteSelection.encode([.cold])
         draft.apply(to: defaults, shared: nil, dayKey: today)
         let locked = try XCTUnwrap(storage.loadCanvas(for: today))
         XCTAssertEqual(locked.artworkRecipe, updated.artworkRecipe)

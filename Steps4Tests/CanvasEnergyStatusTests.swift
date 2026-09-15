@@ -159,3 +159,52 @@ final class CanvasHintLayoutTests: XCTestCase {
         }
     }
 }
+
+final class NoirPaletteTests: XCTestCase {
+    func testRemovedSeasonalPreferencesKeepRemainingChoicesAndRecoverEmptySelection() {
+        XCTAssertEqual(ModernPaletteSelection.decode("pastel,spring,winter"), [.pastel])
+        XCTAssertEqual(ModernPaletteSelection.decode("spring,summer,fall,winter"), ModernPaletteSelection.all)
+        let oldAll = "pastel,vintage,retro,neon,warm,cold,spring,summer,fall,winter"
+        XCTAssertEqual(ModernPaletteSelection.decode(oldAll), ModernPaletteSelection.all)
+        XCTAssertEqual(ModernPaletteSelection.encode(Set(ModernPaletteCategory.legacyCases)), "")
+    }
+
+    func testNoirSelectionHasFourPalettesAndDoesNotExpandToAll() throws {
+        let noir = try XCTUnwrap(ModernPaletteCategory(rawValue: "noir"))
+        let selected = ModernPaletteSelection.decode("noir")
+        XCTAssertEqual(selected, [noir])
+        let palettes = ModernPaletteCatalog.palettes(matching: selected)
+        XCTAssertEqual(palettes.count, 4)
+        for palette in palettes {
+            for color in palette.hexes.map(DayObjectRGB.init(hex:)) {
+                let lab = color.perceptualOKLab
+                XCTAssertLessThan(sqrt(lab.y * lab.y + lab.z * lab.z), 0.035)
+            }
+        }
+    }
+
+    func testNoirBackgroundSurvivesSavingAndDoesNotLeakIntoArchivedRecipes() throws {
+        let noir = try XCTUnwrap(ModernPaletteCategory(rawValue: "noir"))
+        let recipe = NativeAtlasRecipe.make(dayKey: "2026-09-15", paletteCategories: [noir])
+        XCTAssertEqual(recipe.backgroundStyle?.isNoir, true)
+        let restored = try JSONDecoder().decode(NativeAtlasRecipe.self, from: JSONEncoder().encode(recipe))
+        XCTAssertEqual(restored, recipe)
+        var archived = recipe
+        archived.backgroundStyle = nil
+        let oldStyle = archived.resolvedBackgroundStyle(dayKey: "2026-09-15")
+        XCTAssertNil(oldStyle.isNoir)
+        let originalColors = ["5F8B4C", "FFDDAB", "FF9A9A", "945034"].map { DayObjectRGB(hex: $0).linearRGB }
+        XCTAssertTrue(oldStyle.colors.allSatisfy(originalColors.contains), "Historical fallback must retain the original daily palette")
+    }
+
+    func testGrayArtworkKeepsEveryInterfaceTokenAchromaticAndReadable() {
+        let chrome = CanvasChromePalette.resolve(backgroundColors:
+            ["111111", "505050", "BDBDBD", "F5F5F5"].map(DayObjectRGB.init(hex:)))
+        for color in [chrome.surface, chrome.textPrimary, chrome.textSecondary,
+                      chrome.accent, chrome.onAccent, chrome.track, chrome.earned] {
+            XCTAssertEqual(color.sRGB.x, color.sRGB.y, accuracy: 0.0001)
+            XCTAssertEqual(color.sRGB.y, color.sRGB.z, accuracy: 0.0001)
+        }
+        XCTAssertGreaterThanOrEqual(contrastRatio(chrome.accent.linearRGB, chrome.surface.linearRGB), 7)
+    }
+}

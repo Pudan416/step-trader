@@ -95,7 +95,7 @@ final class NativeAtlasMetalRenderer {
             let eligible: Set<UInt32> = [0, 1, 4, 5, 6, 7]
             let aspect = Float(w) / Float(h), pose = actor.gpuActor
             let center = SIMD2(0.5 + pose.position.x / max(aspect, 1), 0.5 - pose.position.y / max(1 / aspect, 1))
-            let saturation = pose.presentationSaturation
+            let saturation: Float = scene.meshGradientStyle.isNoir == true ? 0 : pose.presentationSaturation
             let placement: [SIMD4<Float>] = [
                 SIMD4(center.x, center.y, pose.halfSize.x * 2.72, spec.rotation),
                 SIMD4(Float(w), Float(h), pose.opacity, eligible.contains(material.materialIndex) ? 1 : 0),
@@ -118,7 +118,7 @@ final class NativeAtlasMetalRenderer {
         var effect = SIMD4<Float>(damage, Float(recipe.glitchType), Float(seed & 65535) / 65535, Float((seed >> 16) & 65535) / 65535)
         encoder.setFragmentBytes(&effect, length: 16, index: 0)
         var post = DayObjectsPostUniforms(frame: frame, scene: scene, resolution: SIMD2(Float(output.width), Float(output.height)), pointToPixelScale: pointToPixelScale)
-        var focus = SIMD4<Float>(post.blurRadiusPixels / Float(max(output.width, output.height)), 0, 0, 0)
+        var focus = SIMD4<Float>(post.blurRadiusPixels / Float(max(output.width, output.height)), scene.meshGradientStyle.isNoir == true ? 1 : 0, 0, 0)
         encoder.setFragmentBytes(&focus, length: 16, index: 1)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); encoder.endEncoding()
         let finalPass = MTLRenderPassDescriptor()
