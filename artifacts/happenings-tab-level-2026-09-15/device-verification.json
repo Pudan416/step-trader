@@ -1,0 +1,70 @@
+{
+  "builtRevision": "95c698d9ba76066c0472580aa726fccc99b86e62",
+  "branch": "codex/happenings-field",
+  "signedApp": "/private/tmp/nowhere-happenings-stationary-device-dd/Build/Products/Debug-iphoneos/Nowhere.app",
+  "sourceMirrorMatchesTrackedFiles": 1164,
+  "strictSignatures": "passed",
+  "extensions": [
+    "DeviceActivityMonitor.appex",
+    "ShieldAction.appex",
+    "ShieldConfiguration.appex",
+    "UnlockWidgetExtension.appex"
+  ],
+  "fonts": 11,
+  "gateImagesMatching": 21,
+  "audioFiles": 122,
+  "resources": "passed",
+  "installationScope": "User-requested feature build; no integration publication.",
+  "physicalDeviceVisualVerification": "not performed; automated regression checks used simulator",
+  "uiVerification": {
+    "status": "passed subsequently on three simulator models",
+    "successfulUITests": 6,
+    "report": "../happenings-multiphone-2026-09-15/README.md"
+  },
+  "installation": {
+    "outcome": "success",
+    "revision": "95c698d9ba76066c0472580aa726fccc99b86e62",
+    "transport": "Wi-Fi",
+    "application": {
+      "bundleID": "personal-project.StepsTrader",
+      "databaseSequenceNumber": 5508,
+      "databaseUUID": "032ADD01-E900-435A-8C63-40156A0DB1FA",
+      "installationURL": "file:///private/var/containers/Bundle/Application/0BDABCB2-4C81-47B1-8345-D5C1A9B69D8D/Nowhere.app/",
+      "launchServicesIdentifier": "unknown",
+      "options": {}
+    }
+  },
+  "launch": {
+    "outcome": "success",
+    "result": {
+      "deviceIdentifier": "43B6B950-DBCA-50C3-AE14-FBD518808E3B",
+      "launchOptions": {
+        "activatedWhenStarted": true,
+        "arguments": [],
+        "environmentVariables": {
+          "TERM": "dumb"
+        },
+        "platformSpecificOptions": {},
+        "startStopped": false,
+        "terminateExistingInstances": true,
+        "user": {
+          "active": true
+        }
+      },
+      "process": {
+        "auditToken": [
+          4294967295,
+          501,
+          501,
+          501,
+          501,
+          69675,
+          0,
+          198433
+        ],
+        "executable": "file:///private/var/containers/Bundle/Application/0BDABCB2-4C81-47B1-8345-D5C1A9B69D8D/Nowhere.app/Nowhere",
+        "processIdentifier": 69675
+      }
+    }
+  }
+}

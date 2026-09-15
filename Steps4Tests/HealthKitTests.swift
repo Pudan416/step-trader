@@ -225,7 +225,8 @@ final class HealthActivitySuggestionTests: XCTestCase {
         let suggestion = try XCTUnwrap(ActivitySuggestion.fromWorkout(workout))
 
         try model.happeningPaletteSelectionStore.save(
-            HappeningDefaults.builtIns.map(\.id), catalog: model.happeningStore.all
+            HappeningDefaults.builtIns.prefix(HappeningPaletteSelection.slotCount).map(\.id),
+            catalog: model.happeningStore.all
         )
         let original = model.selectedPaletteHappeningIDs()
         XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "happening_walk")

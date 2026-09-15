@@ -406,7 +406,9 @@ struct MainTabView: View {
             tabBarHeight = value
         }
         .onPreferenceChange(TabBarCenterYPreferenceKey.self) { value in
-            guard value != tabBarCenterY else { return }
+            // Happenings replaces the tab bar, so retain its measured center
+            // while the bar is absent. A visible bar refreshes it on relayout.
+            guard let value, value > 0, value != tabBarCenterY else { return }
             tabBarCenterY = value
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in

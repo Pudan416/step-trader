@@ -1,0 +1,25 @@
+{
+  "builtRevision": "1d66b829c86e4389946101ebe99d84a809062ab3",
+  "branch": "codex/happenings-field",
+  "signedApp": "/private/tmp/nowhere-happenings-stationary-device-dd/Build/Products/Debug-iphoneos/Nowhere.app",
+  "sourceMirrorMatchesTrackedFiles": 1164,
+  "strictSignatures": "passed",
+  "extensions": [
+    "DeviceActivityMonitor.appex",
+    "ShieldAction.appex",
+    "ShieldConfiguration.appex",
+    "UnlockWidgetExtension.appex"
+  ],
+  "fonts": 11,
+  "gateImagesMatching": 21,
+  "audioFiles": 122,
+  "resources": "passed",
+  "installationScope": "User-requested feature build; no integration publication.",
+  "physicalDeviceVisualVerification": "not performed; automated regression checks used simulator",
+  "installationOutcome": "blocked: CoreDevice error 1011; paired device unavailable over Wi-Fi",
+  "launchOutcome": "not attempted",
+  "deviceName": "iPhone Costa",
+  "transport": "Wi-Fi",
+  "localTime": "2026-09-15T11:44:34.773809+02:00",
+  "installedRevision": null
+}

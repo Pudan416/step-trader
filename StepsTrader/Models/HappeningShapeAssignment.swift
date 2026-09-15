@@ -22,7 +22,8 @@ struct HappeningEditorialAssignment: Equatable {
     let elementID: UUID
     let shape: DayObjectShape
     let material: DayObjectEditorialMaterialV1
-    let colorVariant: Int
+    /// Nil retains the frozen native pigment; zero is a real color rotation.
+    let colorVariant: Int?
     var silhouette: DayObjectSilhouette = .legacy
     /// Exact frozen/prospective Native Atlas parameters used by the live renderer.
     var nativeActor: NativeAtlasRecipe.Actor? = nil
@@ -94,14 +95,16 @@ enum HappeningEditorialAssignmentResolver {
             }
             let elementID = committedElement?.id
                 ?? variedElementID(happeningID: happening.id, request: request, direction: direction)
-            let colorVariant = committedElement?.editorialColorVariant
-                ?? (committedElement == nil
-                    ? colorVariant(
-                        happeningID: happening.id,
-                        dayKey: request.baseInput.dayKey,
-                        nonce: request.colorNonce
-                    )
-                    : 0)
+            let colorVariant: Int?
+            if let committedElement {
+                colorVariant = committedElement.editorialColorVariant
+            } else {
+                colorVariant = Self.colorVariant(
+                    happeningID: happening.id,
+                    dayKey: request.baseInput.dayKey,
+                    nonce: request.colorNonce
+                )
+            }
             let eventID = elementID.uuidString.lowercased()
             let input = prospectiveInput(
                 from: request.baseInput,
@@ -144,13 +147,13 @@ enum HappeningEditorialAssignmentResolver {
     private static func prospectiveInput(
         from baseInput: DayObjectSceneInput,
         eventID: String,
-        colorVariant: Int
+        colorVariant: Int?
     ) -> DayObjectSceneInput {
         var variants = baseInput.actorColorVariants
         variants[eventID] = colorVariant
         let eventIDs = baseInput.eventIDs.contains(eventID)
             ? baseInput.eventIDs
-            : baseInput.eventIDs + [eventID]
+            : Array(baseInput.eventIDs.prefix(DayObjectScene.maxActors - 1)) + [eventID]
         return DayObjectSceneInput(
             dayKey: baseInput.dayKey,
             identity: baseInput.identity,

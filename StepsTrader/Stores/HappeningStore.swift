@@ -1,6 +1,6 @@
 import Foundation
 
-/// Owns the happening catalog: the ten built-ins plus everything the user has
+/// Owns the happening catalog: the thirty built-ins plus everything the user has
 /// created or carried over from the old 31-option set.
 ///
 /// Persisted as one JSON blob in the App Group so the widget and extensions can

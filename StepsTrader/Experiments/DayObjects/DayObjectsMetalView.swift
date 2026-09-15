@@ -22,7 +22,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MTKView {
         let renderer = context.coordinator.renderer
-        let view = MTKView(frame: .zero, device: renderer?.device)
+        let view = DayObjectsDrawableView(frame: .zero, device: renderer?.device)
+        view.autoResizeDrawable = false
         view.delegate = renderer
         DayObjectsRenderer.configureDisplay(view)
         view.framebufferOnly = true
@@ -156,5 +157,23 @@ struct DayObjectsMetalView: UIViewRepresentable {
             renderer.setAnimating(isAnimating)
             renderer.configureAnimation(view)
         }
+    }
+}
+
+
+/// Scroll fields can be much taller than the screen. Keep the drawable within
+/// a conservative Metal texture limit while labels retain native UI resolution.
+final class DayObjectsDrawableView: MTKView {
+    static func displayScale(for size: CGSize, nativeScale: CGFloat) -> CGFloat {
+        min(max(1, nativeScale), 4096 / max(1, max(size.width, size.height)))
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let scale = Self.displayScale(for: bounds.size, nativeScale: traitCollection.displayScale)
+        if contentScaleFactor != scale { contentScaleFactor = scale }
+        let size = CGSize(width: max(1, floor(bounds.width * scale)),
+                          height: max(1, floor(bounds.height * scale)))
+        if drawableSize != size { drawableSize = size }
     }
 }

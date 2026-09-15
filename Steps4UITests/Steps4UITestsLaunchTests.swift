@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class Steps4UITestsLaunchTests: XCTestCase {
 
@@ -534,13 +535,13 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             "Walk",
             "Workout",
             "Slept well",
-            "Called someone",
-            "Drinks together",
+            "Connected",
+            "Time together",
             "Read",
             "Laughed",
             "Made something",
             "Time outside",
-            "Did nothing",
+            "Rested",
         ]
     }
 
@@ -578,6 +579,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
     func testHappeningMenuStatesAndReopening() throws {
         let app = launchTask7App()
         openPalette(in: app)
+        scrollPaletteToStart(in: app)
         let walk = app.buttons["happening_choice_happening_walk"]
         let workout = app.buttons["happening_choice_happening_workout"]
         XCTAssertEqual(walk.value as? String, "Available")
@@ -602,6 +604,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "menu-3-added-color")
         app.buttons["Close"].tap()
         openPalette(in: app)
+        scrollPaletteToStart(in: app)
         XCTAssertEqual(walk.value as? String, "On Canvas")
         XCTAssertEqual(workout.value as? String, "On Canvas")
         walk.tap()
@@ -612,6 +615,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         Thread.sleep(forTimeInterval: 3)
         app.buttons["Close"].tap()
         openPalette(in: app)
+        scrollPaletteToStart(in: app)
         XCTAssertEqual(walk.value as? String, "On Canvas")
         // Leave no additions for a subsequent hosted unit-test launch to recover.
         for id in ["walk", "workout", "slept_well"] {
@@ -625,6 +629,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
     func testHappeningPaletteToggleFlow() throws {
         let app = launchTask7App()
         openPalette(in: app)
+        scrollPaletteToStart(in: app)
         let walk = app.buttons["happening_choice_happening_walk"]
         XCTAssertTrue(walk.waitForExistence(timeout: 5))
         walk.tap()
@@ -648,7 +653,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
     }
 
     private func assertPersistentPaletteChrome(in app: XCUIApplication) {
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")).count, 10)
+        XCTAssertGreaterThanOrEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")).count, 30)
         for id in [
             "walk", "workout", "slept_well", "called_someone", "drinks",
             "read", "laughed", "made_something", "outside", "did_nothing",
@@ -666,6 +671,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
     func testEditorialHappeningPaletteScreenshots() throws {
         let app = launchTask7App()
         openPalette(in: app)
+        scrollPaletteToStart(in: app)
 
         XCTAssertTrue(app.buttons["Walk"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
@@ -693,7 +699,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
             app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")
             ).count,
-            10
+            31
         )
         XCTAssertTrue(app.buttons["Choose happenings"].isHittable)
         XCTAssertTrue(app.buttons["Close"].isHittable)
@@ -711,7 +717,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         assertPersistentPaletteChrome(in: app)
     }
 
-    func testHappeningPaletteAccessibilityKeepsFixedRows() throws {
+    func testHappeningPaletteAccessibilityKeepsReadableScrollableRows() throws {
         let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true)
         openPalette(in: app)
         assertPersistentPaletteChrome(in: app)
@@ -720,19 +726,17 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         ).allElementsBoundByIndex
         let rows = Dictionary(grouping: slots) { round($0.frame.midY) }
             .sorted { $0.key < $1.key }.map { $0.value.count }
-        XCTAssertEqual(rows, [3, 2, 3, 2])
+        XCTAssertEqual(rows, [4, 5, 4, 5, 4, 5, 4])
         for slot in slots {
-            XCTAssertTrue(slot.isHittable)
             XCTAssertGreaterThanOrEqual(slot.frame.width, 44)
             XCTAssertGreaterThanOrEqual(slot.frame.height, 44)
-            XCTAssertTrue(app.frame.contains(slot.frame))
         }
-        attachScreenshot(named: "editorial-palette-accessibility5-fixed-rows")
+        attachScreenshot(named: "editorial-palette-accessibility5-scrollable-rows")
     }
 
     func testHappeningEditorReplacementCreationAndCancellation() throws {
         let app = launchTask7App(resetEditor: true)
-        openPalette(in: app)
+        openPalette(in: app, all: false)
         let walk = app.buttons["happening_choice_happening_walk"]
         walk.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         walk.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
@@ -740,14 +744,14 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.buttons["Choose happenings"].tap()
         let rootWalk = app.buttons["happening_editor_row_happening_walk"]
         XCTAssertTrue(rootWalk.waitForExistence(timeout: 5))
-        XCTAssertTrue(rootWalk.staticTexts["On Canvas"].exists)
+        XCTAssertTrue(rootWalk.staticTexts["Health"].exists)
         XCTAssertFalse(app.buttons["Close"].isHittable)
         attachScreenshot(named: "happening-editor-list")
         rootWalk.tap()
-        XCTAssertTrue(app.alerts["Already on Canvas"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.alerts["Health happenings stay in Frequent"].waitForExistence(timeout: 3))
         app.alerts.buttons["OK"].tap()
-        app.buttons["happening_editor_row_happening_workout"].tap()
-        // No saved alternatives: naming opens directly, without an empty search screen.
+        app.buttons["happening_editor_row_happening_called_someone"].tap()
+        app.buttons["happening_editor_new"].tap()
         let name = app.textFields["happening_editor_name"]
         XCTAssertTrue(name.waitForExistence(timeout: 3))
         name.tap()
@@ -757,7 +761,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         app.buttons["happening_editor_done"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertTrue(app.buttons["Tea break"].waitForExistence(timeout: 5))
         XCTAssertEqual(walk.value as? String, "On Canvas")
-        XCTAssertFalse(app.buttons["Workout"].exists)
+        XCTAssertFalse(app.buttons["Connected"].exists)
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_' ")).count, 10)
 
         app.buttons["Choose happenings"].tap()
@@ -771,25 +775,28 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         search.typeText("zzzz")
         XCTAssertTrue(app.staticTexts["No matches"].exists)
         app.buttons["Clear search"].tap()
-        app.buttons["happening_replacement_happening_workout"].tap()
-        XCTAssertTrue(app.buttons["happening_editor_row_happening_workout"].waitForExistence(timeout: 3))
+        app.buttons["happening_replacement_happening_called_someone"].tap()
+        XCTAssertTrue(app.buttons["happening_editor_row_happening_called_someone"].waitForExistence(timeout: 3))
         app.buttons["happening_editor_back"].tap()
         XCTAssertTrue(app.buttons["Tea break"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Workout"].exists)
+        XCTAssertFalse(app.buttons["Connected"].exists)
 
         app.buttons["Choose happenings"].tap()
         XCTAssertTrue(tea.waitForExistence(timeout: 5))
         tea.tap()
-        app.buttons["happening_replacement_happening_workout"].tap()
+        app.buttons["happening_replacement_happening_called_someone"].tap()
         app.buttons["happening_editor_done"].tap()
-        XCTAssertTrue(app.buttons["Workout"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Connected"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Tea break"].exists)
         XCTAssertEqual(walk.value as? String, "On Canvas")
+        walk.tap()
+        walk.tap()
+        app.buttons["Close"].tap()
     }
 
     func testHappeningEditorLargeTextKeepsActionsReachable() throws {
         let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true, resetEditor: true)
-        openPalette(in: app)
+        openPalette(in: app, all: false)
         app.buttons["Choose happenings"].tap()
         let done = app.buttons["happening_editor_done"]
         XCTAssertTrue(done.waitForExistence(timeout: 5))
@@ -797,7 +804,12 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(app.frame.contains(done.frame))
         XCTAssertTrue(app.buttons["happening_editor_back"].isHittable)
         attachScreenshot(named: "happening-editor-large-text")
-        app.buttons["happening_editor_row_happening_walk"].tap()
+        let connected = app.buttons["happening_editor_row_happening_called_someone"]
+        for _ in 0..<5 where !connected.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        connected.tap()
+        let newHappening = app.buttons["happening_editor_new"]
+        for _ in 0..<5 where !newHappening.isHittable { app.scrollViews.firstMatch.swipeDown() }
+        newHappening.tap()
         let name = app.textFields["happening_editor_name"]
         XCTAssertTrue(name.waitForExistence(timeout: 3))
         name.tap()
@@ -807,6 +819,256 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         attachScreenshot(named: "happening-editor-large-text-keyboard")
         done.tap()
         XCTAssertTrue(app.buttons["Tea"].waitForExistence(timeout: 5))
+    }
+
+    func testAllShrinksEdgeChoicesAndRestoresThemNearCenter() throws {
+        let app = launchTask7App(resetEditor: true)
+        openPalette(in: app)
+        XCTAssertTrue(waitForChoiceCount(31, in: app))
+        Thread.sleep(forTimeInterval: 0.7)
+        let field = app.scrollViews["happening_field_scroll"]
+        let centered = app.buttons["happening_choice_happening_read"]
+        XCTAssertTrue(centered.waitForExistence(timeout: 3))
+        let originalFrame = centered.frame
+        XCTAssertEqual(originalFrame.midX, field.frame.midX, accuracy: 2)
+        attachScreenshot(named: "happenings-edge-scale-centered")
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.72, dy: 0.58))
+            .press(forDuration: 0.08, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.38, dy: 0.58)),
+                   withVelocity: .slow, thenHoldForDuration: 0.2)
+        Thread.sleep(forTimeInterval: 0.25)
+        attachScreenshot(named: "happenings-edge-scale-panned")
+        XCTAssertLessThan(centered.frame.midX, originalFrame.midX - 80)
+        XCTAssertLessThan(centered.frame.width, originalFrame.width * 0.97)
+        XCTAssertGreaterThanOrEqual(centered.frame.width, 44)
+        app.buttons["happening_mode_frequent"].tap()
+        XCTAssertTrue(waitForChoiceCount(10, in: app))
+        app.buttons["happening_mode_all"].tap()
+        XCTAssertTrue(waitForChoiceCount(31, in: app))
+        Thread.sleep(forTimeInterval: 0.7)
+        XCTAssertEqual(centered.frame.width, originalFrame.width, accuracy: 1)
+        XCTAssertEqual(centered.frame.midX, originalFrame.midX, accuracy: 1)
+    }
+
+    func testFrequentDefaultsIncludeHealthAndSwitchBackFromAll() throws {
+        let app = launchTask7App(resetEditor: true)
+        let canvasTab = app.buttons["tab_canvas"]
+        XCTAssertTrue(canvasTab.waitForExistence(timeout: 8))
+        let tabBarCenterY = canvasTab.frame.midY
+        attachScreenshot(named: "happenings-tab-bar-baseline")
+        openPalette(in: app, all: false)
+        func assertTabBarAlignment() {
+            for control in [app.buttons["canvas_happening_list_button"], app.buttons["Close"],
+                            app.buttons["happening_mode_frequent"], app.buttons["happening_mode_all"]] {
+                XCTAssertEqual(control.frame.midY, tabBarCenterY, accuracy: 1,
+                    "Happenings controls should replace the tab bar at its measured center")
+                XCTAssertTrue(control.isHittable)
+            }
+        }
+        assertTabBarAlignment()
+        let frequent = app.buttons["happening_mode_frequent"]
+        let all = app.buttons["happening_mode_all"]
+        XCTAssertTrue(frequent.isSelected)
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'"))
+        XCTAssertEqual(choices.count, 10)
+        for id in ["happening_slept_well", "happening_walk", "happening_workout", "happening_did_nothing"] {
+            XCTAssertTrue(app.buttons["happening_choice_" + id].isHittable)
+        }
+        let initialFrames = choices.allElementsBoundByIndex.map(\.frame)
+        attachScreenshot(named: "happenings-frequent-health")
+        all.tap()
+        XCTAssertTrue(all.isSelected)
+        XCTAssertTrue(waitForChoiceCount(31, in: app))
+        Thread.sleep(forTimeInterval: 0.7)
+        attachScreenshot(named: "happenings-all-with-switch")
+        assertTabBarAlignment()
+        let field = app.scrollViews["happening_field_scroll"]
+        let switchFrame = all.frame
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.7))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.4)))
+        XCTAssertEqual(all.frame, switchFrame)
+        frequent.tap()
+        XCTAssertTrue(waitForChoiceCount(10, in: app))
+        XCTAssertEqual(choices.allElementsBoundByIndex.map(\.frame), initialFrames)
+        attachScreenshot(named: "happenings-frequent-returned")
+        all.tap()
+        app.buttons["Close"].tap()
+        openPalette(in: app, all: false)
+        XCTAssertTrue(frequent.isSelected)
+        XCTAssertEqual(choices.count, 10)
+    }
+
+    func testFrequentSelectionSurvivesModeChangesAndHealthSlotsStayPinned() throws {
+        let app = launchTask7App(resetEditor: true)
+        openPalette(in: app, all: false)
+        let walk = app.buttons["happening_choice_happening_walk"]
+        walk.tap()
+        walk.tap()
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        app.buttons["happening_mode_all"].tap()
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        app.buttons["happening_mode_frequent"].tap()
+        XCTAssertEqual(walk.value as? String, "On Canvas")
+        attachScreenshot(named: "happenings-frequent-added")
+        app.buttons["canvas_happening_list_button"].tap()
+        app.buttons["happening_editor_row_happening_workout"].tap()
+        XCTAssertTrue(app.alerts["Health happenings stay in Frequent"].waitForExistence(timeout: 3))
+        app.alerts.buttons["OK"].tap()
+        app.buttons["happening_editor_done"].tap()
+        walk.tap()
+        walk.tap()
+        XCTAssertEqual(walk.value as? String, "Available")
+        app.buttons["Close"].tap()
+    }
+
+    func testFrequentSwitchAndHealthChoicesRemainReachableAtLargeType() throws {
+        let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true)
+        openPalette(in: app, all: false)
+        for id in ["happening_mode_frequent", "happening_mode_all", "canvas_palette_close_button", "canvas_happening_list_button"] {
+            let button = app.buttons[id]
+            XCTAssertTrue(button.isHittable)
+            XCTAssertTrue(app.frame.contains(button.frame))
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44)
+        }
+        attachScreenshot(named: "happenings-frequent-large-type")
+        let last = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'" )).element(boundBy: 9)
+        let field = app.scrollViews["happening_field_scroll"]
+        let dockTop = app.buttons["happening_mode_frequent"].frame.minY
+        for _ in 0..<12 where !last.isHittable || last.frame.maxY > dockTop - 8 { field.swipeUp() }
+        XCTAssertTrue(last.isHittable)
+        XCTAssertLessThan(last.frame.maxY, dockTop - 8)
+        attachScreenshot(named: "happenings-frequent-large-type-last")
+        app.buttons["happening_mode_all"].tap()
+        XCTAssertTrue(app.buttons["happening_mode_all"].isSelected)
+        app.buttons["happening_mode_frequent"].tap()
+        XCTAssertTrue(waitForChoiceCount(10, in: app))
+    }
+
+    func testHappeningCanvasPixelsStayFixedWhileTargetsPan() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+        let field = app.scrollViews["happening_field_scroll"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'"))
+        func targets() -> [(CGRect, Bool)] {
+            choices.allElementsBoundByIndex.map { ($0.frame, ($0.value as? String) == "Available") }
+        }
+        func pixels(_ image: UIImage) throws -> (data: [UInt8], width: Int, height: Int) {
+            let cg = try XCTUnwrap(image.cgImage)
+            var data = [UInt8](repeating: 0, count: cg.width * cg.height * 4)
+            let context = try XCTUnwrap(CGContext(data: &data, width: cg.width, height: cg.height,
+                bitsPerComponent: 8, bytesPerRow: cg.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+            return (data, cg.width, cg.height)
+        }
+        let initialTargets = targets()
+        let before = try pixels(app.screenshot().image)
+        attachScreenshot(named: "stationary-canvas-before-pan")
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.35))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.7)))
+        Thread.sleep(forTimeInterval: 0.5)
+        let finalTargets = targets()
+        let after = try pixels(app.screenshot().image)
+        attachScreenshot(named: "stationary-canvas-after-pan")
+        XCTAssertEqual(before.width, after.width)
+        XCTAssertNotEqual(initialTargets[0].0.origin, finalTargets[0].0.origin)
+        func covers(_ target: (CGRect, Bool), _ point: CGPoint) -> Bool {
+            let (frame, available) = target
+            guard available else { return frame.insetBy(dx: -20, dy: -20).contains(point) }
+            let x = abs(point.x - frame.midX) / (frame.width / 2 + 8)
+            let y = abs(point.y - frame.midY) / (frame.height / 2 + 8)
+            return pow(x, 2.2) + pow(y, 2.2) <= 1
+        }
+        let scale = CGFloat(before.width) / app.frame.width
+        var compared = 0
+        var changed = 0
+        for y in stride(from: 200, to: Int(app.frame.height) - 140, by: 4) {
+            for x in stride(from: 8, to: Int(app.frame.width) - 8, by: 4) {
+                let point = CGPoint(x: x, y: y)
+                guard !(initialTargets + finalTargets).contains(where: { covers($0, point) }) else { continue }
+                let i = (Int(CGFloat(y) * scale) * before.width + Int(CGFloat(x) * scale)) * 4
+                compared += 1
+                if (0..<3).contains(where: { abs(Int(before.data[i + $0]) - Int(after.data[i + $0])) > 3 }) { changed += 1 }
+            }
+        }
+        XCTAssertGreaterThan(compared, 20, "Need visible canvas samples between targets")
+        XCTAssertLessThan(Double(changed) / Double(max(compared, 1)), 0.01,
+            "The same canvas pixels must remain stationary beneath the transparent field (\(changed)/\(compared) moved)")
+    }
+
+    func testStaggeredHappeningsOpenCenteredAndPanAsOneField() throws {
+        let app = launchTask7App()
+        openPalette(in: app)
+        let field = app.scrollViews["happening_field_scroll"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'"))
+        XCTAssertEqual(choices.count, 31)
+        let frames = choices.allElementsBoundByIndex.map(\.frame)
+        let bounds = frames.dropFirst().reduce(frames[0]) { $0.union($1) }
+        XCTAssertEqual(bounds.midX, field.frame.midX, accuracy: 2)
+        XCTAssertEqual(bounds.midY, field.frame.midY, accuracy: 2)
+        let rows = Dictionary(grouping: frames) { round($0.midY) }.sorted { $0.key < $1.key }
+        XCTAssertEqual(rows.map { $0.value.count }, [4, 5, 4, 5, 4, 5, 4])
+        let middle = app.buttons["happening_choice_happening_played"]
+        XCTAssertTrue(middle.isHittable)
+        let initial = middle.frame
+        attachScreenshot(named: "happenings-field-start")
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.72))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.38)))
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertLessThan(middle.frame.minX, initial.minX - 40)
+        XCTAssertLessThan(middle.frame.minY, initial.minY - 40)
+        let choice = app.buttons["happening_choice_happening_said_no"]
+        XCTAssertTrue(choice.isHittable)
+        attachScreenshot(named: "happenings-field-diagonal")
+        choice.tap()
+        XCTAssertEqual(choice.value as? String, "Previewing addition to Canvas")
+        choice.tap()
+        XCTAssertEqual(choice.value as? String, "On Canvas")
+        Thread.sleep(forTimeInterval: 0.6)
+        attachScreenshot(named: "happenings-field-added")
+        let selectedFrame = choice.frame
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.4))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.65)))
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertEqual(choice.value as? String, "On Canvas")
+        XCTAssertGreaterThan(choice.frame.minX, selectedFrame.minX)
+        XCTAssertGreaterThan(choice.frame.minY, selectedFrame.minY)
+        app.buttons["Close"].tap()
+        openPalette(in: app)
+        XCTAssertEqual(middle.frame.midX, initial.midX, accuracy: 2)
+        XCTAssertEqual(middle.frame.midY, initial.midY, accuracy: 2)
+        // Do not leave domain additions in the simulator's shared app group.
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.72))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.38)))
+        choice.tap()
+        choice.tap()
+        XCTAssertEqual(choice.value as? String, "Available")
+        app.buttons["Close"].tap()
+    }
+
+    func testHappeningFieldLargeTypeCanReachTheLastChoice() throws {
+        let app = launchTask7App(dynamicTypeSize: "accessibility5", increasedContrast: true)
+        openPalette(in: app)
+        let field = app.scrollViews["happening_field_scroll"]
+        let last = app.buttons["happening_choice_happening_listened"]
+        for _ in 0..<3 {
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.72))
+                .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.35)))
+        }
+        XCTAssertTrue(last.isHittable)
+        last.tap()
+        XCTAssertEqual(last.value as? String, "Previewing addition to Canvas")
+        Thread.sleep(forTimeInterval: 0.5)
+        attachScreenshot(named: "happenings-field-large-type")
+        XCTAssertTrue(app.buttons["Close"].isHittable)
+    }
+
+    private func waitForChoiceCount(_ count: Int, in app: XCUIApplication) -> Bool {
+        let predicate = NSPredicate { _, _ in
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'" )).count == count
+        }
+        return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: nil)], timeout: 3) == .completed
     }
 
     private func launchTask7App(
@@ -849,12 +1111,21 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         return app
     }
 
-    private func openPalette(in app: XCUIApplication) {
+    private func scrollPaletteToStart(in app: XCUIApplication) {
+        let field = app.scrollViews["happening_field_scroll"]
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.35))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.8)))
+        Thread.sleep(forTimeInterval: 0.4)
+    }
+
+    private func openPalette(in app: XCUIApplication, all: Bool = true) {
         let addHappening = app.buttons["Add happening"]
         XCTAssertTrue(addHappening.waitForExistence(timeout: 8))
         addHappening.tap()
-        // The fixed dock is available for the entire palette session.
+        // Existing field scenarios exercise All; dedicated tests verify the
+        // new default Frequent set and its persistent bottom switch.
         XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5))
+        if all { app.buttons["happening_mode_all"].tap() }
     }
 
     private func attachScreenshot(named name: String) {

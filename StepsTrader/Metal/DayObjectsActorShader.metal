@@ -1,3 +1,4 @@
+#include "HappeningPickerStyle.metalh"
 #include <metal_stdlib>
 using namespace metal;
 
@@ -58,6 +59,7 @@ struct DayObjectsActorVertexOut {
     float4 position [[position]];
     float2 screenUV;
     float2 localPosition;
+    float2 pickerPosition;
     float2 halfSize;
     float opacity;
     float trailEnergyNormalization;
@@ -141,6 +143,7 @@ vertex DayObjectsActorVertexOut dayObjectsActorVertex(
         0.5 - shortSidePosition.y / canvasSpan.y
     );
     out.localPosition = local;
+    out.pickerPosition = forward * local.x + lateral * local.y;
     out.halfSize = halfSize;
     out.opacity = clamp(actor.opacity, 0.0, 1.0);
     out.trailEnergyNormalization = clamp(uniforms.energyNormalization, 0.0, 1.0);
@@ -453,6 +456,7 @@ fragment float4 dayObjectsActorFragment(
     DayObjectsActorVertexOut in [[stage_in]],
     const device DayObjectGPUAppearance *appearances [[buffer(2)]],
     constant DayObjectsActorUniforms &uniforms [[buffer(3)]],
+    constant float4 &pickerAccent [[buffer(4)]],
     texture2d<float> backgroundTexture [[texture(0)]],
     sampler linearSampler [[sampler(0)]]
 ) {
@@ -475,7 +479,7 @@ fragment float4 dayObjectsActorFragment(
         in.silhouetteVariant
     ) * majorHalfSize * in.shortSidePixels;
     const float paletteProgress = smoothstep(0.0, 1.0, in.paletteMorph);
-    const float sphereRadius = length(bodyPoint);
+    const float sphereRadius = happeningPickerRadius(in.pickerPosition / majorHalfSize);
     const float sphereDistancePixels = (sphereRadius - 1.0)
         * majorHalfSize * in.shortSidePixels;
     // Evaluate coverage on one analytical contour throughout the morph. The
@@ -826,18 +830,14 @@ fragment float4 dayObjectsActorFragment(
         return float4(premultiplied, alpha);
     }
 
-    // Match the native picker: a light translucent surface, independent of
-    // the gradient and app theme, with enough luminance for black labels.
-    const float shoulder = smoothstep(0.65, 1.0, sphereRadius);
-    const float rim = smoothstep(0.965, 0.985, sphereRadius);
-    const float neutralAlpha = (0.52 + shoulder * 0.06 + rim * 0.08)
-        * baseBodyCoverage * actorOpacity;
-    const float3 neutralColor = float3(0.96);
+    // Match the native picker: a pale tint of the day with readable black labels.
+    const float4 pickerFill = happeningPickerFill(sphereRadius, baseBodyCoverage * actorOpacity, pickerAccent.rgb);
+    const float neutralAlpha = pickerFill.a;
     const float presentedAlpha = mix(neutralAlpha, alpha, paletteProgress);
-    float3 presentedRGB = mix(neutralColor * neutralAlpha, premultiplied, paletteProgress);
+    float3 presentedRGB = mix(pickerFill.rgb, premultiplied, paletteProgress);
     float3 straightRGB = presentedAlpha > 1e-6 ? presentedRGB / presentedAlpha : float3(0.0);
     const float luminance = dot(straightRGB, float3(0.2126, 0.7152, 0.0722));
-    straightRGB = mix(float3(luminance), straightRGB, in.presentationSaturation);
+    straightRGB = mix(float3(luminance), straightRGB, mix(1.0, in.presentationSaturation, paletteProgress));
 
     // A narrow band wholly inside the current contour. Neither the core nor
     // the exterior halo/trail gains colour or coverage during removal.

@@ -218,6 +218,7 @@ private struct StepsTraderProductionRoot: View {
            processArguments.contains("ui-testing-task7") {
             let defaults = UserDefaults.stepsTrader()
             defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            defaults.removeObject(forKey: SharedKeys.happeningFrequentPalette)
             defaults.removeObject(forKey: SharedKeys.happeningCatalog)
         }
         if ProcessInfo.processInfo.arguments.contains("ui-testing-settings") {

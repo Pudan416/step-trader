@@ -3074,7 +3074,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertTrue(muted.isFinitePremultiplied)
     }
 
-    func testPalettePresentationNeutralSphereAndAnalyticSilhouetteMorph() throws {
+    func testPalettePresentationLightTargetAndAnalyticSilhouetteMorph() throws {
         let harness = try ActorRenderHarness(width: 160, height: 160)
         let appearance = palettePresentationAppearance()
         func capture(_ morph: Float, shape: UInt32 = 6) throws -> ActorAlphaCapture {
@@ -3085,13 +3085,12 @@ final class DayObjectRenderFrameTests: XCTestCase {
         let halfway = try capture(0.5)
         let production = try capture(1)
         // The light backing keeps black labels readable even over black.
-        XCTAssertGreaterThan(neutral[80, 80], 0.50)
-        XCTAssertLessThan(neutral[80, 80], 0.60)
+        XCTAssertEqual(neutral[80, 80], 0.72, accuracy: 0.01)
         let center = neutral.color(x: 80, y: 80)
         let luminance = center.x * 0.2126 + center.y * 0.7152 + center.z * 0.0722
         XCTAssertGreaterThan((luminance + 0.05) / 0.05, 7)
         XCTAssertGreaterThan(neutral[125, 80], neutral[80, 80])
-        XCTAssertLessThan(neutral[125, 80], 0.70)
+        XCTAssertLessThan(neutral[125, 80], 0.87)
         let edge = neutral.color(x: 125, y: 80) / neutral[125, 80]
         XCTAssertLessThan(edge.max() - edge.min(), 0.16)
         XCTAssertLessThan(neutral.meanAbsoluteRGBDifference(from: neutralOtherShape), 0.0001)
@@ -3102,7 +3101,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
         ), appearance: appearance, backgroundColor: .zero)
         XCTAssertLessThan(neutral.meanAbsoluteRGBDifference(from: rotated), 0.001,
             "Neutral lighting must not reveal the randomly assigned shape rotation")
-        // This point is outside the sphere but inside the rounded square.
+        // This point is outside the near-circular target but inside the selected rounded square.
         XCTAssertLessThan(neutral[118, 118], 0.01)
         XCTAssertGreaterThan(halfway[118, 118], neutral[118, 118] + 0.05)
         XCTAssertGreaterThan(production[118, 118], halfway[118, 118])
@@ -4449,6 +4448,8 @@ private final class ActorRenderHarness {
         let commandBuffer = try XCTUnwrap(commandQueue.makeCommandBuffer())
         let encoder = try XCTUnwrap(commandBuffer.makeRenderCommandEncoder(descriptor: renderPass))
         var uniforms = rawUniforms
+        var pickerAccent = SIMD4<Float>(repeating: 0.8)
+        encoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 4)
         encoder.setRenderPipelineState(pipeline)
         encoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
         encoder.setVertexBuffer(actorBuffer, offset: 0, index: 1)
@@ -5069,6 +5070,8 @@ private final class PostRenderHarness {
         if !upload.actors.isEmpty {
             var actorUniforms = upload.uniforms
             sceneEncoder.setRenderPipelineState(actorPipeline)
+            var pickerAccent = SIMD4<Float>(repeating: 0.8)
+            sceneEncoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 4)
             sceneEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             sceneEncoder.setVertexBuffer(actorBuffer, offset: 0, index: 1)
             sceneEncoder.setVertexBytes(
@@ -5134,6 +5137,8 @@ private final class PostRenderHarness {
             if simd_length(inward) > 0.001 { echoDirection = simd_normalize(inward) }
             var actorUniforms = upload.uniforms
             echoEncoder.setRenderPipelineState(actorPipeline)
+            var pickerAccent = SIMD4<Float>(repeating: 0.8)
+            echoEncoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 4)
             echoEncoder.setFragmentTexture(backgroundTexture, index: 0)
             echoEncoder.setFragmentSamplerState(sampler, index: 0)
             echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)

@@ -33,11 +33,13 @@ struct DayObjectsView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: ([scene.palette.backgroundBase] + scene.palette.backgroundFields).map(Self.color),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            if !presentationMode.isTransparentOverlay {
+                LinearGradient(
+                    colors: ([scene.palette.backgroundBase] + scene.palette.backgroundFields).map(Self.color),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
             DayObjectsMetalView(
                 scene: scene,
                 environment: environment,

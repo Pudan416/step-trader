@@ -118,7 +118,21 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(actor.gpuActor.halfSize.y, Float(source.radius / 390) * silhouette.aspect, accuracy: 0.0001)
     }
 
-    func testTransitionTimelineInterpolatesControlsAndGeometryThroughCompletion() {
+    func testSharedModeGeometryReachesRendererWithoutASecondSizeAnimation() throws {
+        var initial = makePresentation(stateForFirstSlot: .available)
+        initial.usesSharedGeometry = true
+        var updated = makePresentation(stateForFirstSlot: .available,
+            firstSourceOffset: CGSize(width: 64, height: 32), firstSourceRadiusDelta: 16)
+        updated.usesSharedGeometry = true
+        var timeline = HappeningPaletteTransitionTimeline()
+        timeline.update(to: initial, elapsed: 0)
+        timeline.update(to: updated, elapsed: 1)
+        let sampled = try slot(for: "h0", in: timeline.sample(at: 1))
+        XCTAssertEqual(sampled.source, updated.slots[0].source)
+        XCTAssertFalse(timeline.hasActiveTransitions(at: 1))
+    }
+
+    func testTransitionInterpolatesShapeButKeepsItsCenterAttachedToTheLabel() {
         let initial = makePresentation(stateForFirstSlot: .available)
         let updated = makePresentation(
             stateForFirstSlot: .additionPreview,
@@ -134,14 +148,14 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         let complete = try! slot(for: "h0", in: timeline.sample(at: 1.341))
 
         XCTAssertEqual(start.controls.paletteMorph, 0, accuracy: 0.001)
-        XCTAssertEqual(start.source.center.x, 39, accuracy: 0.001)
-        XCTAssertEqual(start.source.center.y, 32, accuracy: 0.001)
+        XCTAssertEqual(start.source.center.x, 103, accuracy: 0.001)
+        XCTAssertEqual(start.source.center.y, 64, accuracy: 0.001)
         XCTAssertEqual(start.source.radius, 32, accuracy: 0.001)
 
         XCTAssertEqual(quarter.controls.paletteMorph, 0.15625, accuracy: 0.001)
         XCTAssertEqual(quarter.controls.scale, 1.009375, accuracy: 0.001)
-        XCTAssertEqual(quarter.source.center.x, 49, accuracy: 0.001)
-        XCTAssertEqual(quarter.source.center.y, 37, accuracy: 0.001)
+        XCTAssertEqual(quarter.source.center.x, 103, accuracy: 0.001)
+        XCTAssertEqual(quarter.source.center.y, 64, accuracy: 0.001)
         XCTAssertEqual(quarter.source.radius, 34.5, accuracy: 0.001)
 
         XCTAssertEqual(complete.controls.paletteMorph, 1, accuracy: 0.001)
@@ -170,8 +184,8 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         let completed = try! slot(for: "h0", in: timeline.sample(at: 1.20))
         let afterCompletion = try! slot(for: "h0", in: timeline.sample(at: 1.50))
 
-        XCTAssertEqual(beforeSwitch.source.center.x, 39, accuracy: 0.001)
-        XCTAssertEqual(beforeSwitch.source.radius, 32, accuracy: 0.001)
+        XCTAssertEqual(beforeSwitch.source.center.x, 103, accuracy: 0.001)
+        XCTAssertEqual(beforeSwitch.source.radius, 48, accuracy: 0.001)
         XCTAssertEqual(beforeSwitch.controls.opacity, 0.01, accuracy: 0.001)
         XCTAssertEqual(switchPoint.source.center.x, 103, accuracy: 0.001)
         XCTAssertEqual(switchPoint.source.radius, 48, accuracy: 0.001)
@@ -288,6 +302,36 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
             isTransitionActive: isTransitionActive,
             backgroundRevision: 12
         )
+    }
+
+    func testPanningMovesSourcesImmediatelyWithoutRestartingTheShapeMorph() {
+        let initial = makePresentation(stateForFirstSlot: .available)
+        let preview = makePresentation(stateForFirstSlot: .additionPreview)
+        var timeline = HappeningPaletteTransitionTimeline()
+        timeline.update(to: initial, elapsed: 0)
+        timeline.update(to: preview, elapsed: 1)
+        let beforePan = timeline.sample(at: 1.15).slots[0].controls
+        let panned = makePresentation(stateForFirstSlot: .additionPreview, firstSourceOffset: CGSize(width: -100, height: -75))
+        timeline.update(to: panned, elapsed: 1.15)
+        let sample = timeline.sample(at: 1.15).slots[0]
+        XCTAssertEqual(sample.source, panned.slots[0].source)
+        XCTAssertEqual(sample.controls, beforePan)
+    }
+
+    func testPaletteUploadRetainsMoreThanTenVisibleChoicesAndTheirMaterials() {
+        let ten = makePresentation()
+        let thirty = HappeningPaletteRenderPresentation(
+            slots: (0..<30).map { index in
+                let source = ten.slots[index % 10]
+                return HappeningPaletteRenderSlot(happeningID: "choice_\(index)", assignment: source.assignment, visualState: .available, source: source.source)
+            }, viewportSize: ten.viewportSize, reduceMotion: false, isTransitionActive: false, backgroundRevision: 0
+        )
+        let frame = HappeningPaletteRenderFrame.make(presentation: thirty, scene: makeScene(), elapsed: 0)
+        let upload = DayObjectsActorUpload(actors: frame.actors, actorLimit: DayObjectsActorUpload.maximumActorCount, resolution: SIMD2(390, 844))
+        XCTAssertEqual(upload.actors.count, 30)
+        for (index, actor) in upload.actors.enumerated() {
+            XCTAssertEqual(upload.appearances[Int(actor.appearanceIndex)], frame.actors[index].gpuAppearance)
+        }
     }
 
     private func makeScene() -> DayObjectScene {

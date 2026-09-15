@@ -127,3 +127,42 @@ final class HappeningPaletteSelectionStore {
             && ids.allSatisfy(liveIDs.contains)
     }
 }
+
+
+/// A stable automatic home set. Only a day boundary permits a learned swap.
+/// The optional editor can save an explicit selection into the same home set.
+final class FrequentHappeningStore {
+    private struct Snapshot: Codable, Equatable {
+        let dayKey: String
+        let ids: [String]
+    }
+    private let defaults: UserDefaults
+    private var snapshot: Snapshot?
+
+    init(defaults: UserDefaults = .stepsTrader()) {
+        self.defaults = defaults
+        snapshot = defaults.data(forKey: SharedKeys.happeningFrequentPalette).flatMap {
+            try? JSONDecoder().decode(Snapshot.self, from: $0)
+        }
+    }
+
+    func resolve(catalog: [Happening], healthIDs: [String], protectedIDs: Set<String>, dayKey: String, seedIDs: [String] = []) -> [String] {
+        let ids = FrequentHappeningSelection.resolve(catalog: catalog, previous: snapshot?.ids ?? seedIDs,
+            healthIDs: healthIDs, protectedIDs: protectedIDs, allowsPromotion: snapshot?.dayKey != dayKey)
+        let next = Snapshot(dayKey: dayKey, ids: ids)
+        if next != snapshot {
+            snapshot = next
+            if let data = try? JSONEncoder().encode(next) {
+                defaults.set(data, forKey: SharedKeys.happeningFrequentPalette)
+            }
+        }
+        return ids
+    }
+    func saveExplicitSelection(_ ids: [String], dayKey: String) {
+        snapshot = Snapshot(dayKey: dayKey, ids: ids)
+        if let data = try? JSONEncoder().encode(snapshot) {
+            defaults.set(data, forKey: SharedKeys.happeningFrequentPalette)
+        }
+    }
+
+}

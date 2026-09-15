@@ -1,0 +1,33 @@
+{
+  "builtRevision": "1f42fe8429a81666cdf4f140881dbcb3b36f8722",
+  "branch": "codex/happenings-field",
+  "signedApp": "/private/tmp/nowhere-happenings-stationary-device-dd/Build/Products/Debug-iphoneos/Nowhere.app",
+  "sourceMirrorMatchesTrackedFiles": 1164,
+  "strictSignatures": "passed",
+  "extensions": [
+    "DeviceActivityMonitor.appex",
+    "ShieldAction.appex",
+    "ShieldConfiguration.appex",
+    "UnlockWidgetExtension.appex"
+  ],
+  "fonts": 11,
+  "gateImagesMatching": 21,
+  "audioFiles": 122,
+  "resources": "passed",
+  "installationScope": "User-requested feature build; no integration publication.",
+  "physicalDeviceVisualVerification": "not performed; automated regression checks used simulator",
+  "installationOutcome": "success",
+  "launchOutcome": "blocked: iPhone locked (FBSOpenApplicationErrorDomain 7)",
+  "installedRevision": "1f42fe8429a81666cdf4f140881dbcb3b36f8722",
+  "installedApplication": {
+    "bundleID": "personal-project.StepsTrader",
+    "databaseSequenceNumber": 5484,
+    "databaseUUID": "032ADD01-E900-435A-8C63-40156A0DB1FA",
+    "installationURL": "file:///private/var/containers/Bundle/Application/F351C3E4-F295-4871-A3DC-ADC9F5745245/Nowhere.app/",
+    "launchServicesIdentifier": "unknown",
+    "options": {}
+  },
+  "deviceName": "iPhone Costa",
+  "transport": "Wi-Fi",
+  "localTime": "2026-09-15T20:06:41.465608+02:00"
+}

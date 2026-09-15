@@ -100,10 +100,19 @@ struct HappeningPaletteView: View {
     let labelInks: [String: HappeningPaletteLabelInk]
     let catalog: [Happening]
     let selectedIDs: [String]
+    let artwork: AnyView
+    let compactLayout: HappeningFieldLayout.Layout?
+    let artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)?
+    @State private var modeTransition: HappeningFieldModeTransition?
+    @State private var visibleFieldRect: CGRect = .zero
+    @State private var isFieldScrolling = false
+    @State private var scrollSettleTask: Task<Void, Never>?
     @Binding var activePanel: HappeningPalettePanel?
     let layout: HappeningFieldLayout.Layout
+    let mode: HappeningPaletteMode
     let interaction: HappeningPaletteInteractionState
     let addedIDs: Set<String>
+    let fixedIDs: Set<String>
     let instruction: HappeningPaletteInstruction?
     let onActivate: (Happening) -> Void
     let onCreate: (String) -> HappeningPaletteCreationOutcome
@@ -121,9 +130,14 @@ struct HappeningPaletteView: View {
         catalog: [Happening]? = nil,
         selectedIDs: [String]? = nil,
         activePanel: Binding<HappeningPalettePanel?> = .constant(nil),
+        artwork: AnyView = AnyView(Color.clear),
         layout: HappeningFieldLayout.Layout,
+        mode: HappeningPaletteMode = .all,
+        compactLayout: HappeningFieldLayout.Layout? = nil,
+        artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)? = nil,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
+        fixedIDs: Set<String> = [],
         instruction: HappeningPaletteInstruction?,
         onActivate: @escaping (Happening) -> Void,
         onCreate: @escaping (String) -> HappeningPaletteCreationOutcome,
@@ -137,10 +151,15 @@ struct HappeningPaletteView: View {
         self.labelInks = labelInks
         self.catalog = catalog ?? happenings
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
+        self.artwork = artwork
+        self.compactLayout = compactLayout
+        self.artworkForLayout = artworkForLayout
         _activePanel = activePanel
         self.layout = layout
+        self.mode = mode
         self.interaction = interaction
         self.addedIDs = addedIDs
+        self.fixedIDs = fixedIDs
         self.instruction = instruction
         self.onActivate = onActivate
         self.onCreate = onCreate
@@ -153,18 +172,81 @@ struct HappeningPaletteView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                HappeningShapeField(
-                    happenings: happenings,
-                    assignments: assignments,
-                    layout: layout,
-                    interaction: interaction,
-                    addedIDs: addedIDs,
-                    onActivate: onActivate,
-                    labelInks: labelInks
-                )
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .accessibilityHidden(activePanel != nil)
-                .allowsHitTesting(activePanel == nil)
+                ScrollViewReader { scroll in
+                    ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: modeTransition == nil)) { context in
+                            let progress = modeTransition?.value(at: context.date) ?? (mode == .all ? 1 : 0)
+                            let expanded = compactLayout.map {
+                                HappeningFieldExpansion.layout(compact: $0, expanded: layout, viewport: proxy.size, progress: progress)
+                            } ?? layout
+                            let visibleRect = visibleFieldRect.isEmpty ? CGRect(
+                                x: max(0, (expanded.contentSize.width - proxy.size.width) / 2),
+                                y: max(0, (expanded.contentSize.height - proxy.size.height) / 2),
+                                width: proxy.size.width, height: proxy.size.height
+                            ) : visibleFieldRect
+                            let displayed = HappeningFieldEdgeScale.apply(to: expanded, visibleRect: visibleRect,
+                                strength: reduceMotion || artworkForLayout == nil ? 0 : progress)
+                            ZStack(alignment: .topLeading) {
+                                (artworkForLayout?(displayed, modeTransition != nil || isFieldScrolling) ?? artwork)
+                                    .accessibilityHidden(true)
+                                    .allowsHitTesting(false)
+                                HappeningShapeField(
+                                    happenings: happenings, assignments: assignments, layout: displayed,
+                                    interaction: interaction, addedIDs: addedIDs,
+                                    onActivate: onActivate, labelInks: labelInks
+                                )
+                                if let compactLayout {
+                                    let compactHeight = max(proxy.size.height, compactLayout.contentSize.height)
+                                    Color.clear.frame(width: proxy.size.width, height: proxy.size.height)
+                                        .id(HappeningPaletteMode.frequent.rawValue)
+                                        .position(x: displayed.contentSize.width / 2,
+                                            y: (displayed.contentSize.height - compactHeight + proxy.size.height) / 2)
+                                        .allowsHitTesting(false).accessibilityHidden(true)
+                                    Color.clear.frame(width: proxy.size.width, height: proxy.size.height)
+                                        .id(HappeningPaletteMode.all.rawValue)
+                                        .position(x: displayed.contentSize.width / 2, y: displayed.contentSize.height / 2)
+                                        .allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
+                            .frame(width: max(proxy.size.width, displayed.contentSize.width),
+                                   height: max(proxy.size.height, displayed.contentSize.height))
+                            .transaction { $0.animation = nil }
+                        }
+                        .onGeometryChange(for: CGRect.self) { content in
+                            let origin = content.frame(in: .named("happeningViewport")).origin
+                            return CGRect(x: -origin.x, y: -origin.y,
+                                width: proxy.size.width, height: proxy.size.height)
+                        } action: { rect in
+                            updateVisibleFieldRect(rect)
+                        }
+                    }
+                    .coordinateSpace(name: "happeningViewport")
+                    .defaultScrollAnchor(mode == .frequent && (compactLayout?.contentSize.height ?? 0) > proxy.size.height ? .top : .center)
+                    .scrollDisabled(compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .accessibilityIdentifier("happening_field_scroll")
+                    .accessibilityHidden(activePanel != nil)
+                    .allowsHitTesting(activePanel == nil && modeTransition == nil)
+                    .onChange(of: mode) { oldMode, newMode in
+                        guard compactLayout != nil else { return }
+                        let now = Date()
+                        let from = modeTransition?.value(at: now) ?? (oldMode == .all ? 1 : 0)
+                        modeTransition = reduceMotion ? nil : .init(from: from, to: newMode == .all ? 1 : 0, startedAt: now)
+                        if reduceMotion {
+                            scroll.scrollTo(newMode.rawValue, anchor: .center)
+                        } else {
+                            withAnimation(.smooth(duration: HappeningFieldModeTransition.duration)) {
+                                scroll.scrollTo(newMode.rawValue, anchor: .center)
+                            }
+                        }
+                    }
+                    .task(id: mode) {
+                        guard modeTransition != nil else { return }
+                        do { try await Task.sleep(for: .seconds(HappeningFieldModeTransition.duration + 0.05)) }
+                        catch { return }
+                        modeTransition = nil
+                    }
+                }
 
                 // Actions live on the selected object. Keep only failures here;
                 // the full state announcements remain available to VoiceOver.
@@ -210,7 +292,24 @@ struct HappeningPaletteView: View {
             UIAccessibility.post(notification: .announcement, argument: next.announcement)
         }
         .onDisappear {
+            scrollSettleTask?.cancel()
+            isFieldScrolling = false
             onPanelPresentationChange(false)
+        }
+    }
+
+    // Observe size only; positions use ScrollView's native transform.
+    private func updateVisibleFieldRect(_ rect: CGRect) {
+        guard !rect.isEmpty, rect != visibleFieldRect else { return }
+        let hasMoved = !visibleFieldRect.isEmpty
+        visibleFieldRect = rect
+        guard hasMoved else { return }
+        isFieldScrolling = true
+        scrollSettleTask?.cancel()
+        scrollSettleTask = Task { @MainActor in
+            do { try await Task.sleep(for: .milliseconds(150)) }
+            catch { return }
+            isFieldScrolling = false
         }
     }
 
@@ -221,7 +320,8 @@ struct HappeningPaletteView: View {
             HappeningChooserView(
                 catalog: catalog,
                 selected: selectedIDs,
-                protectedIDs: addedIDs,
+                protectedIDs: addedIDs.union(fixedIDs),
+                healthIDs: fixedIDs,
                 onCreateNew: { title, replacementID, selection in
                     let outcome = onCreateReplacement(title, replacementID, selection)
                     if outcome.closesCreator { activePanel = nil }

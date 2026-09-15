@@ -1111,11 +1111,11 @@ final class HappeningFieldPresentationStateTests: XCTestCase {
         XCTAssertEqual(state.layout(in: size, safeInsets: safeInsets), original)
     }
 
-    func testConfiguredReplacementTakesFirstTenAndPreservesTheirOrder() {
+    func testConfiguredReplacementPreservesTheWholeFieldOrder() {
         var state = HappeningFieldPresentationState(happenings: [])
         let configured = Array(HappeningDefaults.builtIns.reversed())
         state.receiveParent(configured)
-        XCTAssertEqual(state.presentedHappenings.map(\.id), Array(configured.prefix(10)).map(\.id))
+        XCTAssertEqual(state.presentedHappenings.map(\.id), configured.map(\.id))
     }
 }
 
@@ -1593,8 +1593,8 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
         XCTAssertNotEqual(original.material.colors, rerolled.material.colors)
     }
 
-    /// Catches a regression back to irregular or loosely spaced templates.
-    func testTenItemsUseTouchingThreeTwoThreeTwoRows() {
+    /// Frequent preserves its staggered rhythm with visible separation.
+    func testTenItemsUseSeparatedThreeTwoThreeTwoRows() {
         let layout = HappeningFieldLayout.layout(
             count: 10,
             in: CGSize(width: 402, height: 874),
@@ -1612,8 +1612,7 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
             let ordered = row.sorted { $0.center.x < $1.center.x }
             for pair in zip(ordered, ordered.dropFirst()) {
                 let gap = pair.1.center.x - pair.0.center.x - pair.0.radius - pair.1.radius
-                XCTAssertGreaterThanOrEqual(gap, -0.01)
-                XCTAssertLessThanOrEqual(gap, 0.5)
+                XCTAssertEqual(gap, 8, accuracy: 0.01)
             }
         }
     }
@@ -1640,5 +1639,193 @@ final class HappeningEditorialAssignmentTests: XCTestCase {
             ),
             actorColorVariants: actorColorVariants
         )
+    }
+}
+
+
+final class HappeningScrollableFieldTests: XCTestCase {
+    func testFrequentCirclesHaveAtLeastEightPointsOfBreathingRoom() {
+        let layout = HappeningFieldLayout.layout(count: 10, in: CGSize(width: 390, height: 844),
+            safeInsets: EdgeInsets(), contentTopInset: 170, dockCenterY: 770)
+        for (index, source) in layout.sources.enumerated() {
+            for other in layout.sources.dropFirst(index + 1) {
+                XCTAssertGreaterThanOrEqual(hypot(source.center.x - other.center.x, source.center.y - other.center.y)
+                    - source.radius - other.radius, 7.99)
+            }
+        }
+    }
+
+    func testSevenStaggeredRowsAreCenteredInTheirScrollableSpace() {
+        let viewport = CGSize(width: 390, height: 844)
+        let layout = HappeningFieldLayout.layout(count: 31, in: viewport, safeInsets: EdgeInsets(), contentTopInset: 170)
+        let rows = Dictionary(grouping: layout.sources) { $0.center.y }.sorted { $0.key < $1.key }
+        XCTAssertEqual(rows.map { $0.value.count }, [4, 5, 4, 5, 4, 5, 4])
+        for row in rows {
+            let centers = row.value.map(\.center.x)
+            XCTAssertEqual((centers.min()! + centers.max()!) / 2, layout.contentSize.width / 2, accuracy: 0.01)
+        }
+        XCTAssertEqual(layout.contourBounds.midX, layout.contentSize.width / 2, accuracy: 0.01)
+        XCTAssertEqual(layout.contourBounds.midY, layout.contentSize.height / 2, accuracy: 0.01)
+    }
+
+    func testThirtyChoicesExtendBeyondBothEdgesWithoutShrinkingTouchTargets() {
+        let viewport = CGSize(width: 390, height: 844)
+        let layout = HappeningFieldLayout.layout(
+            count: 30, in: viewport, safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 170, dockCenterY: 770
+        )
+        XCTAssertEqual(layout.sources.count, 30)
+        XCTAssertGreaterThan(layout.contourBounds.width, viewport.width)
+        XCTAssertGreaterThan(layout.contourBounds.height, viewport.height - 170 - 74)
+        XCTAssertTrue(layout.sources.allSatisfy { $0.radius >= 64 })
+        for (index, source) in layout.sources.enumerated() {
+            for other in layout.sources.dropFirst(index + 1) {
+                XCTAssertGreaterThanOrEqual(hypot(source.center.x - other.center.x, source.center.y - other.center.y), source.radius + other.radius)
+            }
+        }
+    }
+
+    @MainActor
+    func testArtworkMovesWithScrollContentImmediatelyAndOpensAtCenter() throws {
+        let artwork = UIView()
+        let layout = HappeningFieldLayout.layout(count: 31, in: CGSize(width: 390, height: 844), safeInsets: EdgeInsets())
+        let view = HappeningPaletteView(
+            happenings: HappeningDefaults.builtIns,
+            artwork: AnyView(HappeningScrollArtworkProbe(view: artwork)),
+            layout: layout, interaction: HappeningPaletteInteractionState(), addedIDs: [], instruction: nil,
+            onActivate: { _ in }, onCreate: { _ in .failed }
+        )
+        let host = UIHostingController(rootView: view)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        func findScroll(_ view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            return view.subviews.lazy.compactMap { findScroll($0) }.first
+        }
+        let scroll = try XCTUnwrap(findScroll(host.view))
+        XCTAssertTrue(artwork.isDescendant(of: scroll), "The renderer must be inside the same scrolling content as the labels")
+        XCTAssertEqual(scroll.contentOffset.x, (scroll.contentSize.width - scroll.bounds.width) / 2, accuracy: 1)
+        XCTAssertEqual(scroll.contentOffset.y, (scroll.contentSize.height - scroll.bounds.height) / 2, accuracy: 1)
+        let before = artwork.convert(artwork.bounds, to: window)
+        let offset = scroll.contentOffset
+        scroll.setContentOffset(CGPoint(x: offset.x + 80, y: offset.y + 60), animated: false)
+        // Deliberately do not let SwiftUI update or Metal produce another frame.
+        // The compositor must move the existing artwork with the finger now.
+        let after = artwork.convert(artwork.bounds, to: window)
+        XCTAssertEqual(after.minX, before.minX - 80, accuracy: 0.5)
+        XCTAssertEqual(after.minY, before.minY - 60, accuracy: 0.5)
+    }
+
+    func testPresentationKeepsTheWholeCatalogIncludingCustomChoices() {
+        let choices = (0..<37).map { Happening(id: "field_\($0)", title: "Choice \($0)", isBuiltIn: false) }
+        var state = HappeningFieldPresentationState(happenings: choices)
+        XCTAssertEqual(state.presentedHappenings, choices)
+        state.receiveParent(choices.reversed())
+        XCTAssertEqual(state.presentedHappenings, choices.reversed())
+    }
+}
+
+private struct HappeningScrollArtworkProbe: UIViewRepresentable {
+    let view: UIView
+    func makeUIView(context: Context) -> UIView { view }
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+final class HappeningFieldExpansionTests: XCTestCase {
+    func testExpansionRetainsTenIdentitiesAndRevealsEveryOtherSlotAroundThem() {
+        let viewport = CGSize(width: 390, height: 844)
+        let compact = HappeningFieldLayout.layout(count: 10, in: viewport, safeInsets: EdgeInsets())
+        let expanded = HappeningFieldLayout.layout(count: 31, in: viewport, safeInsets: EdgeInsets())
+        let start = HappeningFieldExpansion.layout(compact: compact, expanded: expanded, viewport: viewport, progress: 0)
+        let middle = HappeningFieldExpansion.layout(compact: compact, expanded: expanded, viewport: viewport, progress: 0.45)
+        let end = HappeningFieldExpansion.layout(compact: compact, expanded: expanded, viewport: viewport, progress: 1)
+        XCTAssertEqual(start.sources.filter { $0.appearanceScale > 0 }.count, 10)
+        XCTAssertEqual(end.sources.filter { $0.appearanceScale == 1 }.count, 31)
+        XCTAssertEqual(start.contentSize, end.contentSize)
+        XCTAssertEqual(end.sources.map { $0.center.x + $0.center.y * 10000 }.sorted(), expanded.sources.map { $0.center.x + $0.center.y * 10000 }.sorted())
+        XCTAssertEqual(Array(end.sources.prefix(10)).map(\.index), Array(0..<10))
+        XCTAssertTrue(middle.sources.dropFirst(10).allSatisfy { $0.appearanceScale > 0 && $0.appearanceScale < 1.05 })
+        for index in 0..<10 {
+            XCTAssertEqual(start.sources[index].radius, compact.sources[index].radius)
+        }
+        let homeBounds = end.sources.prefix(10).map { $0.center.y }
+        XCTAssertGreaterThan(homeBounds.min()!, end.sources.map { $0.center.y }.min()!)
+        XCTAssertLessThan(homeBounds.max()!, end.sources.map { $0.center.y }.max()!)
+    }
+
+    func testInflatingBalloonsNeverOverlapTheirVisibleNeighbors() {
+        let viewport = CGSize(width: 390, height: 844)
+        let compact = HappeningFieldLayout.layout(count: 10, in: viewport, safeInsets: EdgeInsets())
+        let expanded = HappeningFieldLayout.layout(count: 31, in: viewport, safeInsets: EdgeInsets())
+        for frame in 0...30 {
+            let layout = HappeningFieldExpansion.layout(compact: compact, expanded: expanded,
+                viewport: viewport, progress: CGFloat(frame) / 30)
+            let visible = layout.sources.filter { $0.appearanceScale > 0.001 }
+            for (index, source) in visible.enumerated() {
+                for neighbor in visible.dropFirst(index + 1) {
+                    XCTAssertGreaterThanOrEqual(hypot(source.center.x - neighbor.center.x, source.center.y - neighbor.center.y)
+                        - source.radius - neighbor.radius, 7.99)
+                }
+            }
+        }
+    }
+
+    func testRapidReversalStartsAtCurrentFrameAndEndsExactlyAtFrequent() {
+        let date = Date(timeIntervalSinceReferenceDate: 100)
+        let opening = HappeningFieldModeTransition(from: 0, to: 1, startedAt: date)
+        let mid = opening.value(at: date.addingTimeInterval(0.2))
+        let closing = HappeningFieldModeTransition(from: mid, to: 0, startedAt: date.addingTimeInterval(0.2))
+        XCTAssertEqual(closing.value(at: date.addingTimeInterval(0.2)), mid)
+        XCTAssertEqual(closing.value(at: date.addingTimeInterval(2)), 0)
+        XCTAssertEqual(opening.value(at: date.addingTimeInterval(2)), 1)
+    }
+}
+
+final class HappeningFieldEdgeScaleTests: XCTestCase {
+    private let viewport = CGRect(x: 200, y: 300, width: 400, height: 800)
+
+    func testCenterKeepsItsSizeAndAllFourEdgesShrinkEqually() {
+        let center = CGPoint(x: viewport.midX, y: viewport.midY)
+        XCTAssertEqual(HappeningFieldEdgeScale.factor(at: center, visibleRect: viewport), 1, accuracy: 0.0001)
+        for edge in [CGPoint(x: viewport.minX, y: center.y), CGPoint(x: viewport.maxX, y: center.y),
+                     CGPoint(x: center.x, y: viewport.minY), CGPoint(x: center.x, y: viewport.maxY),
+                     CGPoint(x: viewport.minX, y: viewport.minY)] {
+            XCTAssertEqual(HappeningFieldEdgeScale.factor(at: edge, visibleRect: viewport), 0.84, accuracy: 0.0001)
+        }
+    }
+
+    func testPanningBackToCenterRestoresSizeWithoutMovingTheSource() {
+        let source = HappeningFieldLayout.Source(index: 0, center: CGPoint(x: 600, y: 700), radius: 68)
+        var layout = HappeningFieldLayout.makeLayout(sources: [source], dockAnchor: .zero)
+        layout.contentSize = CGSize(width: 1200, height: 1600)
+        let edge = HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport, strength: 1)
+        let centered = HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport.offsetBy(dx: 200, dy: 0), strength: 1)
+        XCTAssertEqual(edge.sources[0].radius, 68 * 0.84, accuracy: 0.0001)
+        XCTAssertEqual(edge.sources[0].appearanceScale, 0.84, accuracy: 0.0001)
+        XCTAssertEqual(centered.sources[0], source)
+        XCTAssertEqual(edge.sources[0].center, source.center)
+        XCTAssertEqual(edge.contentSize, layout.contentSize)
+        XCTAssertEqual(HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport, strength: 0), layout)
+    }
+
+    func testScaleChangesContinuouslyAndComposesWithBalloonAppearance() {
+        var previous: CGFloat = 1
+        for x in stride(from: viewport.midX, through: viewport.maxX + 100, by: 1) {
+            let scale = HappeningFieldEdgeScale.factor(at: CGPoint(x: x, y: viewport.midY), visibleRect: viewport)
+            XCTAssertLessThanOrEqual(scale, previous + 0.0001)
+            XCTAssertLessThan(abs(scale - previous), 0.005)
+            XCTAssertGreaterThanOrEqual(scale, 0.84)
+            previous = scale
+        }
+        let source = HappeningFieldLayout.Source(index: 0, center: CGPoint(x: viewport.minX, y: viewport.midY), radius: 34, appearanceScale: 0.5)
+        let layout = HappeningFieldLayout.makeLayout(sources: [source], dockAnchor: .zero)
+        let result = HappeningFieldEdgeScale.apply(to: layout, visibleRect: viewport, strength: 0.5)
+        XCTAssertEqual(result.sources[0].radius, 34 * 0.92, accuracy: 0.0001)
+        XCTAssertEqual(result.sources[0].appearanceScale, 0.5 * 0.92, accuracy: 0.0001)
+        XCTAssertEqual(HappeningFieldEdgeScale.factor(at: .zero, visibleRect: .zero), 1)
     }
 }

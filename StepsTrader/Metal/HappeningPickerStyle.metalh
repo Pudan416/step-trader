@@ -1,0 +1,20 @@
+#pragma once
+#include <metal_stdlib>
+using namespace metal;
+
+// Ten percent of the way from a circle (power 2) to a soft squircle (power 4).
+// The same contour is used by the native and fallback picker renderers.
+static float happeningPickerRadius(float2 point) {
+    const float2 powers = pow(abs(point), float2(2.2));
+    return pow(powers.x + powers.y, 1.0 / 2.2);
+}
+
+static float4 happeningPickerFill(float radius, float coverage, float3 dayAccent) {
+    const float shoulder = smoothstep(0.65, 1.0, radius);
+    const float rim = smoothstep(0.965, 0.985, radius);
+    const float alpha = coverage * (0.72 + shoulder * 0.06 + rim * 0.08);
+    // The interface accent is already lightened. Give it enough weight in
+    // linear light to remain visibly tinted after display transfer and grain.
+    const float3 color = mix(float3(0.96), clamp(dayAccent, 0.0, 1.0), 0.38);
+    return float4(color * alpha, alpha);
+}

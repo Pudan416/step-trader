@@ -102,6 +102,7 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
+    @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
@@ -387,11 +388,13 @@ struct GalleryView: View {
     }
 
     private func refreshHappeningPalette() {
+        let frequent = model.frequentPaletteHappenings(on: dayCanvas.dayKey, addedIDs: paletteAddedIDs)
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
-        paletteHappenings = model.configuredPaletteHappenings()
+        paletteHappenings = frequent
+            + HappeningPaletteSelection.alternatives(catalog: paletteCatalog, selected: paletteSelectedIDs)
         let request = HappeningEditorialAssignmentRequest(
-            happenings: model.configuredPaletteHappenings(),
+            happenings: paletteHappenings,
             baseInput: editorialRenderInput.sceneInput,
             committedElements: dayCanvas.elements,
             colorNonce: model.paletteColorNonce()
@@ -407,6 +410,7 @@ struct GalleryView: View {
     private func openHappeningPalette() {
         metricOverlay = nil
         send(.openHappeningPalette)
+        paletteMode = .frequent
         refreshHappeningPalette()
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -463,7 +467,7 @@ struct GalleryView: View {
     }
 
     @ViewBuilder
-    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout) -> some View {
+    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout) -> some View {
         if showHappeningPalette, !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
@@ -473,8 +477,21 @@ struct GalleryView: View {
                 selectedIDs: paletteSelectedIDs,
                 activePanel: $happeningPalettePanel,
                 layout: layout,
+                mode: paletteMode,
+                compactLayout: compactLayout,
+                artworkForLayout: { displayedLayout, isExpanding in
+                    AnyView(DayObjectsView(
+                        sceneInput: displayedEditorialRenderInput.sceneInput,
+                        digitalImpact: displayedEditorialRenderInput.digitalImpact,
+                        isAnimating: isCanvasSelected,
+                        soundPulseBus: canvasSoundPulseBus,
+                        presentationMode: paletteRenderMode(layout: displayedLayout,
+                            viewportSize: displayedLayout.contentSize, isExpanding: isExpanding)
+                    ))
+                },
                 interaction: paletteInteraction,
                 addedIDs: paletteAddedIDs,
+                fixedIDs: paletteHealthIDs,
                 instruction: paletteInstruction,
                 onActivate: handlePaletteActivation,
                 onCreate: { handlePaletteCreation($0) },
@@ -490,6 +507,10 @@ struct GalleryView: View {
             )
             .transition(.opacity)
         }
+    }
+
+    private var paletteHealthIDs: Set<String> {
+        Set(FrequentHappeningSelection.healthCoreIDs + paletteSelectedIDs.filter { $0.hasPrefix("health_workout_") })
     }
 
     private var paletteAddedIDs: Set<String> {
@@ -516,9 +537,9 @@ struct GalleryView: View {
         })
     }
 
-    private func happeningPaletteLayout(in viewport: GeometryProxy) -> HappeningFieldLayout.Layout {
-        HappeningFieldLayout.layout(
-            count: min(10, paletteHappenings.count),
+    private func happeningPaletteLayout(in viewport: GeometryProxy, compact: Bool = false) -> HappeningFieldLayout.Layout {
+        var layout = HappeningFieldLayout.layout(
+            count: compact ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
             safeInsets: canvasSafeInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
@@ -526,16 +547,25 @@ struct GalleryView: View {
                 + HappeningPaletteChromeLayout.panelTopInset(
                     topCardHeight: topCardHeight, hidesSurroundingChrome: true
                 ) + 10,
-            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
+            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY },
+            allowsAccessibleScrolling: compact
         )
+        // Compact layouts have viewport coordinates too; Metal needs a real
+        // drawable size even when there is no overflow to scroll.
+        layout.contentSize = CGSize(width: max(viewport.size.width, layout.contentSize.width),
+                                    height: max(viewport.size.height, layout.contentSize.height))
+        return layout
     }
 
-    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize) -> DayObjectsPresentationMode {
+    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false) -> DayObjectsPresentationMode {
         guard showHappeningPalette else { return .canvas }
-        let slots = paletteHappenings.prefix(10).enumerated().compactMap { index, happening
+        let slots = paletteHappenings.enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
-            guard index < layout.sources.count,
+            guard index < layout.sources.count, layout.sources[index].appearanceScale > 0.001,
                   let assignment = paletteEditorialAssignments[happening.id] else { return nil }
+            let source = layout.sources[index]
+            let bounds = CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius, width: source.radius * 2, height: source.radius * 2)
+            guard bounds.intersects(CGRect(origin: .zero, size: viewportSize).insetBy(dx: -32, dy: -32)) else { return nil }
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
@@ -547,8 +577,9 @@ struct GalleryView: View {
             slots: slots,
             viewportSize: viewportSize,
             reduceMotion: reduceMotion,
-            isTransitionActive: paletteTransitionActive,
-            backgroundRevision: UInt64(max(0, localMutationCounter))
+            isTransitionActive: paletteTransitionActive || isExpanding,
+            backgroundRevision: UInt64(max(0, localMutationCounter)),
+            usesSharedGeometry: true
         ))
     }
 
@@ -654,7 +685,7 @@ struct GalleryView: View {
         do {
             _ = try model.createPaletteHappening(
                 title: title,
-                protectedIDs: paletteAddedIDs,
+                protectedIDs: paletteAddedIDs.union(paletteHealthIDs),
                 selection: selection,
                 replacingID: replacingID
             )
@@ -822,11 +853,11 @@ struct GalleryView: View {
             let paletteLayout = happeningPaletteLayout(in: viewport)
             ZStack {
                 DayCanvasArtworkView(
-                    style: showHappeningPalette ? .editorial : dayCanvas.resolvedVisualStyle,
+                    style: dayCanvas.resolvedVisualStyle,
                     editorial: displayedEditorialRenderInput,
-                    isAnimating: isCanvasSelected,
+                    isAnimating: isCanvasSelected && !showHappeningPalette,
                     soundPulseBus: canvasSoundPulseBus,
-                    presentationMode: paletteRenderMode(layout: paletteLayout, viewportSize: viewport.size)
+                    presentationMode: .canvas
                 ) {
                     legacyCanvasLayers
                         .background {
@@ -850,6 +881,7 @@ struct GalleryView: View {
                         }
                 }
                 .frame(width: viewport.size.width, height: viewport.size.height)
+                .accessibilityHidden(showHappeningPalette)
 
                 if !presentation.isEditing {
                     CanvasAnimationOverlay(
@@ -875,10 +907,21 @@ struct GalleryView: View {
                 }
             }
             .frame(width: viewport.size.width, height: viewport.size.height)
+            // A native backdrop can sample CAMetalLayer; SwiftUI's raster blur cannot.
+            .overlay {
+                if showHappeningPalette {
+                    HappeningCanvasBackdropBlur()
+                        .opacity(0.5)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: showHappeningPalette)
             // Labels and Metal share this exact viewport, including safe areas.
             // An overlay outside canvasLayers inherits a different screen origin.
             .overlay {
-                happeningPaletteOverlay(layout: paletteLayout)
+                happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true))
             }
         }
         .ignoresSafeArea()
@@ -954,11 +997,18 @@ struct GalleryView: View {
         }
         .overlay {
             if showHappeningPalette, !presentation.isWideCanvas, happeningPalettePanel == nil {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    bottomControlsBar
-                        .padding(.horizontal, controlsGuardRail)
-                        .padding(.bottom, bottomControlsPadding)
+                GeometryReader { controls in
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        bottomControlsBar
+                            .padding(.horizontal, controlsGuardRail)
+                            .padding(.bottom, CanvasBottomControlsLayout.padding(
+                                canvasBottomY: controls.frame(in: .global).maxY,
+                                tabBarCenterY: tabBarCenterY,
+                                controlHeight: 52,
+                                fallbackSafeAreaBottom: controls.safeAreaInsets.bottom
+                            ))
+                    }
                 }
             }
         }
@@ -1456,6 +1506,16 @@ struct GalleryView: View {
             onToggleHappeningPalette: {
                 CoachMarkManager.postAction(for: .tapPlusButton)
                 showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
+            },
+            happeningMode: showHappeningPalette ? paletteMode : nil,
+            onSelectHappeningMode: { mode in
+                guard mode != paletteMode else { return }
+                paletteConfirmationTask?.cancel()
+                paletteTransitionTask?.cancel()
+                paletteInteraction = HappeningPaletteInteractionState()
+                paletteErrorID = nil
+                paletteTransitionActive = false
+                paletteMode = mode
             }
         )
     }
@@ -2482,4 +2542,17 @@ struct SuggestionBannerHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
+}
+
+
+/// Subtle backdrop blur below the picker, including live Metal canvas content.
+private struct HappeningCanvasBackdropBlur: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+
 }

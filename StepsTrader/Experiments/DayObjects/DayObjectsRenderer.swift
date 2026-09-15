@@ -314,18 +314,21 @@ struct DayObjectsGlitchUniforms: Equatable {
 
 /// A depth-sorted frame snapshot ready for a single instanced actor draw.
 struct DayObjectsActorUpload: Equatable {
+    /// Palette browsing can expose more choices than a day's ten artwork actors.
+    static let maximumActorCount = 64
     let actors: [DayObjectGPUActor]
     let appearances: [DayObjectGPUAppearance]
     let uniforms: DayObjectsActorUniforms
 
     init(
         actors renderActors: [DayObjectRenderActor],
+        actorLimit: Int = DayObjectScene.maxActors,
         resolution: SIMD2<Float>,
         lightDirection: SIMD2<Float> = SIMD2(1, 0),
         lightSoftness: Float = 0.6,
         globalTime: Float = 0
     ) {
-        let boundedActors = Array(renderActors.prefix(DayObjectScene.maxActors))
+        let boundedActors = Array(renderActors.prefix(min(max(actorLimit, 1), Self.maximumActorCount)))
         self.init(
             gpuActors: boundedActors.map(\.gpuActor),
             gpuAppearances: boundedActors.map(\.gpuAppearance),
@@ -346,7 +349,7 @@ struct DayObjectsActorUpload: Equatable {
         lightSoftness: Float,
         globalTime: Float
     ) {
-        actors = Array(gpuActors.prefix(DayObjectScene.maxActors))
+        actors = gpuActors
         appearances = Array(gpuAppearances.prefix(actors.count))
         uniforms = DayObjectsActorUniforms(
             resolution: resolution,
@@ -546,7 +549,7 @@ final class DayObjectsActorBufferRing {
     ) {
         scheduler = DayObjectsInFlightScheduler(slotCount: requestedSlotCount)
         slotCount = scheduler.slotCount
-        let capacity = min(max(actorCapacity, 1), DayObjectScene.maxActors)
+        let capacity = min(max(actorCapacity, 1), DayObjectsActorUpload.maximumActorCount)
         bufferLength = DayObjectGPUActor.metalStride * capacity
         appearanceBufferLength = DayObjectGPUAppearance.metalStride * capacity
 
@@ -976,7 +979,7 @@ struct DayObjectsBackgroundRenderPolicy {
 }
 
 final class DayObjectsRenderer: NSObject, MTKViewDelegate {
-    static let actorCapacity = DayObjectScene.maxActors
+    static let actorCapacity = DayObjectsActorUpload.maximumActorCount
     static let colorPixelFormat: MTLPixelFormat = .bgra8Unorm_srgb
 
     /// The post shader writes linear light. An sRGB drawable performs the
@@ -1496,8 +1499,11 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             backgroundEncoder.endEncoding()
         }
 
+        let accent = CanvasChromePalette.resolve(backgroundColors: renderScene.meshGradientStyle.colors.map { DayObjectRGB(linearRGB: $0) }).accent.linearRGB
+        var pickerAccent = SIMD4<Float>(accent.x, accent.y, accent.z, 1)
         let actorUpload = DayObjectsActorUpload(
             actors: frame.actors,
+            actorLimit: Self.actorCapacity,
             resolution: SIMD2(
                 Float(renderTargets.scene.width),
                 Float(renderTargets.scene.height)
@@ -1529,19 +1535,22 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         scenePass.colorAttachments[0].texture = renderTargets.scene
         scenePass.colorAttachments[0].loadAction = .clear
         scenePass.colorAttachments[0].storeAction = .store
-        scenePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1)
+        scenePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, presentationMode.isTransparentOverlay ? 0 : 1)
         guard let sceneEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: scenePass) else {
             return nil
         }
         sceneEncoder.label = "Day Objects full-resolution scene composite"
-        sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
-        sceneEncoder.setFragmentTexture(renderTargets.background, index: 0)
-        sceneEncoder.setFragmentSamplerState(linearSampler, index: 0)
-        sceneEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        if !presentationMode.isTransparentOverlay {
+            sceneEncoder.setRenderPipelineState(sceneUpscalePipeline)
+            sceneEncoder.setFragmentTexture(renderTargets.background, index: 0)
+            sceneEncoder.setFragmentSamplerState(linearSampler, index: 0)
+            sceneEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        }
 
         if !actorUpload.actors.isEmpty {
             var actorUniforms = actorUpload.uniforms
             sceneEncoder.setRenderPipelineState(actorPipeline)
+            sceneEncoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 4)
             sceneEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             sceneEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
             sceneEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
@@ -1620,6 +1629,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             if simd_length(inward) > 0.001 { echoDirection = simd_normalize(inward) }
             var actorUniforms = actorUpload.uniforms
             echoEncoder.setRenderPipelineState(actorPipeline)
+            echoEncoder.setFragmentBytes(&pickerAccent, length: MemoryLayout<SIMD4<Float>>.stride, index: 4)
             echoEncoder.setVertexBuffer(quadBuffer, offset: 0, index: 0)
             echoEncoder.setVertexBuffer(actorBufferLease.poseBuffer, offset: 0, index: 1)
             echoEncoder.setVertexBuffer(actorBufferLease.appearanceBuffer, offset: 0, index: 2)
@@ -1687,6 +1697,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 index: 2
             )
         }
+        var transparentOverlay: UInt32 = presentationMode.isTransparentOverlay ? 1 : 0
+        presentEncoder.setFragmentBytes(&transparentOverlay, length: MemoryLayout<UInt32>.stride, index: 4)
         presentEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         presentEncoder.endEncoding()
 

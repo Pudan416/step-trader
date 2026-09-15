@@ -3,6 +3,10 @@ import HealthKit
 @testable import Steps4
 
 final class HappeningPaletteSelectionTests: XCTestCase {
+    // These tests cover the user's ten preferred starting choices, independent
+    // of the larger catalog available by scrolling.
+    private var originalBuiltIns: [Happening] { Array(HappeningDefaults.builtIns.prefix(10)) }
+
 
     func testRestingAndRestedOfferOneChoiceWhileKeepingCustomTitles() {
         let catalog = [
@@ -97,11 +101,11 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     }
 
     func testSavedAndLegacyWalkingDuplicatesBecomeOneWalkAndStayRepairedAfterReload() {
-        let catalog = HappeningDefaults.builtIns + [
+        let catalog = originalBuiltIns + [
             Happening(id: "body_walking", title: "Walking", isBuiltIn: false, useCount: 7),
             Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false, useCount: 3)
         ]
-        let selected = ["body_walking", "health_workout_52"] + Array(HappeningDefaults.builtIns.dropFirst(2)).map(\.id)
+        let selected = ["body_walking", "health_workout_52"] + Array(originalBuiltIns.dropFirst(2)).map(\.id)
         for key in [SharedKeys.happeningPaletteSelection, SharedKeys.legacyHappeningPaletteOrderIds] {
             defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
             defaults.set(selected, forKey: key)
@@ -120,7 +124,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     }
 
     func testSaveCannotReintroduceWalkingAliasBesideWalk() throws {
-        let catalog = HappeningDefaults.builtIns + [
+        let catalog = originalBuiltIns + [
             Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false)
         ]
         let store = HappeningPaletteSelectionStore(defaults: defaults)
@@ -200,18 +204,18 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     func testFirstLoadSeedsBuiltInsInSourceOrder() {
         let store = HappeningPaletteSelectionStore(defaults: defaults)
 
-        store.load(catalog: HappeningDefaults.builtIns)
+        store.load(catalog: originalBuiltIns)
 
-        XCTAssertEqual(store.ids, HappeningDefaults.builtIns.map(\.id))
+        XCTAssertEqual(store.ids, originalBuiltIns.map(\.id))
         XCTAssertEqual(defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection), store.ids)
     }
 
     func testLoadRemovesUnknownIdsAndRefillsInDefaultOrder() {
-        let catalog = HappeningDefaults.builtIns + [
+        let catalog = originalBuiltIns + [
             Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)
         ]
         defaults.set(
-            ["unknown", HappeningDefaults.builtIns[2].id],
+            ["unknown", originalBuiltIns[2].id],
             forKey: SharedKeys.happeningPaletteSelection
         )
         let store = HappeningPaletteSelectionStore(defaults: defaults)
@@ -220,13 +224,13 @@ final class HappeningPaletteSelectionTests: XCTestCase {
 
         XCTAssertEqual(
             store.ids,
-            [HappeningDefaults.builtIns[2].id]
-                + HappeningDefaults.builtIns.map(\.id).filter { $0 != HappeningDefaults.builtIns[2].id }
+            [originalBuiltIns[2].id]
+                + originalBuiltIns.map(\.id).filter { $0 != originalBuiltIns[2].id }
         )
     }
 
     func testLoadRemovesDuplicatesBeforeRefilling() {
-        let catalog = HappeningDefaults.builtIns
+        let catalog = originalBuiltIns
         let duplicatedID = catalog[3].id
         defaults.set(
             [duplicatedID, duplicatedID] + catalog.dropFirst(4).map(\.id),
@@ -243,7 +247,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     }
 
     func testSaveRejectsAnythingOtherThanTenUniqueLiveIdsWithoutChangingState() throws {
-        let catalog = HappeningDefaults.builtIns
+        let catalog = originalBuiltIns
         let store = HappeningPaletteSelectionStore(defaults: defaults)
         store.load(catalog: catalog)
         let original = store.ids
@@ -473,7 +477,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     }
 
     func testMigratesV1FrozenOrderOnceWhenItContainsTenLiveIds() {
-        let catalog = HappeningDefaults.builtIns
+        let catalog = originalBuiltIns
         let migratedIDs = catalog.map(\.id).reversed()
         defaults.set(Array(migratedIDs), forKey: "paletteOrderIds_v1")
         let first = HappeningPaletteSelectionStore(defaults: defaults)
@@ -488,7 +492,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     }
 
     func testDoesNotMigrateV1FrozenOrderUnlessItContainsTenLiveIds() {
-        let catalog = HappeningDefaults.builtIns
+        let catalog = originalBuiltIns
         defaults.set(Array(catalog.map(\.id).dropLast()) + ["unknown"], forKey: "paletteOrderIds_v1")
         let store = HappeningPaletteSelectionStore(defaults: defaults)
 

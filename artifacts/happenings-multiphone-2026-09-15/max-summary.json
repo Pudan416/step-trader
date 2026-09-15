@@ -1,0 +1,42 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "23C03D92-5868-4A0C-A63A-7C5B6D113AD1",
+        "deviceName" : "Nowhere Happenings Max Initialized QA",
+        "modelName" : "iPhone 17 Pro Max",
+        "osBuildNumber" : "23D8133",
+        "osVersion" : "26.3.1",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 2,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "Steps4 · Built with macOS 26.5.2",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1789501592.349,
+  "passedTests" : 2,
+  "result" : "Passed",
+  "skippedTests" : 0,
+  "startTime" : 1789501512.01,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - Steps4",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 2
+}

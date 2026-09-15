@@ -14,11 +14,17 @@ struct HappeningPaletteRenderPresentation: Equatable {
     let reduceMotion: Bool
     let isTransitionActive: Bool
     let backgroundRevision: UInt64
+    var usesSharedGeometry: Bool = false
 }
 
 enum DayObjectsPresentationMode: Equatable {
     case canvas
     case happeningPalette(HappeningPaletteRenderPresentation)
+
+    var isTransparentOverlay: Bool {
+        if case .happeningPalette = self { return true }
+        return false
+    }
 
     var prefersSixtyFPS: Bool {
         guard case let .happeningPalette(value) = self else { return false }
@@ -120,7 +126,8 @@ struct HappeningPaletteTransitionTimeline {
             if destinationChanged(
                 from: currentSlots[slot.happeningID],
                 to: slot,
-                reduceMotionChanged: presentation.reduceMotion != next.reduceMotion
+                reduceMotionChanged: presentation.reduceMotion != next.reduceMotion,
+                usesSharedGeometry: next.usesSharedGeometry
             ), let current = existingByID[slot.happeningID] {
                 nextTransitions[slot.happeningID] = Transition(
                     prior: PriorSlot(
@@ -162,7 +169,7 @@ struct HappeningPaletteTransitionTimeline {
                     return .init(
                         happeningID: slot.happeningID,
                         assignment: prior.assignment,
-                        source: prior.source,
+                        source: slot.source,
                         controls: withOpacity(prior.controls, multiplier: 1 - elapsedSinceTransition / fade)
                     )
                 }
@@ -187,7 +194,7 @@ struct HappeningPaletteTransitionTimeline {
             return .init(
                 happeningID: slot.happeningID,
                 assignment: slot.assignment,
-                source: interpolatedSource(from: prior.source, to: slot.source, progress: smoothProgress),
+                source: presentation.usesSharedGeometry ? slot.source : interpolatedSource(from: prior.source, to: slot.source, progress: smoothProgress),
                 controls: prior.controls.interpolated(to: target, progress: smoothProgress)
             )
         })
@@ -196,12 +203,13 @@ struct HappeningPaletteTransitionTimeline {
     private func destinationChanged(
         from current: HappeningPaletteRenderSlot?,
         to next: HappeningPaletteRenderSlot,
-        reduceMotionChanged: Bool
+        reduceMotionChanged: Bool,
+        usesSharedGeometry: Bool
     ) -> Bool {
         guard let current else { return false }
         return reduceMotionChanged
             || current.assignment != next.assignment
-            || current.source != next.source
+            || (!usesSharedGeometry && current.source.radius != next.source.radius)
             || HappeningPaletteRenderControls.target(for: current.visualState)
                 != HappeningPaletteRenderControls.target(for: next.visualState)
     }
@@ -214,8 +222,8 @@ struct HappeningPaletteTransitionTimeline {
         HappeningFieldLayout.Source(
             index: target.index,
             center: CGPoint(
-                x: interpolate(Double(source.center.x), Double(target.center.x), progress),
-                y: interpolate(Double(source.center.y), Double(target.center.y), progress)
+                x: target.center.x,
+                y: target.center.y
             ),
             radius: interpolate(Double(source.radius), Double(target.radius), progress)
         )

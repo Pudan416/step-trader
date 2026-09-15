@@ -1,7 +1,7 @@
 import SwiftUI
 import simd
 
-/// Transparent labels and hit targets over the renderer's fixed ten actors.
+/// Transparent labels and hit targets over the renderer's scrollable actors.
 struct HappeningShapeField: View {
     let happenings: [Happening]
     let assignments: [String: HappeningEditorialAssignment]
@@ -9,12 +9,13 @@ struct HappeningShapeField: View {
     let interaction: HappeningPaletteInteractionState
     let addedIDs: Set<String>
     let onActivate: (Happening) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var labelInks: [String: HappeningPaletteLabelInk] = [:]
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ForEach(Array(happenings.prefix(10).enumerated()), id: \.element.id) { index, happening in
-                if index < layout.sources.count {
+            ForEach(Array(happenings.enumerated()), id: \.element.id) { index, happening in
+                if index < layout.sources.count, layout.sources[index].appearanceScale > 0.001 {
                     happeningButton(happening, source: layout.sources[index])
                 }
             }
@@ -27,7 +28,7 @@ struct HappeningShapeField: View {
     ) -> some View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
         let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
-        let side = max(44, source.radius * 2)
+        let side = max(44, source.radius * 2 / max(0.001, source.appearanceScale))
         let ink = labelInks[happening.id] ?? .dark
 
         return ZStack {
@@ -35,9 +36,9 @@ struct HappeningShapeField: View {
                 onActivate(happening)
             } label: {
                 Text(happening.localizedTitle())
-                    .font(.geist(size: 14, weight: .semibold))
+                    .font(.onest(size: min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
                     // Preview actions never participate in the title's layout.
                     .overlay {
@@ -54,7 +55,7 @@ struct HappeningShapeField: View {
                     }
                     .foregroundStyle(ink.color)
                     .frame(width: side, height: side)
-                    .contentShape(Circle())
+                    .contentShape(HappeningPickerShape())
             }
             .buttonStyle(.plain)
             .disabled(locked)
@@ -77,6 +78,7 @@ struct HappeningShapeField: View {
             }
         }
         .frame(width: side, height: side)
+        .scaleEffect(source.appearanceScale)
         .position(source.center)
     }
 
@@ -131,5 +133,25 @@ enum HappeningPaletteLabelInk: Equatable {
                 SIMD3(color.x, color.y, color.z) * opacity + bg * (1 - opacity)
             }
         })
+    }
+}
+
+/// Matches the subtle superellipse used by both Metal picker renderers.
+private struct HappeningPickerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            for step in 0...128 {
+                let angle = Double(step) / 128 * 2 * Double.pi
+                func coordinate(_ value: Double) -> CGFloat {
+                    CGFloat((value < 0 ? -1 : 1) * pow(abs(value), 2 / 2.2))
+                }
+                let point = CGPoint(
+                    x: rect.midX + rect.width / 2 * coordinate(cos(angle)),
+                    y: rect.midY + rect.height / 2 * coordinate(sin(angle))
+                )
+                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            path.closeSubpath()
+        }
     }
 }

@@ -96,3 +96,61 @@ enum HappeningPaletteSelection {
         return replaced
     }
 }
+
+/// Automatic home set; the complete catalog remains available in All.
+enum FrequentHappeningSelection {
+    static let healthCoreIDs = ["happening_slept_well", "happening_walk", "happening_workout", "happening_did_nothing"]
+
+    static func resolve(catalog: [Happening], previous: [String], healthIDs: [String],
+                        protectedIDs: Set<String>, allowsPromotion: Bool) -> [String] {
+        let key = HappeningPaletteSelection.choiceID
+        let choices = HappeningPaletteSelection.alternatives(catalog: catalog, selected: [])
+        let byID = Dictionary(uniqueKeysWithValues: choices.map { (key($0.id), $0) })
+        func unique(_ ids: [String]) -> [String] {
+            var seen = Set<String>()
+            return ids.map(key).filter { byID[$0] != nil && seen.insert($0).inserted }
+        }
+        let required = Array(unique(healthCoreIDs + healthIDs).prefix(10))
+        let protected = Set(protectedIDs.map(key))
+        var ids = Array(unique((previous.isEmpty ? required : previous) + required
+            + HappeningDefaults.builtIns.map(\.id) + choices.map(\.id)).prefix(10))
+        // New Health activities can enter immediately, but never displace an
+        // item already on today's canvas. All always retains overflow choices.
+        for id in required where !ids.contains(id) {
+            guard let slot = ids.indices.reversed().first(where: {
+                !required.contains(ids[$0]) && !protected.contains(ids[$0])
+            }) else { continue }
+            ids[slot] = id
+        }
+        guard allowsPromotion else { return ids }
+        let candidates = choices.filter {
+            !ids.contains(key($0.id)) && !$0.id.hasPrefix("health_workout_") && $0.useCount >= 3
+        }.sorted {
+            if $0.useCount != $1.useCount { return $0.useCount > $1.useCount }
+            if $0.lastUsedAt != $1.lastUsedAt { return ($0.lastUsedAt ?? .distantPast) > ($1.lastUsedAt ?? .distantPast) }
+            return $0.id < $1.id
+        }
+        guard let candidate = candidates.first,
+              let slot = ids.indices.filter({ !required.contains(ids[$0]) && !protected.contains(ids[$0]) }).min(by: {
+                  let lhs = byID[ids[$0]]!, rhs = byID[ids[$1]]!
+                  if lhs.useCount != rhs.useCount { return lhs.useCount < rhs.useCount }
+                  if lhs.lastUsedAt != rhs.lastUsedAt { return (lhs.lastUsedAt ?? .distantPast) < (rhs.lastUsedAt ?? .distantPast) }
+                  return $0 > $1
+              }), candidate.useCount >= (byID[ids[slot]]?.useCount ?? 0) + 2 else { return ids }
+        ids[slot] = key(candidate.id)
+        return ids
+    }
+}
+
+
+enum HappeningPaletteMode: String, CaseIterable {
+    case frequent
+    case all
+
+    var title: String {
+        switch self {
+        case .frequent: String(localized: "Frequent", comment: "Happening chooser: automatic frequent set")
+        case .all: String(localized: "All", comment: "Happening chooser: full catalog")
+        }
+    }
+}

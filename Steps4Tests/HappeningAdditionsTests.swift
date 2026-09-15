@@ -330,7 +330,7 @@ final class HappeningAdditionsTests: XCTestCase {
 
         try model.savePaletteHappeningSelection(selectedIDs)
 
-        XCTAssertEqual(model.paletteHappeningCatalog().count, 11)
+        XCTAssertEqual(model.paletteHappeningCatalog().count, HappeningDefaults.builtIns.count + 1)
         XCTAssertEqual(model.selectedPaletteHappeningIDs(), selectedIDs)
         XCTAssertFalse(
             model.availablePaletteHappenings(on: date).contains { $0.id == selectedIDs[0] }
@@ -342,7 +342,7 @@ final class HappeningAdditionsTests: XCTestCase {
 
     func testConfiguredPaletteHappeningsUsesPersistedSelection() {
         let defaults = UserDefaults.stepsTrader()
-        let configuredIDs = Array(HappeningDefaults.builtIns.map(\.id).reversed())
+        let configuredIDs = Array(HappeningDefaults.builtIns.prefix(10).map(\.id).reversed())
         defaults.set(configuredIDs, forKey: SharedKeys.happeningPaletteSelection)
         let model = makeModel()
 
@@ -374,7 +374,7 @@ final class HappeningAdditionsTests: XCTestCase {
 
         XCTAssertEqual(
             model.configuredPaletteHappenings().map(\.id),
-            HappeningDefaults.builtIns.map(\.id)
+            HappeningDefaults.builtIns.prefix(10).map(\.id)
         )
         XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date))
         XCTAssertFalse(model.availablePaletteHappenings(on: date).contains { $0.id == "happening_walk" })
