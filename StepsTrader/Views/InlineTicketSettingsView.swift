@@ -143,13 +143,6 @@ struct TicketSettingsContentView: View {
                 updateGroup(group)
             }
             .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            if group.selection.isSingleApplication {
-                Button(String(localized: "Use app name")) {
-                    group.name = ""
-                    group.templateApp = nil
-                    updateGroup(group)
-                }
-            }
             Button(String(localized: "Cancel"), role: .cancel) {}
         }
         .confirmationDialog(
