@@ -78,7 +78,11 @@ struct NewAppGroupSheet: View {
                     .navigationTitle(String(localized: "Select Apps"))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .cancellationAction) { cancelButton }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button { dismiss() } label: { Image(systemName: "xmark") }
+                                .accessibilityLabel(String(localized: "Cancel"))
+                                .accessibilityIdentifier("feed.selection.cancel")
+                        }
                         ToolbarItem(placement: .confirmationAction) {
                             Button(isEditing ? String(localized: "Save") : String(localized: "Create")) { save() }
                                 .disabled(trimmedName.isEmpty || !selection.hasGroupTargets || hasSaved)
