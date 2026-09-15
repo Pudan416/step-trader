@@ -246,13 +246,14 @@ private struct DebugCanvasTourHost: ViewModifier {
             // layout must not insert another line and resize the instruction.
         }
     }
-    private func action(_ title: String, id: String, _ perform: @escaping () -> Void) -> some View {
+    private func action(_ title: String, id: String, secondary: Bool = false, _ perform: @escaping () -> Void) -> some View {
         Button(action: perform) {
             Text(title).font(.geist(.subheadline).weight(.semibold))
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
-                .foregroundStyle(coachSurface)
-                .background(coachInk, in: Capsule())
+                .foregroundStyle(secondary ? coachInk : coachSurface)
+                .background(secondary ? coachSurface : coachInk, in: Capsule())
+                .overlay { if secondary { Capsule().strokeBorder(coachInk.opacity(0.6), lineWidth: 1) } }
         }.buttonStyle(.plain).accessibilityIdentifier("canvas_tour.\(id)")
     }
     @ViewBuilder private var actions: some View {
@@ -261,7 +262,7 @@ private struct DebugCanvasTourHost: ViewModifier {
         case .healthValue:
             HStack(spacing: 10) {
                 action(String(localized: "Connect Health"), id: "health") { requestHealth() }
-                action(String(localized: "Later"), id: "healthLater") { tour.send(.healthDeferred) }
+                action(String(localized: "Later"), id: "healthLater", secondary: true) { tour.send(.healthDeferred) }
             }
         case .healthResult:
             if healthFailed { action(String(localized: "Retry"), id: "healthRetry") { requestHealth() } }
@@ -295,7 +296,7 @@ private struct DebugCanvasTourHost: ViewModifier {
         case .add: String(localized: "Start with a moment.")
         case .happening: String(localized: "What happened today?")
         case .balance: String(localized: "You now have \(model.totalStepsBalance) colors")
-        case .healthValue: String(localized: "Your day adds color.")
+        case .healthValue: String(localized: "Your day has colors.")
         case .healthResult: healthFailed ? String(localized: "Couldn’t check Health") : String(localized: "Apple Health")
         case .feedsTab: String(localized: "Unlock apps with your colors.")
         case .addApps: String(localized: "Choose your apps.")
@@ -315,7 +316,7 @@ private struct DebugCanvasTourHost: ViewModifier {
         case .add: String(localized: "Tap + to add something from your day.")
         case .happening: String(localized: "Tap once to preview. Tap again to add.")
         case .balance: String(localized: "Pull the top panel down, or tap it, to see what else adds color to your day.")
-        case .healthValue: String(localized: "Steps can add up to \(EnergyDefaults.stepsMaxPoints) colors a day, and Sleep up to \(EnergyDefaults.sleepMaxPoints). Check Apple Health to read available data.")
+        case .healthValue: String(localized: "Steps: up to \(EnergyDefaults.stepsMaxPoints) colors a day.\nSleep: up to \(EnergyDefaults.sleepMaxPoints) colors a day.")
         case .healthResult:
             if !HKHealthStore.isHealthDataAvailable() { String(localized: "Health is unavailable on this device. You can continue without it.") }
             else if healthFailed { String(localized: "Try again, or continue without Health. The panel may show earlier values.") }

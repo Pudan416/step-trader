@@ -4,6 +4,7 @@ import SwiftUI
 
 extension EnvironmentValues {
     @Entry var topCardHeight: CGFloat = 0
+    @Entry var canvasBalanceBottomGlobalY: CGFloat? = nil
     @Entry var tabBarHeight: CGFloat = 80
     @Entry var tabBarCenterY: CGFloat? = nil
 }
@@ -59,6 +60,7 @@ struct MainTabView: View {
     @State private var paletteRoute = CanvasPaletteRouteState()
     @State private var metricOverlay: MetricOverlayKind? = nil
     @State private var topCardHeight: CGFloat = 0
+    @State private var balanceBottomGlobalY: CGFloat?
     @State private var canvasPresentation: CanvasPresentationState = .canvas
     @State private var dataPanelPullDistance: CGFloat = 0
     /// Deep-link route for the Settings sheet, driven by feature-tip CTAs.
@@ -228,6 +230,7 @@ struct MainTabView: View {
             .toolbarBackground(.hidden, for: .tabBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .environment(\.topCardHeight, topCardHeight)
+            .environment(\.canvasBalanceBottomGlobalY, balanceBottomGlobalY)
             .environment(\.tabBarHeight, tabBarHeight)
             .environment(\.tabBarCenterY, tabBarCenterY)
             .animation(tabSelectionAnimation, value: selection)
@@ -348,6 +351,7 @@ struct MainTabView: View {
                             .preference(key: TopCardHeightPreferenceKey.self, value: geo.size.height)
                     }
                 )
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { balanceBottomGlobalY = $0 }
                 .coachMarkAnchor(.colorBalance)
                 .canvasTourControl("canvas.balanceSummary")
                 .transition(.move(edge: .top).combined(with: .opacity))

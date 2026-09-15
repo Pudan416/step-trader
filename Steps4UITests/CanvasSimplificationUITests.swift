@@ -431,6 +431,8 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
         XCTAssertTrue(handle.waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.balance"].waitForExistence(timeout: 8))
+        let pill = app.descendants(matching: .any)["canvas_energy_pill"].firstMatch.frame
+        XCTAssertLessThanOrEqual(handle.frame.minY, pill.maxY + 24, "Grabber must sit directly below the actual balance pill")
         capture(app, "tour-balance")
         handle.tap()
         XCTAssertTrue(app.buttons["canvas_tour.healthLater"].waitForExistence(timeout: 5))

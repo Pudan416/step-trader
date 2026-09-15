@@ -159,6 +159,8 @@ struct GalleryView: View {
     /// doesn't grow up under the banner the way it can under the pill alone.
     @State private var suggestionBannerHeight: CGFloat = 0
     @Environment(\.topCardHeight) private var topCardHeight
+    @Environment(\.canvasBalanceBottomGlobalY) private var balanceBottomGlobalY
+    @State private var dataPanelHostGlobalY: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
@@ -1444,7 +1446,12 @@ struct GalleryView: View {
         // The visible 4pt grabber is vertically centred in its new 16pt
         // footer. Pull the drawer up by that 6pt inner inset so the line itself
         // keeps the established 8pt gap below the energy pill.
-        max(0, deviceTopSafeAreaInset - safeAreaTop) + topCardHeight - 6
+        #if DEBUG
+        if isCanvasTourActive, let bottom = balanceBottomGlobalY, let origin = dataPanelHostGlobalY {
+            return max(0, bottom - origin - 6)
+        }
+        #endif
+        return max(0, deviceTopSafeAreaInset - safeAreaTop) + topCardHeight - 6
     }
 
     /// The space actually available for the data drawer's rows, from just
@@ -1507,6 +1514,7 @@ struct GalleryView: View {
                 Spacer(minLength: 0)
             }
             .padding(.top, dataPanelTopOffset)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { dataPanelHostGlobalY = $0 }
             .transition(
                 reduceMotion
                     ? .opacity
