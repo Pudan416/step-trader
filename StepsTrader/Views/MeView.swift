@@ -33,6 +33,7 @@ struct MeView: View {
     @State private var shareRequestedDayKey: String?
     @State private var posterCarouselWidth: CGFloat = 350
     #if DEBUG
+    @Environment(\.canvasTourContentTopInset) private var canvasTourContentTopInset
     @State private var posterTopGlobalY: CGFloat = 0
     @State private var lastTourPosterHeight: CGFloat?
     #endif
@@ -119,6 +120,12 @@ struct MeView: View {
         VStack(alignment: .leading, spacing: useTightMeLayout ? 14 : 24) {
             greetingRow
                 .padding(.top, useTightMeLayout ? 14 : 22)
+                #if DEBUG
+                // NavigationStack starts a fresh safe-area region on this tab.
+                // Reserve the tour chrome in the content, leaving its full-bleed
+                // background and the root canvas viewport at the window size.
+                .padding(.top, canvasTourContentTopInset)
+                #endif
 
             posterCarousel
 

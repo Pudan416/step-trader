@@ -930,6 +930,17 @@ struct GalleryView: View {
                 }
             }
             .frame(width: viewport.size.width, height: viewport.size.height)
+            #if DEBUG
+            .overlay {
+                if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-fixtures") {
+                    Color.clear
+                        .accessibilityElement()
+                        .accessibilityLabel("Canvas render viewport")
+                        .accessibilityIdentifier("canvas_render_viewport")
+                        .allowsHitTesting(false)
+                }
+            }
+            #endif
             // Labels and Metal share this exact viewport, including safe areas.
             // An overlay outside canvasLayers inherits a different screen origin.
             .overlay {

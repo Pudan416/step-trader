@@ -387,6 +387,29 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
+    func testTourDoesNotResizeTheCanvasViewport() {
+        let app = launch()
+        let viewport = app.descendants(matching: .any)["canvas_render_viewport"].firstMatch
+        XCTAssertTrue(viewport.waitForExistence(timeout: 5))
+        let welcomeFrame = viewport.frame
+        capture(app, "tour-viewport-welcome")
+        app.buttons["canvas_tour.begin"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.add"].waitForExistence(timeout: 5))
+        let actionFrame = viewport.frame
+        capture(app, "tour-viewport-add")
+        app.buttons["canvas_tour.skip"].tap()
+        app.buttons["canvas_tour.exit.confirm"].tap()
+        XCTAssertTrue(app.buttons["canvas_sound_button"].waitForExistence(timeout: 5))
+        let normalFrame = viewport.frame
+        capture(app, "tour-viewport-normal")
+        let frames = XCTAttachment(string: "window=\(app.frame)\nwelcome=\(welcomeFrame)\naction=\(actionFrame)\nnormal=\(normalFrame)")
+        frames.name = "canvas-viewport-frames"; frames.lifetime = .keepAlways; add(frames)
+        XCTAssertEqual(welcomeFrame.width, normalFrame.width, accuracy: 1)
+        XCTAssertEqual(welcomeFrame.height, normalFrame.height, accuracy: 1, "Welcome must not shrink the render viewport")
+        XCTAssertEqual(welcomeFrame.minY, normalFrame.minY, accuracy: 1)
+        XCTAssertEqual(actionFrame.height, normalFrame.height, accuracy: 1, "Action coaching must not change the canvas aspect ratio")
+        XCTAssertEqual(actionFrame.minY, normalFrame.minY, accuracy: 1)
+    }
     func testOutsideTapAsksAndResumeKeepsExactStep() {
         let app = launch()
         let welcome = app.descendants(matching: .any)["canvas_tour.card.welcome"].firstMatch
@@ -528,6 +551,8 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["canvas_tour.setup.continue"].tap()
         let share = app.buttons["me_share_selected_day"]
         XCTAssertTrue(share.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(share.frame.minY, app.buttons["canvas_tour.skip"].frame.maxY,
+                                    "The exit toolbar must not overlap Me share")
         share.tap()
         let close = app.buttons["Close"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 25), app.debugDescription)

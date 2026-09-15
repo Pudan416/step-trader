@@ -3,6 +3,10 @@ import SwiftUI
 import HealthKit
 import UIKit
 
+extension EnvironmentValues {
+    @Entry var canvasTourContentTopInset: CGFloat = 0
+}
+
 private struct CanvasTourAnchors: PreferenceKey {
     static let defaultValue: [String: Anchor<CGRect>] = [:]
     static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
@@ -499,7 +503,9 @@ private struct CanvasTourExitChrome: ViewModifier {
         palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.surfaceColor : palette.textColor
     }
     func body(content: Content) -> some View {
-        VStack(spacing: 0) {
+        content
+            .environment(\.canvasTourContentTopInset, tour.isActive ? exitHeaderHeight : 0)
+            .safeAreaInset(edge: .top, spacing: 0) {
             if tour.isActive {
                 if isOwner && tour.isForeground {
                     HStack {
@@ -528,7 +534,6 @@ private struct CanvasTourExitChrome: ViewModifier {
                     Color.clear.frame(height: exitHeaderHeight).allowsHitTesting(false)
                 }
             }
-            content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
             .background {
                 if tour.isActive {
