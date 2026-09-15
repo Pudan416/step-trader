@@ -44,6 +44,38 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     private func getAppName(for application: Application) -> String {
         return application.localizedDisplayName ?? NSLocalizedString("App", comment: "Fallback name for unknown app")
     }
+
+    /// Debug-only, local diagnostics. Never write app names or opaque tokens.
+    private func recordNameCapture(for application: Application, stage: String) {
+        #if DEBUG
+        let defaults = sharedDefaults()
+        var fields: [String: Any] = [
+            "timestamp": ISO8601DateFormatter().string(from: Date()),
+            "stage": stage,
+            "hasToken": application.token != nil,
+            "hasName": application.localizedDisplayName != nil,
+            "hasBundleIdentifier": application.bundleIdentifier != nil
+        ]
+        if let token = application.token {
+            do {
+                _ = try JSONEncoder().encode(token)
+                fields["tokenEncodes"] = true
+            } catch {
+                fields["tokenEncodes"] = false
+                fields["encodingErrorType"] = String(describing: type(of: error))
+            }
+            fields["nameCacheReadable"] = FamilyControlsAppNameCache.name(for: token, defaults: defaults) != nil
+        }
+        let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId)
+        fields["hasSharedContainer"] = container != nil
+        defaults.set(fields, forKey: "widgetNameCaptureDiagnostic_v1")
+        defaults.synchronize()
+        // Also write a file so device inspection does not depend on the preferences daemon.
+        if let container, let data = try? JSONSerialization.data(withJSONObject: fields, options: .sortedKeys) {
+            try? data.write(to: container.appendingPathComponent("widget-name-capture.json"), options: .atomic)
+        }
+        #endif
+    }
     
     private var dailyPalette: DailyInterfacePalette {
         DailyInterfacePalette.load(from: sharedDefaults())
@@ -96,6 +128,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
     
     override func configuration(shielding application: Application) -> ShieldConfiguration {
+        recordNameCapture(for: application, stage: "entered")
         let appName = getAppName(for: application)
         // Only this extension receives the real name through the public API.
         // Persist it separately from the user's group name for widget pickers.
@@ -104,6 +137,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             sharedDefaults().synchronize()
             WidgetCenter.shared.reloadAllTimelines()
         }
+        recordNameCapture(for: application, stage: "captureCompleted")
         let artworkTarget = application.token.flatMap(Self.base64).map { "app:\($0)" }
             ?? "app-name:\(appName)"
         let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: artworkTarget)
