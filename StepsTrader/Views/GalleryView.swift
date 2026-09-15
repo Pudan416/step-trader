@@ -997,11 +997,18 @@ struct GalleryView: View {
         }
         .overlay {
             if showHappeningPalette, !presentation.isWideCanvas, happeningPalettePanel == nil {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    bottomControlsBar
-                        .padding(.horizontal, controlsGuardRail)
-                        .padding(.bottom, bottomControlsPadding)
+                GeometryReader { controls in
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        bottomControlsBar
+                            .padding(.horizontal, controlsGuardRail)
+                            .padding(.bottom, CanvasBottomControlsLayout.padding(
+                                canvasBottomY: controls.frame(in: .global).maxY,
+                                tabBarCenterY: tabBarCenterY,
+                                controlHeight: 52,
+                                fallbackSafeAreaBottom: controls.safeAreaInsets.bottom
+                            ))
+                    }
                 }
             }
         }

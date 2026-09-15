@@ -851,7 +851,20 @@ final class Steps4UITestsLaunchTests: XCTestCase {
 
     func testFrequentDefaultsIncludeHealthAndSwitchBackFromAll() throws {
         let app = launchTask7App(resetEditor: true)
+        let canvasTab = app.buttons["tab_canvas"]
+        XCTAssertTrue(canvasTab.waitForExistence(timeout: 8))
+        let tabBarCenterY = canvasTab.frame.midY
+        attachScreenshot(named: "happenings-tab-bar-baseline")
         openPalette(in: app, all: false)
+        func assertTabBarAlignment() {
+            for control in [app.buttons["canvas_happening_list_button"], app.buttons["Close"],
+                            app.buttons["happening_mode_frequent"], app.buttons["happening_mode_all"]] {
+                XCTAssertEqual(control.frame.midY, tabBarCenterY, accuracy: 1,
+                    "Happenings controls should replace the tab bar at its measured center")
+                XCTAssertTrue(control.isHittable)
+            }
+        }
+        assertTabBarAlignment()
         let frequent = app.buttons["happening_mode_frequent"]
         let all = app.buttons["happening_mode_all"]
         XCTAssertTrue(frequent.isSelected)
@@ -867,6 +880,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         XCTAssertTrue(waitForChoiceCount(31, in: app))
         Thread.sleep(forTimeInterval: 0.7)
         attachScreenshot(named: "happenings-all-with-switch")
+        assertTabBarAlignment()
         let field = app.scrollViews["happening_field_scroll"]
         let switchFrame = all.frame
         field.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.7))
