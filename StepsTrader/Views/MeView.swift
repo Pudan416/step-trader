@@ -32,6 +32,10 @@ struct MeView: View {
     @State private var shareRequestID = 0
     @State private var shareRequestedDayKey: String?
     @State private var posterCarouselWidth: CGFloat = 350
+    #if DEBUG
+    @State private var posterTopGlobalY: CGFloat = 0
+    @State private var lastTourPosterHeight: CGFloat?
+    #endif
     @State private var paymentLoadTask: Task<Void, Never>?
     @State private var loadTask: Task<Void, Never>?
     @State private var serverFetchTask: Task<Void, Never>?
@@ -177,10 +181,28 @@ struct MeView: View {
         return selectedPosterCanShare
     }
 
+    private var tourPosterSizing: MePosterCarouselSizing {
+        let normal = MePosterCarouselLayout.sizing(viewportWidth: posterCarouselWidth)
+        #if DEBUG
+        let tour = DebugCanvasTour.shared
+        if tour.isActive && [.saveDays, .poster, .finish].contains(tour.step) {
+            // The coach is docked independently below this real poster. Scale only
+            // the on-screen preview; exported artwork retains its original size.
+            let available = tour.cardTopGlobalY > posterTopGlobalY + 100
+                ? CGFloat(tour.cardTopGlobalY) - posterTopGlobalY - 16 : 220
+            let height = tour.step == .finish
+                ? min(normal.posterHeight, lastTourPosterHeight ?? 220)
+                : min(normal.posterHeight, max(120, available))
+            return MePosterCarouselSizing(pageWidth: normal.pageWidth,
+                posterWidth: height * 604 / 842, posterHeight: height,
+                pageSpacing: normal.pageSpacing, outerContentInset: normal.outerContentInset)
+        }
+        #endif
+        return normal
+    }
+
     private var posterCarousel: some View {
-        let sizing = MePosterCarouselLayout.sizing(
-            viewportWidth: posterCarouselWidth
-        )
+        let sizing = tourPosterSizing
 
         return TabView(selection: posterSelection) {
             ForEach(posterDayKeys, id: \.self) { key in
@@ -217,6 +239,14 @@ struct MeView: View {
         .clipped()
         .accessibilityIdentifier("me_poster_carousel")
         .canvasTourAnchor("me.poster")
+        #if DEBUG
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            posterTopGlobalY = frame.minY
+            if DebugCanvasTour.shared.isActive, [.saveDays, .poster].contains(DebugCanvasTour.shared.step) {
+                lastTourPosterHeight = frame.height
+            }
+        }
+        #endif
         .accessibilityValue(displayedPosterDayKey)
         .onChange(of: selectedPosterDayKey) { _, key in
             selectedPosterCanShare = posterShareAvailability[key] ?? false

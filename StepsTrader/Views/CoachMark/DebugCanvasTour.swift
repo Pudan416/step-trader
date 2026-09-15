@@ -84,6 +84,8 @@ final class DebugCanvasTour {
     private(set) var shareCompleted = false
     private(set) var transitions: [String] = []
     private(set) var errorMessage: String?
+    private(set) var exitRequest: String?
+    var cardTopGlobalY: Double = 0
     var cardBottomGlobalY: Double = 0
     var targetFrameDescription = "unresolved"
     var targetVisible = false
@@ -137,7 +139,8 @@ final class DebugCanvasTour {
         if suppressesAnalytics { CanvasTourAnalyticsGate.shared.setSuppressed(true) }
         presentedSheet = nil; pendingDestination = nil; posterDayID = nil; shareCompleted = false
         errorMessage = nil; targetVisible = false; targetFrameDescription = "unresolved"
-        openAccountOnSetup = false
+        openAccountOnSetup = false; exitRequest = nil
+        cardTopGlobalY = 0; cardBottomGlobalY = 0
         launchRevision = UUID()
         report("step entered: \(step.rawValue); new session")
     }
@@ -160,12 +163,31 @@ final class DebugCanvasTour {
         report("host ready: \(step.rawValue)")
     }
     func stop(skipped: Bool = false) {
+        exitRequest = nil
+        cardTopGlobalY = 0; cardBottomGlobalY = 0
         session.status = skipped ? .skipped : .inactive
         session.pendingOperation = nil
         if suppressesAnalytics { CanvasTourAnalyticsGate.shared.setSuppressed(false) }
         isActive = false; pendingDestination = nil; presentedSheet = nil
         targetVisible = false; targetID = nil; errorMessage = nil
         report(skipped ? "tour skipped" : "tour stopped")
+    }
+    /// Presentation only: never replace the current step or invalidate its operation.
+    func requestExit(reason: String) {
+        guard isActive, isForeground, exitRequest == nil,
+              pendingDestination == nil, status != .preparing,
+              !["health", "screenTimeAuthorization", "share"].contains(presentedSheet ?? "") else { return }
+        exitRequest = reason
+        report("exit confirmation requested: \(reason)")
+    }
+    func continueTour() {
+        guard exitRequest != nil else { return }
+        exitRequest = nil
+        report("exit confirmation cancelled; keep current step")
+    }
+    func confirmExit() {
+        guard exitRequest != nil else { return }
+        stop(skipped: true)
     }
     func setForeground(_ active: Bool) {
         isForeground = active
@@ -227,7 +249,7 @@ final class DebugCanvasTour {
     func send(_ event: CanvasTourEvent, token: CanvasTourOperation? = nil) {
         guard isActive else { return }
         if let token, !isCurrent(token) { report("transition ignored: stale session/operation"); return }
-        if case .skipRequested = event { stop(skipped: true); return }
+        if case .skipRequested = event { requestExit(reason: "skip"); return }
         if case .posterReady(let id) = event { posterDayID = id; return }
         if pendingDestination != nil {
             if event == .paletteDismissed, pendingDestination == .balance {
@@ -292,6 +314,7 @@ final class DebugCanvasTour {
         session.completedSteps.insert(step)
         session.currentStep = destination; session.status = .waitingForAction
         session.pendingOperation = nil
+        exitRequest = nil
         targetVisible = false; targetFrameDescription = "unresolved"; errorMessage = nil
         report("step entered: \(destination.rawValue); \(reason)")
     }

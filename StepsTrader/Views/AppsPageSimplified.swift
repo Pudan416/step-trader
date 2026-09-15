@@ -297,6 +297,7 @@ struct AppsPageSimplified: View {
                     }
                     #endif
                 }
+                .canvasTourExitChrome(context: "appPicker")
                 .onAppear {
                     #if DEBUG
                     if DebugCanvasTour.shared.isActive, pickerOperation == nil {

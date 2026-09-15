@@ -1,6 +1,7 @@
 import SwiftUI
 #if DEBUG
 import HealthKit
+import UIKit
 
 private struct CanvasTourAnchors: PreferenceKey {
     static let defaultValue: [String: Anchor<CGRect>] = [:]
@@ -15,18 +16,22 @@ private struct CanvasTourControlModifier: ViewModifier {
     @State private var pulse = false
     private var tour: DebugCanvasTour { .shared }
     func body(content: Content) -> some View {
-        let enabled = !tour.isActive || tour.allowsControl(id)
+        let enabled = !tour.isActive || (tour.exitRequest == nil && tour.allowsControl(id))
         let isTarget = tour.isActive && tour.targetID == id
-        let readable = enabled || tour.isContextualControl(id)
+        let readable = tour.exitRequest == nil && (enabled || tour.isContextualControl(id))
         content
             .opacity(readable || tour.quietMode == .normal ? 1 : tour.quietMode == .hide ? 0 : 0.12)
             .allowsHitTesting(enabled)
             .disabled(!enabled)
             .accessibilityHidden(!readable)
-            .brightness(isTarget && pulse && !reduceMotion ? 0.035 : 0)
-            .animation(isTarget && !reduceMotion ? .easeInOut(duration: 1.25).repeatForever(autoreverses: true) : nil, value: pulse)
+            // Scope the repeating animation to brightness. Applying it to the
+            // control hierarchy also animates newly resolved anchor/layout values,
+            // leaving actual buttons moving away from their hit regions.
+            .animation(isTarget && !reduceMotion ? .easeInOut(duration: 1.25).repeatForever(autoreverses: true) : nil) { view in
+                view.brightness(isTarget && pulse && !reduceMotion ? 0.035 : 0)
+            }
             .onChange(of: isTarget, initial: true) { _, active in pulse = active }
-            .anchorPreference(key: CanvasTourAnchors.self, value: .bounds) { [id: $0] }
+            .transformAnchorPreference(key: CanvasTourAnchors.self, value: .bounds) { anchors, anchor in anchors[id] = anchor }
     }
 }
 
@@ -43,7 +48,7 @@ extension DebugCanvasTour {
         if step == .setup { return true }
         switch step {
         case .add: return id == "canvas.addHappening"
-        case .happening: return id == "canvas.paletteClose" || id == "canvas.happenings"
+        case .happening: return id == "canvas.paletteClose" || id == "canvas.happenings" || id.hasPrefix("canvas.happening.")
         case .balance, .healthValue, .healthResult: return id == "canvas.balanceHandle"
         case .feedsTab: return id == "tabs.feeds"
         case .addApps: return id == "feeds.add" || id.hasPrefix("feeds.group.")
@@ -64,7 +69,8 @@ private struct DebugCanvasTourHost: ViewModifier {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.canvasChromePalette) private var palette
     @State private var showSetup = false
-    @State private var cardHeight: CGFloat = 0
+    @State private var cardFrame: CGRect = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var setupSession: UUID?
     @State private var showDiagnostics = false
     @State private var diagnosticsSession: UUID?
@@ -104,21 +110,38 @@ private struct DebugCanvasTourHost: ViewModifier {
                         let visible = value.intersection(CGRect(origin: .zero, size: proxy.size))
                         return value.width > 0 && value.height > 0 && !visible.isNull && visible.height >= min(value.height, 30) ? value : nil
                     }
+                    let navigationTop = ["tabs.canvas", "tabs.feeds", "tabs.me"].compactMap { anchors[$0].map { proxy[$0].minY } }.min()
                     if tour.overlayVisible {
-                        card(targetRect: usable, container: proxy.size)
-                            .id(tour.step)
-                             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-                                cardHeight = frame.height
-                                tour.cardBottomGlobalY = frame.maxY
-                            }
-                            .position(cardPosition(targetRect: usable, container: proxy.size))
-                            .onChange(of: usable, initial: true) { _, frame in
-                                updateTarget(frame)
-                            }
-                            .onChange(of: target) { _, _ in updateTarget(usable) }
+                        if let usable, ![.happening, .saveDays, .poster].contains(tour.step), cardFrame.height > 0 {
+                            CanvasTourPointer(card: cardFrame, target: usable)
+                                .stroke(coachInk, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                                .allowsHitTesting(false).accessibilityHidden(true)
+                        }
+                        CanvasTourMissedTapObserver(excludedRects: allowedTapRects(anchors: anchors, proxy: proxy) + [cardFrame]) {
+                            tour.requestExit(reason: "outside tap")
+                        }
+                        .allowsHitTesting(false)
+                        CanvasTourCardLayout(step: tour.step, target: usable, navigationTop: navigationTop) {
+                            card
+                                .id(tour.step)
+                                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                                    let host = proxy.frame(in: .global)
+                                    cardFrame = frame.offsetBy(dx: -host.minX, dy: -host.minY)
+                                    tour.cardTopGlobalY = frame.minY
+                                    tour.cardBottomGlobalY = frame.maxY
+                                }
+                        }
+                        // A step replacement is atomic. Even an asymmetric fade
+                        // keeps the outgoing instruction in SwiftUI's transition
+                        // tree briefly, which can put two instructions on screen.
+                        .transaction { $0.animation = nil }
+                        .onChange(of: usable, initial: true) { _, frame in updateTarget(frame) }
+                        .onChange(of: target) { _, _ in updateTarget(usable) }
                     }
+
                 }
             }
+            .canvasTourExitChrome(context: "flow", onDiagnostics: { showDiagnostics = true })
             .sheet(isPresented: $showSetup, onDismiss: {
                 tour.sheetDismissed("setup", sessionID: setupSession)
             }) {
@@ -164,18 +187,12 @@ private struct DebugCanvasTourHost: ViewModifier {
             tour.report(rect == nil ? "target missing: \(target ?? "card")" : "target resolved: \(target ?? "card")")
         }
     }
-    private func cardPosition(targetRect: CGRect?, container: CGSize) -> CGPoint {
-        let height = min(max(cardHeight, 1), container.height - 32)
-        let low = 16 + height / 2
-        let high = max(low, container.height - 16 - height / 2)
-        if tour.step == .happening { return CGPoint(x: container.width / 2, y: low) }
-        guard let rect = targetRect, tour.step != .saveDays else {
-            return CGPoint(x: container.width / 2, y: min(high, max(low, container.height * (tour.step == .happening ? 0.20 : 0.50))))
+    private func allowedTapRects(anchors: [String: Anchor<CGRect>], proxy: GeometryProxy) -> [CGRect] {
+        anchors.compactMap { id, anchor in
+            // The field container is full-screen; only actual choices are tap targets.
+            guard id != "canvas.happenings", tour.allowsControl(id) else { return nil }
+            return proxy[anchor].insetBy(dx: -4, dy: -4)
         }
-        let above = rect.minY - 14 - height / 2
-        let below = rect.maxY + 14 + height / 2
-        let y = above >= low ? above : below <= high ? below : low
-        return CGPoint(x: container.width / 2, y: min(high, max(low, y)))
     }
     private var coachSurface: Color {
         palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.textColor : palette.surfaceColor
@@ -183,117 +200,50 @@ private struct DebugCanvasTourHost: ViewModifier {
     private var coachInk: Color {
         palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.surfaceColor : palette.textColor
     }
-    private func cardHeightLimit(targetRect: CGRect?, container: CGSize) -> CGFloat {
-        if tour.step == .happening { return dynamicTypeSize.isAccessibilitySize ? min(320, container.height * 0.42) : min(200, container.height * 0.30) }
-        guard let rect = targetRect, tour.step != .saveDays else { return max(100, container.height - 48) }
-        return max(88, max(rect.minY - 30, container.height - rect.maxY - 30))
-    }
-    @ViewBuilder private func card(targetRect: CGRect?, container: CGSize) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            accessibilityCard(targetRect: targetRect, container: container)
-        } else {
-            standardCard(targetRect: targetRect, container: container)
-        }
-    }
-    private func accessibilityCard(targetRect: CGRect?, container: CGSize) -> some View {
-        VStack(spacing: 8) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(title).font(.geist(.title3).weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
-                    cardDetails(targetRect: targetRect)
-                    if tour.step == .happening {
-                        Button(String(localized: "Use this day")) { tour.send(.useExistingDay) }
-                            .font(.geist(.subheadline))
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(minHeight: 44)
-                            .accessibilityIdentifier("canvas_tour.existingDay")
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
-            HStack {
-                Button { showDiagnostics = true } label: {
-                    Image(systemName: "ellipsis").frame(width: 44, height: 44)
-                }.accessibilityLabel("Tour controls").accessibilityIdentifier("canvas_tour.controls")
-                Button(String(localized: "Skip tour")) { tour.send(.skipRequested) }
-                    .font(.geist(.subheadline))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .accessibilityIdentifier("canvas_tour.skip")
-            }
-        }
-        .foregroundStyle(coachInk)
-        .padding(20)
-        .frame(width: min(360, max(100, container.width - 32)))
-        .frame(height: min(cardHeightLimit(targetRect: targetRect, container: container), container.height * 0.70))
-        .background(coachSurface, in: RoundedRectangle(cornerRadius: 24))
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("canvas_tour.card.\(tour.step.rawValue)")
-    }
-    private func standardCard(targetRect: CGRect?, container: CGSize) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 8) {
-                Text(title).font(.geist(.title3).weight(.semibold))
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 0)
-                Button { showDiagnostics = true } label: {
-                    Image(systemName: "ellipsis").frame(width: 44, height: 32)
-                }
-                .accessibilityLabel("Tour controls")
-                .accessibilityIdentifier("canvas_tour.controls")
-            }
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 12) {
             ViewThatFits(in: .vertical) {
-                cardDetails(targetRect: targetRect)
-                ScrollView { cardDetails(targetRect: targetRect) }
+                cardContent.fixedSize(horizontal: false, vertical: true)
+                ScrollView { cardContent.fixedSize(horizontal: false, vertical: true) }
+                    .scrollIndicators(.visible)
             }
-            HStack {
+            VStack(spacing: 10) {
+                actions
                 if tour.step == .happening {
                     Button(String(localized: "Use this day")) { tour.send(.useExistingDay) }
+                        .font(.onest(.subheadline))
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .accessibilityIdentifier("canvas_tour.existingDay")
                 }
-                Button(tour.step == .welcome ? String(localized: "Explore on my own") : String(localized: "Skip tour")) {
-                    tour.send(.skipRequested)
-                }
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .accessibilityIdentifier("canvas_tour.skip")
-            }.font(.geist(.subheadline))
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
         }
         .foregroundStyle(coachInk)
         .padding(20)
-        .frame(width: min(360, max(100, container.width - 32)))
-        .frame(maxHeight: cardHeightLimit(targetRect: targetRect, container: container))
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity)
         .background(coachSurface, in: RoundedRectangle(cornerRadius: 24))
-        .overlay {
-            if let rect = targetRect, ![.happening, .saveDays].contains(tour.step) {
-                let belowCard = rect.midY > cardPosition(targetRect: targetRect, container: container).y
-                VStack {
-                    if belowCard { Spacer() }
-                    Image(systemName: belowCard ? "arrow.down" : "arrow.up")
-                        .font(.geist(.caption).weight(.semibold))
-                        .foregroundStyle(coachInk)
-                        .padding(3).background(coachSurface, in: Circle())
-                        .offset(x: min(140, max(-140, rect.midX - container.width / 2)), y: belowCard ? 10 : -10)
-                    if !belowCard { Spacer() }
-                }.allowsHitTesting(false).accessibilityHidden(true)
-            }
-        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_tour.card.\(tour.step.rawValue)")
+        .accessibilityHidden(tour.exitRequest != nil)
     }
-    private func cardDetails(targetRect: CGRect?) -> some View {
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.onest(.title3).weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            cardDetails
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private var cardDetails: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(message).font(.geist(.callout)).fixedSize(horizontal: false, vertical: true)
             if let error = tour.errorMessage {
                 Text(error).font(.geist(.caption)).fixedSize(horizontal: false, vertical: true)
             }
-            if target != nil && targetRect == nil {
-                Text(String(localized: "Waiting for the control to appear. You can scroll to it or skip the tour."))
-                    .font(.geist(.caption))
-            }
-            actions
+            // Missing anchors are reported in Diagnostics. A transient first
+            // layout must not insert another line and resize the instruction.
         }
     }
     private func action(_ title: String, id: String, _ perform: @escaping () -> Void) -> some View {
@@ -309,20 +259,22 @@ private struct DebugCanvasTourHost: ViewModifier {
         switch tour.step {
         case .welcome: action(String(localized: "Let’s begin"), id: "begin") { tour.send(.begin) }
         case .healthValue:
-            action(String(localized: "Connect Apple Health"), id: "health") { requestHealth() }
-            action(String(localized: "Later"), id: "healthLater") { tour.send(.healthDeferred) }
+            HStack(spacing: 10) {
+                action(String(localized: "Connect Health"), id: "health") { requestHealth() }
+                action(String(localized: "Later"), id: "healthLater") { tour.send(.healthDeferred) }
+            }
         case .healthResult:
             if healthFailed { action(String(localized: "Retry"), id: "healthRetry") { requestHealth() } }
             action(String(localized: "Continue"), id: "healthContinue") { tour.send(.continueHealth) }
         case .addApps:
-            action(String(localized: "Skip app setup"), id: "skipApps") { tour.send(.skipApps) }
+            action(String(localized: "Later"), id: "skipApps") { tour.send(.skipApps) }
         case .selectionResult:
             action(String(localized: "Got it"), id: "appsGotIt") { tour.send(.selectionAcknowledged) }
         case .selectFeed, .chooseDuration:
             if tour.step == .chooseDuration && recommendedWindow == nil {
                 action(String(localized: "Add a happening"), id: "addColors") { tour.send(.addMoreColors) }
             }
-            action(String(localized: "Skip trial unlock"), id: "skipUnlock") { tour.send(.skipUnlock) }
+            action(String(localized: "Continue without unlocking"), id: "skipUnlock") { tour.send(.skipUnlock) }
         case .saveDays:
             if !AuthenticationService.shared.hasAppleAccount {
                 action(String(localized: "Sign in"), id: "signIn") {
@@ -332,7 +284,7 @@ private struct DebugCanvasTourHost: ViewModifier {
             action(AuthenticationService.shared.hasAppleAccount ? String(localized: "Your setup") : String(localized: "Later"), id: "later") {
                 tour.openAccountOnSetup = false; tour.send(.showSetup)
             }.disabled(tour.posterDayID == nil)
-        case .poster: action(String(localized: "Skip export"), id: "skipExport") { tour.send(.exportSkipped) }
+        case .poster: action(String(localized: "Not now"), id: "skipExport") { tour.send(.exportSkipped) }
         case .finish: action(String(localized: "Start exploring"), id: "finish") { tour.send(.finish) }
         default: EmptyView()
         }
@@ -366,8 +318,8 @@ private struct DebugCanvasTourHost: ViewModifier {
         case .healthValue: String(localized: "Steps can add up to \(EnergyDefaults.stepsMaxPoints) colors a day, and Sleep up to \(EnergyDefaults.sleepMaxPoints). Check Apple Health to read available data.")
         case .healthResult:
             if !HKHealthStore.isHealthDataAvailable() { String(localized: "Health is unavailable on this device. You can continue without it.") }
+            else if healthFailed { String(localized: "Try again, or continue without Health. The panel may show earlier values.") }
             else if model.stepsToday > 0 || model.dailySleepHours > 0 { String(localized: "Health data is available. The panel shows your calculated colors for today.") }
-            else if healthFailed { String(localized: "Try again, or continue without Health.") }
             else if healthAttempted || model.hasStepsData || model.hasSleepData { String(localized: "Your colors will update as Health data becomes available. An empty result does not tell us which read permissions you allowed.") }
             else { String(localized: "You can check Health access later in Settings.") }
         case .feedsTab: String(localized: "Tap Feeds to choose the apps you’d like to pause.")
@@ -412,9 +364,227 @@ private struct DebugCanvasTourHost: ViewModifier {
         }
     }
 }
+private struct CanvasTourPointer: Shape {
+    var card: CGRect
+    var target: CGRect
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard !card.intersects(target) else { return path }
+        let below = target.minY >= card.maxY
+        let direction: CGFloat = below ? 1 : -1
+        let distance = below ? target.minY - card.maxY : card.minY - target.maxY
+        guard distance >= 10 else { return path }
+        let x = min(card.maxX - 24, max(card.minX + 24, target.midX))
+        let start = CGPoint(x: x, y: (below ? card.maxY : card.minY) + direction * 2)
+        let end = CGPoint(x: x, y: start.y + direction * min(12, distance - 6))
+        path.move(to: start); path.addLine(to: end)
+        path.move(to: CGPoint(x: end.x - 3, y: end.y - direction * 3)); path.addLine(to: end)
+        path.addLine(to: CGPoint(x: end.x + 3, y: end.y - direction * 3))
+        return path
+    }
+}
+
+/// Measures this card before placing it; no previous-step height enters placement.
+enum CanvasTourCardGeometry {
+    static func frame(in size: CGSize, idealHeight: CGFloat, step: CanvasTourStep,
+                      target: CGRect?, navigationTop: CGFloat?) -> CGRect {
+        let width = min(360, max(1, size.width - 32))
+        let top: CGFloat = 16
+        let bottom = max(top + 44, min(size.height - 16, (navigationTop ?? size.height) - 16))
+        let available = max(44, bottom - top)
+        var low = top, high = bottom
+        if step == .happening {
+            high = top + min(220, available * 0.36)
+        } else if step == .saveDays || step == .poster {
+            low = bottom - min(300, available * 0.48)
+        } else if let target, !target.isEmpty {
+            let above = max(0, target.minY - 14 - top)
+            let below = max(0, bottom - target.maxY - 14)
+            if idealHeight <= above || (idealHeight > below && above >= below) {
+                high = top + above
+            } else {
+                low = bottom - below
+            }
+        }
+        let height = min(idealHeight, max(44, high - low))
+        let y: CGFloat
+        if step == .happening { y = low }
+        else if step == .saveDays || step == .poster { y = high - height }
+        else if let target { y = high <= target.minY ? high - height : low }
+        else { y = low + max(0, high - low - height) / 2 }
+        return CGRect(x: (size.width - width) / 2, y: max(top, y), width: width, height: height)
+    }
+}
+
+private struct CanvasTourCardLayout: Layout {
+    let step: CanvasTourStep
+    let target: CGRect?
+    let navigationTop: CGFloat?
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let card = subviews.first else { return }
+        let width = min(360, max(1, bounds.width - 32))
+        let ideal = card.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let frame = CanvasTourCardGeometry.frame(in: bounds.size, idealHeight: ideal.height,
+                                                 step: step, target: target, navigationTop: navigationTop)
+        card.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                   anchor: .topLeading, proposal: ProposedViewSize(frame.size))
+    }
+}
+
+/// Observes only taps, alongside native scrolling/panning. It never owns hit testing
+/// and never cancels the product gesture. System sheets disable the observer host.
+private struct CanvasTourMissedTapObserver: UIViewRepresentable {
+    var excludedRects: [CGRect]
+    var onMiss: () -> Void
+    func makeUIView(context: Context) -> ObserverView { ObserverView() }
+    func updateUIView(_ view: ObserverView, context: Context) {
+        view.excludedRects = excludedRects; view.onMiss = onMiss
+    }
+    static func dismantleUIView(_ view: ObserverView, coordinator: ()) { view.detach() }
+    final class ObserverView: UIView, UIGestureRecognizerDelegate {
+        var excludedRects: [CGRect] = []
+        var onMiss: (() -> Void)?
+        private weak var observedWindow: UIWindow?
+        private lazy var tap = UITapGestureRecognizer(target: self, action: #selector(missed))
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
+        override func didMoveToWindow() {
+            super.didMoveToWindow(); detach()
+            guard let window else { return }
+            observedWindow = window
+            tap.cancelsTouchesInView = false; tap.delegate = self
+            window.addGestureRecognizer(tap)
+        }
+        func detach() { observedWindow?.removeGestureRecognizer(tap); observedWindow = nil }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard DebugCanvasTour.shared.overlayVisible, DebugCanvasTour.shared.exitRequest == nil else { return false }
+            let point = touch.location(in: self)
+            return bounds.contains(point) && !excludedRects.contains { $0.contains(point) }
+        }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
+        @objc private func missed() { if tap.state == .ended { onMiss?() } }
+    }
+}
+
+private struct CanvasTourExitChrome: ViewModifier {
+    let context: String
+    var onDiagnostics: (() -> Void)?
+    @Environment(\.canvasChromePalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AccessibilityFocusState private var focusConfirmation: Bool
+    @State private var exitHeaderHeight: CGFloat = 56
+    private var tour: DebugCanvasTour { .shared }
+    private var isOwner: Bool { context == "flow" ? tour.presentedSheet == nil : tour.presentedSheet == context }
+    private var confirmationVisible: Bool { tour.isActive && isOwner && tour.isForeground && tour.exitRequest != nil }
+    private var surface: Color {
+        palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.textColor : palette.surfaceColor
+    }
+    private var ink: Color {
+        palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.surfaceColor : palette.textColor
+    }
+    func body(content: Content) -> some View {
+        VStack(spacing: 0) {
+            if tour.isActive {
+                if isOwner && tour.isForeground {
+                    HStack {
+                        Button("Skip") { tour.requestExit(reason: "skip") }
+                            .font(.onest(.subheadline))
+                            .padding(.horizontal, 20).frame(minWidth: 76, minHeight: 44)
+                            .foregroundStyle(ink).background(surface, in: Capsule())
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Skip tour")
+                            .accessibilityIdentifier("canvas_tour.skip")
+                        Spacer(minLength: 12)
+                        if let onDiagnostics {
+                            Button(action: onDiagnostics) { Image(systemName: "ellipsis").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44) }
+                                .foregroundStyle(ink).background(surface, in: Circle())
+                                .accessibilityLabel("Tour controls")
+                                .accessibilityIdentifier("canvas_tour.controls")
+                        }
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 6)
+                    .zIndex(1)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { exitHeaderHeight = $0 }
+                    .accessibilityHidden(confirmationVisible)
+                } else {
+                    // Remove the background host's buttons from both UIKit hit
+                    // testing and accessibility while preserving its layout.
+                    Color.clear.frame(height: exitHeaderHeight).allowsHitTesting(false)
+                }
+            }
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+            .background {
+                if tour.isActive {
+                    TodayCanvasBackground(matchesCanvas: true).ignoresSafeArea().allowsHitTesting(false)
+                }
+            }
+            .blur(radius: confirmationVisible && !reduceTransparency ? 6 : 0)
+            .allowsHitTesting(!confirmationVisible)
+            .accessibilityHidden(confirmationVisible)
+            .overlay {
+                ZStack {
+                if confirmationVisible {
+                    GeometryReader { proxy in
+                        ZStack {
+                            ink.opacity(reduceTransparency ? 0.85 : 0.40).ignoresSafeArea()
+                                .contentShape(Rectangle()).onTapGesture { }
+                            ViewThatFits(in: .vertical) {
+                                confirmationContent.fixedSize(horizontal: false, vertical: true)
+                                ScrollView { confirmationContent }
+                            }
+                            .foregroundStyle(ink).padding(20)
+                            .frame(width: min(360, max(1, proxy.size.width - 32)))
+                            .frame(maxHeight: max(100, proxy.size.height - 32))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .background(surface, in: RoundedRectangle(cornerRadius: 24))
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("canvas_tour.exit.card")
+                            .accessibilityAction(.escape) { tour.continueTour() }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .transition(.opacity)
+                }
+                }
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: confirmationVisible)
+            }
+    }
+    private var confirmationContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Want to keep going?").font(.onest(.title3).weight(.semibold))
+                .accessibilityAddTraits(.isHeader).accessibilityFocused($focusConfirmation)
+            Text("I can guide you through the next step.").font(.onest(.callout))
+            Button { tour.continueTour() } label: {
+                Text("Tapped by mistake. Keep going.").font(.onest(.subheadline).weight(.medium))
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 48).padding(.horizontal, 12).padding(.vertical, 4)
+                    .foregroundStyle(surface).background(ink, in: RoundedRectangle(cornerRadius: 24))
+            }.buttonStyle(.plain).accessibilityIdentifier("canvas_tour.exit.continue")
+            Button("I’ll explore on my own") { tour.confirmExit() }
+                .font(.onest(.subheadline)).frame(maxWidth: .infinity, minHeight: 48)
+                .accessibilityIdentifier("canvas_tour.exit.confirm")
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear { focusConfirmation = true }
+    }
+}
+
 #endif
 
 extension View {
+    @ViewBuilder func canvasTourExitChrome(context: String, onDiagnostics: (() -> Void)? = nil) -> some View {
+        #if DEBUG
+        modifier(CanvasTourExitChrome(context: context, onDiagnostics: onDiagnostics))
+        #else
+        self
+        #endif
+    }
+
     @ViewBuilder func canvasTourControl(_ id: String) -> some View {
         #if DEBUG
         modifier(CanvasTourControlModifier(id: id))
@@ -424,7 +594,7 @@ extension View {
     }
     @ViewBuilder func canvasTourAnchor(_ id: String) -> some View {
         #if DEBUG
-        anchorPreference(key: CanvasTourAnchors.self, value: .bounds) { [id: $0] }
+        transformAnchorPreference(key: CanvasTourAnchors.self, value: .bounds) { anchors, anchor in anchors[id] = anchor }
         #else
         self
         #endif

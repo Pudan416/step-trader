@@ -44,6 +44,7 @@ struct HappeningShapeField: View {
                     .font(.geist(size: 14, weight: .semibold))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
+                    .minimumScaleFactor(tourLabelScale)
                     .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
                     // Preview actions never participate in the title's layout.
                     .overlay {
@@ -85,7 +86,16 @@ struct HappeningShapeField: View {
             }
         }
         .frame(width: side, height: side)
+        .canvasTourAnchor("canvas.happening.\(happening.id)")
         .position(source.center)
+    }
+
+    private var tourLabelScale: CGFloat {
+        #if DEBUG
+        DebugCanvasTour.shared.isActive ? 0.80 : 1
+        #else
+        1
+        #endif
     }
 
     private func hint(for state: HappeningPaletteSlotVisualState, locked: Bool) -> String {

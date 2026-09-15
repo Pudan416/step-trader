@@ -13,6 +13,7 @@ struct DebugCanvasTourSetup: View {
     @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
     @State private var showLogin = false
     @State private var openedInitialAccount = false
     @State private var loginSessionID: UUID?
@@ -63,7 +64,9 @@ struct DebugCanvasTourSetup: View {
                     VStack(alignment: .leading, spacing: 24) {
                         Text(String(localized: "Everything here is optional."))
                             .font(.geist(.body))
-                            .foregroundStyle(theme.adaptiveSecondaryText)
+                            .foregroundStyle(palette.surfaceColor)
+                            .padding(14)
+                            .background(palette.textColor, in: RoundedRectangle(cornerRadius: 18))
                         SettingsGroupedSurface {
                             accountRow
                             DetailDivider()
@@ -93,11 +96,7 @@ struct DebugCanvasTourSetup: View {
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .buttonStyle(.borderedProminent)
                             .accessibilityIdentifier("canvas_tour.setup.continue")
-                        Button(String(localized: "Skip tour")) {
-                            DebugCanvasTour.shared.send(.skipRequested)
-                        }
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("canvas_tour.setup.skip")
+
                     }
                     .padding(20)
                 }
@@ -128,6 +127,7 @@ struct DebugCanvasTourSetup: View {
                     : "Account: login dismissed without Apple account")
             }) {
                 LoginView(authService: authService)
+                    .canvasTourExitChrome(context: "setup.login")
             }
             .sheet(isPresented: $showApps, onDismiss: {
                 guard DebugCanvasTour.shared.isActive, DebugCanvasTour.shared.step == .setup,
@@ -141,13 +141,12 @@ struct DebugCanvasTourSetup: View {
                             .frame(minHeight: 44)
                             .accessibilityIdentifier("canvas_tour.setup.apps.back")
                         Spacer()
-                        Button(String(localized: "Skip tour")) { DebugCanvasTour.shared.send(.skipRequested) }
-                            .frame(minHeight: 44)
                     }
                     .padding(.horizontal, 20)
                     AppsPageSimplified(model: model)
                 }
                 .todayCanvasBackground(detail: true)
+                .canvasTourExitChrome(context: "setup.apps")
             }
             .onChange(of: DebugCanvasTour.shared.isActive) { _, active in
                 if !active { showLogin = false; showApps = false }
@@ -158,6 +157,7 @@ struct DebugCanvasTourSetup: View {
             }
         }
         .environment(\.topCardHeight, 0)
+        .canvasTourExitChrome(context: "setup")
     }
 
     @ViewBuilder
@@ -198,7 +198,9 @@ struct DebugCanvasTourSetup: View {
                 }
                 Text(String(localized: "App blocking needs Screen Time access and a saved selection of apps."))
                     .font(.geist(.callout))
-                    .foregroundStyle(theme.adaptiveSecondaryText)
+                    .foregroundStyle(palette.surfaceColor)
+                    .padding(14)
+                    .background(palette.textColor, in: RoundedRectangle(cornerRadius: 18))
                 Spacer()
             }
             .padding(20)
@@ -221,14 +223,17 @@ private struct DebugCanvasTourNotificationsPage: View {
     @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appTheme) private var theme
+    @Environment(\.canvasChromePalette) private var palette
 
     var body: some View {
         NotificationSettingsView(model: model)
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(String(localized: "Notifications can tell you when app access is ending and deliver the Canvas reminders you choose. Allowing notifications keeps your current reminder choices."))
+                    Text(String(localized: "Get alerts when app access is ending and the Canvas reminders you choose. You can change them anytime."))
                         .font(.geist(.callout))
-                        .foregroundStyle(theme.adaptivePrimaryText)
+                        .foregroundStyle(palette.surfaceColor)
+                            .padding(14)
+                            .background(palette.textColor, in: RoundedRectangle(cornerRadius: 18))
                         .fixedSize(horizontal: false, vertical: true)
                     Button(String(localized: "Not now")) { dismiss() }
                         .frame(minHeight: 44)

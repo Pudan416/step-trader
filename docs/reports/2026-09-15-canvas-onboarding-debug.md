@@ -1,5 +1,7 @@
 # Canvas onboarding DEBUG — implementation and verification
 
+> Последующие изменения выхода, размещения карточек и анимаций: [UX/UI-ревью](2026-09-15-canvas-onboarding-ux-review.md). Описание и результаты ниже относятся к первой реализации.
+
 ## Delivery
 
 - Branch: `codex/canvas-onboarding-debug`.

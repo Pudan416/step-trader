@@ -186,5 +186,53 @@ final class DebugCanvasTourTests: XCTestCase {
         XCTAssertFalse(t.overlayVisible)
     }
 
+    func testExitConfirmationPreservesStepAndSavedResultsUntilConfirmed() {
+        let t = tour(); t.start(); t.hostReady(); t.send(.begin)
+        t.send(.palettePresented); t.send(.happeningAdded("saved")); t.send(.paletteDismissed)
+        t.send(.skipRequested)
+        XCTAssertTrue(t.isActive)
+        XCTAssertEqual(t.step, .balance)
+        XCTAssertEqual(t.exitRequest, "skip")
+        t.requestExit(reason: "outside tap")
+        XCTAssertEqual(t.exitRequest, "skip")
+        t.continueTour()
+        XCTAssertNil(t.exitRequest)
+        XCTAssertEqual(t.addedEntryID, "saved")
+        t.send(.dataPanelExpanded)
+        XCTAssertEqual(t.step, .healthValue)
+        t.requestExit(reason: "outside tap"); t.confirmExit()
+        XCTAssertFalse(t.isActive)
+        XCTAssertEqual(t.addedEntryID, "saved")
+    }
+
+    func testExitCannotOverlaySystemUIAndRestartClearsConfirmation() {
+        let t = tour(); t.start(at: .healthValue); t.hostReady()
+        t.sheetPresented("health"); t.requestExit(reason: "outside tap")
+        XCTAssertNil(t.exitRequest)
+        t.sheetDismissed("health"); t.requestExit(reason: "outside tap")
+        XCTAssertNotNil(t.exitRequest)
+        t.start(); t.hostReady(); t.confirmExit()
+        XCTAssertTrue(t.isActive)
+        XCTAssertEqual(t.step, .welcome)
+    }
+
+    func testCardGeometryKeepsTargetsAndNavigationClearAtBothPhoneSizes() {
+        for size in [CGSize(width: 375, height: 570), CGSize(width: 402, height: 722)] {
+            for target in [CGRect(x: 310, y: size.height - 65, width: 44, height: 44),
+                           CGRect(x: 20, y: 100, width: 330, height: 44),
+                           CGRect(x: 20, y: 230, width: 80, height: 65)] {
+                for height in [CGFloat(140), 280, 700] {
+                    let frame = CanvasTourCardGeometry.frame(in: size, idealHeight: height,
+                        step: .chooseDuration, target: target, navigationTop: size.height - 65)
+                    XCTAssertFalse(frame.intersects(target))
+                    XCTAssertGreaterThanOrEqual(frame.minX, 16)
+                    XCTAssertGreaterThanOrEqual(frame.minY, 16)
+                    XCTAssertLessThanOrEqual(frame.maxX, size.width - 16)
+                    XCTAssertLessThanOrEqual(frame.maxY, size.height - 65)
+                }
+            }
+        }
+    }
+
 }
 #endif

@@ -212,7 +212,6 @@ struct CanvasDataPanel: View {
             }
             .overlay(alignment: .top) {
                 rowsStack
-                    .canvasTourAnchor("canvas.health")
                     .padding(.horizontal, 14)
                     .padding(.top, Self.topPadding)
                     .frame(
@@ -237,6 +236,9 @@ struct CanvasDataPanel: View {
             // their own gestures.
             .simultaneousGesture(toggleDrag)
             .accessibilityElement(children: .contain)
+            // Include the footer and its real hit area when positioning the
+            // Health coach; the card must clear the whole drawer surface.
+            .canvasTourAnchor("canvas.health")
     }
 
     @ViewBuilder

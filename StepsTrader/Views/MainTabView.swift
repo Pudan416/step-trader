@@ -230,7 +230,7 @@ struct MainTabView: View {
             .environment(\.topCardHeight, topCardHeight)
             .environment(\.tabBarHeight, tabBarHeight)
             .environment(\.tabBarCenterY, tabBarCenterY)
-            .animation(.easeInOut(duration: 0.2), value: selection)
+            .animation(tabSelectionAnimation, value: selection)
             // Feature-tip CTA deep-link: Settings is a sheet on Me now. Set the
             // route BEFORE presenting — SettingsSheet reads the binding when it
             // is first created and pushes via navigationDestination on appear.
@@ -470,6 +470,13 @@ struct MainTabView: View {
         else { tour.hostReady() }
     }
     #endif
+
+    private var tabSelectionAnimation: Animation? {
+        #if DEBUG
+        if DebugCanvasTour.shared.isActive && reduceMotion { return nil }
+        #endif
+        return .easeInOut(duration: 0.2)
+    }
 
     private var tourTabSurfaceOpacity: Double {
         #if DEBUG
