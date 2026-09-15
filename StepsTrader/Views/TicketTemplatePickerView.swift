@@ -9,6 +9,9 @@ struct NewAppGroupSheet: View {
     @State private var selection: FamilyActivitySelection
     @State private var name: String
     @State private var showName = false
+    #if DEBUG
+    @State private var hasSaved = false
+    #endif
     @FocusState private var nameFocused: Bool
 
     init(selection: FamilyActivitySelection = FamilyActivitySelection(), name: String = "",
@@ -16,6 +19,14 @@ struct NewAppGroupSheet: View {
         _selection = State(initialValue: selection)
         _name = State(initialValue: name)
         self.onSave = onSave
+    }
+
+    private var saveBlocked: Bool {
+        #if DEBUG
+        return hasSaved
+        #else
+        return false
+        #endif
     }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -28,6 +39,7 @@ struct NewAppGroupSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button(String(localized: "Cancel")) { dismiss() }
+                            .accessibilityIdentifier("feed.selection.cancel")
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button(String(localized: "Done")) {
@@ -37,7 +49,7 @@ struct NewAppGroupSheet: View {
                                 showName = true
                             }
                         }
-                        .disabled(!selection.hasGroupTargets)
+                        .disabled(!selection.hasGroupTargets || saveBlocked)
                         .accessibilityIdentifier("feed.selection.done")
                     }
                 }
@@ -54,7 +66,8 @@ struct NewAppGroupSheet: View {
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button(String(localized: "Create")) { save() }
-                                .disabled(trimmedName.isEmpty)
+                                .disabled(trimmedName.isEmpty || saveBlocked)
+                                .accessibilityIdentifier("feed.selection.create")
                         }
                     }
                     .onAppear { nameFocused = true }
@@ -63,8 +76,11 @@ struct NewAppGroupSheet: View {
     }
 
     private func save() {
-        guard selection.hasGroupTargets,
+        guard !saveBlocked, selection.hasGroupTargets,
               selection.isSingleApplication || !trimmedName.isEmpty else { return }
+        #if DEBUG
+        hasSaved = true
+        #endif
         onSave(selection, trimmedName)
         dismiss()
     }

@@ -816,6 +816,12 @@ struct MeSelectedDayPoster: View {
     @State private var isLoading = false
     @State private var shareImage: UIImage?
     @State private var showShareSheet = false
+    @State private var tourShareOperation: CanvasTourOperation?
+    @State private var tourShareCompleted = false
+    @State private var tourShareFailed = false
+    @State private var tourShareErrorPresented = false
+    @State private var isPreparingTourShare = false
+    @State private var isAwaitingShareDismiss = false
 
     private var displayDate: Date {
         CachedFormatters.dayKey.date(from: dayKey) ?? .now
@@ -894,7 +900,7 @@ struct MeSelectedDayPoster: View {
         )
     }
 
-    var body: some View {
+    private var posterWithSharing: some View {
         MeGalleryPoster(
             date: displayDate,
             steps: displayedSteps,
@@ -934,11 +940,73 @@ struct MeSelectedDayPoster: View {
             guard handlesShareRequest else { return }
             Task { await prepareShare() }
         }
-        .sheet(isPresented: $showShareSheet, onDismiss: { shareImage = nil }) {
+        .sheet(isPresented: $showShareSheet, onDismiss: shareSheetDismissed) {
             if let shareImage {
-                CanvasShareSheet(items: [shareImage])
+                let activityOperation = tourShareOperation
+                CanvasShareSheet(items: [shareImage], onCompletion: { completed, error in
+                    guard let token = activityOperation, CanvasTour.shared.isCurrent(token) else { return }
+                    tourShareCompleted = completed && error == nil
+                    tourShareFailed = error != nil
+                })
             }
         }
+    }
+
+    var body: some View {
+        posterWithSharing
+        .onChange(of: CanvasTour.shared.step) { (_: CanvasTourStep, step: CanvasTourStep) in
+            if step != .poster { tourShareErrorPresented = false }
+            guard step == .saveDays || step == .poster else { return }
+            reportTourPosterReady()
+        }
+        .onChange(of: CanvasTour.shared.isActive) { _, active in
+            if !active {
+                tourShareErrorPresented = false
+                if tourShareOperation != nil { showShareSheet = false }
+            }
+        }
+        .onChange(of: CanvasTour.shared.sessionID) { _, sessionID in
+            if let operation = tourShareOperation, operation.sessionID != sessionID {
+                tourShareErrorPresented = false
+                showShareSheet = false
+            }
+        }
+        .onChange(of: renderingIsActive) { _, active in
+            if active { reportTourPosterReady() }
+        }
+        .alert(String(localized: "We couldn't export this poster."), isPresented: $tourShareErrorPresented) {
+            Button(String(localized: "Retry")) { Task { await prepareShare() } }
+            Button(String(localized: "Skip export")) { CanvasTour.shared.send(.exportSkipped) }
+        } message: {
+            Text(String(localized: "Your day is still here. Try again, or continue without exporting."))
+        }
+    }
+
+    private func shareSheetDismissed() {
+        shareImage = nil
+        isAwaitingShareDismiss = false
+        guard let token = tourShareOperation, CanvasTour.shared.isCurrent(token) else { return }
+        if tourShareFailed {
+            tourExportFailed(dismissingShareSheet: true)
+        } else {
+            CanvasTour.shared.send(.shareDismissed(tourShareCompleted), token: token)
+            CanvasTour.shared.sheetDismissed("share", sessionID: token.sessionID)
+        }
+    }
+
+    private func reportTourPosterReady() {
+        guard CanvasTour.shared.isActive, isToday, renderingIsActive,
+              !isLoading, artworkCanvas?.dayKey == dayKey,
+              snapshots.cachedImage(for: dayKey) != nil else { return }
+        CanvasTour.shared.send(.posterReady(dayKey))
+    }
+
+    private func tourExportFailed(dismissingShareSheet: Bool = false) {
+        guard let token = tourShareOperation, CanvasTour.shared.isCurrent(token) else { return }
+        CanvasTour.shared.endOperation(token)
+        if dismissingShareSheet { CanvasTour.shared.sheetDismissed("share", sessionID: token.sessionID) }
+        CanvasTour.shared.recover("Poster export failed; Retry or Skip export is available")
+        tourShareErrorPresented = true
     }
 
     @ViewBuilder
@@ -979,7 +1047,10 @@ struct MeSelectedDayPoster: View {
     @MainActor
     private func loadCanvas(forceRefresh: Bool = false) async {
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            isLoading = false
+            reportTourPosterReady()
+        }
 
         let fallback = resolvedArtworkCanvas(
             from: dayCanvas,
@@ -1053,8 +1124,31 @@ struct MeSelectedDayPoster: View {
     @MainActor
     private func prepareShare() async {
         guard canShare else { return }
+        guard !isPreparingTourShare, !showShareSheet, !isAwaitingShareDismiss else { return }
+        if CanvasTour.shared.isActive {
+            guard dayKey == AppModel.dayKey(for: .now),
+                  CanvasTour.shared.posterDayID == dayKey,
+                  CanvasTour.shared.step == .poster else {
+                CanvasTour.shared.report("Export ignored: the current-day poster is not ready for this step")
+                return
+            }
+        }
+        isPreparingTourShare = true
+        defer { isPreparingTourShare = false }
+        let tourOperation = CanvasTour.shared.beginOperation("poster.export")
+        if CanvasTour.shared.isActive && tourOperation == nil { return }
+        tourShareOperation = tourOperation
+        tourShareCompleted = false
+        tourShareFailed = false
         let frameSize = CGSize(width: 604, height: 842)
-        guard let canvas = artworkCanvas else { return }
+        guard let canvas = artworkCanvas else {
+            tourExportFailed()
+            return
+        }
+        if tourOperation != nil, canvas.dayKey != dayKey {
+            tourExportFailed()
+            return
+        }
 
         let poster: AnyView
         switch CanvasExportRoute(canvas: canvas) {
@@ -1064,7 +1158,10 @@ struct MeSelectedDayPoster: View {
                 size: frameSize,
                 scale: 2160 / frameSize.width,
                 elapsedTime: 4
-            ) else { return }
+            ) else {
+                tourExportFailed()
+                return
+            }
             poster = AnyView(sharePoster {
                 Image(uiImage: artwork)
                     .resizable()
@@ -1079,8 +1176,20 @@ struct MeSelectedDayPoster: View {
         let renderer = ImageRenderer(content: poster)
         renderer.scale = 2160 / frameSize.width
         renderer.proposedSize = .init(width: frameSize.width, height: frameSize.height)
-        guard let image = renderer.uiImage else { return }
+        guard let image = renderer.uiImage else {
+            tourExportFailed()
+            return
+        }
+        if let tourOperation {
+            guard CanvasTour.shared.isCurrent(tourOperation) else { return }
+            guard dayKey == AppModel.dayKey(for: .now), CanvasTour.shared.posterDayID == dayKey else {
+                CanvasTour.shared.endOperation(tourOperation, error: "The day changed while exporting. Open today's poster and try again.")
+                return
+            }
+            CanvasTour.shared.sheetPresented("share")
+        }
         shareImage = image
+        isAwaitingShareDismiss = true
         showShareSheet = true
     }
 

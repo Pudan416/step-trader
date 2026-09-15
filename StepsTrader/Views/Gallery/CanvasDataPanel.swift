@@ -119,6 +119,14 @@ struct CanvasDataPanel: View {
     @Environment(\.canvasChromePalette) private var palette
     private var ink: Color { palette.textColor }
 
+    private var tourAllowsDrawerGesture: Bool {
+        !CanvasTour.shared.isActive || [.balance, .healthValue, .healthResult].contains(CanvasTour.shared.step)
+    }
+
+    private var tourIsActive: Bool {
+        CanvasTour.shared.isActive
+    }
+
     private var rowsMaxHeight: CGFloat? {
         guard let availableHeight else { return nil }
         let overhead = Self.topPadding + Self.rowsToHandleSpacing + Self.handleVisualHeight
@@ -179,7 +187,6 @@ struct CanvasDataPanel: View {
             if isExpanded {
                 drawerContent
                     .accessibilityIdentifier("canvas_data_panel")
-                    .coachMarkAnchor(.categoriesRevealed)
             } else {
                 drawerContent
             }
@@ -221,6 +228,9 @@ struct CanvasDataPanel: View {
             // their own gestures.
             .simultaneousGesture(toggleDrag)
             .accessibilityElement(children: .contain)
+            // Include the footer and its real hit area when positioning the
+            // Health coach; the card must clear the whole drawer surface.
+            .canvasTourAnchor("canvas.health")
     }
 
     @ViewBuilder
@@ -254,7 +264,25 @@ struct CanvasDataPanel: View {
     /// Visually this is only a 16pt footer, about one third of the former
     /// empty header. The negative inset preserves a forgiving 44pt gesture
     /// target without making the panel look thick.
-    private var handle: some View {
+    @ViewBuilder
+    private var handleSurface: some View {
+        if tourIsActive {
+            Button(action: onToggle) {
+                VStack(spacing: 0) {
+                    handleVisual
+                    Color.clear.frame(height: Self.handleHitExtension)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.handleHitHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            handleVisual
+        }
+    }
+
+    private var handleVisual: some View {
         ZStack {
             Color.clear
             Capsule()
@@ -263,6 +291,10 @@ struct CanvasDataPanel: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.handleVisualHeight)
+    }
+
+    private var handle: some View {
+        handleSurface
         .accessibilityElement()
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(
@@ -291,7 +323,10 @@ struct CanvasDataPanel: View {
             onToggle()
         }
         .accessibilityIdentifier("canvas_show_data_button")
-        .coachMarkAnchor(.expandChevron)
+        .canvasTourControl("canvas.balanceHandle")
+        // Keep the 16pt visual footer. The anchor and button above measure the
+        // full 44pt hit region, which extends into the existing bottom padding.
+        .padding(.bottom, tourIsActive ? -Self.handleHitExtension : 0)
     }
 
     private func rowTitle(_ row: CanvasDataRow) -> some View {
@@ -349,6 +384,7 @@ struct CanvasDataPanel: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .allowsHitTesting(!tourIsActive)
         .accessibilityLabel("\(row.title), \(row.value) of \(row.maxValue)")
         .accessibilityValue(
             selectedKind == row.kind
@@ -391,13 +427,13 @@ struct CanvasDataPanel: View {
     private var toggleDrag: some Gesture {
         DragGesture(minimumDistance: 8)
             .updating($localDragDistance) { value, distance, _ in
-                guard dragStartsOnHandle(at: value.startLocation.y) else { return }
+                guard tourAllowsDrawerGesture, dragStartsOnHandle(at: value.startLocation.y) else { return }
                 distance = isExpanded
                     ? max(0, -value.translation.height)
                     : max(0, value.translation.height)
             }
             .onEnded { value in
-                guard dragStartsOnHandle(at: value.startLocation.y) else { return }
+                guard tourAllowsDrawerGesture, dragStartsOnHandle(at: value.startLocation.y) else { return }
                 let crossedThreshold = isExpanded
                     ? CanvasDataPanelGesture.shouldClose(
                         translation: value.translation.height,

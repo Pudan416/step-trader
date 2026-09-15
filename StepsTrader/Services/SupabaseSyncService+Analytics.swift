@@ -7,6 +7,9 @@ extension SupabaseSyncService {
     /// Queue analytics event for KPI tracking.
     /// Uses best-effort delivery to `user_analytics_events` with local queue fallback.
     func trackAnalyticsEvent(name: String, properties: [String: String] = [:], dedupeKey: String? = nil) {
+        #if DEBUG
+        guard !CanvasTourAnalyticsGate.shared.isSuppressed else { return }
+        #endif
         if let dedupeKey {
             if analyticsDedupeKeys.contains(dedupeKey) { return }
             analyticsDedupeKeys.insert(dedupeKey)
