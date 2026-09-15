@@ -219,9 +219,9 @@ struct MeView: View {
             )
 
             summaryRow(
-                icon: "figure.walk",
+                icon: "waveform.path",
                 value: summary.avgSteps.formatted(),
-                label: String(localized: "steps a day", comment: "MeView – average steps label"),
+                label: String(localized: "activity · steps a day", comment: "MeView – average steps label"),
                 trend: cachedComparison.stepsPercentDelta.map { String(format: "%+d%%", $0) },
                 accessibilityIdentifier: "me_week_steps_average"
             )

@@ -47,7 +47,7 @@ enum NoteCatalog {
     static let all: [Note] = [
         Note(id: "about_canvas",
              topic: String(localized: "About the Canvas", comment: "Note topic"),
-             body: String(localized: "Every day leaves a different trace. The canvas is not a score, and it isn't proof that you lived enough. It holds what Nowhere could notice: sleep, steps, and the happenings you chose to name. Some things will always be missing. At the end of your day, the live canvas makes room for another. The trace can stay.", comment: "Note body: about_canvas")),
+             body: String(localized: "Every day leaves a different trace. The canvas is not a score, and it isn't proof that you lived enough. It holds what Nowhere could notice: sleep, activity, and the happenings you chose to name. Some things will always be missing. At the end of your day, the live canvas makes room for another. The trace can stay.", comment: "Note body: about_canvas")),
         // Keep the legacy id: it is persisted in NoteReadTracker, and renaming it
         // would make this already-read note appear unread after an update.
         Note(id: "about_body_mind_heart",
@@ -60,8 +60,8 @@ enum NoteCatalog {
              topic: String(localized: "About Sleep", comment: "Note topic"),
              body: String(localized: "Sleep is the frame around every day. Everything else fits inside it. Sleep lays down the dark. As the night approaches the goal you set, it brings up to 20 colors.\n\nSleep comes from the Health app. Apple can be slow to finish the night, so the canvas may catch up later.", comment: "Note body: about_sleep")),
         Note(id: "about_steps",
-             topic: String(localized: "About Steps", comment: "Note topic"),
-             body: String(localized: "Steps are not a fitness score. They are proof that the body moved through the world today. As you move toward the target you set, they bring up to 20 colors and brighten the canvas. It doesn't have to be 10k. It's your number.", comment: "Note body: about_steps")),
+             topic: String(localized: "About Activity", comment: "Note topic"),
+             body: String(localized: "Activity looks different for everyone. It can bring up to 20 colors and brighten the canvas. For now, Nowhere uses the step count shared by Apple Health. That can only tell part of your story. When no activity data comes through, you get 5 colors anyway. Your day still counts.", comment: "Note body: about_steps")),
         Note(id: "about_feeds",
              topic: String(localized: "About Feeds", comment: "Note topic"),
              body: String(localized: "Feeds are not evil. They're just expensive. When you choose to open one, you spend some of the colors the day gave you. The balance falls. The canvas changes.\n\nThe choice stays yours. Nowhere only makes the trade visible.", comment: "Note body: about_feeds")),
@@ -73,7 +73,7 @@ enum NoteCatalog {
              body: String(localized: "I wanted less reason to open Nowhere, not more. So the widgets carry the useful parts to the Home Screen: the day's colors, the feeds you closed, and the choice to open one.\n\nApple decides when widgets wake up. If one falls behind, the refresh button is there.", comment: "Note body: about_widgets")),
         Note(id: "about_colors",
              topic: String(localized: "About Colors", comment: "Note topic"),
-             body: String(localized: "Colors are not quite a currency. They are a limited material the day gives you. Up to 100: some from sleep and steps, the rest from happenings you add yourself.\n\nYou can spend them to open a feed, and the canvas carries that choice too. You can't buy colors. That would undo the whole idea.", comment: "Note body: about_colors")),
+             body: String(localized: "Colors are not quite a currency. They are a limited material the day gives you. Up to 100: some from sleep and activity, the rest from happenings you add yourself.\n\nYou can spend them to open a feed, and the canvas carries that choice too. You can't buy colors. That would undo the whole idea.", comment: "Note body: about_colors")),
         Note(id: "about_me",
              topic: String(localized: "About Me", comment: "Note topic"),
              body: String(localized: "I am not my job title\nI am not a designer\nI am not a developer\nI am not a manager\nI am not good\nI am not happy\nI am not sad\nI am not what I post\nI am not who I was yesterday\nI am not who I'll be tomorrow\nI am not nowhere\nI am now here\n\nHey. Thank you for using Nowhere. If you're reading this, I hope you found something in it that matters.\nMy name is Kosta.\nI spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn't really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? The classic midlife corporate crisis. It felt like I was nowhere.\nSo I started building this — at first just for myself, to learn. Over time it became something personal. It's not perfect. Neither am I. I don't think it needs to be.\nI'm trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere — you are here, now. That matters most.\nFeel free to text me. All the contacts are in the settings. Thank you.", comment: "Note body: about_me")),

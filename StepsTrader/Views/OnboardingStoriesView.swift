@@ -745,7 +745,7 @@ struct OnboardingStoriesView: View {
     // MARK: - Color Cap (interactive ring)
 
     private static var colorCategories: [(icon: String, label: String, color: Color)] { [
-        ("figure.walk", "steps", AppColors.brandAccent),
+        ("waveform.path", "activity", AppColors.brandAccent),
         ("bed.double", "sleep", Color(red: 0.35, green: 0.45, blue: 0.75)),
         ("figure.run", "body", Color(red: 0.3, green: 0.8, blue: 0.5)),
         ("brain.head.profile", "mind", Color(red: 0.4, green: 0.6, blue: 1.0)),

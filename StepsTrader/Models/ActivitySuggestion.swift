@@ -143,7 +143,9 @@ struct ActivitySuggestion: Identifiable, Equatable {
             id: "morning_resting",
             optionId: "happening_slept_well",
             source: .morningResting,
-            title: String(localized: "Resting", comment: "Morning resting suggestion – title"),
+            title: Bundle.main.localizedString(
+                forKey: "option.title.happening_slept_well", value: "Slept well", table: nil
+            ),
             subtitle: String(localized: "You slept — add it to your canvas", comment: "Morning resting suggestion – subtitle"),
             icon: "bed.double.fill"
         )

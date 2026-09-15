@@ -149,6 +149,23 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk", "happening_read"])
     }
 
+    func testRestedCannotBeAddedAgainAfterLegacyRestingOnTheSameDay() {
+        let model = makeModel()
+        model.loadDailyEnergyState()
+        let now = Date.now
+        model.todayAdditions = [OptionEntry(
+            id: "legacy-rest", dayKey: AppModel.dayKey(for: now), optionId: "body_resting",
+            colorHex: "#AABBCC", timestamp: now, assetVariant: nil
+        )]
+        XCTAssertFalse(model.canAddHappening(id: "happening_did_nothing", on: now))
+        XCTAssertFalse(model.availablePaletteHappenings(on: now).contains { $0.id == "happening_did_nothing" })
+        XCTAssertTrue(model.canAddHappening(id: "happening_did_nothing", on: now.addingTimeInterval(86_400)))
+        XCTAssertNil(model.addHappening(id: "happening_did_nothing", colorHex: "#DDEEFF", at: now, syncToCloud: false))
+        XCTAssertEqual(model.todayAdditions.map(\.id), ["legacy-rest"])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["body_resting"])
+        XCTAssertEqual(model.happeningPointsToday, 6)
+    }
+
     func testRemovingAdditionMakesHappeningAvailableAgain() {
         let model = makeModel()
         let date = Date(timeIntervalSince1970: 1_786_176_000)

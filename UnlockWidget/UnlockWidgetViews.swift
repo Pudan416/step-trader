@@ -139,7 +139,7 @@ struct NowhereWidgetContent: View {
             .frame(height: 4)
             .accessibilityLabel("\(entry.energyData.earned) of \(entry.energyData.maxEnergy) colors earned")
             HStack(spacing: 6) {
-                metric("Steps", icon: "shoeprints.fill", value: entry.energyData.stepsPoints, maximum: 20)
+                metric("Activity", icon: "waveform.path", value: entry.energyData.stepsPoints, maximum: 20)
                 metric("Sleep", icon: "bed.double.fill", value: entry.energyData.sleepPoints, maximum: 20)
                 metric("Happenings", icon: "sparkles", value: entry.energyData.bodyPoints + entry.energyData.mindPoints + entry.energyData.heartPoints, maximum: 60)
             }

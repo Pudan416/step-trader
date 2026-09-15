@@ -55,6 +55,452 @@
         }
       }
     },
+    "These happenings appear first in the field." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These happenings appear first in the field."
+          }
+        }
+      }
+    },
+    "option.title.happening_cooked" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cooked"
+          }
+        }
+      }
+    },
+    "option.title.happening_shared_meal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared a meal"
+          }
+        }
+      }
+    },
+    "option.title.happening_hugged" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hugged someone"
+          }
+        }
+      }
+    },
+    "option.title.happening_met_someone" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Met someone new"
+          }
+        }
+      }
+    },
+    "option.title.happening_helped" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helped someone"
+          }
+        }
+      }
+    },
+    "option.title.happening_played" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Played"
+          }
+        }
+      }
+    },
+    "option.title.happening_danced" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danced"
+          }
+        }
+      }
+    },
+    "option.title.happening_sang" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sang"
+          }
+        }
+      }
+    },
+    "option.title.happening_drew" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drew"
+          }
+        }
+      }
+    },
+    "option.title.happening_wrote" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrote"
+          }
+        }
+      }
+    },
+    "option.title.happening_photos" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Took photos"
+          }
+        }
+      }
+    },
+    "option.title.happening_swam" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swam"
+          }
+        }
+      }
+    },
+    "option.title.happening_bike" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rode a bike"
+          }
+        }
+      }
+    },
+    "option.title.happening_stretched" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stretched"
+          }
+        }
+      }
+    },
+    "option.title.happening_explored" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explored"
+          }
+        }
+      }
+    },
+    "option.title.happening_film" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watched a film"
+          }
+        }
+      }
+    },
+    "option.title.happening_plants" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tended plants"
+          }
+        }
+      }
+    },
+    "option.title.happening_daydreamed" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daydreamed"
+          }
+        }
+      }
+    },
+    "option.title.happening_asked_for_help" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asked for help"
+          }
+        }
+      }
+    },
+    "option.title.happening_listened" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listened"
+          }
+        }
+      }
+    },
+    "option.title.happening_said_no" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Said no"
+          }
+        }
+      }
+    },
+    "activity_assumed_message" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I think there was some activity in your day anyway. Here are 5 colors, on the house."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Думаю, сегодня у тебя всё равно была какая-то активность. Вот 5 colors — просто так."
+          }
+        }
+      }
+    },
+    "activity · steps a day" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "activity · steps a day"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "активность · шагов в день"
+          }
+        }
+      }
+    },
+    "Activity today:" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity today:"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активность сегодня:"
+          }
+        }
+      }
+    },
+    "Step count" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step count"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Количество шагов"
+          }
+        }
+      }
+    },
+    "Activity currently uses steps from Apple Health. You can use Nowhere without connecting it." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity currently uses steps from Apple Health. You can use Nowhere without connecting it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока для активности используются шаги из Apple Health. Nowhere можно использовать и без подключения."
+          }
+        }
+      }
+    },
+    "For now, activity uses Apple Health steps. No data? You still get 5 colors." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For now, activity uses Apple Health steps. No data? You still get 5 colors."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока активность учитывается по шагам из Apple Health. Нет данных? Ты всё равно получаешь 5 colors."
+          }
+        }
+      }
+    },
+    "you can connect apple health." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you can connect apple health."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "можно подключить apple health."
+          }
+        }
+      }
+    },
+    "Activity fills up to %lld of the day's %lld colors. For now, progress uses Apple Health steps. Without activity data, you get 5 colors." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity fills up to %1$lld of the day's %2$lld colors. For now, progress uses Apple Health steps. Without activity data, you get 5 colors."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активность даёт до %1$lld из %2$lld colors за день. Пока прогресс учитывается по шагам из Apple Health. Без данных об активности ты получаешь 5 colors."
+          }
+        }
+      }
+    },
+    "Daily activity goal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily activity goal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цель активности на день"
+          }
+        }
+      }
+    },
+    "Activity goal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity goal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цель активности"
+          }
+        }
+      }
+    },
+    "Enter exact activity goal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter exact activity goal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ввести точную цель активности"
+          }
+        }
+      }
+    },
+    "Health data brings activity, sleep and workouts to your Canvas." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health data brings activity, sleep and workouts to your Canvas."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Данные Здоровья добавляют на Canvas активность, сон и тренировки."
+          }
+        }
+      }
+    },
     "Band shifts": {
       "comment": "Native Canvas editing control",
       "extractionState": "manual",
@@ -939,8 +1385,22 @@
     "About Sleep" : {
       "comment" : "Note topic"
     },
-    "About Steps" : {
-      "comment" : "Note topic"
+    "About Activity" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About Activity"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Об активности"
+          }
+        }
+      }
     },
     "About the Canvas" : {
       "comment" : "Note topic"
@@ -1226,8 +1686,8 @@
     "colors" : {
       "comment" : "Category overlay – unit"
     },
-    "Colors are not quite a currency. They are a limited material the day gives you. Up to 100: some from sleep and steps, the rest from happenings you add yourself.\n\nYou can spend them to open a feed, and the canvas carries that choice too. You can't buy colors. That would undo the whole idea." : {
-      "comment" : "Note body: about_colors"
+    "Colors are not quite a currency. They are a limited material the day gives you. Up to 100: some from sleep and activity, the rest from happenings you add yourself.\n\nYou can spend them to open a feed, and the canvas carries that choice too. You can't buy colors. That would undo the whole idea." : {
+      "comment": "Note body: about_colors"
     },
     "colors are the currency you earn for living a real life." : {
 
@@ -1288,9 +1748,6 @@
     },
     "Daily energy" : {
       "comment" : "Canvas status pill – VoiceOver label"
-    },
-    "Daily Steps Goal" : {
-
     },
     "DANGER ZONE" : {
       "comment" : "Settings account section header"
@@ -1480,8 +1937,8 @@
     "Error" : {
       "comment" : "ProfileEditor – error alert title"
     },
-    "Every day leaves a different trace. The canvas is not a score, and it isn't proof that you lived enough. It holds what Nowhere could notice: sleep, steps, and the happenings you chose to name. Some things will always be missing. At the end of your day, the live canvas makes room for another. The trace can stay." : {
-      "comment" : "Note body: about_canvas"
+    "Every day leaves a different trace. The canvas is not a score, and it isn't proof that you lived enough. It holds what Nowhere could notice: sleep, activity, and the happenings you chose to name. Some things will always be missing. At the end of your day, the live canvas makes room for another. The trace can stay." : {
+      "comment": "Note body: about_canvas"
     },
     "Exit full screen" : {
       "comment" : "Full screen dock – collapse action"
@@ -1641,8 +2098,22 @@
     "how many hours of sleep you need?" : {
 
     },
-    "how many steps a day is your goal?" : {
-
+    "choose your daily activity goal." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "choose your daily activity goal."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "выбери свою цель активности на день."
+          }
+        }
+      }
     },
     "I am not my job title\nI am not a designer\nI am not a developer\nI am not a manager\nI am not good\nI am not happy\nI am not sad\nI am not what I post\nI am not who I was yesterday\nI am not who I'll be tomorrow\nI am not nowhere\nI am now here\n\nHey. Thank you for using Nowhere. If you're reading this, I hope you found something in it that matters.\nMy name is Kosta.\nI spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn't really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? The classic midlife corporate crisis. It felt like I was nowhere.\nSo I started building this — at first just for myself, to learn. Over time it became something personal. It's not perfect. Neither am I. I don't think it needs to be.\nI'm trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere — you are here, now. That matters most.\nFeel free to text me. All the contacts are in the settings. Thank you." : {
       "comment" : "Note body: about_me"
@@ -2679,138 +3150,6 @@
         }
       }
     },
-    "These happenings appear first in the field." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "These happenings appear first in the field." } }
-      }
-    },
-    "option.title.happening_cooked" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cooked" } }
-      }
-    },
-    "option.title.happening_shared_meal" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shared a meal" } }
-      }
-    },
-    "option.title.happening_hugged" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hugged someone" } }
-      }
-    },
-    "option.title.happening_met_someone" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Met someone new" } }
-      }
-    },
-    "option.title.happening_helped" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Helped someone" } }
-      }
-    },
-    "option.title.happening_played" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Played" } }
-      }
-    },
-    "option.title.happening_danced" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Danced" } }
-      }
-    },
-    "option.title.happening_sang" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sang" } }
-      }
-    },
-    "option.title.happening_drew" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drew" } }
-      }
-    },
-    "option.title.happening_wrote" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Wrote" } }
-      }
-    },
-    "option.title.happening_photos" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Took photos" } }
-      }
-    },
-    "option.title.happening_swam" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Swam" } }
-      }
-    },
-    "option.title.happening_bike" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rode a bike" } }
-      }
-    },
-    "option.title.happening_stretched" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stretched" } }
-      }
-    },
-    "option.title.happening_explored" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Explored" } }
-      }
-    },
-    "option.title.happening_film" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Watched a film" } }
-      }
-    },
-    "option.title.happening_plants" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tended plants" } }
-      }
-    },
-    "option.title.happening_daydreamed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Daydreamed" } }
-      }
-    },
-    "option.title.happening_asked_for_help" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Asked for help" } }
-      }
-    },
-    "option.title.happening_listened" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Listened" } }
-      }
-    },
-    "option.title.happening_said_no" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Said no" } }
-      }
-    },
     "option.title.happening_called_someone" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3243,9 +3582,6 @@
     "Reset Feature Tip Flags" : {
       "comment" : "Developer diagnostic action"
     },
-    "Resting" : {
-      "comment" : "Morning resting suggestion – title"
-    },
     "Restore Colors to Max" : {
       "comment" : "Developer diagnostic action"
     },
@@ -3476,40 +3812,76 @@
     "steps" : {
       "comment" : "Onboarding – steps unit label"
     },
-    "Steps" : {
-      "comment" : "Canvas data panel – steps row\nSettings Your day steps metric label"
-    },
-    "steps a day" : {
-      "comment" : "MeView – average steps label"
-    },
-    "Steps are not a fitness score. They are proof that the body moved through the world today. As you move toward the target you set, they bring up to 20 colors and brighten the canvas. It doesn't have to be 10k. It's your number." : {
-      "comment" : "Note body: about_steps"
-    },
-    "steps brighten it." : {
-
-    },
-    "Steps fill up to %lld of the day's %lld colors, in proportion to your daily step goal." : {
-      "comment" : "MetricOverlay – how steps contribute",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Steps fill up to %1$lld of the day's %2$lld colors, in proportion to your daily step goal."
+    "Activity" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активность"
           }
         }
       }
     },
-    "Steps only" : {
-      "comment" : "GradientPreview – preview mode steps data only"
+    "Activity looks different for everyone. It can bring up to 20 colors and brighten the canvas. For now, Nowhere uses the step count shared by Apple Health. That can only tell part of your story. When no activity data comes through, you get 5 colors anyway. Your day still counts." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity looks different for everyone. It can bring up to 20 colors and brighten the canvas. For now, Nowhere uses the step count shared by Apple Health. That can only tell part of your story. When no activity data comes through, you get 5 colors anyway. Your day still counts."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У каждого своя активность. Она добавляет до 20 colors и делает Canvas ярче. Пока Nowhere использует количество шагов из Apple Health. Это лишь часть твоего дня. Если данные об активности не приходят, ты всё равно получаешь 5 colors. Твой день всё равно имеет значение."
+          }
+        }
+      }
+    },
+    "activity brightens it." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "activity brightens it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "активность делает его ярче."
+          }
+        }
+      }
+    },
+    "Activity only" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity only"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только активность"
+          }
+        }
+      }
     },
     "steps today" : {
 
-    },
-    "Steps today:" : {
-      "comment" : "QuickStatus – steps label"
-    },
-    "Steps, sleep, workouts" : {
-      "comment" : "Permission row – HealthKit detail"
     },
     "Study" : {
       "comment" : "A title for the settings screen.",
@@ -3554,9 +3926,6 @@
     "TEXTURE" : {
       "comment" : "Appearance section header"
     },
-    "the app needs access to apple health." : {
-
-    },
     "The sense of being present" : {
       "comment" : "App tagline"
     },
@@ -3576,8 +3945,22 @@
     "This part grows with your sleep. As you move toward your sleep goal, it adds up to 20 colors to the canvas. When sleep data is missing, Nowhere leaves room for it instead of calling it zero." : {
       "comment" : "Canvas data panel – inline sleep explanation"
     },
-    "This part grows with your steps. As you move toward your daily goal, it adds up to 20 colors to the canvas." : {
-      "comment" : "Canvas data panel – inline steps explanation"
+    "Activity brings up to 20 colors to the canvas. For now, Apple Health steps count toward your daily goal. When no activity data comes through, you get 5 colors anyway." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity brings up to 20 colors to the canvas. For now, Apple Health steps count toward your daily goal. When no activity data comes through, you get 5 colors anyway."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активность добавляет на Canvas до 20 colors. Пока для дневной цели используются шаги из Apple Health. Если данные об активности не приходят, ты всё равно получаешь 5 colors."
+          }
+        }
+      }
     },
     "This part is shaped by the things you chose to notice today. Each different happening adds color once, up to 60 colors." : {
       "comment" : "Canvas data panel – inline happenings explanation"
@@ -3622,8 +4005,22 @@
     "Try Again" : {
       "comment" : "Permission retry action"
     },
-    "Turn movement into energy" : {
-
+    "Turn activity into colors" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn activity into colors"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Превращай активность в colors"
+          }
+        }
+      }
     },
     "Turn off \"Ask Before Running\"" : {
 

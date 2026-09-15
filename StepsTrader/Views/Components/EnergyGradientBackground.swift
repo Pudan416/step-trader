@@ -839,7 +839,7 @@ extension View {
     func energyGradientBackground(model: AppModel, showGrain: Bool = true) -> some View {
         background {
             EnergyGradientBackground(
-                stepsPoints: model.stepsPointsToday,
+                stepsPoints: model.activityPointsToday,
                 sleepPoints: model.sleepPointsToday,
                 hasStepsData: model.hasStepsData,
                 hasSleepData: model.hasSleepData,

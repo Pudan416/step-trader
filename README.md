@@ -2,7 +2,7 @@
 
 Your life makes colors. Your feeds cost them.
 
-An iOS app where real-world activity — sleep, steps and happenings — produces **colors**. Colors are what you spend to open your feeds.
+An iOS app where real-world activity — sleep, activity and happenings — produces **colors**. Colors are what you spend to open your feeds.
 
 ## Core Loop
 
@@ -10,7 +10,9 @@ An iOS app where real-world activity — sleep, steps and happenings — produce
 2. **See** — Your canvas fills up. Colors accumulate.
 3. **Spend** — When you want into your feeds, spend colors through the PayGate.
 
-A day is `sleep(20) + steps(20) + happenings(60) = 100`.
+A day is `sleep(20) + activity(20) + happenings(60) = 100`.
+
+Activity currently uses Apple Health step counts. An empty query or unavailable Health access grants 5 colors for the day; real data replaces that fallback. Sleep keeps its existing 10-color fallback after six hours from the day boundary. Refreshing does not accumulate gifts. Persisted `steps*` keys retain their names for compatibility with saved canvases, widgets, and Health measurements.
 
 ## Tabs
 
@@ -87,7 +89,7 @@ Three prefixes recur across the codebase — once you know them the names self-d
   `appStepsSpentToday` is per-app/per-group cost dictionaries. The "Pay" /
   "PayGate" flows write into these.
 
-Energy is *earned* from steps + sleep + selections, *spent* via PayGate to unlock
+Energy is *earned* from activity + sleep + happenings, *spent* via PayGate to unlock
 blocked apps. The custom day boundary determines when all the `daily*` keys reset.
 
 ## Deep Links
@@ -120,3 +122,11 @@ xcodebuild -project Steps4.xcodeproj -scheme Steps4 -destination 'platform=iOS S
 
 - **admin-panel/** — Next.js dashboard for user management, global stats, and energy ledger. Password-protected, uses Supabase service role key.
 - **tg-admin/** — Telegram bot on Cloudflare Workers for interactive admin commands (`/stats`, `/user`, `/grant`, `/ban`, etc.) with LLM-powered natural language queries.
+
+## Widget and wallpaper suggestions
+
+First offers become eligible after cold launches 5 (widget) and 7 (wallpaper), once onboarding is complete. Wallpaper also requires a saved Canvas. All suggestions and App Store review requests share a 48-hour cooldown; a process session shows at most one suggestion and never combines it with a review request.
+
+“Maybe later” and swipe dismissal allow one repeat after at least seven days and Canvas visits on three distinct subsequent calendar days. The dismissal day does not count. Canvas must be foregrounded and visible, without Settings, a feature suggestion, PayGate or handoff protection covering it. The second dismissal ends automatic offers. Accepting the settings link also ends that offer. WidgetKit-confirmed widgets and a successfully used wallpaper export suppress their respective offers. An unknown WidgetKit response does not mean the widget is absent.
+
+History persists locally. Existing v1 seen flags remain terminal because they do not record whether the user accepted or dismissed. Developer “Reset Feature Tips” clears this history.

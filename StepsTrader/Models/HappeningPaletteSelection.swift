@@ -36,6 +36,7 @@ enum HappeningPaletteSelection {
         // 52 is the persisted HKWorkoutActivityType.walking raw value.
         // Other workout types can share a label while being distinct activities.
         case "body_walking", "health_workout_52": "happening_walk"
+        case "body_resting": "happening_did_nothing"
         default: id
         }
     }

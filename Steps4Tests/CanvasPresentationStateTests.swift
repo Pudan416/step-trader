@@ -246,8 +246,8 @@ final class CanvasPresentationStateTests: XCTestCase {
 
     func testTappingMetricRowOpensItsDisclosure() {
         XCTAssertEqual(
-            CanvasDataPanelSelection.toggling(.steps, current: nil),
-            .steps
+            CanvasDataPanelSelection.toggling(.activity, current: nil),
+            .activity
         )
     }
 
@@ -259,7 +259,7 @@ final class CanvasPresentationStateTests: XCTestCase {
 
     func testTappingAnotherMetricRowSwitchesDisclosure() {
         XCTAssertEqual(
-            CanvasDataPanelSelection.toggling(.happenings, current: .steps),
+            CanvasDataPanelSelection.toggling(.happenings, current: .activity),
             .happenings
         )
     }

@@ -454,13 +454,13 @@ extension Notification.Name {
 }
 
 enum MetricOverlayKind: Identifiable, Equatable {
-    case steps
+    case activity
     case sleep
     case happenings
 
     var id: String {
         switch self {
-        case .steps: return "steps"
+        case .activity: return "activity"
         case .sleep: return "sleep"
         case .happenings: return "happenings"
         }

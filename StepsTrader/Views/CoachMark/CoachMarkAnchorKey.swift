@@ -22,11 +22,11 @@ enum CoachMarkStep: Int, CaseIterable, Equatable {
     var tooltip: String {
         switch self {
         case .colorBalance:
-            return "your color balance — steps, sleep, and what you actually do fill it up"
+            return "your color balance — activity, sleep, and what you actually do fill it up"
         case .expandChevron:
             return "tap here to see what's going on"
         case .categoriesRevealed:
-            return "steps and sleep come from health. body, mind, heart — that's on you"
+            return "activity and sleep can come from health. happenings — that's on you"
         case .tapPlusButton:
             return "tap here to add something you did"
         case .canvasTrace:

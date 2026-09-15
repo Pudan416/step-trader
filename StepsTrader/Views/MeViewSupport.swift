@@ -338,7 +338,7 @@ struct MeDayHealth: Equatable {
         normalizedPoints(
             value: Double(steps ?? 0),
             target: stepsTarget,
-            maximum: EnergyDefaults.stepsMaxPoints
+            maximum: EnergyDefaults.activityMaxPoints
         )
     }
 
@@ -1007,7 +1007,7 @@ struct MeSelectedDayPoster: View {
 
     private var todayAppearance: TodayCanvasAppearance {
         TodayCanvasAppearance(
-            dayKey: dayKey, steps: model.stepsPointsToday, sleep: model.sleepPointsToday,
+            dayKey: dayKey, steps: model.activityPointsToday, sleep: model.sleepPointsToday,
             earned: model.baseEnergyToday, spent: model.spentStepsToday,
             hasSteps: model.hasStepsData, hasSleep: model.hasSleepData,
             style: preferredCanvasVisualStyleRaw, gradient: liveGradientStyle,
@@ -1035,7 +1035,7 @@ struct MeSelectedDayPoster: View {
 
         if isToday {
             canvas.sleepPoints = model.sleepPointsToday
-            canvas.stepsPoints = model.stepsPointsToday
+            canvas.stepsPoints = model.activityPointsToday
             canvas.inkEarned = model.baseEnergyToday
             canvas.inkSpent = model.spentStepsToday
             canvas.hasStepsData = model.hasStepsData

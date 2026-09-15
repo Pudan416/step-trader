@@ -204,7 +204,7 @@ struct GalleryMetricOverlayView: View {
 
     private func overlayTitle(for kind: MetricOverlayKind) -> String {
         switch kind {
-        case .steps: return String(localized: "Steps")
+        case .activity: return String(localized: "Activity")
         case .sleep: return String(localized: "Sleep")
         case .happenings: return String(localized: "Happenings", comment: "Daily happenings metric")
         }
@@ -213,8 +213,8 @@ struct GalleryMetricOverlayView: View {
     @ViewBuilder
     private func overlayContent(for kind: MetricOverlayKind) -> some View {
         switch kind {
-        case .steps:
-            stepsOverlayBody
+        case .activity:
+            activityOverlayBody
         case .sleep:
             sleepOverlayBody
         case .happenings:
@@ -274,28 +274,45 @@ struct GalleryMetricOverlayView: View {
         }
     }
 
-    private var stepsOverlayBody: some View {
+    private var activityOverlayBody: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(formatCompactNumber(Int(model.healthStore.stepsToday)))
-                        .font(.geist(.title2).bold())
-                    Text(String(localized: "steps today"))
-                        .font(.geist(.caption))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(model.stepsPointsToday)/\(EnergyDefaults.stepsMaxPoints)")
+            if model.isActivityAssumed {
+                HStack {
+                    Text("\(model.activityPointsToday)/\(EnergyDefaults.activityMaxPoints)")
                         .font(.geist(.title3).bold())
                     Text(String(localized: "colors"))
                         .font(.geist(.caption))
                         .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "gift.fill")
+                        .foregroundStyle(AppColors.brandAccent)
                 }
+                Text(EnergyDefaults.activityAssumedMessage)
+                    .font(.geist(.callout))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(formatCompactNumber(Int(model.healthStore.stepsToday)))
+                            .font(.geist(.title2).bold())
+                        Text(String(localized: "steps today"))
+                            .font(.geist(.caption))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(model.activityPointsToday)/\(EnergyDefaults.activityMaxPoints)")
+                            .font(.geist(.title3).bold())
+                        Text(String(localized: "colors"))
+                            .font(.geist(.caption))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(String(localized: "Target: \(formatCompactNumber(Int(userStepsTarget))) steps"))
+                    .font(.geist(.caption))
+                    .foregroundStyle(.secondary)
             }
-            Text(String(localized: "Target: \(formatCompactNumber(Int(userStepsTarget))) steps"))
-                .font(.geist(.caption))
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -342,9 +359,9 @@ struct GalleryMetricOverlayView: View {
     /// answer "why is this number what it is", not to advise.
     private func explanation(for kind: MetricOverlayKind) -> String {
         switch kind {
-        case .steps:
+        case .activity:
             return String(
-                localized: "Steps fill up to \(EnergyDefaults.stepsMaxPoints) of the day's \(EnergyDefaults.maxBaseEnergy) colors, in proportion to your daily step goal.",
+                localized: "Activity fills up to \(EnergyDefaults.activityMaxPoints) of the day's \(EnergyDefaults.maxBaseEnergy) colors. For now, progress uses Apple Health steps. Without activity data, you get 5 colors.",
                 comment: "MetricOverlay – how steps contribute"
             )
         case .sleep:
@@ -366,7 +383,7 @@ struct GalleryMetricOverlayView: View {
     /// silently render a dead link.
     private func researchURL(for kind: MetricOverlayKind) -> URL {
         switch kind {
-        case .steps:
+        case .activity:
             return URL(string: "https://pubmed.ncbi.nlm.nih.gov/24749966/")!
         case .sleep:
             return URL(string: "https://www.nature.com/articles/nrn2762")!

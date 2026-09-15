@@ -32,7 +32,7 @@ struct CanvasDayDetailSheet: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if let s = snapshot {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            statCard(icon: "figure.walk", value: "\(s.steps)", label: String(localized: "Steps"), color: .green)
+                            statCard(icon: "waveform.path", value: String(localized: "\(s.steps) steps"), label: String(localized: "Activity"), color: .green)
                             statCard(icon: "bed.double.fill", value: String(format: "%.1f", s.sleepHours), label: String(localized: "Sleep hours"), color: .indigo)
                             statCard(icon: "plus.circle.fill", value: "\(s.inkEarned)", label: String(localized: "Gained"), color: .blue)
                             statCard(icon: "minus.circle.fill", value: "\(s.inkSpent)", label: String(localized: "Spent"), color: .orange)

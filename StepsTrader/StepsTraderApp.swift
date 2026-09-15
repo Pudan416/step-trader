@@ -141,6 +141,10 @@ private struct StepsTraderProductionRoot: View {
     /// Currently presented feature tip (wallpaper / widgets nudge), or `nil`.
     /// Driven by `presentFeatureTipIfNeeded()` on scenePhase `.active`.
     @State private var activeFeatureTip: FeatureTip?
+    @State private var presentedFeatureTip: FeatureTip?
+    @State private var acceptedFeatureTipRoute: FeatureTipSettingsPage?
+    @State private var featureTipTask: Task<Void, Never>?
+    @State private var hasRequestedReviewThisSession = false
     @State private var pendingWidgetUnlock: (request: WidgetUnlockRequest, receivedAt: Date)?
     @State private var isProcessingWidgetUnlock = false
 
@@ -366,10 +370,10 @@ private struct StepsTraderProductionRoot: View {
                             #if DEBUG
                             QuickStatusView(model: model)
                             #else
-                            MainTabView(model: model, theme: currentTheme)
+                            MainTabView(model: model, allowsCanvasTipEngagement: activeFeatureTip == nil, theme: currentTheme)
                             #endif
                         } else {
-                            MainTabView(model: model, theme: currentTheme)
+                            MainTabView(model: model, allowsCanvasTipEngagement: activeFeatureTip == nil, theme: currentTheme)
                         }
                     }
                     // Run the optional in-app coach mark tour once onboarding
@@ -431,8 +435,17 @@ private struct StepsTraderProductionRoot: View {
             } message: {
                 Text(model.payGateError ?? "")
             }
-            .sheet(item: $activeFeatureTip) { tip in
-                FeatureTipSheet(tip: tip)
+            .sheet(item: $activeFeatureTip, onDismiss: finishFeatureTip) { tip in
+                FeatureTipSheet(tip: tip, onContinue: {
+                    FeatureTipStore.shared.recordAcceptance(tip)
+                    acceptedFeatureTipRoute = tip.settingsPage
+                })
+                .onAppear {
+                    guard presentedFeatureTip == nil else { return }
+                    presentedFeatureTip = tip
+                    hasPresentedFeatureTipThisSession = true
+                    FeatureTipStore.shared.recordPresentation(tip)
+                }
             }
             .themed(currentTheme)
             .grayscale(0)
@@ -805,46 +818,79 @@ private struct StepsTraderProductionRoot: View {
         return false
     }
 
-    /// Returns `true` when the review prompt was scheduled this call, so the
-    /// caller can suppress other same-session prompts (feature tips).
+    /// Review requests share the global cooldown and reserve this process session.
     @discardableResult
     private func requestAppReviewIfNeeded() -> Bool {
-        guard hasCompletedOnboarding, !isUITest else { return false }
-        // `appLaunchCount` is incremented exactly once per process launch in `init()`.
-        // Use `>= 3` (not strict equality) plus a one-shot `hasRequestedReview` flag so
-        // users coming from earlier buggy builds with inflated counts (10–30) still see
-        // the prompt exactly once.
-        guard appLaunchCount >= 3, !hasRequestedReview else { return false }
-        hasRequestedReview = true
+        guard hasCompletedOnboarding, !isUITest, scenePhase == .active,
+              !hasRequestedReviewThisSession, !hasPresentedFeatureTipThisSession,
+              activeFeatureTip == nil, featureTipTask == nil,
+              FeatureTipStore.shared.canPresentPrompt(),
+              appLaunchCount >= 3, !hasRequestedReview else { return false }
+        hasRequestedReviewThisSession = true
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
+            guard scenePhase == .active, hasCompletedOnboarding else { return }
+            hasRequestedReview = true
+            FeatureTipStore.shared.recordReviewRequest()
             requestReview()
         }
         return true
     }
 
-    /// Presents at most one eligible, not-yet-seen feature tip (wallpaper /
-    /// widgets) as a bottom sheet. Mirrors `requestAppReviewIfNeeded`'s gating:
-    /// launch-count threshold + per-tip one-shot flag. Tips are evaluated in
-    /// priority order and the first match wins, so a user with an inflated
-    /// launch count (old build) sees them across successive sessions rather than
-    /// all at once. The caller guarantees this never runs in the same session as
-    /// the App Store review prompt.
+    private var canPresentFeatureTip: Bool {
+        return hasCompletedOnboarding
+            && (!isUITest || ProcessInfo.processInfo.arguments.contains("ui-testing-feature-tips"))
+            && scenePhase == .active
+            && !hasPresentedFeatureTipThisSession && !hasRequestedReviewThisSession
+            && activeFeatureTip == nil && !model.userEconomyStore.showPayGate
+            && !model.showHandoffProtection && coachMarkManager.currentStep == nil
+    }
+
     private func presentFeatureTipIfNeeded() {
-        guard hasCompletedOnboarding, !isUITest else { return }
-        guard !hasPresentedFeatureTipThisSession, activeFeatureTip == nil else { return }
-        for tip in FeatureTip.orderedByPriority where tip.isEligible(launchCount: appLaunchCount) {
-            hasPresentedFeatureTipThisSession = true
-            // Small delay so the sheet doesn't race the foregrounding refresh
-            // and any in-flight UI settle (matches the review prompt cadence).
-            // The one-shot flag is burned only when the sheet actually presents,
-            // so a tip can't be consumed invisibly.
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1))
-                tip.markSeen()
-                activeFeatureTip = tip
+        guard canPresentFeatureTip, featureTipTask == nil,
+              FeatureTipStore.shared.canPresentPrompt() else { return }
+        featureTipTask = Task { @MainActor in
+            defer { featureTipTask = nil }
+            // Let foregrounding settle, then recheck conditions before presenting.
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, canPresentFeatureTip else { return }
+            let hasWidget: Bool? = await withCheckedContinuation { continuation in
+                WidgetCenter.shared.getCurrentConfigurations { result in
+                    continuation.resume(returning: try? result.map { !$0.isEmpty }.get())
+                }
             }
-            return
+            guard !Task.isCancelled, canPresentFeatureTip else { return }
+            if hasWidget == true {
+                FeatureTipStore.shared.recordAcceptance(.widgets)
+            }
+            if model.hasWallpaperShortcut {
+                FeatureTipStore.shared.recordAcceptance(.wallpaper)
+            }
+            let hasCanvas = !CanvasStorageService.shared.availableDayKeys().isEmpty
+            for tip in FeatureTip.orderedByPriority {
+                // An unavailable WidgetKit response is unknown, not "no widget".
+                if tip == .widgets && hasWidget == nil { continue }
+                let used = tip == .wallpaper ? model.hasWallpaperShortcut : hasWidget == true
+                if FeatureTipStore.shared.isEligible(tip, launchCount: appLaunchCount,
+                                                     hasCanvas: hasCanvas, featureUsed: used) {
+                    activeFeatureTip = tip
+                    return
+                }
+            }
+        }
+    }
+
+    private func finishFeatureTip() {
+        if let tip = presentedFeatureTip {
+            // Swipe dismissal has the same meaning as Maybe later. Acceptance
+            // is terminal, so recordDismissal cannot overwrite the CTA choice.
+            FeatureTipStore.shared.recordDismissal(tip)
+        }
+        presentedFeatureTip = nil
+        if let route = acceptedFeatureTipRoute {
+            acceptedFeatureTipRoute = nil
+            NotificationCenter.default.post(name: .openFeatureTipSettings, object: nil,
+                userInfo: ["page": route.rawValue, "dismissalCompleted": true])
         }
     }
 

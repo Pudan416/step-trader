@@ -241,7 +241,7 @@ struct SettingsWidgetControls: View {
                 }
                 .frame(height: 4)
                 HStack(spacing: 6) {
-                    previewMetric(String(localized: "Steps"), icon: "shoeprints.fill", value: "20", maximum: "20")
+                    previewMetric(String(localized: "Activity"), icon: "waveform.path", value: "20", maximum: "20")
                     previewMetric(String(localized: "Sleep"), icon: "bed.double.fill", value: "20", maximum: "20")
                     previewMetric(String(localized: "Happenings"), icon: "sparkles", value: "40", maximum: "60")
                 }

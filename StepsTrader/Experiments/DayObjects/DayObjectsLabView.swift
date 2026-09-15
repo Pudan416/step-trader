@@ -303,7 +303,7 @@ struct DayObjectsLabView: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(spacing: 12) {
                 slider(
-                    "Steps",
+                    "Activity",
                     value: Binding(
                         get: { musicController.state.steps },
                         set: { musicController.setSteps($0) }

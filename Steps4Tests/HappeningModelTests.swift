@@ -68,7 +68,7 @@ final class HappeningModelTests: XCTestCase {
 
     func testThreePartFormulaStillTotalsOneHundred() {
         XCTAssertEqual(
-            EnergyDefaults.stepsMaxPoints
+            EnergyDefaults.activityMaxPoints
             + EnergyDefaults.sleepMaxPoints
             + HappeningDefaults.happeningsMaxPoints,
             EnergyDefaults.maxBaseEnergy,

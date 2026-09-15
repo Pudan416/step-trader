@@ -25,8 +25,8 @@ enum CanvasDataPanelSelection {
 private enum CanvasMetricDisclosure {
     static func explanation(for kind: MetricOverlayKind) -> String {
         switch kind {
-        case .steps:
-            return String(localized: "This part grows with your steps. As you move toward your daily goal, it adds up to 20 colors to the canvas.", comment: "Canvas data panel – inline steps explanation")
+        case .activity:
+            return String(localized: "Activity brings up to 20 colors to the canvas. For now, Apple Health steps count toward your daily goal. When no activity data comes through, you get 5 colors anyway.", comment: "Canvas data panel – inline steps explanation")
         case .sleep:
             return String(localized: "This part grows with your sleep. As you move toward your sleep goal, it adds up to 20 colors to the canvas. When sleep data is missing, Nowhere leaves room for it instead of calling it zero.", comment: "Canvas data panel – inline sleep explanation")
         case .happenings:
@@ -36,7 +36,7 @@ private enum CanvasMetricDisclosure {
 
     static func researchURL(for kind: MetricOverlayKind) -> URL {
         switch kind {
-        case .steps:
+        case .activity:
             return URL(string: "https://pubmed.ncbi.nlm.nih.gov/24749966/")!
         case .sleep:
             return URL(string: "https://www.nature.com/articles/nrn2762")!
@@ -79,6 +79,7 @@ struct CanvasDataRow: Identifiable, Equatable {
     let systemImage: String
     let value: Int
     let maxValue: Int
+    var explanation: String? = nil
 
     var id: String { kind.id }
 
@@ -363,7 +364,8 @@ struct CanvasDataPanel: View {
 
     private func metricDisclosure(for kind: MetricOverlayKind) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(CanvasMetricDisclosure.explanation(for: kind))
+            Text(rows.first(where: { $0.kind == kind })?.explanation
+                 ?? CanvasMetricDisclosure.explanation(for: kind))
                 .font(.geist(.footnote))
                 .foregroundStyle(palette.secondaryColor)
                 .fixedSize(horizontal: false, vertical: true)

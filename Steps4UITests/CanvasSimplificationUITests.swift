@@ -234,13 +234,13 @@ final class CanvasSimplificationUITests: XCTestCase {
         add(collapsed)
         openDataDrawer(in: app)
 
-        let stepsRow = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Steps,'")
+        let activityRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Activity,'")
         ).firstMatch
-        XCTAssertTrue(stepsRow.waitForExistence(timeout: 3))
+        XCTAssertTrue(activityRow.waitForExistence(timeout: 3))
         // Labels and the separate progress line now occupy a two-line row.
-        XCTAssertGreaterThanOrEqual(stepsRow.frame.height, 44)
-        XCTAssertLessThanOrEqual(stepsRow.frame.height, 68)
+        XCTAssertGreaterThanOrEqual(activityRow.frame.height, 44)
+        XCTAssertLessThanOrEqual(activityRow.frame.height, 68)
         let expanded = XCTAttachment(screenshot: app.screenshot())
         expanded.name = "Canvas daily chrome — expanded"
         expanded.lifetime = .keepAlways
@@ -339,24 +339,28 @@ final class CanvasSimplificationUITests: XCTestCase {
 
         openDataDrawer(in: app)
 
-        let stepsRow = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Steps,'")
+        let activityRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Activity,'")
         ).firstMatch
-        XCTAssertTrue(stepsRow.waitForExistence(timeout: 3))
-        stepsRow.tap()
+        XCTAssertTrue(activityRow.waitForExistence(timeout: 3))
+        activityRow.tap()
 
-        let stepsDisclosure = app.descendants(matching: .any)["canvas_metric_disclosure_steps"]
-        XCTAssertTrue(stepsDisclosure.waitForExistence(timeout: 3))
+        let activityDisclosure = app.descendants(matching: .any)["canvas_metric_disclosure_activity"]
+        XCTAssertTrue(activityDisclosure.waitForExistence(timeout: 3))
+        let activityCapture = XCTAttachment(screenshot: app.screenshot())
+        activityCapture.name = "Activity explanation"
+        activityCapture.lifetime = .keepAlways
+        add(activityCapture)
         let researchLink = app.descendants(matching: .any).matching(
             NSPredicate(format: "label == 'Why this matters'")
         ).firstMatch
         XCTAssertTrue(researchLink.waitForExistence(timeout: 3))
 
-        stepsRow.tap()
-        XCTAssertTrue(stepsDisclosure.waitForNonExistence(timeout: 3))
+        activityRow.tap()
+        XCTAssertTrue(activityDisclosure.waitForNonExistence(timeout: 3))
 
-        stepsRow.tap()
-        XCTAssertTrue(stepsDisclosure.waitForExistence(timeout: 3))
+        activityRow.tap()
+        XCTAssertTrue(activityDisclosure.waitForExistence(timeout: 3))
 
         let sleepRow = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Sleep,'")
@@ -364,7 +368,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(sleepRow.waitForExistence(timeout: 3))
         sleepRow.tap()
 
-        XCTAssertTrue(stepsDisclosure.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(activityDisclosure.waitForNonExistence(timeout: 3))
         XCTAssertTrue(
             app.descendants(matching: .any)["canvas_metric_disclosure_sleep"]
                 .waitForExistence(timeout: 3)

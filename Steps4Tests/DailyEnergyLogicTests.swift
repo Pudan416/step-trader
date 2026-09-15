@@ -21,7 +21,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         XCTAssertEqual(EnergyDefaults.sleepTargetHours, 8)
         XCTAssertEqual(EnergyDefaults.stepsTarget, 10_000)
         XCTAssertEqual(EnergyDefaults.sleepMaxPoints, 20)
-        XCTAssertEqual(EnergyDefaults.stepsMaxPoints, 20)
+        XCTAssertEqual(EnergyDefaults.activityMaxPoints, 20)
     }
 
     func testHappeningEconomyConstants() {
@@ -42,7 +42,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         XCTAssertEqual(pointsFromSleep(hours: -1, target: target, maxPoints: maxPoints), 0, "Negative clamped to 0")
     }
 
-    /// pointsFromSteps: Int(ratio * stepsMaxPoints), ratio = min(steps, target) / target
+    /// pointsFromSteps: Int(ratio * activityMaxPoints), ratio = min(steps, target) / target
     func testPointsFromStepsFormula() {
         let target: Double = 10_000
         let maxPoints = 20
@@ -69,7 +69,7 @@ final class DailyEnergyLogicTests: XCTestCase {
     /// deliberately unchanged from the five-part model — onboarding has a slide
     /// built on it.
     func testThreeEntityMaxTotal() {
-        let total = EnergyDefaults.stepsMaxPoints
+        let total = EnergyDefaults.activityMaxPoints
             + EnergyDefaults.sleepMaxPoints
             + HappeningDefaults.happeningsMaxPoints
         XCTAssertEqual(total, EnergyDefaults.maxBaseEnergy, "20 + 20 + 60 must equal 100")
@@ -223,7 +223,7 @@ final class DailyEnergyLogicTests: XCTestCase {
         )
         let stepsPoints = pointsFromSteps(
             steps: Double(snapshot.steps), target: snapshot.stepsTarget,
-            maxPoints: EnergyDefaults.stepsMaxPoints
+            maxPoints: EnergyDefaults.activityMaxPoints
         )
         let sleepPoints = pointsFromSleep(
             hours: snapshot.sleepHours, target: snapshot.sleepTargetHours,
