@@ -74,6 +74,16 @@ struct SelectGroupIntent: WidgetConfigurationIntent {
 
     init() {}
 
+    static var parameterSummary: some ParameterSummary {
+        Summary {
+            \.$group1
+            \.$group2
+            \.$group3
+            \.$background
+            \.$wallpaperPosition
+        }
+    }
+
     var selectedIds: [String] {
         WidgetGroupSelection.largeIDs([group1, group2, group3].compactMap { $0?.id })
     }

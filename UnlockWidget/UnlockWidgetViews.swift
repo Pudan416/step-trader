@@ -36,6 +36,7 @@ struct NowhereWidgetContent: View {
     let entry: UnlockEntry
     let kind: NowhereWidgetKind
     @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var isAccented: Bool { renderingMode == .accented }
@@ -82,10 +83,16 @@ struct NowhereWidgetContent: View {
                 if groups.isEmpty {
                     emptyState
                 } else {
-                    VStack(spacing: 6) {
-                        ForEach(groups) { group in
-                            groupCard(group, compact: false, dense: dense)
+                    GeometryReader { geometry in
+                        // Reserve all three rows even when only one or two are selected.
+                        let rowHeight = max(0, (geometry.size.height - 12) / CGFloat(WidgetGroupSelection.largeLimit))
+                        VStack(spacing: 6) {
+                            ForEach(groups) { group in
+                                groupCard(group, compact: rowHeight < 82, dense: dense)
+                                    .frame(height: rowHeight)
+                            }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
                 }
             }
@@ -170,6 +177,16 @@ struct NowhereWidgetContent: View {
         group.identity ?? AppGroupIdentity(name: group.name, templateApp: group.templateApp, applicationCount: group.appsCount)
     }
 
+    private func shouldInvertTitle(_ identity: AppGroupIdentity) -> Bool {
+        #if canImport(FamilyControls)
+        // Like the dark Feeds cards, full-color widgets need light token text
+        // even when the Home Screen uses light appearance. Clear uses system ink.
+        return !isAccented && colorScheme == .light && identity.applicationToken != nil
+        #else
+        return false
+        #endif
+    }
+
     private func groupCard(_ group: UnlockEntry.GroupSnapshot, compact: Bool, dense: Bool = false) -> some View {
         let identity = identity(for: group)
         return activeGroupLink(group) {
@@ -177,6 +194,8 @@ struct NowhereWidgetContent: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     AppGroupTitle(identity: identity)
                         .font(.onest(size: compact ? 13 : 15, weight: .medium))
+                        .modifier(WidgetSystemTitleContrast(invert: shouldInvertTitle(identity)))
+                        .frame(height: compact ? 18 : 20, alignment: .leading)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .layoutPriority(1)
@@ -277,5 +296,18 @@ struct NowhereWidgetContent: View {
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct WidgetSystemTitleContrast: ViewModifier {
+    let invert: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if invert {
+            content.colorInvert()
+        } else {
+            content
+        }
     }
 }
