@@ -7,3 +7,5 @@ Native backdrop sampling is necessary because SwiftUI raster blur omits the CAMe
 Validation: two existing UI scenarios passed for Health/canvas selection across modes and stationary canvas pixels while panning. Simulator captures were visually inspected: canvas visible and softened, picker and chrome sharp. Matching pixel patches against the unblurred baseline show reduced canvas texture contrast; the chrome patch is identical. Result: /tmp/nowhere-happenings-staggered-dd/Logs/Test/Test-Steps4-2026.09.15_19-57-13-+0200.xcresult.
 
 Screenshots are from the simulator. Physical-device installation and launch are recorded separately; no physical-device visual verification is implied. Feature branch codex/happenings-field; no integration publication.
+
+Signed revision `1f42fe8429a81666cdf4f140881dbcb3b36f8722` built with all four extensions, passed signature/provisioning/resource checks, and was installed successfully on iPhone Costa over Wi-Fi at 2026-09-15T20:06:41.465608+02:00. Automatic launch was denied because the iPhone was locked. No physical-device visual verification was performed.
