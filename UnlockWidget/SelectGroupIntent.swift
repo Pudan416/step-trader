@@ -9,9 +9,12 @@ struct TicketGroupEntity: AppEntity {
 
     var id: String
     var name: String
+    var needsAppName = false
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)")
+        DisplayRepresentation(title: "\(name)", subtitle: needsAppName
+            ? "Open the blocked app once to show its name."
+            : nil)
     }
 }
 
@@ -33,21 +36,13 @@ struct TicketGroupQuery: EntityQuery {
         guard let g = UserDefaults(suiteName: SharedKeys.appGroupId),
               let data = g.data(forKey: SharedKeys.ticketGroups)
                 ?? g.data(forKey: SharedKeys.legacyShieldGroups),
-              let decoded = try? JSONDecoder().decode([GroupStub].self, from: data) else {
+              let decoded = try? JSONDecoder().decode([WidgetGroupOption].self, from: data) else {
             return []
         }
-        // AppIntent display representations cannot host a FamilyControls Label.
-        // Keep unnamed entries distinguishable in the configuration picker.
         return decoded.enumerated().map { index, group in
-            let name = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            return TicketGroupEntity(id: group.id,
-                name: name.isEmpty ? String(localized: "App group \(index + 1)") : name)
+            let display = group.pickerName(index: index, defaults: g)
+            return TicketGroupEntity(id: group.id, name: display.title, needsAppName: display.needsAppName)
         }
-    }
-
-    private struct GroupStub: Decodable {
-        let id: String
-        let name: String
     }
 }
 

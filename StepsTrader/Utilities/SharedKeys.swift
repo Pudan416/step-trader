@@ -1,6 +1,9 @@
 import Foundation
 import os.log
 import WidgetKit
+#if canImport(ManagedSettings)
+import ManagedSettings
+#endif
 
 /// Single source of truth for all UserDefaults and App Group keys.
 /// Shared across the main app and extensions (ShieldAction, ShieldConfiguration, DeviceActivityMonitor).
@@ -325,3 +328,32 @@ struct WidgetUnlockRequest {
         return Self(groupId: group, windowRaw: window)
     }
 }
+
+
+#if canImport(ManagedSettings)
+/// Local names supplied by the public ShieldConfiguration Application API.
+/// ApplicationToken is Codable, not NSSecureCoding; archive-based keys fail.
+enum FamilyControlsAppNameCache {
+    private static func key(for token: ApplicationToken) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(token) else { return nil }
+        return "fc_appName_codable_v1_" + data.base64EncodedString()
+    }
+
+    static func name(for token: ApplicationToken, defaults: UserDefaults) -> String? {
+        guard let key = key(for: token),
+              let value = defaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        return value
+    }
+
+    @discardableResult
+    static func store(_ name: String, for token: ApplicationToken, defaults: UserDefaults) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let key = key(for: token), defaults.string(forKey: key) != trimmed else { return false }
+        defaults.set(trimmed, forKey: key)
+        return true
+    }
+}
+#endif

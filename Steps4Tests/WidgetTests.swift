@@ -5,6 +5,53 @@ import ManagedSettings
 
 final class WidgetTests: XCTestCase {
 
+    func testWidgetPickerReadsShieldNameAfterTokenRoundTripAndKeepsCustomNames() throws {
+        let suite = "widget-picker-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let token = try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [token]
+        let group = TicketGroup(name: "", selection: selection,
+                                settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20))
+        let option = try JSONDecoder().decode(WidgetGroupOption.self, from: JSONEncoder().encode(group))
+        XCTAssertTrue(option.pickerName(index: 0, defaults: defaults).needsAppName)
+        XCTAssertTrue(FamilyControlsAppNameCache.store("Instagram", for: token, defaults: defaults))
+        XCTAssertEqual(option.pickerName(index: 0, defaults: defaults).title, "Instagram")
+        XCTAssertFalse(option.pickerName(index: 0, defaults: defaults).needsAppName)
+        XCTAssertFalse(FamilyControlsAppNameCache.store("Instagram", for: token, defaults: defaults))
+        XCTAssertFalse(FamilyControlsAppNameCache.store("  \n ", for: token, defaults: defaults))
+        XCTAssertEqual(option.pickerName(index: 0, defaults: defaults).title, "Instagram")
+        var renamed = group
+        renamed.name = " My break "
+        let custom = try JSONDecoder().decode(WidgetGroupOption.self, from: JSONEncoder().encode(renamed))
+        XCTAssertEqual(custom.pickerName(index: 0, defaults: defaults).title, "My break")
+        let other = try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))
+        XCTAssertNil(FamilyControlsAppNameCache.name(for: other, defaults: defaults))
+    }
+
+    func testWidgetPickerDoesNotNameMixedGroupsAfterOneCachedApplication() throws {
+        let suite = "widget-picker-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let token = try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))
+        FamilyControlsAppNameCache.store("Instagram", for: token, defaults: defaults)
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [token]
+        selection.categoryTokens = [try JSONDecoder().decode(ActivityCategoryToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        let group = TicketGroup(name: "", selection: selection,
+                                settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20))
+        let option = try JSONDecoder().decode(WidgetGroupOption.self, from: JSONEncoder().encode(group))
+        XCTAssertNotEqual(option.pickerName(index: 0, defaults: defaults).title, "Instagram")
+        XCTAssertFalse(option.pickerName(index: 0, defaults: defaults).needsAppName)
+        let preset = try JSONDecoder().decode(WidgetGroupOption.self,
+            from: Data(#"{"id":"preset","name":"","templateApp":"com.google.ios.youtube"}"#.utf8))
+        XCTAssertEqual(preset.pickerName(index: 0, defaults: defaults).title, "YouTube")
+        let damaged = try JSONDecoder().decode(WidgetGroupOption.self,
+            from: Data(#"{"id":"broken","name":"","selectionData":"aW52YWxpZA=="}"#.utf8))
+        XCTAssertFalse(damaged.pickerName(index: 2, defaults: defaults).title.isEmpty)
+    }
+
     func testAutomaticNameUsesOnlySingleAppTokenAndSurvivesWidgetSerialization() throws {
         let token = try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))
         var selection = FamilyActivitySelection()

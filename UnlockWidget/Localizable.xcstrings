@@ -340,6 +340,23 @@
           }
         }
       }
+    },
+    "Open the blocked app once to show its name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the blocked app once to show its name."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Откройте заблокированное приложение, чтобы появилось его название."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
