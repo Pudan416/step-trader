@@ -5,6 +5,38 @@ import ManagedSettings
 
 final class WidgetTests: XCTestCase {
 
+    func testWidgetPickerUsesPersistedUserNameAndIgnoresUnsupportedShieldCache() throws {
+        let suite = "widget-picker-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let token = try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [token]
+        var group = TicketGroup(name: "", selection: selection,
+                                settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        defaults.set("Unreliable cached name", forKey: "fc_appName_codable_v1_" + (try encoder.encode(token)).base64EncodedString())
+        let unnamed = try JSONDecoder().decode(WidgetGroupOption.self, from: encoder.encode(group))
+        XCTAssertEqual(unnamed.pickerName(index: 3).title, "App group 4")
+        XCTAssertTrue(unnamed.pickerName(index: 3).needsAppName)
+        group.name = " X "
+        let renamed = try JSONDecoder().decode(WidgetGroupOption.self, from: encoder.encode(group))
+        XCTAssertEqual(renamed.id, unnamed.id)
+        XCTAssertEqual(renamed.pickerName(index: 3).title, "X")
+        XCTAssertFalse(renamed.pickerName(index: 3).needsAppName)
+        XCTAssertEqual(group.displayIdentity.title, "X")
+    }
+
+    func testWidgetPickerPreservesPresetNamesAndNonemptyFallback() throws {
+        let preset = try JSONDecoder().decode(WidgetGroupOption.self,
+            from: Data(#"{"id":"preset","name":"","templateApp":"com.google.ios.youtube"}"#.utf8))
+        XCTAssertEqual(preset.pickerName(index: 0).title, "YouTube")
+        let damaged = try JSONDecoder().decode(WidgetGroupOption.self,
+            from: Data(#"{"id":"broken","name":"","selectionData":"aW52YWxpZA=="}"#.utf8))
+        XCTAssertFalse(damaged.pickerName(index: 2).title.isEmpty)
+    }
+
     func testAutomaticNameUsesOnlySingleAppTokenAndSurvivesWidgetSerialization() throws {
         let token = try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))
         var selection = FamilyActivitySelection()
@@ -78,6 +110,40 @@ final class WidgetTests: XCTestCase {
         let identity = AppGroupIdentity(name: "  \n ", templateApp: "com.google.ios.youtube", applicationCount: 0)
         XCTAssertEqual(identity.title, "YouTube")
         XCTAssertEqual(identity.detail, "1 app")
+    }
+
+    func testWidgetDefaultsUseFeedsOrderAndAvailableCount() {
+        let feeds = ["third", "first", "second", "fourth"]
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: feeds, limit: 3), ["third", "first", "second"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: feeds, limit: 1), ["third"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: ["only"], limit: 3), ["only"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs([], feedIDs: [], limit: 3), [])
+    }
+
+    func testWidgetDefaultsDoNotReplaceManualOrderOrFillEmptySlots() {
+        let feeds = ["a", "b", "c", "d"]
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["d", "b"], feedIDs: feeds, limit: 3), ["d", "b"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["c"], feedIDs: feeds, limit: 3), ["c"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["deleted"], feedIDs: feeds, limit: 1), ["deleted"])
+        XCTAssertEqual(WidgetGroupSelection.resolvedIDs(["c", "c", "a"], feedIDs: feeds, limit: 3), ["c", "a"])
+    }
+
+    func testWidgetDefaultCatalogMatchesVisibleFeedsInPersistedOrder() throws {
+        let suite = "widget-defaults-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let settings = AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20)
+        let first = TicketGroup(name: "Z", selection: selection, settings: settings)
+        let hidden = TicketGroup(name: "Empty", selection: FamilyActivitySelection(), settings: settings)
+        let second = TicketGroup(name: "A", selection: selection, settings: settings)
+        defaults.set(try JSONEncoder().encode([first, hidden, second]), forKey: SharedKeys.ticketGroups)
+        XCTAssertEqual(WidgetGroupOption.loadVisibleFeeds(defaults: defaults).map(\.id), [first.id, second.id])
+        XCTAssertEqual(WidgetGroupOption.loadVisibleFeeds(defaults: defaults).map(\.name), ["Z", "A"])
+        defaults.removeObject(forKey: SharedKeys.ticketGroups)
+        defaults.set(try JSONEncoder().encode([second, first]), forKey: SharedKeys.legacyShieldGroups)
+        XCTAssertEqual(WidgetGroupOption.loadVisibleFeeds(defaults: defaults).map(\.id), [second.id, first.id])
     }
 
     func testLargeWidgetKeepsOnlyThreeUniqueGroupsInSelectionOrder() {

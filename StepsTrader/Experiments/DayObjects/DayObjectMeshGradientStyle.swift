@@ -25,6 +25,8 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
     let preservesColorFields: Bool
     /// Absent in saved artwork that uses the original two fields plus an accent spot.
     let usesOrderedColorStops: Bool?
+    /// Saved with new Noir artwork; absent from historical recipes.
+    var isNoir: Bool? = nil
 
     init(
         colors: [SIMD3<Float>],

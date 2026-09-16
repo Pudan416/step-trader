@@ -43,7 +43,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     private func getAppName(for application: Application) -> String {
         return application.localizedDisplayName ?? NSLocalizedString("App", comment: "Fallback name for unknown app")
     }
-    
+
     private var dailyPalette: DailyInterfacePalette {
         DailyInterfacePalette.load(from: sharedDefaults())
     }
@@ -95,26 +95,12 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
     }
     
     override func configuration(shielding application: Application) -> ShieldConfiguration {
+        // Shield metadata stays in this extension's sandbox; it cannot be exported
+        // to the app or widget through shared preferences or files.
         let appName = getAppName(for: application)
         let artworkTarget = application.token.flatMap(Self.base64).map { "app:\($0)" }
             ?? "app-name:\(appName)"
         let artwork = GateArtworkStore(defaults: sharedDefaults()).shieldArtwork(for: artworkTarget)
-        
-        if let token = application.token,
-           let base64 = Self.base64(for: token) {
-            let defaults = sharedDefaults()
-            if defaults.string(forKey: SharedKeys.fcAppNameKey(base64)) != appName {
-                defaults.set(appName, forKey: SharedKeys.fcAppNameKey(base64))
-            }
-            if let bid = application.bundleIdentifier,
-               defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) != bid {
-                defaults.set(bid, forKey: SharedKeys.fcBundleIdKey(base64))
-            }
-            if defaults.string(forKey: SharedKeys.fcAppNameKey(base64)) != appName
-                || (application.bundleIdentifier != nil && defaults.string(forKey: SharedKeys.fcBundleIdKey(base64)) != application.bundleIdentifier) {
-                defaults.synchronize()
-            }
-        }
         
         let title = String(format: NSLocalizedString("%@ is locked\nby Nowhere.", comment: "Shield title for blocked app"), appName)
 

@@ -34,12 +34,14 @@ extension NativeAtlasRecipe {
         )
         let palette = DayObjectPaletteSet.backgroundPalette(
             rootSeed: rootSeed, categories: paletteCategories,
-            dayKey: dayKey, identity: "primary-canvas"
+            dayKey: dayKey, identity: "primary-canvas", useLegacyCatalog: useLegacyStyle
         )
         let colors = DayObjectPalette.make(modernPalette: palette)
-        return useLegacyStyle
-            ? .legacyPrimaryCanvas(seed: recipeSeed, palette: colors)
-            : .primaryCanvas(seed: recipeSeed, palette: colors)
+        var style = useLegacyStyle
+            ? DayObjectMeshGradientStyle.legacyPrimaryCanvas(seed: recipeSeed, palette: colors)
+            : DayObjectMeshGradientStyle.primaryCanvas(seed: recipeSeed, palette: colors)
+        if palette.categories.contains(.noir) { style.isNoir = true }
+        return style
     }
 
     func remixed(

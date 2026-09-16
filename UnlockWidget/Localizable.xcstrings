@@ -357,6 +357,23 @@
           }
         }
       }
+    },
+    "Name this feed in Nowhere using Rename.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name this feed in Nowhere using Rename."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Задайте название в Nowhere через «Переименовать»."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
