@@ -79,6 +79,7 @@ struct MainTabView: View {
     /// not exist yet.
     @State private var showSettings = false
     @State private var tabBarHeight: CGFloat = 80
+    @State private var tabBarWidth: CGFloat = 160
     @State private var tabBarCenterY: CGFloat?
     private let isUITest = ProcessInfo.processInfo.arguments.contains("ui-testing")
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
@@ -267,6 +268,10 @@ struct MainTabView: View {
             // Each tab page should add `.safeAreaPadding(.bottom, tabBarHeight)`
             // (or read \.tabBarHeight) on its scrollable content so the last
             // row can scroll past the pill.
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                // Reserve each 20pt edge, 52pt side action, and an 8pt gap.
+                min(240, max(160, proxy.size.width - 2 * (20 + 52 + 8)))
+            } action: { tabBarWidth = $0 }
             .overlay(alignment: .bottom) {
                 if !isWideCanvas, !hidesSurroundingChromeForPalette {
                     customTabBar
@@ -520,7 +525,7 @@ struct MainTabView: View {
         }
     }
 
-    // Figma 1624:264 — a compact 240×60 floating navigation capsule. The
+    // A floating navigation capsule up to 240×60, fitting between the side actions. The
     // destination names remain accessibility labels, but the visible bar is
     // deliberately glyph-only so the Canvas actions can share its baseline.
     @available(iOS 26.0, *)
@@ -571,7 +576,8 @@ struct MainTabView: View {
                                 : canvasBackdrop.chromePalette.secondaryColor
                         )
                     )
-                    .frame(width: isSelected ? 78 : 70, height: 48)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
                     .background {
                         if isSelected {
                             Capsule(style: .continuous)
@@ -590,7 +596,7 @@ struct MainTabView: View {
                 .canvasTourControl("tabs.\(tab == .feeds ? "feeds" : tab == .me ? "me" : "canvas")")
             }
         }
-        .frame(width: 228, height: 48)
+        .frame(width: tabBarWidth - 12, height: 48)
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(

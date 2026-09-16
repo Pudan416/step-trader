@@ -138,6 +138,23 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["canvas_add_button"].exists)
     }
 
+    func testEveningNavigationKeepsGapsBetweenTabsAndSideButtons() {
+        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"])
+        let bar = app.descendants(matching: .any)["canvas_tab_bar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 5))
+        let sound = app.buttons["canvas_sound_button"]
+        let add = app.buttons["canvas_add_button"]
+        captureSuggestion(app, name: "evening-navigation-english")
+        XCTAssertGreaterThanOrEqual(bar.frame.minX - sound.frame.maxX, 8 - 0.1)
+        XCTAssertGreaterThanOrEqual(add.frame.minX - bar.frame.maxX, 8 - 0.1)
+        for id in ["tab_canvas", "tab_feeds", "tab_me"] {
+            let tab = app.buttons[id]
+            XCTAssertGreaterThanOrEqual(tab.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(tab.frame.height, 44)
+            XCTAssertTrue(tab.isHittable)
+        }
+    }
+
     func testActivitySuggestionAppearsDirectlyAboveTheBottomMenu() {
         let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-single"])
         let suggestion = app.descendants(matching: .any)["canvas_activity_suggestions"]
