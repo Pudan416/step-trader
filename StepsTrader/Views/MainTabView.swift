@@ -122,9 +122,14 @@ struct MainTabView: View {
         }
     }
 
+    // Feeds and Me share the same tab colors for every canvas palette.
+    private var usesLightTabBar: Bool {
+        selection == Tab.feeds.rawValue || selection == Tab.me.rawValue
+    }
+
     private var tabTint: Color { canvasBackdrop.chromePalette.textColor }
     private var tabBarSurfaceColor: Color {
-        selection == Tab.feeds.rawValue
+        usesLightTabBar
             ? canvasBackdrop.chromePalette.feedTabSurfaceColor
             : canvasBackdrop.chromePalette.surfaceColor
     }
@@ -519,7 +524,7 @@ struct MainTabView: View {
                     }
                     .foregroundStyle(
                         isSelected ? tabTint : (
-                            selection == Tab.feeds.rawValue
+                            usesLightTabBar
                                 ? canvasBackdrop.chromePalette.surfaceColor
                                 : canvasBackdrop.chromePalette.secondaryColor
                         )
@@ -528,7 +533,7 @@ struct MainTabView: View {
                     .background {
                         if isSelected {
                             Capsule(style: .continuous)
-                                .fill(selection == Tab.feeds.rawValue
+                                .fill(usesLightTabBar
                                       ? canvasBackdrop.chromePalette.surfaceColor
                                       : canvasBackdrop.chromePalette.trackColor)
                         }
