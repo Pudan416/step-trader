@@ -144,3 +144,93 @@ struct ActivitySuggestionBanner: View {
         .accessibilityIdentifier("canvas_activity_suggestion_dismiss")
     }
 }
+
+
+/// One question with quick answers; choosing an answer logs the real happening.
+struct EveningReflectionCard: View {
+    let date: Date
+    let titleForHappening: (String) -> String
+    let onChoose: (String) -> Void
+    let onChooseOther: () -> Void
+    let onDismiss: () -> Void
+
+    @Environment(\.canvasChromePalette) private var palette
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var prompt: (question: String, ids: [String]) {
+        switch EveningReflection.questionIndex(for: date) {
+        case 0:
+            (String(localized: "What would you like to keep from today?"),
+             ["happening_called_someone", "happening_laughed", "happening_made_something"])
+        case 1:
+            (String(localized: "Was there a moment just for you?"),
+             ["happening_read", "happening_outside", "happening_did_nothing"])
+        default:
+            (String(localized: "What made today feel different?"),
+             ["happening_walk", "happening_drinks", "happening_made_something"])
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                Text(prompt.question)
+                    .font(.geist(18, weight: .medium, relativeTo: .headline))
+                    .foregroundStyle(palette.textColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("canvas_evening_reflection_question")
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.geist(14, weight: .medium, relativeTo: .body))
+                        .foregroundStyle(palette.secondaryColor)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Dismiss suggestion"))
+                .accessibilityIdentifier("canvas_evening_reflection_dismiss")
+            }
+            if dynamicTypeSize.isAccessibilitySize {
+                verticalChoices
+            } else {
+                FlowLayout(spacing: 8) { choices }
+            }
+            Button(action: onChooseOther) {
+                Text(String(localized: "Choose something else"))
+                    .font(.geist(14, weight: .medium, relativeTo: .subheadline))
+                    .foregroundStyle(palette.secondaryColor)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("canvas_evening_reflection_other")
+        }
+        .padding(16)
+        .frame(maxWidth: 560, alignment: .leading)
+        .background(palette.surfaceColor, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("canvas_evening_reflection")
+    }
+
+    private var verticalChoices: some View {
+        VStack(alignment: .leading, spacing: 8) { choices }
+    }
+
+    private var choices: some View {
+        ForEach(prompt.ids, id: \.self) { id in
+            Button { onChoose(id) } label: {
+                Text(titleForHappening(id))
+                    .font(.geist(14, weight: .medium, relativeTo: .body))
+                    .foregroundStyle(palette.textColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 44)
+                    .background(palette.trackColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("canvas_evening_choice_" + id)
+        }
+    }
+}

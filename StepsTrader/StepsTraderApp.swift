@@ -231,6 +231,11 @@ private struct StepsTraderProductionRoot: View {
             defaults.set(0, forKey: SharedKeys.dayEndHour)
             defaults.set(0, forKey: SharedKeys.dayEndMinute)
         }
+        #if DEBUG
+        if processArguments.contains("ui-testing-evening-reflection"), processArguments.contains("ui-testing") {
+            UserDefaults.stepsTrader().removeObject(forKey: SharedKeys.eveningReflectionDismissedDay)
+        }
+        #endif
         _model = StateObject(wrappedValue: DIContainer.shared.applicationModel)
 
         // Register the MetricKit subscriber early so diagnostics aggregated since

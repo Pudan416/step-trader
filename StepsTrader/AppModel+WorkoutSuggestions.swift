@@ -50,12 +50,6 @@ extension AppModel {
             suggestions.append(.fromLowScreenTime())
         }
 
-        // 4. Generic morning resting stays behind concrete detected events in
-        // the visual stack, so a fresh HealthKit activity leads.
-        if !dismissed.contains("morning_resting") {
-            suggestions.append(.fromMorningResting())
-        }
-
         let satisfiedSuggestionIds = suggestions
             .filter { $0.isSatisfied(by: alreadyAdded) }
             .map(\.id)
@@ -92,10 +86,10 @@ extension AppModel {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("ui-testing") else { return nil }
         if arguments.contains("ui-testing-suggestion-stack") {
-            return [.fromMindfulMinutes(12), .fromMorningResting(), .fromLowScreenTime()]
+            return [.fromMindfulMinutes(12), .fromLowScreenTime()]
         }
-        if arguments.contains("ui-testing-suggestion-resting") {
-            return [.fromMorningResting()]
+        if arguments.contains("ui-testing-suggestion-single") {
+            return [.fromLowScreenTime()]
         }
         return nil
     }

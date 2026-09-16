@@ -12,6 +12,14 @@ extension EnvironmentValues {
 struct MainTabView: View {
     @ObservedObject private var canvasBackdrop = TodayCanvasBackdropStore.shared
     @ObservedObject var model: AppModel
+    private func openRequestedEveningReflection() {
+        let defaults = UserDefaults.stepsTrader()
+        guard let requested = defaults.object(forKey: SharedKeys.eveningReflectionRequestedAt) as? Date else { return }
+        defaults.removeObject(forKey: SharedKeys.eveningReflectionRequestedAt)
+        guard Date.now.timeIntervalSince(requested) < 300 else { return }
+        selection = Tab.canvas.rawValue
+    }
+
     // Persisted across process death within the same scene so users return to the
     // tab they last had open after a deep link or relaunch.
     @SceneStorage("selectedTab") private var storedSelection: Int = Tab.canvas.rawValue
@@ -434,6 +442,10 @@ struct MainTabView: View {
         .onPreferenceChange(TabBarCenterYPreferenceKey.self) { value in
             guard value != tabBarCenterY else { return }
             tabBarCenterY = value
+        }
+        .onAppear { openRequestedEveningReflection() }
+        .onReceive(NotificationCenter.default.publisher(for: .init("OpenEveningReflection"))) { _ in
+            openRequestedEveningReflection()
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.open.modules"))) { _ in
             selection = Tab.feeds.rawValue

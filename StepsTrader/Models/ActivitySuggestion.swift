@@ -53,7 +53,6 @@ enum SuggestionSource: Equatable {
     case workout(DetectedWorkout)
     case mindfulSession(minutes: Double)
     case lowScreenTime
-    case morningResting
 
     var isWorkout: Bool {
         if case .workout = self { return true }
@@ -88,8 +87,6 @@ struct ActivitySuggestion: Identifiable, Equatable {
             ids.insert("body_resting")
         case .lowScreenTime:
             ids.insert("mind_screen_detox")
-        case .morningResting:
-            ids.insert("body_resting")
         }
 
         return ids
@@ -135,17 +132,6 @@ struct ActivitySuggestion: Identifiable, Equatable {
             title: "Screen Detoxing",
             subtitle: "Low screen time today",
             icon: "iphone.slash"
-        )
-    }
-
-    static func fromMorningResting() -> ActivitySuggestion {
-        ActivitySuggestion(
-            id: "morning_resting",
-            optionId: "happening_slept_well",
-            source: .morningResting,
-            title: String(localized: "Resting", comment: "Morning resting suggestion – title"),
-            subtitle: String(localized: "You slept — add it to your canvas", comment: "Morning resting suggestion – subtitle"),
-            icon: "bed.double.fill"
         )
     }
 

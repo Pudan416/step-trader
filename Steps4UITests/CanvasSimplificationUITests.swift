@@ -139,7 +139,7 @@ final class CanvasSimplificationUITests: XCTestCase {
     }
 
     func testActivitySuggestionAppearsDirectlyAboveTheBottomMenu() {
-        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-resting"])
+        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-single"])
         let suggestion = app.descendants(matching: .any)["canvas_activity_suggestions"]
         let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
 
@@ -149,7 +149,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         let geometry = "suggestion=\(suggestion.frame), tab=\(tabBar.frame), gap=\(gap)"
         XCTAssertGreaterThanOrEqual(gap, 8, geometry)
         XCTAssertLessThanOrEqual(gap, 18, geometry)
-        captureSuggestion(app, name: "activity-suggestion-resting")
+        captureSuggestion(app, name: "activity-suggestion-single")
     }
 
     func testActivitySuggestionsFormACompactTwoLayerStack() {
@@ -168,9 +168,9 @@ final class CanvasSimplificationUITests: XCTestCase {
         captureSuggestion(app, name: "activity-suggestion-queue")
 
         app.buttons["canvas_activity_suggestion_dismiss"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Resting")).firstMatch.waitForExistence(timeout: 3))
-        app.buttons["canvas_activity_suggestion_add"].tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Screen Detoxing")).firstMatch.waitForExistence(timeout: 3))
+        app.buttons["canvas_activity_suggestion_add"].tap()
+        XCTAssertTrue(app.buttons["canvas_activity_suggestion_add"].waitForNonExistence(timeout: 3))
     }
 
     func testActivitySuggestionLargeTextKeepsCopyAndActionsAboveNavigation() {
@@ -180,8 +180,8 @@ final class CanvasSimplificationUITests: XCTestCase {
         )
         let dismiss = app.buttons["canvas_activity_suggestion_dismiss"]
         XCTAssertTrue(dismiss.waitForExistence(timeout: 5))
-        dismiss.tap() // Resting has the longest explanatory copy in this fixture.
-        let copy = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Resting")).firstMatch
+        dismiss.tap()
+        let copy = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Screen Detoxing")).firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 3))
         let accept = app.buttons["canvas_activity_suggestion_add"]
         let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
@@ -194,6 +194,53 @@ final class CanvasSimplificationUITests: XCTestCase {
         }
         XCTAssertLessThanOrEqual(copy.frame.maxY, accept.frame.minY)
         captureSuggestion(app, name: "activity-suggestion-accessibility-dark")
+    }
+
+    func testEveningQuestionOffersThreeChoicesAndDisappearsAfterAdding() {
+        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"])
+        let card = app.otherElements["canvas_evening_reflection"]
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "You slept")).firstMatch.exists)
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "canvas_evening_choice_"))
+        XCTAssertEqual(choices.count, 3)
+        XCTAssertFalse(app.staticTexts["Today is uncolored"].exists)
+        XCTAssertFalse(app.staticTexts["What have you done so far?"].exists)
+        captureSuggestion(app, name: "evening-reflection-empty-canvas")
+        choices.element(boundBy: 0).tap()
+        XCTAssertTrue(card.waitForNonExistence(timeout: 5))
+    }
+
+    func testEveningQuestionStaysDismissedAndOtherOpensThePicker() {
+        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"])
+        let card = app.otherElements["canvas_evening_reflection"]
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
+        app.buttons["canvas_evening_reflection_other"].tap()
+        XCTAssertTrue(app.buttons["canvas_palette_close_button"].waitForExistence(timeout: 5))
+        app.buttons["canvas_palette_close_button"].tap()
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        app.buttons["canvas_evening_reflection_dismiss"].tap()
+        XCTAssertTrue(card.waitForNonExistence(timeout: 5))
+        app.buttons["tab_me"].tap()
+        app.buttons["tab_canvas"].tap()
+        XCTAssertFalse(card.exists)
+    }
+
+    func testEveningQuestionIsAbsentAtNight() {
+        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection", "ui-testing-evening-night"])
+        XCTAssertFalse(app.otherElements["canvas_evening_reflection"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "You slept")).firstMatch.exists)
+    }
+
+    func testEveningQuestionLargeTextKeepsChoicesReachable() {
+        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"], accessibilitySize: "accessibility3")
+        let card = app.otherElements["canvas_evening_reflection"]
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "canvas_evening_choice_"))
+        for button in choices.allElementsBoundByIndex {
+            XCTAssertTrue(button.isHittable)
+            XCTAssertTrue(app.frame.contains(button.frame))
+        }
+        captureSuggestion(app, name: "evening-reflection-large-text")
     }
 
     private func captureSuggestion(_ app: XCUIApplication, name: String) {
@@ -291,7 +338,7 @@ final class CanvasSimplificationUITests: XCTestCase {
     }
 
     func testActivitySuggestionDoesNotMoveWhenDataPanelOpens() {
-        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-resting"])
+        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-single"])
         let suggestion = app.descendants(matching: .any)["canvas_activity_suggestions"]
         XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
         let frameBefore = suggestion.frame

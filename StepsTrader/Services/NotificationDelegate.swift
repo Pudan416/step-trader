@@ -28,6 +28,13 @@ final class NotificationDelegate: NSObject, @preconcurrency UNUserNotificationCe
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let userInfo = response.notification.request.content.userInfo
         
+        if userInfo["eveningReflectionDay"] is String {
+            UserDefaults.stepsTrader().set(Date.now, forKey: SharedKeys.eveningReflectionRequestedAt)
+            NotificationCenter.default.post(name: .init("OpenEveningReflection"), object: nil)
+            completionHandler()
+            return
+        }
+
         // Handle expired notification - rebuild shields
         if let action = userInfo["action"] as? String, action == "expired" {
             AppLogger.notifications.debug("🔒 Access expired notification tapped - rebuilding shields")
@@ -105,6 +112,12 @@ final class NotificationDelegate: NSObject, @preconcurrency UNUserNotificationCe
             self.model?.rebuildFamilyControlsShield()
         }
         
+        // The in-app card owns this question while the app is open.
+        if userInfo["eveningReflectionDay"] is String {
+            completionHandler([])
+            return
+        }
+
         // Show notification even when app is in foreground
         completionHandler([.banner, .sound, .badge])
     }

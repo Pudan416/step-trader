@@ -17,12 +17,6 @@ struct NotificationSettingsView: View {
     @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.stepsTrader())
     private var canvasReminder: Bool = false
 
-    @AppStorage(SharedKeys.canvasReminderHour, store: UserDefaults.stepsTrader())
-    private var canvasHour: Int = 21
-
-    @AppStorage(SharedKeys.canvasReminderMinute, store: UserDefaults.stepsTrader())
-    private var canvasMinute: Int = 0
-
     @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.stepsTrader())
     private var dayResetWarning: Bool = true
 
@@ -66,23 +60,6 @@ struct NotificationSettingsView: View {
 
     private var notificationDeliveryIsUnavailable: Bool {
         notificationPresentation.contributesToWarning
-    }
-
-    private var canvasTimeBinding: Binding<Date> {
-        Binding<Date>(
-            get: {
-                var comps = DateComponents()
-                comps.hour = canvasHour
-                comps.minute = canvasMinute
-                return Calendar.current.date(from: comps) ?? Date.now
-            },
-            set: { newDate in
-                let comps = Calendar.current.dateComponents([.hour, .minute], from: newDate)
-                canvasHour = comps.hour ?? 21
-                canvasMinute = comps.minute ?? 0
-                rescheduleCanvas()
-            }
-        )
     }
 
     var body: some View {
@@ -167,40 +144,23 @@ struct NotificationSettingsView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // MARK: - Canvas Reminder
-                    SettingsLabeledGroup(
-                        title: String(localized: "Canvas reminder", comment: "Notification section header")
-                    ) {
-                        SettingsToggleRow(
-                            icon: "paintpalette",
-                            title: String(localized: "Daily canvas reminder"),
-                            isOn: $canvasReminder
-                        )
-                        .onChange(of: canvasReminder) { _, _ in rescheduleCanvas() }
-
-                        if canvasReminder {
-                            DetailDivider()
-
-                            DatePicker(
-                                selection: canvasTimeBinding,
-                                displayedComponents: .hourAndMinute
-                            ) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "clock")
-                                        .font(.geist(size: 15))
-                                        .foregroundStyle(theme.adaptiveSecondaryText)
-                                        .frame(width: 24)
-                                        .accessibilityHidden(true)
-                                    Text(String(localized: "Remind at", comment: "Canvas reminder time label"))
-                                        .font(.geist(.subheadline))
-                                        .foregroundStyle(SettingsCardAppearance.primaryText)
+                    // MARK: - Evening Reflection
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingsLabeledGroup(title: String(localized: "Evening reflection")) {
+                            SettingsToggleRow(
+                                icon: "moon",
+                                title: String(localized: "Remind me about my day"),
+                                isOn: $canvasReminder
+                            )
+                            .accessibilityIdentifier("settings.notifications.eveningReflection")
+                            .onChange(of: canvasReminder) { _, enabled in
+                                rescheduleCanvas()
+                                if enabled && model.notificationAuthorizationStatus == .notDetermined {
+                                    requestNotificationAuthorization()
                                 }
                             }
-                            .tint(AppColors.brandAccent)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .frame(minHeight: 44)
                         }
+                        SettingsFooter(text: String(localized: "At 20:00, only if your canvas is empty. Adding a moment or dismissing the question cancels tonight's reminder."))
                     }
                     .padding(.horizontal, 16)
 
@@ -331,6 +291,7 @@ struct NotificationSettingsView: View {
             return
         }
         await model.refreshNotificationAuthorizationStatus()
+        rescheduleCanvas()
         notificationFailure = nil
     }
 

@@ -1,6 +1,125 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "What would you like to keep from today?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What would you like to keep from today?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что хочется сохранить из сегодняшнего дня?"
+          }
+        }
+      }
+    },
+    "Was there a moment just for you?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was there a moment just for you?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Был сегодня момент для себя?"
+          }
+        }
+      }
+    },
+    "What made today feel different?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What made today feel different?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чем тебе запомнился этот день?"
+          }
+        }
+      }
+    },
+    "Choose something else": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose something else"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать другое"
+          }
+        }
+      }
+    },
+    "Evening reflection": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Evening reflection"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вспомнить день"
+          }
+        }
+      }
+    },
+    "Remind me about my day": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remind me about my day"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напоминать о прошедшем дне"
+          }
+        }
+      }
+    },
+    "At 20:00, only if your canvas is empty. Adding a moment or dismissing the question cancels tonight's reminder.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At 20:00, only if your canvas is empty. Adding a moment or dismissing the question cancels tonight's reminder."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В 20:00, только если холст пустой. Добавь событие или закрой вопрос, чтобы отменить напоминание на этот вечер."
+          }
+        }
+      }
+    },
     "Band shifts": {
       "comment": "Native Canvas editing control",
       "extractionState": "manual",
@@ -2655,6 +2774,7 @@
     "option.title.happening_called_someone" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "Общение"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2666,6 +2786,7 @@
     "option.title.happening_did_nothing" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "Отдых"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2677,6 +2798,7 @@
     "option.title.happening_drinks" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "Время вместе"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2688,6 +2810,7 @@
     "option.title.happening_laughed" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "Смех"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2699,6 +2822,7 @@
     "option.title.happening_made_something" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "Творчество"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2710,6 +2834,7 @@
     "option.title.happening_outside" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "На воздухе"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2721,6 +2846,7 @@
     "option.title.happening_read" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "Чтение"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2743,6 +2869,7 @@
     "option.title.happening_walk" : {
       "extractionState" : "manual",
       "localizations" : {
+        "ru": {"stringUnit": {"state": "translated", "value": "Прогулка"}},
         "en" : {
           "stringUnit" : {
             "state" : "translated",

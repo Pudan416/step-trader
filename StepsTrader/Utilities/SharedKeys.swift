@@ -96,6 +96,8 @@ enum SharedKeys {
     // MARK: - Notification preferences
     static let notifyOneMinBefore = "notifyOneMinBefore_v1"
     static let notifyWhenTimerOver = "notifyWhenTimerOver_v1"
+    static let eveningReflectionDismissedDay = "eveningReflectionDismissedDay_v1"
+    static let eveningReflectionRequestedAt = "eveningReflectionRequestedAt_v1"
     static let notifyCanvasReminder = "notifyCanvasReminder_v1"
     static let canvasReminderHour = "canvasReminderHour_v1"
     static let canvasReminderMinute = "canvasReminderMinute_v1"
