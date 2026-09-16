@@ -24,8 +24,14 @@ fragment float4 nativeAtlasDisplay(MetalShapeVertexOut in [[stage_in]], texture2
     float3 color = scene.sample(linearSampler, shifted).rgb;
     if (type == 1u) {
         const float2 offset = direction * amount * (0.25 + 0.75 * (0.5 + 0.5 * sin(uv.y * 8.0 + uv.x * 3.0 + phase)));
-        color.r = scene.sample(linearSampler, uv + offset).r;
-        color.b = scene.sample(linearSampler, uv - offset).b;
+        if (finish.y > 0.5) {
+            // Noir uses displaced exposures instead of splitting RGB channels.
+            color = (scene.sample(linearSampler, uv + offset).rgb + color
+                + scene.sample(linearSampler, uv - offset).rgb) / 3.0;
+        } else {
+            color.r = scene.sample(linearSampler, uv + offset).r;
+            color.b = scene.sample(linearSampler, uv - offset).b;
+        }
     } else if (type == 4u && strength > 0.0) {
         const float2 texel = 1.0 / float2(scene.get_width(), scene.get_height());
         for (uint index = 1u; index <= 3u; index++) {

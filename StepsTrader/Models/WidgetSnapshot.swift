@@ -4,6 +4,7 @@ import UIKit
 import ImageIO
 import os.log
 import WidgetKit
+import FamilyControls
 
 struct WidgetSnapshot: Codable {
     let balance: Int
@@ -60,6 +61,14 @@ enum WidgetGroupSelection {
     static func largeIDs(_ ids: [String]) -> [String] {
         var seen = Set<String>()
         return Array(ids.filter { seen.insert($0).inserted }.prefix(largeLimit))
+    }
+
+    /// An entirely unconfigured widget follows Feeds. A partial manual choice
+    /// keeps its empty slots and order instead of silently adding more groups.
+    static func resolvedIDs(_ selected: [String], feedIDs: [String], limit: Int) -> [String] {
+        var seen = Set<String>()
+        let source = selected.isEmpty ? feedIDs : selected
+        return Array(source.filter { seen.insert($0).inserted }.prefix(max(0, limit)))
     }
 }
 
@@ -156,5 +165,42 @@ enum WidgetWallpaperFile {
             return UIImage(cgImage: cropped)
         }
         return UIImage(cgImage: image)
+    }
+}
+
+
+/// Persisted fields used by the widget configuration picker.
+struct WidgetGroupOption: Decodable {
+    let id: String
+    let name: String
+    let templateApp: String?
+    let selectionData: Data?
+
+    static func loadVisibleFeeds(defaults: UserDefaults) -> [Self] {
+        guard let data = defaults.data(forKey: SharedKeys.ticketGroups)
+                ?? defaults.data(forKey: SharedKeys.legacyShieldGroups),
+              let groups = try? JSONDecoder().decode([Self].self, from: data) else { return [] }
+        // Match the Feeds page's visibility and persisted order, not name order.
+        return groups.filter { group in
+            guard let data = group.selectionData,
+                  let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) else { return false }
+            return selection.hasGroupTargets
+        }
+    }
+
+    struct PickerName {
+        let title: String
+        let needsAppName: Bool
+    }
+
+    func pickerName(index: Int) -> PickerName {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return PickerName(title: trimmed, needsAppName: false) }
+        if let templateApp, let title = AppGroupIdentity.applicationNames[templateApp] {
+            return PickerName(title: title, needsAppName: false)
+        }
+        // AppEntity requires text; the privacy-preserving Family Controls Label
+        // cannot supply a string for the system widget configuration picker.
+        return PickerName(title: String(localized: "App group \(index + 1)"), needsAppName: true)
     }
 }

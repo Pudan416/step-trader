@@ -118,12 +118,13 @@ struct DayObjectPaletteSet: Equatable {
         rootSeed: UInt64,
         categories: Set<ModernPaletteCategory>,
         dayKey: String?,
-        identity: String
+        identity: String,
+        useLegacyCatalog: Bool = false
     ) -> ModernPalette {
-        let normalizedCategories = categories.isEmpty
-            ? ModernPaletteSelection.all
-            : categories
-        var candidates = ModernPaletteCatalog.palettes(matching: normalizedCategories)
+        let normalizedCategories = useLegacyCatalog ? Set(ModernPaletteCategory.legacyCases)
+            : (categories.isEmpty ? ModernPaletteSelection.all : categories)
+        var candidates = useLegacyCatalog ? ModernPaletteCatalog.legacy
+            : ModernPaletteCatalog.palettes(matching: normalizedCategories)
         if candidates.count < 3 {
             for palette in ModernPaletteCatalog.all where
                 !candidates.contains(where: { $0.code == palette.code })
@@ -226,7 +227,7 @@ struct DayObjectPaletteSet: Equatable {
             hash = (hash ^ 0xFF) &* 0x1000_0000_01B3
         }
         append(identity.isEmpty ? "anonymous" : identity)
-        for category in ModernPaletteCategory.allCases where categories.contains(category) {
+        for category in ModernPaletteCategory.legacyCases + [.noir] where categories.contains(category) {
             append(category.rawValue)
         }
         hash ^= hash >> 33

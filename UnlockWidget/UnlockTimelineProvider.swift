@@ -127,7 +127,8 @@ enum WidgetRefreshPolicy {
 struct UnlockTimelineProvider: AppIntentTimelineProvider {
 
     func placeholder(in context: Context) -> UnlockEntry {
-        UnlockEntry(
+        SharedKeys.recordWidgetInteraction("placeholder", source: "widget-groups")
+        return UnlockEntry(
             date: .now,
             groups: [
                 .init(id: "placeholder", name: "Apps",
@@ -149,7 +150,8 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: SelectGroupIntent, in context: Context) async -> UnlockEntry {
-        buildEntry(at: Date(), selectedGroupIds: configuration.selectedIds)
+        SharedKeys.recordWidgetInteraction("snapshot preview=\(context.isPreview)", source: "widget-groups")
+        return buildEntry(at: Date(), selectedGroupIds: configuration.selectedIds)
             .withWallpaper(size: context.displaySize, mode: configuration.background, position: configuration.wallpaperPosition.position)
     }
 
@@ -160,6 +162,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
 
         let now = Date()
         let ids = configuration.selectedIds
+        SharedKeys.recordWidgetInteraction("timeline", source: "widget-groups")
         let currentEntry = buildEntry(at: now, selectedGroupIds: ids)
 
         var entries: [UnlockEntry] = [currentEntry]
@@ -250,6 +253,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
             }
         }
 
+        SharedKeys.recordWidgetInteraction("entry requested=\(selectedIds) available=\(snapshots.map(\.id))", source: "widget-groups")
         return UnlockEntry(
             date: date,
             groups: snapshots,

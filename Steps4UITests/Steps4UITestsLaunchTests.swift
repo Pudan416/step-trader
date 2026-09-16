@@ -11,7 +11,7 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testCreatingFeedStartsWithSelectionAndCancelKeepsGroups() throws {
+    func testSingleScreenFeedRequiresAppsAndCancelKeepsGroups() throws {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -20,39 +20,75 @@ final class Steps4UITestsLaunchTests: XCTestCase {
         let groups = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access'"))
         let initialCount = groups.count
         app.buttons["feed.add"].tap()
-        let done = app.buttons["feed.selection.done"]
+        let name = app.textFields["feed.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        let done = app.buttons["feed.selection.create"]
         XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertEqual(done.label, "Done")
         XCTAssertFalse(done.isEnabled)
-        XCTAssertTrue(app.navigationBars["Select Apps"].exists)
-        attachScreenshot(named: "new-feed-native-selection")
-        app.buttons["Cancel"].tap()
+        XCTAssertFalse(app.buttons["feed.name.next"].exists)
+        attachScreenshot(named: "single-screen-feed-empty")
+        name.tap()
+        name.typeText("No apps yet\n")
+        XCTAssertTrue(name.exists)
+        XCTAssertFalse(done.isEnabled)
+        app.buttons["feed.selection.cancel"].tap()
         XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
         XCTAssertEqual(groups.count, initialCount)
     }
 
-    func testCategorySelectionRequestsNameAndBackKeepsDraft() throws {
+    func testSingleScreenFeedRequiresNameAndCancelKeepsGroups() throws {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
-            "-AppleInterfaceStyle", "Light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+            "-AppleInterfaceStyle", "Light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL",
+            "ui-testing-feed-selection"]
+        app.launch()
+        XCTAssertTrue(app.buttons["tab_feeds"].waitForExistence(timeout: 10))
+        app.buttons["tab_feeds"].tap()
+        let groups = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access'"))
+        let initialCount = groups.count
+        app.buttons["feed.add"].tap()
+        let name = app.textFields["feed.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        let done = app.buttons["feed.selection.create"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertFalse(done.isEnabled)
+        name.tap()
+        name.typeText("   ")
+        XCTAssertFalse(done.isEnabled)
+        name.typeText("Focus\n")
+        XCTAssertTrue(done.isEnabled)
+        XCTAssertTrue(name.isHittable)
+        XCTAssertTrue(done.isHittable)
+        XCTAssertFalse(app.buttons["feed.name.next"].exists)
+        attachScreenshot(named: "single-screen-feed-light-large")
+        app.buttons["feed.selection.cancel"].tap()
+        XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
+        XCTAssertEqual(groups.count, initialCount)
+    }
+
+    func testCreatingFeedPersistsRequiredName() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_US", "ui-testing-feed-selection"]
         app.launch()
         XCTAssertTrue(app.buttons["tab_feeds"].waitForExistence(timeout: 10))
         app.buttons["tab_feeds"].tap()
         app.buttons["feed.add"].tap()
-        let all = app.staticTexts["All Apps & Categories"]
-        XCTAssertTrue(all.waitForExistence(timeout: 5))
-        all.tap()
-        app.buttons["feed.selection.done"].tap()
         let name = app.textFields["feed.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Create"].isEnabled)
         name.tap()
-        name.typeText("Focus")
-        XCTAssertTrue(app.buttons["Create"].isEnabled)
-        attachScreenshot(named: "new-feed-name-light-large")
-        app.navigationBars.buttons["Select Apps"].tap()
-        XCTAssertTrue(app.buttons["feed.selection.done"].isEnabled)
-        app.buttons["Cancel"].tap()
+        name.typeText("  Named feed  ")
+        let done = app.buttons["feed.selection.create"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertTrue(done.isEnabled)
+        done.tap()
         XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access' AND label CONTAINS 'Named feed'")).firstMatch.waitForExistence(timeout: 5))
+        attachScreenshot(named: "single-screen-feed-created")
+        app.terminate()
+        app.launch()
+        app.buttons["tab_feeds"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access' AND label CONTAINS 'Named feed'")).firstMatch.waitForExistence(timeout: 5))
     }
 
     func testLaunch() throws {

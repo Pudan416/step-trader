@@ -2,6 +2,7 @@ import Foundation
 
 enum ModernPaletteCategory: String, CaseIterable, Codable, Hashable {
     case pastel
+    case noir
     case vintage
     case retro
     case neon
@@ -12,9 +13,14 @@ enum ModernPaletteCategory: String, CaseIterable, Codable, Hashable {
     case fall
     case winter
 
+    // Seasons remain decodable for historical artwork, but are no longer choices.
+    static let allCases: [Self] = [.pastel, .noir, .vintage, .retro, .neon, .warm, .cold]
+    static let legacyCases: [Self] = [.pastel, .vintage, .retro, .neon, .warm, .cold, .spring, .summer, .fall, .winter]
+
     var displayName: String {
         switch self {
         case .pastel: "Pastel"
+        case .noir: "Noir"
         case .vintage: "Vintage"
         case .retro: "Retro"
         case .neon: "Neon"
@@ -50,11 +56,14 @@ enum ModernPaletteSelection {
                 ModernPaletteCategory(rawValue: String($0))
             }
         )
-        return decoded.isEmpty ? all : decoded
+        if decoded == Set(ModernPaletteCategory.legacyCases) { return all }
+        let available = decoded.intersection(all)
+        return available.isEmpty ? all : available
     }
 
     static func encode(_ categories: Set<ModernPaletteCategory>) -> String {
-        guard !categories.isEmpty, categories != all else { return "" }
+        guard !categories.isEmpty, categories != all,
+              categories != Set(ModernPaletteCategory.legacyCases) else { return "" }
         return ModernPaletteCategory.allCases
             .filter(categories.contains)
             .map(\.rawValue)
@@ -78,10 +87,23 @@ enum ModernPaletteSelection {
 }
 
 enum ModernPaletteCatalog {
-    /// Snapshot of Color Hunt's 40 most popular palettes in each supported
-    /// category, captured 2026-08-24 from https://colorhunt.co/. Duplicate
-    /// color sequences merge tags. The app never accesses Color Hunt at runtime.
-    static let all: [ModernPalette] = [
+    /// Current non-seasonal selection plus four curated Noir palettes.
+    static let all: [ModernPalette] = (legacy.compactMap { palette in
+        let categories = palette.categories.intersection(ModernPaletteSelection.all)
+        return categories.isEmpty ? nil : ModernPalette(code: palette.code, categories: categories)
+    } + noir).sorted { $0.code < $1.code }
+
+    static let noir: [ModernPalette] = [
+        ModernPalette(code: "111111505050bdbdbdf5f5f5", categories: [.noir]), // Graphic
+        ModernPalette(code: "171717343434626262969696", categories: [.noir]), // Graphite
+        ModernPalette(code: "24221f77736bc8c2b7f2ede3", categories: [.noir]), // Paper & Ink
+        ModernPalette(code: "30343a858c94c4cad1f0f3f6", categories: [.noir]), // Silver
+    ]
+
+    /// Original Color Hunt snapshot (2026-08-24): 40 per category, with duplicate
+    /// color sequences merged. Freeze its order for recipes without numeric backgrounds.
+    /// The app never accesses Color Hunt at runtime.
+    static let legacy: [ModernPalette] = [
         ModernPalette(code: "000000233d4dfe7f2deaecf0", categories: [.retro]),
         ModernPalette(code: "0000005682b1739ec9ffe8db", categories: [.winter]),
         ModernPalette(code: "0000009929eacc66dafaeb92", categories: [.neon]),
@@ -429,7 +451,8 @@ enum ModernPaletteCatalog {
     static func palettes(
         matching categories: Set<ModernPaletteCategory>
     ) -> [ModernPalette] {
-        guard !categories.isEmpty else { return all }
-        return all.filter { !$0.categories.isDisjoint(with: categories) }
+        let available = categories.intersection(ModernPaletteSelection.all)
+        guard !available.isEmpty else { return all }
+        return all.filter { !$0.categories.isDisjoint(with: available) }
     }
 }

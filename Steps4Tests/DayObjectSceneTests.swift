@@ -151,7 +151,7 @@ final class DayObjectSceneTests: XCTestCase {
         XCTAssertEqual(specs.first?.paletteCategory, .pastel)
         XCTAssertEqual(specs.first?.material, .solid)
         XCTAssertEqual(specs.first?.placement, .depthField)
-        XCTAssertEqual(specs.last?.paletteCategory, .vintage)
+        XCTAssertEqual(specs.last?.paletteCategory, .neon)
         XCTAssertEqual(specs.last?.material, .hairlineOutline)
         XCTAssertEqual(specs.last?.placement, .equalMedium)
     }

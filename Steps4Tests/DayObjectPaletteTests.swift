@@ -116,8 +116,8 @@ final class DayObjectPaletteTests: XCTestCase {
         let filters: [(name: String, categories: Set<ModernPaletteCategory>)] = [
             ("all", ModernPaletteSelection.all),
             ("pastel-cold", [.pastel, .cold]),
-            ("warm-fall", [.warm, .fall]),
-            ("neon-summer", [.neon, .summer]),
+            ("warm-vintage", [.warm, .vintage]),
+            ("neon-retro", [.neon, .retro]),
         ]
         let dayKeys = isoDayKeys(from: 2026, through: 2035)
 
@@ -1243,7 +1243,7 @@ final class DayObjectPaletteTests: XCTestCase {
     func testModernCatalogContainsUniqueFourColorPalettes() {
         let palettes = ModernPaletteCatalog.all
 
-        XCTAssertEqual(palettes.count, 340)
+        XCTAssertEqual(palettes.count, 223)
         XCTAssertEqual(Set(palettes.map(\.code)).count, palettes.count)
         XCTAssertTrue(palettes.allSatisfy { $0.hexes.count == 4 })
         XCTAssertTrue(palettes.flatMap(\.hexes).allSatisfy {
@@ -1297,7 +1297,7 @@ final class DayObjectPaletteTests: XCTestCase {
         XCTAssertEqual(ModernPaletteSelection.decode(""), all)
         XCTAssertEqual(ModernPaletteSelection.decode("unknown"), all)
 
-        let subset: Set<ModernPaletteCategory> = [.pastel, .warm, .winter]
+        let subset: Set<ModernPaletteCategory> = [.pastel, .warm, .noir]
         XCTAssertEqual(
             ModernPaletteSelection.decode(ModernPaletteSelection.encode(subset)),
             subset
@@ -1318,7 +1318,7 @@ final class DayObjectPaletteTests: XCTestCase {
     }
 
     func testSceneUsesPaletteCategoriesFromItsInput() {
-        let selected: Set<ModernPaletteCategory> = [.winter]
+        let selected: Set<ModernPaletteCategory> = [.cold]
         let input = DayObjectSceneInput(
             dayKey: "winter-scene",
             identity: "tester",
@@ -1572,11 +1572,12 @@ final class DayObjectPaletteTests: XCTestCase {
         )
 
         for sample in samples {
-            let palette = DayObjectPalette.make(seed: sample.seed)
-            let style = DayObjectMeshGradientStyle.make(seed: sample.seed, palette: palette)
+            // Fixed rendering fixtures remain independent of the selectable catalog.
             let expectedPalette = try XCTUnwrap(
-                ModernPaletteCatalog.all.first { $0.code == sample.paletteCode }
+                ModernPaletteCatalog.legacy.first { $0.code == sample.paletteCode }
             )
+            let palette = DayObjectPalette.make(modernPalette: expectedPalette)
+            let style = DayObjectMeshGradientStyle.make(seed: sample.seed, palette: palette)
             XCTAssertEqual(
                 palette.colors,
                 expectedPalette.hexes.map(DayObjectRGB.init(hex:)),
@@ -1656,7 +1657,7 @@ final class DayObjectPaletteTests: XCTestCase {
         var minimumDetail = ""
         for sample in productionSamples {
             let productionPalette = try XCTUnwrap(
-                ModernPaletteCatalog.all.first { $0.code == sample.paletteCode }
+                ModernPaletteCatalog.legacy.first { $0.code == sample.paletteCode }
             )
             let colors = productionPalette.hexes.map { DayObjectRGB(hex: $0).linearRGB }
             let separation = minimumPairwiseRGBDistance(colors)

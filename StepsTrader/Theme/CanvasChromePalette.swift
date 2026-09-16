@@ -98,7 +98,7 @@ private extension CanvasChromePalette.Family {
         case .blue: ("#6987A5", "#202D3C", "#F1F4F7", "#BBC8D8", "#BEDFFA")
         case .lilac: ("#9581AA", "#32283C", "#F7F2FA", "#D0C1DA", "#E2CDF4")
         case .clay: ("#AE7E68", "#3B2B28", "#FCF3EB", "#DCC5B8", "#F4D0BA")
-        case .neutral: ("#808080", "#2B3030", "#F2F3F0", "#C4CBC7", "#DCE5DC")
+        case .neutral: ("#808080", "#2C2C2C", "#F3F3F3", "#C8C8C8", "#E3E3E3")
         }
     }
 }

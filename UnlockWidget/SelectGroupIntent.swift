@@ -9,16 +9,19 @@ struct TicketGroupEntity: AppEntity {
 
     var id: String
     var name: String
+    var needsAppName = false
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)")
+        DisplayRepresentation(title: "\(name)", subtitle: needsAppName
+            ? "Name this feed in Nowhere using Rename."
+            : nil)
     }
 }
 
 struct TicketGroupQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [TicketGroupEntity] {
         let all = loadAllGroups()
-        return all.filter { identifiers.contains($0.id) }
+        return identifiers.compactMap { id in all.first { $0.id == id } }
     }
 
     func suggestedEntities() async throws -> [TicketGroupEntity] {
@@ -26,28 +29,32 @@ struct TicketGroupQuery: EntityQuery {
     }
 
     func defaultResult() async -> TicketGroupEntity? {
-        nil
+        loadAllGroups().first
     }
 
-    private func loadAllGroups() -> [TicketGroupEntity] {
-        guard let g = UserDefaults(suiteName: SharedKeys.appGroupId),
-              let data = g.data(forKey: SharedKeys.ticketGroups)
-                ?? g.data(forKey: SharedKeys.legacyShieldGroups),
-              let decoded = try? JSONDecoder().decode([GroupStub].self, from: data) else {
-            return []
-        }
-        // AppIntent display representations cannot host a FamilyControls Label.
-        // Keep unnamed entries distinguishable in the configuration picker.
+    func loadAllGroups() -> [TicketGroupEntity] {
+        guard let g = UserDefaults(suiteName: SharedKeys.appGroupId) else { return [] }
+        let decoded = WidgetGroupOption.loadVisibleFeeds(defaults: g)
+        SharedKeys.recordWidgetInteraction("catalog visible=\(decoded.map(\.id)) stored=\(g.data(forKey: SharedKeys.ticketGroups)?.count ?? -1)", source: "widget-groups")
         return decoded.enumerated().map { index, group in
-            let name = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            return TicketGroupEntity(id: group.id,
-                name: name.isEmpty ? String(localized: "App group \(index + 1)") : name)
+            let display = group.pickerName(index: index)
+            return TicketGroupEntity(id: group.id, name: display.title, needsAppName: display.needsAppName)
         }
     }
+}
 
-    private struct GroupStub: Decodable {
-        let id: String
-        let name: String
+/// Each configuration slot gets a distinct default from the same Feeds list.
+/// A shared EntityQuery default alone would choose the first group three times.
+struct WidgetGroupOptionsProvider: DynamicOptionsProvider {
+    let index: Int
+
+    func results() async throws -> [TicketGroupEntity] {
+        TicketGroupQuery().loadAllGroups()
+    }
+
+    func defaultResult() async -> TicketGroupEntity? {
+        let groups = TicketGroupQuery().loadAllGroups()
+        return groups.indices.contains(index) ? groups[index] : nil
     }
 }
 
@@ -57,13 +64,13 @@ struct SelectGroupIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Select Groups"
     static var description: IntentDescription = "Choose up to three app groups and a background for this widget."
 
-    @Parameter(title: "App group 1")
+    @Parameter(title: "App group 1", optionsProvider: WidgetGroupOptionsProvider(index: 0))
     var group1: TicketGroupEntity?
 
-    @Parameter(title: "App group 2")
+    @Parameter(title: "App group 2", optionsProvider: WidgetGroupOptionsProvider(index: 1))
     var group2: TicketGroupEntity?
 
-    @Parameter(title: "App group 3")
+    @Parameter(title: "App group 3", optionsProvider: WidgetGroupOptionsProvider(index: 2))
     var group3: TicketGroupEntity?
 
     @Parameter(title: "Background", default: .appDefault)
@@ -74,8 +81,22 @@ struct SelectGroupIntent: WidgetConfigurationIntent {
 
     init() {}
 
+    static var parameterSummary: some ParameterSummary {
+        Summary {
+            \.$group1
+            \.$group2
+            \.$group3
+            \.$background
+            \.$wallpaperPosition
+        }
+    }
+
     var selectedIds: [String] {
-        WidgetGroupSelection.largeIDs([group1, group2, group3].compactMap { $0?.id })
+        let selected = [group1, group2, group3].compactMap { $0?.id }
+        let defaults = selected.isEmpty ? TicketGroupQuery().loadAllGroups().map(\.id) : []
+        let resolved = WidgetGroupSelection.resolvedIDs(selected, feedIDs: defaults, limit: WidgetGroupSelection.largeLimit)
+        SharedKeys.recordWidgetInteraction("large selected=\(selected) resolved=\(resolved)", source: "widget-groups")
+        return resolved
     }
 }
 
@@ -85,7 +106,7 @@ struct SelectSingleGroupIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Select Group"
     static var description: IntentDescription = "Choose one app group and a background for this widget."
 
-    @Parameter(title: "App Group")
+    @Parameter(title: "App Group", optionsProvider: WidgetGroupOptionsProvider(index: 0))
     var group: TicketGroupEntity?
 
     @Parameter(title: "Background", default: .appDefault)
@@ -96,7 +117,9 @@ struct SelectSingleGroupIntent: WidgetConfigurationIntent {
 
     init() {}
 
-    var selectedId: String? { group?.id }
+    var selectedId: String? {
+        group?.id ?? TicketGroupQuery().loadAllGroups().first?.id
+    }
 }
 
 // MARK: - Medium Widget Mode
