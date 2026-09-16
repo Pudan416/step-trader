@@ -1408,6 +1408,9 @@ final class NativeAtlasRecipeTests: XCTestCase {
 
     @MainActor
     func testCanvasActionsUseReadableDailyPalette() throws {
+        // The public first-launch tour dims unrelated controls. This snapshot
+        // verifies their normal appearance, independently of onboarding state.
+        CanvasTour.shared.stop()
         let palette = CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "#78966B")])
         let content = CanvasBottomActionRow(isDataPanelOpen: false, isHappeningPalettePresented: false, soundAppearance: .readyToPlay, onSound: {}, onOpenHappeningList: {}, onToggleHappeningPalette: {})
             .environment(\.canvasChromePalette, palette)
