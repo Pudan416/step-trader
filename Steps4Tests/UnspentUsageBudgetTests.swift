@@ -1,6 +1,7 @@
 import XCTest
 import FamilyControls
 import DeviceActivity
+import Darwin
 @testable import Steps4
 
 @MainActor
@@ -26,6 +27,63 @@ final class UnspentUsageBudgetTests: XCTestCase {
 
     private func remaining(at date: Date) -> Int {
         ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId, at: date)
+    }
+
+    func testScreenTimeRegistrationRunsOutsideUsageBudgetCriticalSection() throws {
+        let lockURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("usage-budget-lock-\(UUID().uuidString)")
+        let registrationLockURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("usage-budget-registration-lock-\(UUID().uuidString)")
+        defer {
+            try? FileManager.default.removeItem(at: lockURL)
+            try? FileManager.default.removeItem(at: registrationLockURL)
+        }
+
+        let lock = UsageBudgetFileLock(fileURL: lockURL)
+        let registrationLock = UsageBudgetFileLock(fileURL: registrationLockURL)
+        var phases: [String] = []
+
+        try UsageBudgetRegistrationCoordinator.perform(
+            stateLock: lock,
+            registrationLock: registrationLock,
+            prepare: {
+                phases.append("prepare")
+                XCTAssertFalse(try canAcquireLock(at: lockURL),
+                               "Preparation must be serialized with monitor callbacks")
+                return "prepared"
+            },
+            register: { prepared in
+                phases.append("register:\(prepared)")
+                XCTAssertTrue(try canAcquireLock(at: lockURL),
+                              "DeviceActivityCenter must never be called while the cross-process lock is held")
+                XCTAssertFalse(try canAcquireLock(at: registrationLockURL),
+                               "Concurrent registrations must remain serialized")
+            },
+            commit: { prepared in
+                phases.append("commit:\(prepared)")
+                XCTAssertFalse(try canAcquireLock(at: lockURL),
+                               "Persisting the successful registration must be serialized")
+            },
+            rollback: { _ in
+                XCTFail("A successful registration must not roll back")
+            }
+        )
+
+        XCTAssertEqual(phases, ["prepare", "register:prepared", "commit:prepared"])
+    }
+
+    private func canAcquireLock(at url: URL) throws -> Bool {
+        let descriptor = open(url.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            if errno == EWOULDBLOCK { return false }
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        flock(descriptor, LOCK_UN)
+        return true
     }
 
     func testTenMinutePurchaseSurvivesHalfHourOfIdleTimeAndReload() {

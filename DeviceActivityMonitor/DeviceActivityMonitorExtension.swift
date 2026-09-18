@@ -134,7 +134,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             // rather than blindly clearing a window the user just extended.
             MonitorLogger.info("usageBudget interval ended for \(groupId) — resync shields from prefs")
             appendMonitorLog("usageBudget intervalEnd: resync \(groupId)")
-            checkAndClearExpiredBudgets()
+            checkAndClearExpiredBudgets(endingActivity: activity)
             rebuildBlockFromExtension()
             return
         }
@@ -166,7 +166,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     
     
     private func rebuildBlockFromExtension() {
-        ShieldRebuildHelper.rebuild()
+        ShieldRebuildHelper.rebuild(startPendingBudgets: false)
     }
     
     #if canImport(ManagedSettings)
@@ -326,10 +326,11 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
     }
 
-    private func checkAndClearExpiredBudgets() {
+    private func checkAndClearExpiredBudgets(endingActivity: DeviceActivityName? = nil) {
         let defaults = SharedKeys.appGroupDefaults()
         let groups = ShieldRebuildHelper.loadGroups(defaults: defaults)
         var didClear = false
+        var activitiesToStop: [DeviceActivityName] = []
 
         do {
             try ShieldRebuildHelper.withUsageBudgetLock {
@@ -344,13 +345,23 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                     defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
                     defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
                     defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
-                    DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])
+                    let activity = DeviceActivityName("usageBudget_\(group.id)")
+                    if activity != endingActivity {
+                        activitiesToStop.append(activity)
+                    }
                     appendMonitorLog("budget day ended: \(group.id)")
                     didClear = true
                 }
             }
         } catch {
             MonitorLogger.error("Budget cleanup failed: \(error.localizedDescription)")
+        }
+
+        // Screen Time callbacks can be invoked synchronously by monitoring XPC.
+        // Never call back into DeviceActivityCenter while holding the state lock;
+        // the activity passed to intervalDidEnd is already stopped by the daemon.
+        if !activitiesToStop.isEmpty {
+            DeviceActivityCenter().stopMonitoring(activitiesToStop)
         }
 
         if didClear {
