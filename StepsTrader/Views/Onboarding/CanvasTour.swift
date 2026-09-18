@@ -104,7 +104,6 @@ final class CanvasTour {
     var targetID: String?
     var isForeground = true
     var launchRevision = UUID()
-    var openAccountOnSetup = false
     @ObservationIgnored private let defaults: UserDefaults?
     @ObservationIgnored private let suppressesAnalytics: Bool
     @ObservationIgnored private let onStart: (() -> Void)?
@@ -159,7 +158,7 @@ final class CanvasTour {
         updateAnalyticsGate()
         presentedSheet = nil; pendingDestination = nil; posterDayID = nil; shareCompleted = false
         errorMessage = nil; targetVisible = false; targetFrameDescription = "unresolved"
-        openAccountOnSetup = false; exitRequest = nil
+        exitRequest = nil
         cardTopGlobalY = 0; cardBottomGlobalY = 0
         launchRevision = UUID()
         report("step entered: \(step.rawValue); new session")

@@ -6,16 +6,10 @@ import HealthKit
 /// sheet. The coordinator waits for the presenter's actual sheet dismissal.
 struct CanvasTourSetup: View {
     @ObservedObject var model: AppModel
-    var openAccountOnAppear = false
     var onContinue: () -> Void
 
-    @ObservedObject private var authService = AuthenticationService.shared
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.appTheme) private var theme
     @Environment(\.canvasChromePalette) private var palette
-    @State private var showLogin = false
-    @State private var openedInitialAccount = false
-    @State private var loginSessionID: UUID?
     @State private var showApps = false
     @State private var appsSessionID: UUID?
 
@@ -67,8 +61,6 @@ struct CanvasTourSetup: View {
                             .padding(14)
                             .background(palette.textColor, in: RoundedRectangle(cornerRadius: 18))
                         SettingsGroupedSurface {
-                            accountRow
-                            DetailDivider()
                             NavigationLink {
                                 CanvasTourNotificationsPage(model: model)
                             } label: {
@@ -108,25 +100,9 @@ struct CanvasTourSetup: View {
                 guard !Task.isCancelled, CanvasTour.shared.isActive,
                       CanvasTour.shared.step == .setup,
                       CanvasTour.shared.sessionID == sessionID else { return }
-                if openAccountOnAppear, !openedInitialAccount, !authService.hasAppleAccount {
-                    openedInitialAccount = true
-                    presentLogin()
-                }
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await model.refreshNotificationAuthorizationStatus() } }
-            }
-            .sheet(isPresented: $showLogin, onDismiss: {
-                guard CanvasTour.shared.isActive, CanvasTour.shared.step == .setup,
-                      CanvasTour.shared.sessionID == loginSessionID else { return }
-                CanvasTour.shared.sheetDismissed("setup.login", sessionID: loginSessionID)
-                CanvasTour.shared.sheetPresented("setup", returnContext: "setup")
-                CanvasTour.shared.report(authService.hasAppleAccount
-                    ? "Account: Apple account is present; sync status is separate"
-                    : "Account: login dismissed without Apple account")
-            }) {
-                LoginView(authService: authService)
-                    .canvasTourExitChrome(context: "setup.login")
             }
             .sheet(isPresented: $showApps, onDismiss: {
                 guard CanvasTour.shared.isActive, CanvasTour.shared.step == .setup,
@@ -148,32 +124,14 @@ struct CanvasTourSetup: View {
                 .canvasTourExitChrome(context: "setup.apps")
             }
             .onChange(of: CanvasTour.shared.isActive) { _, active in
-                if !active { showLogin = false; showApps = false }
+                if !active { showApps = false }
             }
             .onChange(of: CanvasTour.shared.sessionID) { _, sessionID in
-                if loginSessionID != sessionID { showLogin = false }
                 if appsSessionID != sessionID { showApps = false }
             }
         }
         .environment(\.topCardHeight, 0)
         .canvasTourExitChrome(context: "setup")
-    }
-
-    @ViewBuilder
-    private var accountRow: some View {
-        if authService.hasAppleAccount {
-            NavigationLink {
-                SettingsAccountPage(authService: authService, model: model)
-            } label: {
-                SettingsNavRow(icon: "person.crop.circle", title: String(localized: "Account"), value: String(localized: "Signed in"))
-            }
-            .accessibilityIdentifier("canvas_tour.setup.account")
-        } else {
-            Button(action: presentLogin) {
-                SettingsNavRow(icon: "person.crop.circle", title: String(localized: "Account"), value: String(localized: "Sign in"))
-            }
-            .accessibilityIdentifier("canvas_tour.setup.account")
-        }
     }
 
     private var appAccessPage: some View {
@@ -208,12 +166,6 @@ struct CanvasTourSetup: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func presentLogin() {
-        guard CanvasTour.shared.isActive, CanvasTour.shared.step == .setup else { return }
-        loginSessionID = CanvasTour.shared.sessionID
-        CanvasTour.shared.sheetPresented("setup.login", returnContext: "setup")
-        showLogin = true
-    }
 }
 
 /// Explanation around the actual notification settings page. Its existing

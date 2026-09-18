@@ -555,6 +555,10 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["tab_me"].tap()
         let later = app.buttons["canvas_tour.later"]
         XCTAssertTrue(later.waitForExistence(timeout: 15))
+        XCTAssertFalse(
+            app.buttons["canvas_tour.signIn"].exists,
+            "The onboarding flow must not offer or require account sign-in"
+        )
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in later.isEnabled }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
         let posterFrame = app.descendants(matching: .any)["me_poster_carousel"].firstMatch.frame
@@ -563,6 +567,10 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         capture(app, "tour-save-days")
         later.tap()
         XCTAssertTrue(app.buttons["canvas_tour.setup.continue"].waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.buttons["canvas_tour.setup.account"].exists,
+            "Account sign-in belongs in Settings after onboarding"
+        )
         capture(app, "tour-setup")
         app.buttons["canvas_tour.setup.continue"].tap()
         XCTAssertTrue(app.buttons["canvas_tour.skipExport"].waitForExistence(timeout: 5))
@@ -670,12 +678,10 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_tour.exit.continue"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.exit.continue"].tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons["canvas_tour.setup.account"].tap()
-        let close = app.buttons["Dismiss"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        capture(app, "tour-setup-login")
+        XCTAssertFalse(app.buttons["canvas_tour.setup.account"].exists)
+        XCTAssertFalse(app.buttons["canvas_tour.signIn"].exists)
+        capture(app, "tour-setup-without-login")
         XCTAssertTrue(app.buttons["canvas_tour.skip"].isHittable)
-        close.tap()
         XCTAssertTrue(app.buttons["canvas_tour.setup.continue"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.setup.continue"].tap()
         app.buttons["canvas_tour.skipExport"].tap()

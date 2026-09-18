@@ -149,7 +149,7 @@ private struct CanvasTourHost: ViewModifier {
             .sheet(isPresented: $showSetup, onDismiss: {
                 tour.sheetDismissed("setup", sessionID: setupSession)
             }) {
-                CanvasTourSetup(model: model, openAccountOnAppear: tour.openAccountOnSetup) {
+                CanvasTourSetup(model: model) {
                     tour.send(.setupCompleted)
                     showSetup = false
                 }
@@ -293,13 +293,8 @@ private struct CanvasTourHost: ViewModifier {
             }
             action(String(localized: "Continue without unlocking"), id: "skipUnlock") { tour.send(.skipUnlock) }
         case .saveDays:
-            if !AuthenticationService.shared.hasAppleAccount {
-                action(String(localized: "Sign in"), id: "signIn") {
-                    tour.openAccountOnSetup = true; tour.send(.showSetup)
-                }.disabled(tour.posterDayID == nil)
-            }
-            action(AuthenticationService.shared.hasAppleAccount ? String(localized: "Your setup") : String(localized: "Later"), id: "later") {
-                tour.openAccountOnSetup = false; tour.send(.showSetup)
+            action(String(localized: "Continue"), id: "later") {
+                tour.send(.showSetup)
             }.disabled(tour.posterDayID == nil)
         case .poster: action(String(localized: "Not now"), id: "skipExport") { tour.send(.exportSkipped) }
         case .finish: action(String(localized: "Start exploring"), id: "finish") { tour.send(.finish) }
@@ -354,7 +349,7 @@ private struct CanvasTourHost: ViewModifier {
             if let window = recommendedWindow { String(localized: "Try \(window.minutes) minutes, or choose any available interval. Your real colors will be spent.") }
             else { String(localized: "Add a happening to earn colors, or skip this trial unlock.") }
         case .meTab: String(localized: "Tap Me to see your day as a poster. You can save it or share it.")
-        case .saveDays: tour.posterDayID == nil ? String(localized: "Your current day is getting ready. Account and permissions are optional.") : String(localized: "Sign in with Apple to keep your account, or continue to your optional setup.")
+        case .saveDays: tour.posterDayID == nil ? String(localized: "Your current day is getting ready. Permissions are optional.") : String(localized: "Everything here is optional.")
         case .setup: String(localized: "Everything here is optional.")
         case .poster: String(localized: "Save your poster, or share it with someone. Tap the poster’s share button.")
         case .finish: String(localized: "Nowhere = now + here.\nStart living Nowhere.")
