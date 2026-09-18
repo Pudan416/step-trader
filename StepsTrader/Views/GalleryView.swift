@@ -2247,6 +2247,8 @@ struct GalleryView: View {
                 .padding(.bottom, 10)
             }
             CanvasFullScreenDock(
+                soundAppearance: canvasSoundAppearance,
+                onSound: handleFullScreenSoundControl,
                 onClose: {
                     send(.exitFullScreen)
                     lightHapticTick &+= 1

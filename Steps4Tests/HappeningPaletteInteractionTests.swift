@@ -97,13 +97,14 @@ final class HappeningPaletteInteractionTests: XCTestCase {
         )
     }
 
-    func testSelectedOnCanvasHasRussianLocalization() throws {
-        let russianResources = try XCTUnwrap(Bundle.main.path(forResource: "ru", ofType: "lproj"))
-        let russianBundle = try XCTUnwrap(Bundle(path: russianResources))
+    func testShippingAppIsEnglishOnly() throws {
+        XCTAssertNil(Bundle.main.path(forResource: "ru", ofType: "lproj"))
+        let englishResources = try XCTUnwrap(Bundle.main.path(forResource: "en", ofType: "lproj"))
+        let englishBundle = try XCTUnwrap(Bundle(path: englishResources))
 
         XCTAssertEqual(
-            russianBundle.localizedString(forKey: "Selected, on Canvas", value: nil, table: nil),
-            "Выбрано, на холсте"
+            englishBundle.localizedString(forKey: "Frequent", value: nil, table: nil),
+            "Frequent"
         )
     }
 

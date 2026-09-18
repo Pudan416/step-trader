@@ -12,6 +12,16 @@ enum RenderingActivity {
     ) -> Bool {
         isViewActive && sceneIsActive && !reduceMotion
     }
+
+    /// User-driven canvas effects remain available with Reduce Motion. The
+    /// setting disables autonomous animation, not feedback that follows the
+    /// user's finger directly.
+    static func shouldAllowDirectInteraction(
+        isViewActive: Bool,
+        sceneIsActive: Bool
+    ) -> Bool {
+        isViewActive && sceneIsActive
+    }
 }
 
 enum MetalOverlayRenderingPolicy {

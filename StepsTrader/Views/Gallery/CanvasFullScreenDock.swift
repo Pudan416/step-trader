@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Three viewing actions. Closing is independent of the audio engine state.
+/// Full-screen viewing actions. Closing is independent of the audio engine state.
 struct CanvasFullScreenDock<Share: View>: View {
     @Environment(\.canvasChromePalette) private var palette
+    let soundAppearance: CanvasSoundButtonAppearance
+    let onSound: () -> Void
     let onClose: () -> Void
     let onRemix: () -> Void
     @ViewBuilder let share: () -> Share
@@ -25,6 +27,7 @@ struct CanvasFullScreenDock<Share: View>: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 4) {
+                soundControl
                 share()
                     .accessibilityIdentifier("canvas_fullscreen_share_button")
                 Button(action: onRemix) {
@@ -44,6 +47,24 @@ struct CanvasFullScreenDock<Share: View>: View {
             .canvasChromeSurface(in: Capsule())
         }
         .frame(maxWidth: 360)
+    }
+
+    private var soundControl: some View {
+        let presentation = CanvasFullScreenSoundControlPresentation(
+            appearance: soundAppearance
+        )
+        return Button(action: onSound) {
+            Image(systemName: presentation.systemImage)
+                .font(.geist(size: 18, weight: .semibold))
+                .foregroundStyle(palette.accentColor)
+                .frame(width: 44, height: 56)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!presentation.isEnabled)
+        .accessibilityLabel(presentation.title)
+        .accessibilityValue(soundAppearance.accessibilityValue)
+        .accessibilityIdentifier("canvas_fullscreen_sound_button")
     }
 }
 

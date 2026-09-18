@@ -5,6 +5,27 @@ import XCTest
 
 @MainActor
 final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
+    func testMobileRuntimeEmitsAudibleSignalAfterSuccessfulStart() async throws {
+        try requireLiveAudioOutput()
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let engine = DayObjectsMusicPlaybackEngine(
+            audioSession: DayObjectsSystemAudioSession(),
+            runtime: runtime
+        )
+        let plan = makePlaybackEnginePlan(seed: 0xA11D_10, happeningIDs: [])
+
+        try await engine.start(plan: plan)
+        var loudestPeak = -120.0
+        for _ in 0..<80 {
+            loudestPeak = max(loudestPeak, engine.diagnosticMeterSnapshot.masterMetrics.peakDBFS)
+            if loudestPeak > -90 { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        await engine.stop()
+
+        XCTAssertGreaterThan(loudestPeak, -90, "A successful Play state must produce a non-silent master signal")
+    }
+
     func testEngineForwardsHappeningAttackHandlerToRuntime() {
         let log = PlaybackEngineCallLog()
         let runtime = RecordingDayObjectsPlaybackRuntime(log: log)

@@ -2,7 +2,7 @@
 import SwiftUI
 
 struct MetalShapeAtlasExportView: View {
-    @State private var status = "Подготовка Metal-рендеров…"
+    @State private var status = "Preparing Metal renders…"
 
     var body: some View {
         VStack(spacing: 16) {
@@ -23,9 +23,9 @@ struct MetalShapeAtlasExportView: View {
                 } else {
                     try await MetalShapeAtlasExport.export(to: documents.appendingPathComponent("MetalShapeAtlasExport"))
                 }
-                status = "Экспорт готов"
+                status = "Export complete"
             } catch {
-                status = "Ошибка экспорта: \(error.localizedDescription)"
+                status = "Export failed: \(error.localizedDescription)"
             }
         }
     }

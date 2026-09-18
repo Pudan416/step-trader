@@ -43,6 +43,13 @@ struct CanvasAnimationOverlay: View {
         )
     }
 
+    private var isDirectInteractionAllowed: Bool {
+        RenderingActivity.shouldAllowDirectInteraction(
+            isViewActive: renderingIsActive,
+            sceneIsActive: scenePhase == .active
+        )
+    }
+
     var body: some View {
         switch style.requiredResource {
         case .none:
@@ -60,7 +67,7 @@ struct CanvasAnimationOverlay: View {
                 labelColor: labelColor,
                 hasStepsData: hasStepsData,
                 hasSleepData: hasSleepData,
-                isRenderingAllowed: isRenderingAllowed,
+                isRenderingAllowed: isDirectInteractionAllowed,
                 onGestureBegan: onGestureBegan,
                 onGestureUpdated: onGestureUpdated,
                 onGestureEnded: onGestureEnded

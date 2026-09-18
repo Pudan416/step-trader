@@ -67,7 +67,7 @@ enum MetalShapeGenomeCatalog {
 
     private static let snowflake = MetalShapePreset(
         id: "genome.snowflake",
-        title: "Snowflake · стоп-кадр",
+        title: "Snowflake · still frame",
         source: .genome,
         morphology: .snowflake,
         contour: .snowflake,
@@ -85,7 +85,7 @@ enum MetalShapeGenomeCatalog {
 
     private static let windflower = MetalShapePreset(
         id: "genome.windflower",
-        title: "Ветряной цветок",
+        title: "Windflower",
         source: .genome,
         morphology: .windflower,
         contour: .windflower,
@@ -103,7 +103,7 @@ enum MetalShapeGenomeCatalog {
 
     private static let concaveSquare = MetalShapePreset(
         id: "genome.concave-square",
-        title: "Вогнутый квадрат",
+        title: "Concave square",
         source: .genome,
         morphology: .concaveSquare,
         contour: .concaveSquare,
@@ -121,7 +121,7 @@ enum MetalShapeGenomeCatalog {
 
     private static let softClover = MetalShapePreset(
         id: "genome.soft-clover",
-        title: "Мягкий четырёхлистник",
+        title: "Soft clover",
         source: .genome,
         morphology: .softClover,
         contour: .softClover,
@@ -138,7 +138,7 @@ enum MetalShapeGenomeCatalog {
     )
 
     private static let genomePresets: [MetalShapePreset] = [
-        genome("genome.soft-drift", "Мягкий дрейф", morphology: .softRadial,
+        genome("genome.soft-drift", "Soft drift", morphology: .softRadial,
                m: 2, n: SIMD3(2.1, 2.5, 1.65),
                harmonics: [.init(frequency: 3, amplitude: 0.055, phase: 1.2)],
                anisotropy: SIMD2(0.92, 1.12), offset: SIMD2(-0.05, 0.025), rotation: 0.22,
@@ -178,9 +178,9 @@ enum MetalShapeGenomeCatalog {
     }
 
     private static let legacyPresets: [MetalShapePreset] = [
-        legacy("legacy.circle", "Круг", shape: 0, variant: 1, morphology: .legacyRound, preferred: [.solid, .sideLight, .radialThree, .directionalBlur], roles: [.primary, .supporting]),
-        legacy("legacy.soft-square", "Мягкий квадрат", shape: 6, variant: 17, morphology: .legacyPolygon, preferred: [.sideLight, .directionalBlur, .proceduralFlow], roles: [.primary, .supporting]),
-        legacy("legacy.rounded-triangle", "Скруглённый треугольник", shape: 5, variant: 5, morphology: .legacyPolygon, preferred: [.sideLight, .contour, .directionalBlur], roles: [.primary, .supporting, .accent]),
-        legacy("legacy.rounded-hexagon", "Сдержанный шестиугольник", shape: 5, variant: 8, morphology: .legacyPolygon, preferred: [.solid, .sideLight, .radialThree], roles: [.primary, .supporting]),
+        legacy("legacy.circle", "Circle", shape: 0, variant: 1, morphology: .legacyRound, preferred: [.solid, .sideLight, .radialThree, .directionalBlur], roles: [.primary, .supporting]),
+        legacy("legacy.soft-square", "Soft square", shape: 6, variant: 17, morphology: .legacyPolygon, preferred: [.sideLight, .directionalBlur, .proceduralFlow], roles: [.primary, .supporting]),
+        legacy("legacy.rounded-triangle", "Rounded triangle", shape: 5, variant: 5, morphology: .legacyPolygon, preferred: [.sideLight, .contour, .directionalBlur], roles: [.primary, .supporting, .accent]),
+        legacy("legacy.rounded-hexagon", "Restrained hexagon", shape: 5, variant: 8, morphology: .legacyPolygon, preferred: [.solid, .sideLight, .radialThree], roles: [.primary, .supporting]),
     ]
 }

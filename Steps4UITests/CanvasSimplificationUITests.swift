@@ -132,6 +132,17 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["canvas_add_button"].exists)
     }
 
+    func testCompactNavigationKeepsGapsBetweenTabsAndSideButtons() {
+        let app = launchCanvas()
+        let sound = app.buttons["canvas_sound_button"]
+        let add = app.buttons["canvas_add_button"]
+        let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
+
+        XCTAssertTrue(tabBar.exists)
+        XCTAssertGreaterThanOrEqual(tabBar.frame.minX - sound.frame.maxX, 8)
+        XCTAssertGreaterThanOrEqual(add.frame.minX - tabBar.frame.maxX, 8)
+    }
+
     func testActivitySuggestionAppearsDirectlyAboveTheBottomMenu() {
         let app = launchCanvas()
         let suggestion = app.descendants(matching: .any)["canvas_activity_suggestions"]
@@ -269,6 +280,23 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["canvas_add_button"].exists)
         XCTAssertFalse(dataHandle(in: app).exists)
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
+    }
+
+    func testFullScreenReportsWhetherDayMusicStarted() {
+        let app = launchCanvas()
+        app.buttons["canvas_sound_button"].tap()
+
+        let sound = app.buttons["canvas_fullscreen_sound_button"]
+        XCTAssertTrue(sound.waitForExistence(timeout: 5))
+        let started = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 'on'"),
+            object: sound
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [started], timeout: 20),
+            .completed,
+            "Full-screen Canvas must report a successful audio start: \(sound.value)"
+        )
     }
 
     func testCloseReturnsToCanvasWithoutWaitingForAudioStartup() {

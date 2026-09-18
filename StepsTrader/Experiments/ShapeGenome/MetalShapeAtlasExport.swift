@@ -124,7 +124,7 @@ enum MetalShapeAtlasExport {
                 )
             }
         }
-        let blurTitles = ["Один цвет · мягкое размытие", "Один цвет · компактное размытие", "Два цвета · мягкий градиент", "Один цвет · широкое размытие"]
+        let blurTitles = ["One color · soft blur", "One color · compact blur", "Two colors · soft gradient", "One color · wide blur"]
         let blurStudy = (0..<4).map { index in
             MetalShapeAtlasImageRecord(
                 id: ["smooth", "ribbed", "chromatic", "curved"][index],
@@ -137,7 +137,7 @@ enum MetalShapeAtlasExport {
             version: 1,
             seeds: seeds,
             shapes: shapes,
-            materials: MetalShapeMaterial.allCases.map { .init(id: $0.rawValue, title: $0.russianTitle) },
+            materials: MetalShapeMaterial.allCases.map { .init(id: $0.rawValue, title: $0.displayTitle) },
             scenes: scenes,
             blurStudy: blurStudy
         )
@@ -239,19 +239,19 @@ enum MetalShapeAtlasExport {
 }
 
 extension MetalShapeMaterial {
-    var russianTitle: String {
+    var displayTitle: String {
         switch self {
-        case .solid: "Сплошной цвет"
-        case .sideLight: "Боковой свет"
-        case .contour: "Контур"
-        case .directionalBlur: "Направленное размытие"
-        case .radialTwo: "Радиальный · два цвета"
-        case .radialThree: "Радиальный · три цвета"
-        case .proceduralLight: "Процедурный свет"
-        case .proceduralFlow: "Процедурное течение"
-        case .proceduralContour: "Процедурный контур"
-        case .eclipseGlow: "Светящийся контур"
-        case .sunset: "Закат · только круг"
+        case .solid: "Solid color"
+        case .sideLight: "Side light"
+        case .contour: "Contour"
+        case .directionalBlur: "Directional blur"
+        case .radialTwo: "Radial · two colors"
+        case .radialThree: "Radial · three colors"
+        case .proceduralLight: "Procedural light"
+        case .proceduralFlow: "Procedural flow"
+        case .proceduralContour: "Procedural contour"
+        case .eclipseGlow: "Glowing contour"
+        case .sunset: "Sunset · circle only"
         }
     }
 }

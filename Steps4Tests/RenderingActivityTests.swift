@@ -46,6 +46,15 @@ final class RenderingActivityTests: XCTestCase {
         )
     }
 
+    func testReduceMotionStillAllowsDirectSmudgeInteraction() {
+        XCTAssertTrue(
+            RenderingActivity.shouldAllowDirectInteraction(
+                isViewActive: true,
+                sceneIsActive: true
+            )
+        )
+    }
+
     func testInactiveOverlayNeverRendersActiveEffect() {
         XCTAssertFalse(
             MetalOverlayRenderingPolicy.shouldRender(

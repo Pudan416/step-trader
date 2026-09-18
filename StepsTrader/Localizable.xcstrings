@@ -10,14 +10,7 @@
             "state": "translated",
             "value": "Health activities are always close at hand. You can replace another happening."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "События Health всегда под рукой. Можно заменить другое событие."
-          }
-        }
-      }
+        }      }
     },
     "Health happenings stay in Frequent" : {
       "comment": "Health activities pinned in Frequent happenings",
@@ -28,14 +21,7 @@
             "state": "translated",
             "value": "Health happenings stay in Frequent"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "События Health остаются в «Частых»"
-          }
-        }
-      }
+        }      }
     },
     "Frequent" : {
       "comment": "Happening chooser: automatic frequent set",
@@ -46,14 +32,7 @@
             "state": "translated",
             "value": "Frequent"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Частые"
-          }
-        }
-      }
+        }      }
     },
     "These happenings appear first in the field." : {
       "extractionState": "manual",
@@ -305,14 +284,7 @@
             "state": "translated",
             "value": "I think there was some activity in your day anyway. Here are 5 colors, on the house."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Думаю, сегодня у тебя всё равно была какая-то активность. Вот 5 colors — просто так."
-          }
-        }
-      }
+        }      }
     },
     "activity · steps a day" : {
       "extractionState": "manual",
@@ -322,14 +294,7 @@
             "state": "translated",
             "value": "activity · steps a day"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "активность · шагов в день"
-          }
-        }
-      }
+        }      }
     },
     "Activity today:" : {
       "extractionState": "manual",
@@ -339,14 +304,7 @@
             "state": "translated",
             "value": "Activity today:"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Активность сегодня:"
-          }
-        }
-      }
+        }      }
     },
     "Step count" : {
       "extractionState": "manual",
@@ -356,14 +314,7 @@
             "state": "translated",
             "value": "Step count"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Количество шагов"
-          }
-        }
-      }
+        }      }
     },
     "Activity currently uses steps from Apple Health. You can use Nowhere without connecting it." : {
       "extractionState": "manual",
@@ -373,14 +324,7 @@
             "state": "translated",
             "value": "Activity currently uses steps from Apple Health. You can use Nowhere without connecting it."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пока для активности используются шаги из Apple Health. Nowhere можно использовать и без подключения."
-          }
-        }
-      }
+        }      }
     },
     "For now, activity uses Apple Health steps. No data? You still get 5 colors." : {
       "extractionState": "manual",
@@ -390,14 +334,7 @@
             "state": "translated",
             "value": "For now, activity uses Apple Health steps. No data? You still get 5 colors."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пока активность учитывается по шагам из Apple Health. Нет данных? Ты всё равно получаешь 5 colors."
-          }
-        }
-      }
+        }      }
     },
     "you can connect apple health." : {
       "extractionState": "manual",
@@ -407,14 +344,7 @@
             "state": "translated",
             "value": "you can connect apple health."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "можно подключить apple health."
-          }
-        }
-      }
+        }      }
     },
     "Activity fills up to %lld of the day's %lld colors. For now, progress uses Apple Health steps. Without activity data, you get 5 colors." : {
       "extractionState": "manual",
@@ -424,14 +354,7 @@
             "state": "translated",
             "value": "Activity fills up to %1$lld of the day's %2$lld colors. For now, progress uses Apple Health steps. Without activity data, you get 5 colors."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Активность даёт до %1$lld из %2$lld colors за день. Пока прогресс учитывается по шагам из Apple Health. Без данных об активности ты получаешь 5 colors."
-          }
-        }
-      }
+        }      }
     },
     "Daily activity goal" : {
       "extractionState": "manual",
@@ -441,14 +364,7 @@
             "state": "translated",
             "value": "Daily activity goal"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цель активности на день"
-          }
-        }
-      }
+        }      }
     },
     "Activity goal" : {
       "extractionState": "manual",
@@ -458,14 +374,7 @@
             "state": "translated",
             "value": "Activity goal"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цель активности"
-          }
-        }
-      }
+        }      }
     },
     "Enter exact activity goal" : {
       "extractionState": "manual",
@@ -475,14 +384,7 @@
             "state": "translated",
             "value": "Enter exact activity goal"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ввести точную цель активности"
-          }
-        }
-      }
+        }      }
     },
     "Health data brings activity, sleep and workouts to your Canvas." : {
       "extractionState": "manual",
@@ -492,14 +394,7 @@
             "state": "translated",
             "value": "Health data brings activity, sleep and workouts to your Canvas."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Данные Здоровья добавляют на Canvas активность, сон и тренировки."
-          }
-        }
-      }
+        }      }
     },
     "Band shifts": {
       "comment": "Native Canvas editing control",
@@ -510,14 +405,7 @@
             "state": "translated",
             "value": "Band shifts"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сдвиги полос"
-          }
-        }
-      }
+        }      }
     },
     "Color separation": {
       "comment": "Native Canvas editing control",
@@ -528,14 +416,7 @@
             "state": "translated",
             "value": "Color separation"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Расслоение цвета"
-          }
-        }
-      }
+        }      }
     },
     "Pixel fragments": {
       "comment": "Native Canvas editing control",
@@ -546,14 +427,7 @@
             "state": "translated",
             "value": "Pixel fragments"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пиксельные фрагменты"
-          }
-        }
-      }
+        }      }
     },
     "Wave": {
       "comment": "Native Canvas editing control",
@@ -564,14 +438,7 @@
             "state": "translated",
             "value": "Wave"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Волна"
-          }
-        }
-      }
+        }      }
     },
     "Repeated contours": {
       "comment": "Native Canvas editing control",
@@ -582,14 +449,7 @@
             "state": "translated",
             "value": "Repeated contours"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Повторные контуры"
-          }
-        }
-      }
+        }      }
     },
     "Transparent blending": {
       "comment": "Native Canvas editing control",
@@ -600,14 +460,7 @@
             "state": "translated",
             "value": "Transparent blending"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прозрачное смешивание"
-          }
-        }
-      }
+        }      }
     },
     "Luminous seam": {
       "comment": "Native Canvas editing control",
@@ -618,14 +471,7 @@
             "state": "translated",
             "value": "Luminous seam"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Светящийся шов"
-          }
-        }
-      }
+        }      }
     },
     "Overlay": {
       "comment": "Native Canvas editing control",
@@ -636,14 +482,7 @@
             "state": "translated",
             "value": "Overlay"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Наложение"
-          }
-        }
-      }
+        }      }
     },
     "Use colors spent": {
       "comment": "Native Canvas editing control",
@@ -654,14 +493,7 @@
             "state": "translated",
             "value": "Use colors spent"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сила по расходу красок"
-          }
-        }
-      }
+        }      }
     },
     "Digital trace": {
       "comment": "Native Canvas editing control",
@@ -672,14 +504,7 @@
             "state": "translated",
             "value": "Digital trace"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Цифровой след"
-          }
-        }
-      }
+        }      }
     },
     "Based on colors spent": {
       "comment": "Native Canvas editing control",
@@ -690,14 +515,7 @@
             "state": "translated",
             "value": "Based on colors spent"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "По расходу красок"
-          }
-        }
-      }
+        }      }
     },
     "Strength: %lld / 100": {
       "comment": "Native Canvas editing control",
@@ -708,14 +526,7 @@
             "state": "translated",
             "value": "Strength: %lld / 100"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сила: %lld / 100"
-          }
-        }
-      }
+        }      }
     },
     "Trace strength": {
       "comment": "Native Canvas editing control",
@@ -726,14 +537,7 @@
             "state": "translated",
             "value": "Trace strength"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сила глитча"
-          }
-        }
-      }
+        }      }
     },
     "Intersections": {
       "comment": "Native Canvas editing control",
@@ -744,14 +548,7 @@
             "state": "translated",
             "value": "Intersections"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пересечения"
-          }
-        }
-      }
+        }      }
     },
     "Intersection strength": {
       "comment": "Native Canvas editing control",
@@ -762,14 +559,7 @@
             "state": "translated",
             "value": "Intersection strength"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сила пересечений"
-          }
-        }
-      }
+        }      }
     },
     "Lock effects": {
       "comment": "Native Canvas editing control",
@@ -780,14 +570,7 @@
             "state": "translated",
             "value": "Lock effects"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закрепить эффекты"
-          }
-        }
-      }
+        }      }
     },
     "Lock artwork": {
       "comment": "Native Canvas editing control",
@@ -798,14 +581,7 @@
             "state": "translated",
             "value": "Lock artwork"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закрепить картину"
-          }
-        }
-      }
+        }      }
     },
     "Hold a widget → Edit Widget → choose up to three groups." : {
       "extractionState": "manual",
@@ -815,14 +591,7 @@
             "state": "translated",
             "value": "Hold a widget → Edit Widget → choose up to three groups."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удерживайте виджет → Изменить виджет → выберите до трёх групп."
-          }
-        }
-      }
+        }      }
     },
     "For one widget: hold it → Edit Widget → Background." : {
       "extractionState": "manual",
@@ -832,14 +601,7 @@
             "state": "translated",
             "value": "For one widget: hold it → Edit Widget → Background."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для одного виджета: удерживайте его → Изменить виджет → Фон."
-          }
-        }
-      }
+        }      }
     },
     "Default background" : {
       "extractionState": "manual",
@@ -849,224 +611,157 @@
             "state": "translated",
             "value": "Default background"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Фон по умолчанию"
-          }
-        }
-      }
+        }      }
     },
     "Tap to replace" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap to replace" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нажмите, чтобы заменить" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap to replace" } }      }
     },
     "Replace" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replace" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Заменить" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replace" } }      }
     },
     "New happening" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "New happening" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Новое событие" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New happening" } }      }
     },
     "Search" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Поиск" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } }      }
     },
     "Clear search" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear search" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Очистить поиск" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear search" } }      }
     },
     "Name" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Name" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Название" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Name" } }      }
     },
     "Already on Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Already on Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Уже на холсте" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Already on Canvas" } }      }
     },
     "No matches" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No matches" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ничего не найдено" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No matches" } }      }
     },
     "Replaces %@" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replaces %@" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Вместо «%@»" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replaces %@" } }      }
     },
     "System" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Системная" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } }      }
     },
     "Light" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Светлая" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } }      }
     },
     "Dark" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Тёмная" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } }      }
     },
     "Couldn’t add happening. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t add happening. Try again." } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось добавить событие. Попробуйте ещё раз." } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t add happening. Try again." } }      }
     },
     "Enter a happening before adding it." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a happening before adding it." } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Введите событие перед добавлением." } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a happening before adding it." } }      }
     },
     "Remove a happening from Canvas before adding another." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove a happening from Canvas before adding another." } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Удалите событие с холста, прежде чем добавлять другое." } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove a happening from Canvas before adding another." } }      }
     },
     "Remove this happening from Canvas before replacing it." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove this happening from Canvas before replacing it." } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Удалите это событие с холста, прежде чем заменять его." } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove this happening from Canvas before replacing it." } }      }
     },
     "Tap again to add to Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to add to Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нажмите ещё раз, чтобы добавить на холст" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to add to Canvas" } }      }
     },
     "On Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "On Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "На холсте" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "On Canvas" } }      }
     },
     "Previewing addition to Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing addition to Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Предпросмотр добавления на холст" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing addition to Canvas" } }      }
     },
     "Previewing removal from Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing removal from Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Предпросмотр удаления с холста" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing removal from Canvas" } }      }
     },
     "Selected, on Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected, on Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Выбрано, на холсте" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected, on Canvas" } }      }
     },
     "Tap again to remove from Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to remove from Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Нажмите ещё раз, чтобы убрать с холста" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to remove from Canvas" } }      }
     },
     "Couldn’t update Canvas. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update Canvas. Try again." } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось обновить холст. Попробуйте ещё раз." } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update Canvas. Try again." } }      }
     },
     "Activate again to add to Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to add to Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте ещё раз, чтобы добавить на холст" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to add to Canvas" } }      }
     },
     "Activate again to remove from Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to remove from Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте ещё раз, чтобы убрать с холста" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to remove from Canvas" } }      }
     },
     "Activate to preview adding to Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview adding to Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте, чтобы просмотреть добавление на холст" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview adding to Canvas" } }      }
     },
     "Activate to preview removing from Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview removing from Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Активируйте, чтобы просмотреть удаление с холста" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview removing from Canvas" } }      }
     },
     "Available" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Available" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Доступно" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Available" } }      }
     },
     "This happening is temporarily unavailable. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This happening is temporarily unavailable. Try again." } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Это событие временно недоступно. Попробуйте ещё раз." } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This happening is temporarily unavailable. Try again." } }      }
     },
     "Removed from Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Removed from Canvas" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Убрано с холста" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Removed from Canvas" } }      }
     },
     "—" : {
       "comment" : "Settings account unavailable email"
@@ -1393,14 +1088,7 @@
             "state": "translated",
             "value": "About Activity"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Об активности"
-          }
-        }
-      }
+        }      }
     },
     "About the Canvas" : {
       "comment" : "Note topic"
@@ -1558,9 +1246,7 @@
     "Back" : {
       "comment" : "SettingsComponents – back button label",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Назад" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } }      }
     },
     "Background" : {
       "comment" : "Appearance manual group heading\nWidget section header"
@@ -1583,9 +1269,7 @@
     "Cancel" : {
       "comment" : "AppSelection – dismiss button\nProfileEditor – dismiss button\nTemplatePicker – dismiss button",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отмена" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } }      }
     },
     "Cancel opening %@" : {
       "comment" : "Handoff – cancel button accessibility"
@@ -1742,14 +1426,7 @@
             "state" : "translated",
             "value" : "Create"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Создать"
-          }
-        }
-      }
+        }      }
     },
     "Current theme" : {
       "comment" : "Automatic Appearance summary heading"
@@ -1844,9 +1521,7 @@
     "Done" : {
       "comment" : "AppSelection – done button\nCanvas editing – finish editing\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Готово" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } }      }
     },
     "Done editing" : {
       "comment" : "Canvas editing – Done VoiceOver label"
@@ -2069,9 +1744,7 @@
     "Happenings" : {
       "comment" : "Canvas data panel – happenings row\nDaily happenings metric\nPast-day breakdown row",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Happenings" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "События" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Happenings" } }      }
     },
     "Happenings fill up to %lld of the day's %lld colors — the largest share, because they are the part of the day you choose. Each happening counts once per day." : {
       "comment" : "MetricOverlay – how happenings contribute",
@@ -2120,14 +1793,7 @@
             "state": "translated",
             "value": "choose your daily activity goal."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "выбери свою цель активности на день."
-          }
-        }
-      }
+        }      }
     },
     "I am not my job title\nI am not a designer\nI am not a developer\nI am not a manager\nI am not good\nI am not happy\nI am not sad\nI am not what I post\nI am not who I was yesterday\nI am not who I'll be tomorrow\nI am not nowhere\nI am now here\n\nHey. Thank you for using Nowhere. If you're reading this, I hope you found something in it that matters.\nMy name is Kosta.\nI spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn't really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? The classic midlife corporate crisis. It felt like I was nowhere.\nSo I started building this — at first just for myself, to learn. Over time it became something personal. It's not perfect. Neither am I. I don't think it needs to be.\nI'm trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere — you are here, now. That matters most.\nFeel free to text me. All the contacts are in the settings. Thank you." : {
       "comment" : "Note body: about_me"
@@ -2253,14 +1919,7 @@
             "state" : "translated",
             "value" : "Next"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Далее"
-          }
-        }
-      }
+        }      }
     },
     "Next 15" : {
       "comment" : "A button that shows the next 15 days.",
@@ -2343,9 +2002,7 @@
     "OK" : {
       "comment" : "Generic alert dismiss button\nProfileEditor – alert dismiss button",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "ОК" } }
-      }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } }      }
     },
     "On" : {
       "comment" : "Settings account sync status value"
@@ -3623,14 +3280,7 @@
             "state" : "translated",
             "value" : "Save"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохранить"
-          }
-        }
-      }
+        }      }
     },
     "Save as Routine" : {
 
@@ -3653,14 +3303,7 @@
             "state" : "translated",
             "value" : "Select Apps"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выбор приложений"
-          }
-        }
-      }
+        }      }
     },
     "Selected" : {
       "comment" : "Canvas editing – selected element state\nSettings selectable choice state"
@@ -3875,14 +3518,7 @@
             "state": "translated",
             "value": "Activity"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Активность"
-          }
-        }
-      }
+        }      }
     },
     "Activity looks different for everyone. It can bring up to 20 colors and brighten the canvas. For now, Nowhere uses the step count shared by Apple Health. That can only tell part of your story. When no activity data comes through, you get 5 colors anyway. Your day still counts." : {
       "extractionState": "manual",
@@ -3892,14 +3528,7 @@
             "state": "translated",
             "value": "Activity looks different for everyone. It can bring up to 20 colors and brighten the canvas. For now, Nowhere uses the step count shared by Apple Health. That can only tell part of your story. When no activity data comes through, you get 5 colors anyway. Your day still counts."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "У каждого своя активность. Она добавляет до 20 colors и делает Canvas ярче. Пока Nowhere использует количество шагов из Apple Health. Это лишь часть твоего дня. Если данные об активности не приходят, ты всё равно получаешь 5 colors. Твой день всё равно имеет значение."
-          }
-        }
-      }
+        }      }
     },
     "activity brightens it." : {
       "extractionState": "manual",
@@ -3909,14 +3538,7 @@
             "state": "translated",
             "value": "activity brightens it."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "активность делает его ярче."
-          }
-        }
-      }
+        }      }
     },
     "Activity only" : {
       "extractionState": "manual",
@@ -3926,14 +3548,7 @@
             "state": "translated",
             "value": "Activity only"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Только активность"
-          }
-        }
-      }
+        }      }
     },
     "steps today" : {
 
@@ -4008,14 +3623,7 @@
             "state": "translated",
             "value": "Activity brings up to 20 colors to the canvas. For now, Apple Health steps count toward your daily goal. When no activity data comes through, you get 5 colors anyway."
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Активность добавляет на Canvas до 20 colors. Пока для дневной цели используются шаги из Apple Health. Если данные об активности не приходят, ты всё равно получаешь 5 colors."
-          }
-        }
-      }
+        }      }
     },
     "This part is shaped by the things you chose to notice today. Each different happening adds color once, up to 60 colors." : {
       "comment" : "Canvas data panel – inline happenings explanation"
@@ -4068,14 +3676,7 @@
             "state": "translated",
             "value": "Turn activity into colors"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Превращай активность в colors"
-          }
-        }
-      }
+        }      }
     },
     "Turn off \"Ask Before Running\"" : {
 
@@ -4263,14 +3864,7 @@
             "state": "translated",
             "value": "New group"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Новая группа"
-          }
-        }
-      }
+        }      }
     },
     "Edit group": {
       "extractionState": "manual",
@@ -4280,14 +3874,7 @@
             "state": "translated",
             "value": "Edit group"
           }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Изменить группу"
-          }
-        }
-      }
+        }      }
     },
     "Name your group" : {
       "extractionState" : "manual",
@@ -4297,14 +3884,7 @@
             "state" : "translated",
             "value" : "Name your group"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Название группы"
-          }
-        }
-      }
+        }      }
     },
     "e.g. X, Social, Games" : {
       "extractionState" : "manual",
@@ -4314,14 +3894,7 @@
             "state" : "translated",
             "value" : "e.g. X, Social, Games"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Например, X, Соцсети, Игры"
-          }
-        }
-      }
+        }      }
     },
     "This name appears on the card and in widgets." : {
       "extractionState" : "manual",
@@ -4331,14 +3904,7 @@
             "state" : "translated",
             "value" : "This name appears on the card and in widgets."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Это название будет на карточке и в виджетах."
-          }
-        }
-      }
+        }      }
     },
     "Tap +, enter a name and choose your apps, then tap Done. You can also skip this step." : {
       "extractionState" : "manual",
@@ -4348,14 +3914,7 @@
             "state" : "translated",
             "value" : "Tap +, enter a name and choose your apps, then tap Done. You can also skip this step."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Нажмите +, укажите название и выберите приложения, затем нажмите «Готово». Этот шаг можно пропустить."
-          }
-        }
-      }
+        }      }
     },
     "Tap an existing group, or tap + to name a new group and choose its apps." : {
       "extractionState" : "manual",
@@ -4365,14 +3924,7 @@
             "state" : "translated",
             "value" : "Tap an existing group, or tap + to name a new group and choose its apps."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Нажмите на существующую группу или на +, чтобы назвать новую группу и выбрать приложения."
-          }
-        }
-      }
+        }      }
     }
   },
   "version" : "1.1"
