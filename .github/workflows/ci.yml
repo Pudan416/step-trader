@@ -115,6 +115,7 @@ jobs:
             -only-testing:NowhereTests/SmudgeWaterRippleTests \
             -only-testing:NowhereTests/SmudgeComputeRegionTests \
             -only-testing:NowhereTests/SmudgeRegionSequenceTests \
+            -only-testing:NowhereTests/DayObjectsMusicLabControllerTests/testCanvasLeadReceivesCompleteGestureBeforeSmudgeIsPrepared \
             -resultBundlePath "$RUNNER_TEMP/ReleaseSmudge.xcresult" \
             ENABLE_TESTABILITY=YES ENABLE_CODE_COVERAGE=NO \
             'OTHER_SWIFT_FLAGS=$(inherited) -D INTERNAL_BUILD' \

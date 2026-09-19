@@ -5,6 +5,56 @@ import SwiftUI
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testCanvasLeadReceivesCompleteGestureBeforeSmudgeIsPrepared() async throws {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+        XCTAssertEqual(controller.soundState, .on)
+        let overlay = SmudgeOverlayView(
+            elements: [], sleepPoints: 10, stepsPoints: 12, sleepColor: .blue,
+            stepsColor: .orange, decayNorm: 0, backgroundColor: .black,
+            isRenderingAllowed: true,
+            onGestureBegan: {
+                controller.beginLead(.init(normalizedX: $0.normalizedX, normalizedY: $0.normalizedY, speed: $0.speed),
+                                     isGridVisible: false, isVoiceOverRunning: false)
+            },
+            onGestureUpdated: {
+                controller.updateLead(.init(normalizedX: $0.normalizedX, normalizedY: $0.normalizedY, speed: $0.speed))
+            },
+            onGestureEnded: { controller.endLead() }
+        )
+        let host = UIHostingController(rootView: overlay)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 375, height: 812))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        func find(_ view: UIView) -> SmudgeMTKView? {
+            if let match = view as? SmudgeMTKView { return match }
+            return view.subviews.compactMap { find($0) }.first
+        }
+        let view = try XCTUnwrap(find(host.view))
+        // Do not yield: asynchronous GPU preparation cannot have completed.
+        XCTAssertNil(view.delegate)
+        let touch = NSObject()
+        let start = CGPoint(x: 80, y: 200)
+        let end = CGPoint(x: 180, y: 350)
+        view.onTouchBegan?(ObjectIdentifier(touch), start, 1)
+        XCTAssertEqual(playback.beginLeadCount, 1, "Music must not wait for a Metal renderer or texture")
+        view.onTouchMoved?(ObjectIdentifier(touch), start, end, 1.02)
+        XCTAssertEqual(playback.updateLeadCount, 1)
+        view.onTouchEnded?(ObjectIdentifier(touch))
+        XCTAssertEqual(playback.endLeadCount, 1)
+        for _ in 0..<200 {
+            if let renderer = view.delegate as? MetalSmudgeRenderer, !renderer.needsSnapshot { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(playback.beginLeadCount, 1, "GPU readiness must not replay a completed musical gesture")
+        XCTAssertEqual(playback.endLeadCount, 1)
+        XCTAssertEqual(controller.soundState, .on)
+        await controller.turnSoundOff()
+    }
+
     func testCanvasMusicContinuesThroughBackgroundWithoutRestartAndReleasesLead() async {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback, allowsBackgroundPlayback: true)

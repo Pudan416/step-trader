@@ -51,6 +51,10 @@ returns a neutral surface there and cannot serve as the effect's source.
 `SmudgePreparationTests` checks source pixels and a complete gesture-driven Metal
 frame in Release; the Release CI job retains those images. The effect keeps its
 existing independent color field rather than capturing a second live artwork renderer.
+Musical gesture begin/update/end callbacks run immediately, before GPU preparation.
+Only visual commands may wait for the renderer and source texture. The Release
+controller regression verifies that playing music receives a complete gesture
+before Metal is ready and does not replay it when preparation finishes.
 
 ## Rendering ownership
 

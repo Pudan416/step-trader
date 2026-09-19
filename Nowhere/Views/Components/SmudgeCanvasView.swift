@@ -216,23 +216,27 @@ struct SmudgeOverlayView: UIViewRepresentable {
                   coord.renderingIsAllowed,
                   let view
             else { return }
+            // Musical input follows the finger immediately, even if Metal
+            // initialization or the source image is unavailable. Only visual
+            // work may wait for preparation; never replay musical gestures.
+            let sample = coord.beginTouch(id: id, at: point, timestamp: timestamp)
+            coord.forwardLeadBeginning(id: id, sample: sample, in: view.bounds.size)
+            touchHaptic.impactOccurred(intensity: 0.35)
             coord.whenPrepared { [weak coord, weak view] in
                 guard let coord, let view, let renderer = coord.renderer else { return }
-                let sample = coord.beginTouch(id: id, at: point, timestamp: timestamp)
                 renderer.handleTouchBegan(id: id, at: sample.point, scale: view.contentScaleFactor, timestamp: timestamp)
-                coord.forwardLeadBeginning(id: id, sample: sample, in: view.bounds.size)
                 view.isPaused = !MetalOverlayRenderingPolicy.shouldRender(
                     isRenderingAllowed: coord.renderingIsAllowed,
                     hasActiveEffect: renderer.isDistorted
                 )
-                touchHaptic.impactOccurred(intensity: 0.35)
             }
         }
         view.onTouchMoved = { [weak coord, weak view] id, previous, current, timestamp in
             guard let coord, coord.renderingIsAllowed, let view else { return }
+            let movement = coord.moveTouch(id: id, to: current, timestamp: timestamp)
+            coord.forwardLeadUpdate(id: id, sample: movement.current, in: view.bounds.size)
             coord.whenPrepared { [weak coord, weak view] in
                 guard let coord, let view else { return }
-                let movement = coord.moveTouch(id: id, to: current, timestamp: timestamp)
                 coord.renderer?.addStrokeSegment(
                     id: id,
                     from: previous,
@@ -240,15 +244,15 @@ struct SmudgeOverlayView: UIViewRepresentable {
                     scale: view.contentScaleFactor,
                     timestamp: timestamp
                 )
-                coord.forwardLeadUpdate(id: id, sample: movement.current, in: view.bounds.size)
             }
         }
         view.onTouchEnded = { [weak coord] id in
             guard let coord else { return }
+            let endedLead = coord.endTouch(id: id)
+            if endedLead { coord.storedConfig?.onGestureEnded() }
+            guard coord.renderingIsAllowed else { return }
             coord.whenPrepared { [weak coord] in
                 guard let coord else { return }
-                let endedLead = coord.endTouch(id: id)
-                if endedLead { coord.storedConfig?.onGestureEnded() }
                 guard coord.renderingIsAllowed else { return }
                 coord.renderer?.handleTouchEnded(id: id)
             }
