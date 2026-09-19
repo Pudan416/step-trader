@@ -65,7 +65,24 @@ final class SmudgeMTKView: MTKView {
     var onLayout: (() -> Void)?
     override func layoutSubviews() {
         super.layoutSubviews()
+        refreshDrawableSizeFromBounds()
         onLayout?()
+    }
+
+    func refreshDrawableSizeFromBounds() {
+        let scale = contentScaleFactor
+        let width = (bounds.width * scale).rounded(.toNearestOrAwayFromZero)
+        let height = (bounds.height * scale).rounded(.toNearestOrAwayFromZero)
+        guard width.isFinite,
+              height.isFinite,
+              scale.isFinite,
+              width > 0,
+              height > 0,
+              scale > 0
+        else { return }
+
+        let size = CGSize(width: width, height: height)
+        if drawableSize != size { drawableSize = size }
     }
     private var lastSamples: [ObjectIdentifier: (point: CGPoint, time: TimeInterval)] = [:]
 
@@ -138,6 +155,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         view.preferredFramesPerSecond = 60
         view.colorPixelFormat        = .bgra8Unorm
         view.framebufferOnly         = true
+        view.autoResizeDrawable      = false
         view.isPaused                = true
         view.enableSetNeedsDisplay   = false
         view.isMultipleTouchEnabled  = true
@@ -212,6 +230,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         coordinator.storedConfig = self
         coordinator.renderingIsAllowed = isRenderingAllowed
         uiView.isUserInteractionEnabled = isRenderingAllowed
+        uiView.refreshDrawableSizeFromBounds()
 
         guard let renderer = coordinator.renderer else {
             uiView.isPaused = true
@@ -280,7 +299,12 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
         func prepareSnapshot() {
             guard renderingIsAllowed, let view = mtkView, let cfg = storedConfig,
-                  let renderer, view.drawableSize.width > 0, view.drawableSize.height > 0 else { return }
+                  let renderer,
+                  Self.hasUsableSnapshotGeometry(
+                      drawableSize: view.drawableSize,
+                      scale: view.contentScaleFactor
+                  )
+            else { return }
             let key = SnapshotKey(
                 steps: cfg.stepsPoints, sleep: cfg.sleepPoints,
                 hasSteps: cfg.hasStepsData, hasSleep: cfg.hasSleepData,
@@ -320,6 +344,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
                 guard let view = self.mtkView else { return }
                 self.renderer = prepared
                 view.device = prepared?.device
+                view.refreshDrawableSizeFromBounds()
                 view.delegate = prepared
                 prepared?.setActive(self.renderingIsAllowed)
                 prepared?.onEffectSettled = { [weak self] in self?.prepareSnapshot() }
@@ -414,7 +439,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
             else { return }
 
             let drawableSize = view.drawableSize
-            guard drawableSize.width > 0, drawableSize.height > 0 else { return }
+            guard Self.hasUsableSnapshotGeometry(drawableSize: drawableSize, scale: scale) else { return }
 
             let pointW = drawableSize.width  / scale
             let pointH = drawableSize.height / scale
@@ -434,6 +459,28 @@ struct SmudgeOverlayView: UIViewRepresentable {
             if let cgImage = imageRenderer.cgImage {
                 renderer.updateBaseTexture(from: cgImage)
             }
+        }
+
+        private static func hasUsableSnapshotGeometry(
+            drawableSize: CGSize,
+            scale: CGFloat
+        ) -> Bool {
+            guard drawableSize.width.isFinite,
+                  drawableSize.height.isFinite,
+                  scale.isFinite,
+                  drawableSize.width > 0,
+                  drawableSize.height > 0,
+                  scale > 0
+            else { return false }
+
+            let pointSize = CGSize(
+                width: drawableSize.width / scale,
+                height: drawableSize.height / scale
+            )
+            return pointSize.width.isFinite
+                && pointSize.height.isFinite
+                && pointSize.width > 0
+                && pointSize.height > 0
         }
     }
 }
