@@ -1,6 +1,6 @@
 # Canvas components
 
-This map describes the current native atlas path. This organization pass changes source boundaries, not artwork, audio behavior, saved data, or rendering architecture.
+This map describes ownership in the current native atlas path and compatibility rules for existing artwork.
 
 All paths below are relative to `StepsTrader/`.
 

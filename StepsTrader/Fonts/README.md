@@ -1,22 +1,20 @@
-# Nowhere typography
+# Bundled typography
 
-- **Onest**: primary interface and poster metadata, weights 100–900.
-- **Nowhere Display 08**: original display font, Regular (400) and Bold (700), from the approved 0.8 specimens.
+- **Onest** — interface and poster metadata, nine static weights from Thin to Black.
+- **Nowhere Display 0.9.1** — display accents, Regular and Bold.
 
-Both font families are bundled offline. Copyright notices and SIL OFL 1.1 texts are included in the app and readable in Settings → About → Font licenses.
+`Utilities/Font+Custom.swift` selects the real font faces. Weights up to Medium use
+Nowhere Display Regular; SemiBold and above use Bold. Compatibility helpers named
+`geist`, `geistMono` and `unbounded` forward to these current families.
 
-## Sources
+Onest's variable source is [Google Fonts](https://github.com/google/fonts/blob/main/ofl/onest/Onest%5Bwght%5D.ttf),
+SHA-256 `966c5c29b4755da84b6854d5c21dd4eaa2420225d0e9874de602de176d4a9f31`.
+The static files were instantiated at weights 100–900 with fontTools, preserving
+outlines and assigning the Onest PostScript names used by the app.
 
-Onest variable source: https://github.com/google/fonts/blob/main/ofl/onest/Onest%5Bwght%5D.ttf
+Nowhere Display PostScript names are `NowhereDisplay091-Regular` and
+`NowhereDisplay091-Bold`. Earlier font prototypes/specimens remain in Git history;
+only the distributed font files belong here.
 
-Source SHA-256: `966c5c29b4755da84b6854d5c21dd4eaa2420225d0e9874de602de176d4a9f31`
-
-The nine static Onest files were instantiated from this source with fontTools.varLib.instancer at wght=100, 200, …, 900, using updateFontNames=True. Outlines and other font features were preserved. Their PostScript names are Onest-Thin through Onest-Black.
-
-Nowhere Display files were copied from `artifacts/nowhere-display-v08/fonts/`. PostScript names: NowhereDisplay08-Regular and NowhereDisplay08-Bold. This prototype covers basic Latin, Russian Cyrillic, digits, and selected punctuation; iOS supplies fallback for other characters.
-
-## App mapping
-
-`AppTypography` selects real faces by weight. Onest body text defaults to Regular; headline text uses SemiBold. Nowhere Display weights up to Medium use Regular; SemiBold and above use Bold. Fixed poster sizes and relative UI text sizing are preserved.
-
-Legacy `geist`, `geistMono`, and `unbounded` helpers forward to the new pair to keep existing screens source-compatible. Old font files retained in this directory are no longer included in the app target.
+Keep `Onest-OFL.txt` and `NowhereDisplay-OFL.txt` with the fonts. Both families are
+bundled offline, registered through the app configuration and acknowledged in Settings.

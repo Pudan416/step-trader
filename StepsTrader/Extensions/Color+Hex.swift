@@ -33,16 +33,6 @@ extension Color {
         )
     }
 
-    func toHex() -> String {
-        let uiColor = UIColor(self)
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
-        let r8 = UInt8((max(0, min(1, r)) * 255).rounded())
-        let g8 = UInt8((max(0, min(1, g)) * 255).rounded())
-        let b8 = UInt8((max(0, min(1, b)) * 255).rounded())
-        return String(format: "#%02X%02X%02X", r8, g8, b8)
-    }
-
     /// Linear interpolation between two colors in sRGB space.
     static func lerp(_ a: Color, _ b: Color, t: Double) -> Color {
         let t = min(1, max(0, t))

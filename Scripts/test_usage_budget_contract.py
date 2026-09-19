@@ -29,7 +29,10 @@ class UsageBudgetCallbackContractTests(unittest.TestCase):
         source = r'''
 import Foundation
 struct DeviceActivityEvent { struct Name { let rawValue: String; init(_ s: String) { rawValue = s } } }
-struct DeviceActivityName { init(_ s: String) {} }
+struct DeviceActivityName: Equatable {
+    let rawValue: String
+    init(_ s: String) { rawValue = s }
+}
 struct DeviceActivityCenter { func stopMonitoring(_ names: [DeviceActivityName]) {} }
 enum MonitorLogger {
     static func info(_ s: String) {}

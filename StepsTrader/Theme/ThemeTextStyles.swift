@@ -2,20 +2,6 @@ import SwiftUI
 
 // MARK: - Semantic Text Styles
 
-extension Text {
-    func themedPrimary(_ theme: AppTheme) -> Text {
-        self.foregroundStyle(theme.textPrimary)
-    }
-
-    func themedSecondary(_ theme: AppTheme) -> Text {
-        self.foregroundStyle(theme.textSecondary)
-    }
-
-    func themedAccent(_ theme: AppTheme) -> Text {
-        self.foregroundStyle(theme.accentColor)
-    }
-}
-
 extension AppTheme {
     var adaptivePrimaryText: Color { textPrimary }
 

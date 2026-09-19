@@ -755,7 +755,7 @@ private func approvedVisibleRecipes() throws -> [CompositionRecipe] {
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     let data = try Data(contentsOf: root.appendingPathComponent(
-        "artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json"
+        "Tools/DayObjectsEditorialField/Fixtures/composition-recipes-approved.json"
     ))
     return try JSONDecoder().decode(FrozenCompositionRecipeArchive.self, from: data)
         .fixtures.sorted { $0.fixtureIndex < $1.fixtureIndex }.map(\.recipe)

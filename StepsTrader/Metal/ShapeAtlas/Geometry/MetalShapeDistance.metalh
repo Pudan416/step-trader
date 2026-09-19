@@ -20,13 +20,3 @@ static float metalShapeDistance(float2 point, constant MetalShapeGenomeUniforms 
     if (g.metadata.x == 5u) return length(p) - metalShapeSoftCloverRadius(theta, g);
     return length(p) - metalShapeGenomeRadius(theta, g);
 }
-
-static float metalShapeSoftCoverage(
-    float2 p,
-    constant MetalShapeGenomeUniforms &g,
-    float softness
-) {
-    const float distance = metalShapeDistance(p, g);
-    const float edge = max(max(fwidth(distance), 0.0025), softness);
-    return smoothstep(edge, -edge, distance);
-}

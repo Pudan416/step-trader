@@ -15,30 +15,3 @@ func formatCompactNumber(_ value: Int) -> String {
     }
     return "\(value)"
 }
-
-// MARK: - Time Formatting
-
-/// Formats remaining time from seconds as a human-readable countdown.
-/// - `>= 3600`: "1h 05m"
-/// - `>= 60`:   "5m 03s"
-/// - `< 60`:    "45s"
-func formatRemainingTime(_ seconds: TimeInterval) -> String {
-    let total = Int(seconds)
-    let h = total / 3600
-    let m = (total % 3600) / 60
-    let s = total % 60
-    if h > 0 {
-        return String(format: "%dh %02dm", h, m)
-    } else if m > 0 {
-        return String(format: "%dm %02ds", m, s)
-    }
-    return String(format: "%ds", s)
-}
-
-/// Short m:ss countdown (no hours component). For ticket timer overlays.
-func formatMinuteTimer(_ seconds: TimeInterval) -> String {
-    let m = Int(seconds) / 60
-    let s = Int(seconds) % 60
-    return String(format: "%d:%02d", m, s)
-}
-

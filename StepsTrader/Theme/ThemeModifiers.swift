@@ -27,22 +27,5 @@ extension View {
         modifier(ThemedModifier(theme: theme))
     }
 
-    func themedBackground(_ theme: AppTheme) -> some View {
-        self.background(theme.backgroundColor)
-    }
 
-    func themedSecondaryBackground(_ theme: AppTheme) -> some View {
-        self.background(theme.backgroundSecondary)
-    }
-
-    func themedBorder(
-        _ theme: AppTheme,
-        width: CGFloat = 1,
-        cornerRadius: CGFloat = 12
-    ) -> some View {
-        self.overlay(
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .stroke(theme.stroke.opacity(theme.strokeOpacity), lineWidth: width)
-        )
-    }
 }

@@ -5,7 +5,7 @@ import SwiftUI
 extension ProceduralShapeGenerator {
 
     /// Contour points per blob. Four layers are stacked per element, so this
-    /// times four must stay under the 200-point budget in CanvasLab-Spec §16.
+    /// times four must stay under the 200-point geometry budget.
     /// 48 was chosen (not the budget-max) because it also reduces the angular
     /// step between ring samples, which is one of the two knobs that keep
     /// adjacent-radius deltas below the correlation threshold — see the

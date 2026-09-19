@@ -12,3 +12,12 @@
 
 - `main` is the shared integration and installation branch. Target new feature PRs at `main`; do not recreate `codex/current-integration`.
 - Keep unfinished work on feature branches or named backup commits. Do not discard another task's local changes when updating a checkout.
+
+# Repository navigation and housekeeping
+
+- Start with `README.md`, then the relevant row in `docs/architecture/overview.md`. Search that subsystem before scanning the entire repository.
+- Maintained product behavior is in `docs/product.md`; architecture, build and audio contracts are linked from README. Historical reports are not current specifications.
+- `Experiments/DayObjects`, `Experiments/ShapeGenome` and parts of audio `Lab` are production code. Preserve legacy Canvas decoding, stable IDs, resource catalogs and framework entry points.
+- Keep generated evidence, scratch plans and chat exports in ignored `artifacts/` or `outputs/`. Update maintained docs instead of committing one-off reports.
+- Required test data belongs beside its tests or in an explicitly named `Fixtures/` directory, never in a general output archive.
+- Do not remove images/fonts based only on string searches: check Info.plist, Xcode targets, generated symbols and dynamic catalog paths.

@@ -82,7 +82,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     }
                     .position(x: cLeft + cW / 2, y: cTop + cH / 2)
 
-                // User name — top-left, 20px Unbounded Medium
+                // User name — top-left, Nowhere Display Regular
                 if let name = userName, !name.isEmpty {
                     Text(name)
                         .font(.unbounded(max(6, w * Self.nameSizeR), weight: .medium))
@@ -100,7 +100,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     .padding(.trailing, w * Self.statsRightR)
                     .padding(.top, h * Self.statsTopR)
 
-                // Date — overlapping bottom of canvas, 70px Unbounded Bold
+                // Date — overlapping bottom of canvas, Nowhere Display Bold
                 Text(formattedDate)
                     .font(.unbounded(max(10, w * Self.nowhereSizeR), weight: .black))
                     .fontDesign(nil)
@@ -111,7 +111,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     .padding(.leading, w * Self.nowhereLeftR)
                     .padding(.top, h * Self.nowhereTopR)
 
-                // "NOWHERE" — bottom-left, 12px Unbounded Bold
+                // "NOWHERE" — bottom-left, Nowhere Display Bold
                 Text("NOWHERE")
                     .font(.unbounded(max(5, w * Self.dateSizeR), weight: .black))
                     .fontDesign(nil)

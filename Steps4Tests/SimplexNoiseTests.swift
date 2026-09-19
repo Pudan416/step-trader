@@ -199,7 +199,7 @@ final class OrganicBlobContourTests: XCTestCase {
     }
 
     func testPointCountStaysWithinThePerformanceBudget() {
-        // CanvasLab-Spec §16: no shape may exceed 200 points, and the organic
+        // Geometry contract: no shape may exceed 200 points, and the organic
         // blob renderer stacks 4 layers per element.
         let radii = ProceduralShapeGenerator.organicBlobRadiusFactor(
             seed: 1, complexity: 1.0, symmetry: 1, time: 0)
