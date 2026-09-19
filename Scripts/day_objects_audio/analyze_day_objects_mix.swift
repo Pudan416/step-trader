@@ -13,7 +13,7 @@ private func repositoryRoot() -> URL? {
     while let candidate = candidates.first {
         candidates.removeFirst()
         let diagnostics = candidate.appendingPathComponent(
-            "StepsTrader/Experiments/DayObjects/Sound/Diagnostics",
+            "Nowhere/Experiments/DayObjects/Sound/Diagnostics",
             isDirectory: true
         )
         let requiredSources = [
@@ -49,7 +49,7 @@ do {
     let compiler = Process()
     compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
     let diagnostics = root.appendingPathComponent(
-        "StepsTrader/Experiments/DayObjects/Sound/Diagnostics",
+        "Nowhere/Experiments/DayObjects/Sound/Diagnostics",
         isDirectory: true
     )
     compiler.arguments = [

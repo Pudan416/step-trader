@@ -27,7 +27,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-PROJECT="Steps4.xcodeproj"
+PROJECT="Nowhere.xcodeproj"
 TEMPLATE="Config/Secrets.xcconfig.template"
 SECRETS="Config/Secrets.xcconfig"
 

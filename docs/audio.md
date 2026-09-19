@@ -2,7 +2,7 @@
 
 ## Ownership
 
-Production source is under `StepsTrader/Experiments/DayObjects/Sound/`:
+Production source is under `Nowhere/Experiments/DayObjects/Sound/`:
 
 - `Domain/` — instrument IDs, sound recipes, catalog decoding and validation.
 - `Director/` — deterministic plans derived from the day's inputs.

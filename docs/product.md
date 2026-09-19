@@ -26,7 +26,7 @@ and `energy*` storage names are compatibility identifiers, not a second currency
   Developer controls have separate build guards.
 
 Onboarding introduces these surfaces in context. Its implementation lives in
-`StepsTrader/Views/Onboarding/`; check the current coordinator and tour transitions
+`Nowhere/Views/Onboarding/`; check the current coordinator and tour transitions
 when changing the sequence rather than using an old slide specification.
 
 ## Music and artwork

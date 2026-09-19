@@ -46,7 +46,7 @@ Nowhere is a quiet anti-compulsion companion and visual diary, not a conventiona
 
 ## Evidence on Hand
 
-- Existing SwiftUI implementation in `StepsTrader/Views/MeView.swift`, `StepsTrader/Views/MeViewSupport.swift`, `StepsTrader/Views/Me/MeCalendarStrip.swift`, and `StepsTrader/Views/Me/MeWeekStats.swift`.
+- Existing SwiftUI implementation in `Nowhere/Views/MeView.swift`, `Nowhere/Views/MeViewSupport.swift`, `Nowhere/Views/Me/MeCalendarStrip.swift`, and `Nowhere/Views/Me/MeWeekStats.swift`.
 - Simulator review of the Me surface, full calendar, and saved-day viewer.
 - Current implementation always creates a seven-calendar-day strip, while persisted snapshots and rendered canvases can diverge.
 - User-confirmed product direction: Me is a personal archive for short reflection, not an analytics dashboard.

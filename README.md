@@ -17,17 +17,17 @@ and generative music. Colors buy access to selected feeds.
 
 ## Repository
 
-- `StepsTrader/` — app source. `Experiments/DayObjects` and `Experiments/ShapeGenome`
+- `Nowhere/` — app source. `Experiments/DayObjects` and `Experiments/ShapeGenome`
   contain production rendering and audio despite their historical names.
-- `Steps4.xcodeproj/`, `Steps4/`, `Config/` — targets, bundle configuration and secrets templates.
+- `Nowhere.xcodeproj/`, `Config/` — targets, bundle configuration and secrets templates.
 - `Shared/` — code/resources shared with extensions.
 - `UnlockWidget/`, `DeviceActivityMonitor/`, `ShieldConfiguration/`, `ShieldAction/` — extensions.
-- `Steps4Tests/`, `Steps4UITests/` — regression and UI tests.
+- `NowhereTests/`, `NowhereUITests/` — regression and UI tests.
 - `Scripts/`, `Tools/` — development tools; see [development](docs/development.md).
 - `supabase/`, `admin-panel/`, `tg-admin/`, `web/` — backend and standalone web/admin projects.
 - `docs/` — maintained documentation. Read the relevant page, not the whole directory.
 
-Open `Steps4.xcodeproj` and select the **Steps4** scheme (product: **Nowhere**).
+Open `Nowhere.xcodeproj` and select the **Nowhere** scheme (product: **Nowhere**).
 Start with the local setup in [development](docs/development.md).
 
 `main` is the integration branch. Screenshots, exported audio, logs, completed plans

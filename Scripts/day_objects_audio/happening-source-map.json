@@ -77,7 +77,7 @@
         }
       ],
       "definitionSha256": "155a96f4549b40a23987fb8f111f2d79ec57c780e2a1a00ee72eb84fd96f4acf",
-      "renderIdentitySha256": "8fc5253fe88da52815fb45c61aa7ce3eae768cda0a39254c6190a517fcca681d",
+      "renderIdentitySha256": "9c4685f0382e9145c66265d6ff6280827007739045a782c041ce06c3ec68c926",
       "workingName": "Warm analog ping",
       "paletteKind": "synth",
       "topology": "analog-ping",
@@ -132,7 +132,7 @@
         }
       ],
       "definitionSha256": "e35820b7884f4cb166fa657f90e6a1506f048593dc772661dc6b50a2ef98f346",
-      "renderIdentitySha256": "01c08157a3cf5ede4d9abf7b38a91cbf0c36e914abfd3669a3851c1fef2b90d8",
+      "renderIdentitySha256": "c9925b87ab635581f8f0c99b9859c1f15ab1eae59a1923b98bb6a9a861c501fd",
       "workingName": "Glass FM droplet",
       "paletteKind": "synth",
       "topology": "fm-droplet",
@@ -187,7 +187,7 @@
         }
       ],
       "definitionSha256": "9132aadd8ac6005523a58f8001064b92948627623f4fe473894a0f3e8128c490",
-      "renderIdentitySha256": "5405e08af3eb169dc669af2c5a11fde405326a6d2b9b53db71abaa15cab85901",
+      "renderIdentitySha256": "955de7e5faf6f9a88ab0de23cb297d6e6c7a1878550415d3be5d0eed9c8e966b",
       "workingName": "Muted pulse pluck",
       "paletteKind": "synth",
       "topology": "pulse-pluck",
@@ -242,7 +242,7 @@
         }
       ],
       "definitionSha256": "d69c2025f7e3d7341c88c070085785ac173b1ff945ce1ccf8b225da2a9c8588c",
-      "renderIdentitySha256": "06e1d9f88fd01d4217250b981314e61e248deb89f586f26765e26031b1eaaabd",
+      "renderIdentitySha256": "fbe66014101ca865cda67f9d2f551b21dcac0caa67da275dbe76b34d2a288347",
       "workingName": "Hollow string",
       "paletteKind": "synth",
       "topology": "waveguide-string",
@@ -297,7 +297,7 @@
         }
       ],
       "definitionSha256": "ed2b74d43cb7f87c62386c72d7106f3928ce4ece82be053e44c70686241bc2d5",
-      "renderIdentitySha256": "856080f0c6ee3da511bc7976cbd9181aa08bf83c5860ccb5e7f7496bc5ef968d",
+      "renderIdentitySha256": "a90bdd058d9952806733ab755fc5c0714c823902db862cee7f74337cc9c80d39",
       "workingName": "Air reed blip",
       "paletteKind": "synth",
       "topology": "reed-blip",
@@ -352,7 +352,7 @@
         }
       ],
       "definitionSha256": "3645e4ba598e46546e8d880792ed51ccefd45af249da76931d0765fd55ba2502",
-      "renderIdentitySha256": "00ed385eb7043eb26ccfb7418dbc0ea721a384886f4e0293254a4e59521fed64",
+      "renderIdentitySha256": "8604175dced1351437d3be713dd8e0a45e27fde0b05447f2620c9cd09ef1f68a",
       "workingName": "Reverse pluck bloom",
       "paletteKind": "hybrid",
       "topology": "reverse-pluck",
@@ -398,7 +398,7 @@
           "sha256": "567d856850d90c03e05d3d36240a7df1b7b6e0f15d30e37e93688a404c692f70"
         }
       ],
-      "renderIdentitySha256": "8c4b353054d2cc6c0ba2df928683df85a2f8d01ee055af299557ad080343d084",
+      "renderIdentitySha256": "68bfe639994cd248fbd7e43a018c00a1b26d8b6b9b1252a39a1b518f03916702",
       "workingName": "Wooden kalimba",
       "paletteKind": "organic",
       "topology": "kalimba-modal",
@@ -453,7 +453,7 @@
           "sha256": "24cecc5f99a2b10d52c66d73e785ffca268f0759b373e5a82332f16ec2e448ca"
         }
       ],
-      "renderIdentitySha256": "f8714bdd9cb93cf07c868d23bc4fa1b2388681aaed929703c70ed293a670011c",
+      "renderIdentitySha256": "e2ee050d69cf78ad455216dbf666a965ddae92e8c3bfae275034de0840038034",
       "workingName": "Ceramic knock",
       "paletteKind": "synth",
       "topology": "ceramic-modal",
@@ -517,7 +517,7 @@
           "pitchSemitones": 9
         }
       ],
-      "renderIdentitySha256": "22ce3ccd66e9702c9c7aa9100659e989da4485c72310c62e29acd81511cbb2fe",
+      "renderIdentitySha256": "91f11c4e124fc7ee00007baa3c3a09aa149b8b91bfed82c54e8634acac71fb17",
       "workingName": "Soft marimba",
       "paletteKind": "organic",
       "topology": "vcsl-marimba-dark",
@@ -573,7 +573,7 @@
           "pitchSemitones": 9
         }
       ],
-      "renderIdentitySha256": "4f6ea2afe3b29480a6b104e748f6cf9218d5472ca467d39e26e459e92b9c6389",
+      "renderIdentitySha256": "448eab2c87addea48dc4df1597ea3f905fab16e1cd39e504ff83987623292140",
       "workingName": "Balafon brush",
       "paletteKind": "organic",
       "topology": "vcsl-balafon-dry",
@@ -629,7 +629,7 @@
           "pitchSemitones": -3
         }
       ],
-      "renderIdentitySha256": "6f0749b8582bd147dbe9771ecfbe8023a90f9191a936e66e60259b674b0a0946",
+      "renderIdentitySha256": "3fb9dfdbf88d9a7f1c8b47bb3f82769b6362672664b092711eb829ab102d72f2",
       "workingName": "Muted vibraphone",
       "paletteKind": "hybrid",
       "topology": "vcsl-vibe-chorus",
@@ -676,7 +676,7 @@
           "sha256": "02a6f8bd65bff04455c65369702e4d8055b360a7ce8436cacbe692482e3daf25"
         }
       ],
-      "renderIdentitySha256": "17b31acaae8bf1643be93444560e6be75ccb05f015daabd414252f7a24585be1",
+      "renderIdentitySha256": "d233a84d2ad260dadd05e5be3fbc63404a97a936dcf7bb254f99654d49aeab2d",
       "workingName": "Felt key",
       "paletteKind": "organic",
       "topology": "felt-key",
@@ -731,7 +731,7 @@
           "sha256": "dec945386883c4c09f400a4ab9d73aed7b9f4d25dac30a90d48efe422008474d"
         }
       ],
-      "renderIdentitySha256": "58553ffa3f3a44d1658bf4162df95fa8c7b9d6ae1b52accc79184cada1705c4b",
+      "renderIdentitySha256": "1ec43f2a62872ba259412968252255959f742f58fb8cb7a6cd168f42f3d97a71",
       "workingName": "Soft metal bowl",
       "paletteKind": "hybrid",
       "topology": "metal-bowl-modal",
@@ -786,7 +786,7 @@
           "sha256": "27c7da24cb06a09c1d40161baf1ba576b0580b0776b940acbb5d415cfc0793bf"
         }
       ],
-      "renderIdentitySha256": "9534b8d68790c42d1d4f86000bce88aa65870508060fa7ac6b46edc28fdd1211",
+      "renderIdentitySha256": "3da6cfce7e67b110aa3b28d4d1c8afc35497c82778a244c1f49257a523a763b9",
       "workingName": "Glass tap bloom",
       "paletteKind": "hybrid",
       "topology": "glass-reverse",
@@ -841,7 +841,7 @@
           "sha256": "7872b1464c06ac4f7833d2cd7f1f349795d70441b86d04e06d71994936fc173c"
         }
       ],
-      "renderIdentitySha256": "b8198e8483268a0bd36fc9e68feb47a3226546e8be0898b33e717e39c2128693",
+      "renderIdentitySha256": "a1395bd15463f4b637ccd8989032cd5119c90f275e191a1e47de771ee043ffd5",
       "workingName": "Chorus kalimba",
       "paletteKind": "hybrid",
       "topology": "chorus-kalimba",
@@ -896,7 +896,7 @@
           "sha256": "8b6f98d45043d6af4689c795d06e9f934dfd1c5dc9f3f66860c0d03529e79ab9"
         }
       ],
-      "renderIdentitySha256": "30f5ff415c72f17e5adf75216612829de754922b75cbb0937bf86138b448b772",
+      "renderIdentitySha256": "f321feffaca85a192ff294cfb9151796df42bf2c4a7a0c97ec601c956b764a0a",
       "workingName": "Nylon pizzicato",
       "paletteKind": "organic",
       "topology": "nylon-waveguide",
@@ -960,7 +960,7 @@
           "pitchSemitones": 21
         }
       ],
-      "renderIdentitySha256": "47e4f0453b18e0a7f8bab1aac600c0cdc0a81dde4a6b78a8fd0a8caf9ddc0d02",
+      "renderIdentitySha256": "4fdea1121cf58a3a9451ab91598ad2e93748b00c44bc1e1d29d627e3a159e41a",
       "workingName": "Dark tubular bell",
       "paletteKind": "organic",
       "topology": "vcsl-tubular-dark",
@@ -1016,7 +1016,7 @@
           "pitchSemitones": 19
         }
       ],
-      "renderIdentitySha256": "959033221f515eec3c1647a2eb3966f3322c711db1fa86f47616fe766a7112a8",
+      "renderIdentitySha256": "e6c94b55a64d8944f90a5a20e495b50e2a1f451fe34c894ce9ec029119c5a073",
       "workingName": "Distant chime",
       "paletteKind": "organic",
       "topology": "vcsl-chime-dark",
@@ -1072,7 +1072,7 @@
         }
       ],
       "definitionSha256": "04ddbaf1bc05893ee62541735392c232b3313a6b1710aec3d3e266a0f35bdbca",
-      "renderIdentitySha256": "3e6e8f381979a4554316d405fa49158323fe4de94d80563b02e87478fb9dbecb",
+      "renderIdentitySha256": "045a09b20479ff1da24ec6c6104e7fcfddb9ce9986119d707d41e9ba9b7e82cc",
       "workingName": "Sub bloom",
       "paletteKind": "synth",
       "topology": "sub-bloom",
@@ -1127,7 +1127,7 @@
         }
       ],
       "definitionSha256": "b75d9778c79770f3e278b483d80d78261d42cf3c77e138ba28c054712d0285f7",
-      "renderIdentitySha256": "ee30087a969654529276039cf85d6db96e09aaff58c8258ade2229ce6b5dda84",
+      "renderIdentitySha256": "47e444c3a9624a2215f0aec9475446fdb655c7cc5e9fa16aa74d99bc660ba38f",
       "workingName": "Analog filter ping",
       "paletteKind": "synth",
       "topology": "filter-ping",
@@ -1182,7 +1182,7 @@
         }
       ],
       "definitionSha256": "c98e43f362fec750362f292c1c170b30ece2c8fcc4001cb4c5584716ea4ce4ed",
-      "renderIdentitySha256": "f2030e06e5b7a7040e48c43b6634755833d768d89d87e8dcd10bc9bb2e20042e",
+      "renderIdentitySha256": "362cd9b3811bd10f6c815158d9d9d7fb0709a8ca7a13f51772a32aa3b5bf5f0d",
       "workingName": "Vocal droplet",
       "paletteKind": "synth",
       "topology": "formant-droplet",
@@ -1237,7 +1237,7 @@
         }
       ],
       "definitionSha256": "7af040f9b515664fb2b709dedf799d1cad757c1e8a5d13139c80a01744a8f190",
-      "renderIdentitySha256": "f0dc8d4966b27cc0316dda1f5a623fbfa88025ea52ea7cf80062599af750266f",
+      "renderIdentitySha256": "c2ce0b70c5c01a427e3fcb44b785f3f5f18fe2e87cdc5dc459a11c31780bc6dc",
       "workingName": "Phase-distortion bead",
       "paletteKind": "synth",
       "topology": "phase-distortion",
@@ -1292,7 +1292,7 @@
         }
       ],
       "definitionSha256": "3a7041032339f87db95f3c06364317b92838609b557f448cba90acb9d3788a3b",
-      "renderIdentitySha256": "7c365a2b0e7d9532217701646ff96b9ca7993c28708d3a7c645b809a6f75fb9f",
+      "renderIdentitySha256": "d71d8dda3f1efdbe5a895bce6f9587eaf78deb2c7809ae63ffe9c2058876310f",
       "workingName": "Rubber FM bubble",
       "paletteKind": "hybrid",
       "topology": "rubber-fm",
@@ -1347,7 +1347,7 @@
         }
       ],
       "definitionSha256": "740755bc477f51eabcc7157ada6094f03d7044d4c4a6cff0e9268ce36ad64848",
-      "renderIdentitySha256": "89b5e2b2e778c9b7ab70fb4a78812f6c035d4d3c92b7a0e8d84363c20b69d920",
+      "renderIdentitySha256": "41282a1f6e0831e24f13dc251d706b2e036212edda59b3885468a0e864bab047",
       "workingName": "Bowed harmonic stab",
       "paletteKind": "hybrid",
       "topology": "harmonic-stab",
@@ -1384,7 +1384,7 @@
         }
       ],
       "definitionSha256": "754bc55f7879fab49b85864a0a0f6a855f8c681594f2a58a2aedd7891405cd90",
-      "renderIdentitySha256": "7559dfbdfa31965ee023dd97874e2e51036cbd7e83d0ae828981ed13258a0b6b",
+      "renderIdentitySha256": "5d1d46dd66644f204e26da8fe588cf1f3f439ee778c6e1342e6ccdcb4b2c58e9",
       "workingName": "Breath resonator",
       "paletteKind": "hybrid",
       "topology": "breath-resonator",
@@ -1421,7 +1421,7 @@
         }
       ],
       "definitionSha256": "132b332a7f8d3a16fd701bd85db0b666ad8b86b5b15ed7f84023e769c01bbe69",
-      "renderIdentitySha256": "d964ee3dcb11777b7364c57c25d265e2a074fd326fa7a4bb387ecb935f9094b9",
+      "renderIdentitySha256": "c37070d8d50f3289c9d78ae5fcdad06d210afa1ba51f127420186715ce16f31e",
       "workingName": "Bowed glass cloud",
       "paletteKind": "hybrid",
       "topology": "modal-glass-cloud",
@@ -1458,7 +1458,7 @@
         }
       ],
       "definitionSha256": "5ce9db13b7ecc8aaf5dba3dc0020ecae377a896164e646c4de0d701a5fcfb51f",
-      "renderIdentitySha256": "ccc17664411c6962bac942b839190a4d8434ea9e707f79d918e544b263d7ec03",
+      "renderIdentitySha256": "c1424e0c73372c1b52a9bf0f160c8ac2d0c88af7778b145eb3407c07071ace41",
       "workingName": "Granular shimmer",
       "paletteKind": "hybrid",
       "topology": "granular-shimmer",
@@ -1495,7 +1495,7 @@
         }
       ],
       "definitionSha256": "84f8074a99ecb0770c6eada7183b38e6027894e459c4a0aba6b3558de81e98b5",
-      "renderIdentitySha256": "78da9e5c4ec702d5b43debf2eba135e703720c7354e295e52db31778196bd18b",
+      "renderIdentitySha256": "d4091d952548b86c9befdf98f367ac2ad52456e5821c3021f6b2050598878661",
       "workingName": "Reverse glass gesture",
       "paletteKind": "organic",
       "topology": "reverse-glass-unpitched",
@@ -1532,7 +1532,7 @@
         }
       ],
       "definitionSha256": "c0b62079d2b742643d8c2aba75a40296a2afa6b844bd322d50591506de4578f2",
-      "renderIdentitySha256": "0b32d8ab7b7049abf674aa9f16aadae975e13a2ff008a0c550f03fa400f0d316",
+      "renderIdentitySha256": "30c870845b840af2d9c573ff5db3f3c0c391473edd5e0145490f0bfc14b06c41",
       "workingName": "Soft dust impact",
       "paletteKind": "organic",
       "topology": "dust-impact",
@@ -1569,7 +1569,7 @@
         }
       ],
       "definitionSha256": "e0763f155b35ad9ada97e1c41fdaa3bd5592ed7f986999880a5f5db5d90e4b89",
-      "renderIdentitySha256": "4f702b4bcf7125abbe9133524f5d3ce0eb02910c84f693f5fb84159c60e1bb55",
+      "renderIdentitySha256": "f890ff75b2f651f20db4744de3ba16dfb6b68b6b45680731a9fc04715f07d96a",
       "workingName": "Airy exhale",
       "paletteKind": "organic",
       "topology": "breath-exhale",
@@ -1606,7 +1606,7 @@
         }
       ],
       "definitionSha256": "7348b0e2d2c854cb22ce84c087d879fe6b6be102cf5d521e65f52901c0c06811",
-      "renderIdentitySha256": "b9b4751cc42e0636e24dd2a269952adef968931f156a45a720271293119521af",
+      "renderIdentitySha256": "cb8643a9b93c637ea00de5359c4657172d6a1d0278b80ee2d3b8d2b0fc4d0a34",
       "workingName": "Felt kalimba whisper",
       "paletteKind": "organic",
       "topology": "felt-kalimba-whisper",
@@ -1643,7 +1643,7 @@
         }
       ],
       "definitionSha256": "17e62761c0f3df7bb1e320e25430728c5297d7c828fd446aff4c20b1df82a14a",
-      "renderIdentitySha256": "f17915c4a94093e4e3c4503ca574d0cc800855addacda2614dffcd875408ee95",
+      "renderIdentitySha256": "035f6c9e5f1c4c3e98e655a400aa6d21f6711f6ebb8818f0978fa8c03cd3059d",
       "workingName": "Silk string pluck",
       "paletteKind": "organic",
       "topology": "silk-string-pluck",
@@ -1680,7 +1680,7 @@
         }
       ],
       "definitionSha256": "21332c647caaeec1225bf561044451ac57bab3a56c18c06082883efba8ef0359",
-      "renderIdentitySha256": "c922dabaf0ca085d8c506ba1274a912b6251da59cd16d43fc7d1c53754ab281b",
+      "renderIdentitySha256": "c932b6f524f9babd374a3c8755fee699118fcca9a5635c3a1a5cbd302f038629",
       "workingName": "Cedar knock",
       "paletteKind": "organic",
       "topology": "cedar-knock",
@@ -1717,7 +1717,7 @@
         }
       ],
       "definitionSha256": "68b6c806c23ad67e6229a19a43299f371b12fab97d091e4f18d28a092cae7c50",
-      "renderIdentitySha256": "75ee8375d8063436bafde380ddc515b04697e7c088deb17d7b022498fe9031a2",
+      "renderIdentitySha256": "19d931492ece409d40adb1b9b0786664addb6a5d97708a51798f12420fd808f5",
       "workingName": "Bamboo air pluck",
       "paletteKind": "organic",
       "topology": "bamboo-air-pluck",
@@ -1754,7 +1754,7 @@
         }
       ],
       "definitionSha256": "6a60acff8283a01cf6659c402b468aabfbe13ac4f80b47d1a96868d9ae2a0b44",
-      "renderIdentitySha256": "55ad1085d8994166e9e97f6d5d3ce60704245801239cf6e74d70588ddc6dbbfc",
+      "renderIdentitySha256": "f952d63b967823ca417d37fe4d250dbff5ccc96449e5af7ba9eb692eebeeef3a",
       "workingName": "Frost glass tap",
       "paletteKind": "synth",
       "topology": "frost-glass-tap",
@@ -1791,7 +1791,7 @@
         }
       ],
       "definitionSha256": "31f42f9cd6974af256dda6d1b60ba332d01d3080d1eaea52237cf2b0bfab8e2e",
-      "renderIdentitySha256": "23c31c077e3d5d041bf32087f4983d17d9f22d7183f30f7688c27edba3cb1b8c",
+      "renderIdentitySha256": "772020fc1f9603e9439c9f60958fd7ff51d819affa88ab34351cd29309092ea2",
       "workingName": "Glass sustain bloom",
       "paletteKind": "synth",
       "topology": "glass-sustain-bloom",
@@ -1828,7 +1828,7 @@
         }
       ],
       "definitionSha256": "a173bbfaaaa0312d2aa93c5fd5d533853709f689c6cf52a2fbad762786c63181",
-      "renderIdentitySha256": "5fc1c0d822a5ee12676affa9a6d84d63838a8947251d7e3f703b990a8fd740ae",
+      "renderIdentitySha256": "27c08f268c3c274ea92279a76d3a148c5fe7b349a3261585d3034d5945d15c65",
       "workingName": "Current metal pluck",
       "paletteKind": "synth",
       "topology": "current-metal-pluck",
@@ -1865,7 +1865,7 @@
         }
       ],
       "definitionSha256": "f9626a91e6af02fb4d4e9c5f812a4d2b94071fe40505534a8d5569a9f231d96c",
-      "renderIdentitySha256": "5cc2e1f0957e335b78e5094e02320e1f39a0d41f6ff130aa84ced9cd4eda757e",
+      "renderIdentitySha256": "2080a23890a6bb24c090127a23bef09a651c6ac26cfb0753579cd854a9f8f3b0",
       "workingName": "Brushed resonator",
       "paletteKind": "synth",
       "topology": "brushed-resonator",
@@ -1902,7 +1902,7 @@
         }
       ],
       "definitionSha256": "9e40891b5b60ce8dbd822c43b3ab593cd087777383bd706579aa1b6347a30bc0",
-      "renderIdentitySha256": "971192298aa7bc9f5230e9f496dca84c6b31c01aef45f05321a6dd1cd32a2539",
+      "renderIdentitySha256": "916c160795782f92c716d47c664fe71a041d996b60acfcd0d154ca5ac0eb31de",
       "workingName": "Paper whisper",
       "paletteKind": "organic",
       "topology": "paper-whisper",
@@ -1939,7 +1939,7 @@
         }
       ],
       "definitionSha256": "67bb1763e3ae3f6b454d382dd154da8f29bfca8a88e15ad592ea12ed40b14357",
-      "renderIdentitySha256": "28bcdaa67d3554db10a9796b0b0261e9fc7582d5064d22081b994fcc202770c4",
+      "renderIdentitySha256": "0cca44d563b54ab8fe457ddb69321f5442577d4b70e0bf9a0c982507426825c7",
       "workingName": "Cloth swish",
       "paletteKind": "organic",
       "topology": "cloth-swish",
@@ -1976,7 +1976,7 @@
         }
       ],
       "definitionSha256": "b377d1b7664ff31b486d1668eb8cc0beed46a17b90aa157de6073b22bca5dad1",
-      "renderIdentitySha256": "09a4a1df19ef3340cc699b2cdbf9425b40c0d1f2f5d34d2ce58c1b6acadf662a",
+      "renderIdentitySha256": "ecca1c5f02e02b2e6777c308628d1a4ab003f561215ef517eaab2b58b62a8026",
       "workingName": "Water pearl",
       "paletteKind": "hybrid",
       "topology": "water-pearl",
@@ -2013,7 +2013,7 @@
         }
       ],
       "definitionSha256": "320354a2c8cd7f630182167dc5599342ee5ccf8b1f6b194cadf909aca200fddd",
-      "renderIdentitySha256": "075ad9bcb98439b5f561705cc71a1656919a27527417d94e785b363200844611",
+      "renderIdentitySha256": "135994f7df35b83f775192258f4628438422e7cc5336d4a823a73549b80d0368",
       "workingName": "Air current",
       "paletteKind": "hybrid",
       "topology": "air-current",
@@ -2027,5 +2027,5 @@
       "input": null
     }
   ],
-  "rendererImplementationSha256": "79ec22a32883fda366d8dd1630e07183eb8d5426f2d1e37ad9a8378ca4cb19f1"
+  "rendererImplementationSha256": "468fcd4ab7445fef0f0d3d38b461dfaa35243f837f508ac55d377b239e5d966e"
 }

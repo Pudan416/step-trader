@@ -6,29 +6,29 @@
 2. Copy `Config/Secrets.xcconfig.template` to ignored `Config/Secrets.xcconfig` and
    supply your public Supabase client configuration. Do not commit credentials.
    An optional `Config/Secrets-Dev.xcconfig` overrides Debug configuration.
-3. Open `Steps4.xcodeproj`, resolve Swift packages and select the **Steps4** scheme.
+3. Open `Nowhere.xcodeproj`, resolve Swift packages and select the **Nowhere** scheme.
    The app product is **Nowhere**. The project contains the four extension targets.
 4. Use a simulator for ordinary UI/unit tests. HealthKit authorization, Family Controls,
    real shielding and widget behavior need physical-device verification.
 
 The project uses Swift/SwiftUI, Metal and Swift Package Manager. App deployment
 starts at iOS 17; unit/UI test targets require iOS 18. Use an installed simulator
-shown by `xcodebuild -showdestinations -project Steps4.xcodeproj -scheme Steps4`.
+shown by `xcodebuild -showdestinations -project Nowhere.xcodeproj -scheme Nowhere`.
 
 ## Build and test
 
 Choose a simulator available on your Mac; keep build products outside the checkout.
 
 ```sh
-xcodebuild -project Steps4.xcodeproj -scheme Steps4 \
+xcodebuild -project Nowhere.xcodeproj -scheme Nowhere \
   -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17' \
   -derivedDataPath /tmp/nowhere-debug build
 
-xcodebuild -project Steps4.xcodeproj -scheme Steps4 \
+xcodebuild -project Nowhere.xcodeproj -scheme Nowhere \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
-  -derivedDataPath /tmp/nowhere-tests -only-testing:Steps4Tests test
+  -derivedDataPath /tmp/nowhere-tests -only-testing:NowhereTests test
 
-xcodebuild -project Steps4.xcodeproj -scheme Steps4 \
+xcodebuild -project Nowhere.xcodeproj -scheme Nowhere \
   -configuration Release -destination 'generic/platform=iOS' \
   -derivedDataPath /tmp/nowhere-release CODE_SIGNING_ALLOWED=NO build
 
@@ -44,6 +44,22 @@ fetch current `main`, build the app and all embedded extensions together, verify
 signing/resources, recheck the remote revision, and record install/launch results.
 Never install a simulator/test-host bundle. Measure distribution size from matching
 archive/device variants, not a reused Debug output folder.
+
+For the **NowhereDevicePerformance** scheme, compile the test host as an internal
+Release build. Existing tests use `@testable` imports and helpers guarded by
+`INTERNAL_BUILD`; supply these flags only for testing, keeping distribution Release
+settings unchanged:
+
+```sh
+xcodebuild -project Nowhere.xcodeproj -scheme NowhereDevicePerformance \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -derivedDataPath /tmp/nowhere-performance CODE_SIGNING_ALLOWED=NO \
+  ENABLE_CODE_COVERAGE=NO ENABLE_TESTABILITY=YES \
+  'OTHER_SWIFT_FLAGS=$(inherited) -D INTERNAL_BUILD' build-for-testing
+```
+
+This checks test compilation. Performance measurements require a separate signed
+run on a physical device.
 
 ## Tools and adjacent projects
 

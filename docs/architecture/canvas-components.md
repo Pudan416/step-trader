@@ -2,7 +2,7 @@
 
 This map describes ownership in the current native atlas path and compatibility rules for existing artwork.
 
-All paths below are relative to `StepsTrader/`.
+All paths below are relative to `Nowhere/`.
 
 ## Saved artwork and composition
 
