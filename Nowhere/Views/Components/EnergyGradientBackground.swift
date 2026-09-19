@@ -363,6 +363,25 @@ enum EnergyGradientRenderer {
         time: Double? = nil
     ) {
         #if DEBUG
+        drawColorField(context: &context, size: size, opacities: opacities,
+                       baseColor: baseColor, gradientStyle: gradientStyle,
+                       colorPalette: colorPalette, time: time)
+        #else
+        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(neutralBackground))
+        #endif
+    }
+
+    /// The interactive smudge source needs spatial color variation in every
+    /// build. Keep it independent of the legacy background's Release policy.
+    static func drawColorField(
+        context: inout GraphicsContext,
+        size: CGSize,
+        opacities: Opacities,
+        baseColor: Color = night,
+        gradientStyle: GradientStyle = .radial,
+        colorPalette: Palette? = nil,
+        time: Double? = nil
+    ) {
         let pal = colorPalette ?? palette(for: .warmSunset)
         let w = Double(size.width)
         let h = Double(size.height)
@@ -557,9 +576,6 @@ enum EnergyGradientRenderer {
         case .organic, .mesh, .angular:
             break
         }
-        #else
-        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(neutralBackground))
-        #endif
     }
 }
 

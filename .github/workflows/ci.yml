@@ -87,7 +87,7 @@ jobs:
           if-no-files-found: warn
 
   ios-release-audio:
-    name: iOS Release audio
+    name: iOS Release audio and Smudge
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -103,6 +103,31 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
           python3 Scripts/check_canvas_audio_bundle.py \
             "$RUNNER_TEMP/ReleaseAudio/Build/Products/Release-iphonesimulator/Nowhere.app"
+
+      - name: Verify Release Smudge source and GPU output
+        run: |
+          xcodebuild test \
+            -project Nowhere.xcodeproj -scheme Nowhere -configuration Release \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -derivedDataPath "$RUNNER_TEMP/ReleaseAudio" \
+            -parallel-testing-enabled NO \
+            -only-testing:NowhereTests/SmudgePreparationTests \
+            -only-testing:NowhereTests/SmudgeWaterRippleTests \
+            -only-testing:NowhereTests/SmudgeComputeRegionTests \
+            -only-testing:NowhereTests/SmudgeRegionSequenceTests \
+            -resultBundlePath "$RUNNER_TEMP/ReleaseSmudge.xcresult" \
+            ENABLE_TESTABILITY=YES ENABLE_CODE_COVERAGE=NO \
+            'OTHER_SWIFT_FLAGS=$(inherited) -D INTERNAL_BUILD' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+      - name: Retain Release Smudge frames and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smudge-results
+          path: ${{ runner.temp }}/ReleaseSmudge.xcresult
+          retention-days: 7
+          if-no-files-found: warn
 
   edge-functions:
     name: Edge Functions unit tests

@@ -44,6 +44,14 @@ Matching GPU geometry is in `Metal/ShapeAtlas/Geometry/`. `MetalShapeBasic.metal
 
 Headers compile into their consuming shader translation units. This split does not introduce a render pass per material or per shape.
 
+Smudge uses a static color field in `Views/Components/SmudgeCanvasView.swift`,
+drawn by `EnergyGradientRenderer.drawColorField`. This input must retain color
+variation in Release: the screen-facing `EnergyGradientBackground` intentionally
+returns a neutral surface there and cannot serve as the effect's source.
+`SmudgePreparationTests` checks source pixels and a complete gesture-driven Metal
+frame in Release; the Release CI job retains those images. The effect keeps its
+existing independent color field rather than capturing a second live artwork renderer.
+
 ## Rendering ownership
 
 `Experiments/ShapeGenome/NativeAtlasMetalRenderer.swift` owns the native live/export pipelines and reusable textures. `MetalShapeGenomeRenderer.swift` is the separate atlas-preview renderer. `Experiments/DayObjects/DayObjectsRenderer.swift` remains the higher-level host for the native and existing editorial paths.

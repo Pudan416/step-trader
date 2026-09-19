@@ -1,6 +1,40 @@
 import SwiftUI
 import MetalKit
 
+/// A static source for finger-driven color displacement, not a screen
+/// background. Background styling must not turn this into a flat Release image.
+private struct SmudgeSnapshotBackground: View {
+    let stepsPoints: Int
+    let sleepPoints: Int
+    let hasStepsData: Bool
+    let hasSleepData: Bool
+    let style: GradientStyle
+    let palette: GradientPalette
+    let texture: CanvasTexture
+    let time: TimeInterval
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        Canvas { context, size in
+            let colors = EnergyGradientRenderer.palette(for: palette)
+            let opacities = EnergyGradientRenderer.computeOpacities(
+                smoothedS: EnergyGradientRenderer.smoothstep(Double(min(max(stepsPoints, 0), 20)) / 20),
+                smoothedL: EnergyGradientRenderer.smoothstep(Double(min(max(sleepPoints, 0), 20)) / 20),
+                hasStepsData: hasStepsData, hasSleepData: hasSleepData
+            )
+            EnergyGradientRenderer.drawColorField(
+                context: &context, size: size, opacities: opacities,
+                baseColor: colors.dark, gradientStyle: style,
+                colorPalette: colors, time: time
+            )
+        }
+        .overlay {
+            if !reduceTransparency { TextureOverlayView(texture: texture) }
+        }
+    }
+}
+
 struct CanvasTouchGestureSample: Equatable, Sendable {
     let normalizedX: Double
     let normalizedY: Double
@@ -444,12 +478,16 @@ struct SmudgeOverlayView: UIViewRepresentable {
             let pointW = drawableSize.width  / scale
             let pointH = drawableSize.height / scale
 
-            let composite = EnergyGradientBackground(
+            let defaults = UserDefaults.standard
+            let composite = SmudgeSnapshotBackground(
                 stepsPoints: cfg.stepsPoints,
                 sleepPoints: cfg.sleepPoints,
                 hasStepsData: cfg.hasStepsData,
                 hasSleepData: cfg.hasSleepData,
-                fixedTime: .now
+                style: GradientStyle(rawValue: defaults.string(forKey: SharedKeys.gradientStyle) ?? "") ?? .radial,
+                palette: GradientPalette.normalized(rawValue: defaults.string(forKey: SharedKeys.gradientPalette) ?? ""),
+                texture: CanvasTexture.fromStored(defaults.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue),
+                time: Date.now.timeIntervalSinceReferenceDate
             )
             .frame(width: pointW, height: pointH)
 

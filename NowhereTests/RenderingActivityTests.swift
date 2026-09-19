@@ -331,6 +331,121 @@ final class CanvasResourceReuseTests: XCTestCase {
 
 @MainActor
 final class SmudgePreparationTests: XCTestCase {
+    func testPreparedSmudgeContainsColorToDisplaceInDistributionBuilds() async throws {
+        let defaults = UserDefaults.standard
+        let keys = [SharedKeys.gradientStyle, SharedKeys.gradientPalette, SharedKeys.canvasTexture]
+        let previous = keys.map { defaults.object(forKey: $0) }
+        defaults.set(GradientStyle.radial.rawValue, forKey: SharedKeys.gradientStyle)
+        defaults.set(GradientPalette.warmSunset.rawValue, forKey: SharedKeys.gradientPalette)
+        defaults.set(CanvasTexture.none.rawValue, forKey: SharedKeys.canvasTexture)
+        defer {
+            for (key, value) in zip(keys, previous) {
+                if let value { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+        }
+        let overlay = SmudgeOverlayView(
+            elements: [], sleepPoints: 10, stepsPoints: 12, sleepColor: .blue,
+            stepsColor: .orange, decayNorm: 0, backgroundColor: .black,
+            isRenderingAllowed: true
+        )
+        let host = UIHostingController(rootView: overlay)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 375, height: 812))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        func find(_ view: UIView) -> SmudgeMTKView? {
+            if let match = view as? SmudgeMTKView { return match }
+            return view.subviews.compactMap { find($0) }.first
+        }
+        let view = try XCTUnwrap(find(host.view))
+        for _ in 0..<300 {
+            if let renderer = view.delegate as? MetalSmudgeRenderer, !renderer.needsSnapshot { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let renderer = try XCTUnwrap(view.delegate as? MetalSmudgeRenderer)
+        XCTAssertFalse(renderer.needsSnapshot)
+        let texture = try XCTUnwrap(Mirror(reflecting: renderer).children.first { $0.label == "baseTexture" }?.value as? MTLTexture)
+        var pixels = [UInt8](repeating: 0, count: texture.width * texture.height * 4)
+        texture.getBytes(&pixels, bytesPerRow: texture.width * 4,
+                         from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
+        var colors: Set<UInt32> = []
+        for y in stride(from: texture.height / 10, to: texture.height * 9 / 10, by: max(1, texture.height / 16)) {
+            for x in stride(from: texture.width / 10, to: texture.width * 9 / 10, by: max(1, texture.width / 16)) {
+                let offset = (y * texture.width + x) * 4
+                colors.insert(UInt32(pixels[offset]) << 16 | UInt32(pixels[offset + 1]) << 8 | UInt32(pixels[offset + 2]))
+            }
+        }
+        XCTAssertGreaterThan(colors.count, 16,
+            "Smudge needs spatial color variation: a Release-only flat fallback cannot be displaced by a finger")
+
+        // Exercise the production touch closures and complete GPU frame too.
+        // A live renderer/allocated texture alone used to pass with a flat source.
+        view.framebufferOnly = false
+        let drawable = try XCTUnwrap(view.currentDrawable)
+        let touch = NSObject()
+        let start = CGPoint(x: view.bounds.width * 0.3, y: view.bounds.height * 0.4)
+        let end = CGPoint(x: view.bounds.width * 0.6, y: view.bounds.height * 0.6)
+        let now = CACurrentMediaTime()
+        view.onTouchBegan?(ObjectIdentifier(touch), start, now - 1.0 / 60)
+        view.onTouchMoved?(ObjectIdentifier(touch), start, end, now)
+        XCTAssertFalse(view.isPaused, "Finger input must wake the prepared renderer")
+        renderer.draw(in: view)
+        view.isPaused = true
+        defer { renderer.cancelActiveInteraction() }
+        let queue = try XCTUnwrap(Mirror(reflecting: renderer).children.first { $0.label == "commandQueue" }?.value as? MTLCommandQueue)
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .bgra8Unorm, width: drawable.texture.width,
+            height: drawable.texture.height, mipmapped: false
+        )
+        descriptor.storageMode = .shared
+        let readback = try XCTUnwrap(renderer.device.makeTexture(descriptor: descriptor))
+        let command = try XCTUnwrap(queue.makeCommandBuffer())
+        let blit = try XCTUnwrap(command.makeBlitCommandEncoder())
+        blit.copy(from: drawable.texture, to: readback)
+        blit.endEncoding()
+        command.commit()
+        command.waitUntilCompleted()
+        XCTAssertEqual(command.status, .completed, "\(String(describing: command.error))")
+        var frame = [UInt8](repeating: 0, count: readback.width * readback.height * 4)
+        readback.getBytes(&frame, bytesPerRow: readback.width * 4,
+                         from: MTLRegionMake2D(0, 0, readback.width, readback.height), mipmapLevel: 0)
+        let coloredPixels = stride(from: 0, to: frame.count, by: 4).filter { index in
+            let rgb = frame[index..<(index + 3)]
+            return frame[index + 3] > 10 && Int(rgb.max()!) - Int(rgb.min()!) > 10
+        }.count
+        XCTAssertGreaterThan(coloredPixels, 100, "A drag must present visible colored pixels, not just update internal state")
+        for (name, imageTexture) in [("Smudge source", texture), ("Smudge drag frame", readback)] {
+            let image = try XCTUnwrap(DayObjectsImageRenderer.makeImage(texture: imageTexture, scale: view.contentScaleFactor))
+            let attachment = XCTAttachment(image: image)
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
+    #if !DEBUG
+    func testReleaseBackgroundStaysNeutralWhileSmudgeHasItsOwnSource() throws {
+        let image = try XCTUnwrap(ImageRenderer(content: EnergyGradientBackground(
+            stepsPoints: 12, sleepPoints: 10, hasStepsData: true, hasSleepData: true,
+            fixedTime: Date(timeIntervalSinceReferenceDate: 0)
+        ).frame(width: 32, height: 64)).cgImage)
+        var pixels = [UInt8](repeating: 0, count: 32 * 64 * 4)
+        let context = try XCTUnwrap(CGContext(data: &pixels, width: 32, height: 64,
+            bitsPerComponent: 8, bytesPerRow: 32 * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: 32, height: 64))
+        let first = Array(pixels[0..<4])
+        XCTAssertEqual(Double(first[0]), 52, accuracy: 1)
+        XCTAssertEqual(Double(first[1]), 55, accuracy: 1)
+        XCTAssertEqual(Double(first[2]), 55, accuracy: 1)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            XCTAssertEqual(Array(pixels[index..<(index + 4)]), first)
+        }
+    }
+    #endif
+
     func testSmudgeCoordinatorDoesNotCompileMetalDuringViewConstruction() {
         XCTAssertNil(SmudgeOverlayView.Coordinator().renderer)
     }
