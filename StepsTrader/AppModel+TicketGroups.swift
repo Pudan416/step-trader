@@ -83,7 +83,7 @@ extension AppModel {
             return cache[bundleId.lowercased()]
         }
 
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         var lookup: [String: TicketGroup] = [:]
 
         for group in ticketGroups {

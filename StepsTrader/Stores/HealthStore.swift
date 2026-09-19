@@ -165,13 +165,13 @@ final class HealthStore: ObservableObject {
     
     // MARK: - Caching
     private func cacheStepsToday() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.set(stepsToday, forKey: SharedKeys.cachedStepsToday)
         g.set(true, forKey: SharedKeys.hasStepsData)
     }
     
     private func loadCachedStepsToday() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let (hour, minute) = DayBoundary.storedDayEnd()
         if let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date,
            DayBoundary.isPersistedDayBehind(anchor: anchor, relativeTo: .now, dayEndHour: hour, dayEndMinute: minute) {
@@ -189,11 +189,11 @@ final class HealthStore: ObservableObject {
     private static let cachedSleepKey = "cachedSleepHoursToday"
 
     private func cacheSleepToday() {
-        UserDefaults.stepsTrader().set(dailySleepHours, forKey: Self.cachedSleepKey)
+        UserDefaults.nowhere().set(dailySleepHours, forKey: Self.cachedSleepKey)
     }
 
     private func loadCachedSleepToday() {
-        let cached = UserDefaults.stepsTrader().double(forKey: Self.cachedSleepKey)
+        let cached = UserDefaults.nowhere().double(forKey: Self.cachedSleepKey)
         if cached > 0 { dailySleepHours = cached }
     }
     

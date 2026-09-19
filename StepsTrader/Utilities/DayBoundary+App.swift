@@ -4,7 +4,7 @@ extension DayBoundary {
     /// Single source of truth for reading stored day-end hour/minute from UserDefaults.
     /// Checks app group first, then standard defaults, then falls back to midnight (0, 0).
     static func storedDayEnd() -> (hour: Int, minute: Int) {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let s = UserDefaults.standard
         let hour = (g.object(forKey: SharedKeys.dayEndHour) as? Int)
             ?? (s.object(forKey: SharedKeys.dayEndHour) as? Int)

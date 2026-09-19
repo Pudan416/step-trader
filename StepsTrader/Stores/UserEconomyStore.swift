@@ -51,7 +51,7 @@ final class UserEconomyStore: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self, self.needsFlush else { return }
             self.needsFlush = false
-            let g = UserDefaults.stepsTrader()
+            let g = UserDefaults.nowhere()
             let udSpent = g.integer(forKey: SharedKeys.spentStepsToday)
             if self.spentSteps == 0 && udSpent > 0 {
                 AppLogger.energy.error("⚠️ setNeedsFlush would overwrite UD spentStepsToday=\(udSpent) with 0 — SKIPPING spent write")
@@ -168,7 +168,7 @@ final class UserEconomyStore: ObservableObject {
         }
         
         // 2. Try Defaults (Migration) - Check App Group first
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         if let data = g.data(forKey: defaultsKey) {
             do {
                 let decoded = try JSONDecoder().decode(T.self, from: data)
@@ -207,7 +207,7 @@ final class UserEconomyStore: ObservableObject {
     }
     
     func loadDayPassGrants() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         guard let data = g.data(forKey: SharedKeys.appDayPassGrants) else { return }
         do {
             dayPassGrants = try JSONDecoder().decode([String: Date].self, from: data)
@@ -219,7 +219,7 @@ final class UserEconomyStore: ObservableObject {
     
     private func clearExpiredDayPasses() {
         let now = Date.now
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let hour = (g.object(forKey: SharedKeys.dayEndHour) as? Int) ?? 0
         let minute = (g.object(forKey: SharedKeys.dayEndMinute) as? Int) ?? 0
         let dayStart = DayBoundary.currentDayStart(for: now, dayEndHour: hour, dayEndMinute: minute)
@@ -237,7 +237,7 @@ final class UserEconomyStore: ObservableObject {
     }
     
     func persistDayPassGrants() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         do {
             let data = try JSONEncoder().encode(dayPassGrants)
             g.set(data, forKey: SharedKeys.appDayPassGrants)

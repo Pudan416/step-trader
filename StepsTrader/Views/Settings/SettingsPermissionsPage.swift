@@ -11,10 +11,10 @@ struct SettingsPermissionsPage: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader()) private var oneMinBefore = true
-    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.stepsTrader()) private var timerOver = true
-    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.stepsTrader()) private var canvasReminder = false
-    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.stepsTrader()) private var dayResetWarning = true
+    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.nowhere()) private var oneMinBefore = true
+    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.nowhere()) private var timerOver = true
+    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.nowhere()) private var canvasReminder = false
+    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.nowhere()) private var dayResetWarning = true
 
     @State private var permissionFailure: SettingsPermissionFailurePresentation?
 

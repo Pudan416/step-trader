@@ -18,7 +18,7 @@ extension AppModel {
     /// Remaining usage minutes reported by Screen Time, valid until day reset.
     /// Idle time does not change this value.
     func unspentUsageBudgetMatchingShield(for groupId: String) -> Int {
-        Self.unspentUsageBudgetMatchingShield(for: groupId, defaults: UserDefaults.stepsTrader())
+        Self.unspentUsageBudgetMatchingShield(for: groupId, defaults: UserDefaults.nowhere())
     }
 
     static func unspentUsageBudgetMatchingShield(for groupId: String, defaults: UserDefaults) -> Int {

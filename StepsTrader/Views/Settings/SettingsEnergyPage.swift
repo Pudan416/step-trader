@@ -2,10 +2,10 @@ import SwiftUI
 
 struct SettingsEnergyPage: View {
     @ObservedObject var model: AppModel
-    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var stepsTarget: Double = EnergyDefaults.stepsTarget
-    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
-    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHourSetting: Int = 0
-    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinuteSetting: Int = 0
+    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.nowhere()) private var stepsTarget: Double = EnergyDefaults.stepsTarget
+    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.nowhere()) private var sleepTarget: Double = EnergyDefaults.sleepTargetHours
+    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.nowhere()) private var dayEndHourSetting: Int = 0
+    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.nowhere()) private var dayEndMinuteSetting: Int = 0
     @Environment(\.appTheme) private var theme
 
     private var dayStartMinutes: Binding<Int> {

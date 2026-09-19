@@ -797,9 +797,9 @@ struct MeSelectedDayPoster: View {
 
     @Environment(\.appTheme) private var theme
     @Environment(\.renderingIsActive) private var renderingIsActive
-    @AppStorage("gallery_sleep_color", store: UserDefaults.stepsTrader())
+    @AppStorage("gallery_sleep_color", store: UserDefaults.nowhere())
     private var liveSleepColorHex: String = "#000000"
-    @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader())
+    @AppStorage("gallery_steps_color", store: UserDefaults.nowhere())
     private var liveStepsColorHex: String = "#FED415"
     @AppStorage(SharedKeys.gradientStyle)
     private var liveGradientStyle: String = GradientStyle.radial.rawValue

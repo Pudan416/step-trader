@@ -102,7 +102,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 @main
-struct StepsTraderApp: App {
+struct NowhereApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -112,16 +112,16 @@ struct StepsTraderApp: App {
                 ProcessInfo.processInfo.arguments.contains("ui-testing-ticket-settings") {
                 TicketSettingsUITestFixtureView()
             } else {
-                StepsTraderProductionRoot()
+                NowhereProductionRoot()
             }
             #else
-            StepsTraderProductionRoot()
+            NowhereProductionRoot()
             #endif
         }
     }
 }
 
-private struct StepsTraderProductionRoot: View {
+private struct NowhereProductionRoot: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
@@ -226,14 +226,14 @@ private struct StepsTraderProductionRoot: View {
         // this fixture-only state an "all used" test empties the palette for
         // every test that follows it in the full suite.
         if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
-            UserDefaults.stepsTrader().removeObject(forKey: SharedKeys.todayAdditions)
+            UserDefaults.nowhere().removeObject(forKey: SharedKeys.todayAdditions)
             CanvasStorageService.shared.deleteCanvas(
                 for: AppModel.dayKey(for: Date.now)
             )
         }
         if processArguments.contains("ui-testing-happening-editor"),
            processArguments.contains("ui-testing-task7") {
-            let defaults = UserDefaults.stepsTrader()
+            let defaults = UserDefaults.nowhere()
             defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
             defaults.removeObject(forKey: SharedKeys.happeningFrequentPalette)
             defaults.removeObject(forKey: SharedKeys.happeningCatalog)
@@ -244,7 +244,7 @@ private struct StepsTraderProductionRoot: View {
             appearance.set(GradientStyle.radial.rawValue, forKey: SharedKeys.gradientStyle)
             appearance.set(GradientPalette.warmSunset.rawValue, forKey: SharedKeys.gradientPalette)
             appearance.set(false, forKey: SharedKeys.dailyRandomThemeEnabled)
-            let defaults = UserDefaults.stepsTrader()
+            let defaults = UserDefaults.nowhere()
             defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
             defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
             defaults.set(0, forKey: SharedKeys.dayEndHour)
@@ -459,7 +459,7 @@ private struct StepsTraderProductionRoot: View {
                 }
                 Task { await announcementService.fetchActiveAnnouncement() }
                 AppLogger.app.debug(
-                    "🎭 StepsTraderApp appeared - showPayGate: \(model.userEconomyStore.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
+                    "🎭 NowhereApp appeared - showPayGate: \(model.userEconomyStore.showPayGate), showQuickStatusPage: \(model.showQuickStatusPage)"
                 )
                 AppLogger.app.debug(
                     "🎭 App state - showHandoffProtection: \(model.showHandoffProtection), handoffToken: \(model.handoffToken?.targetAppName ?? "nil")"
@@ -555,7 +555,7 @@ private struct StepsTraderProductionRoot: View {
                 if let userInfo = notification.userInfo,
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
-                    let g = UserDefaults.stepsTrader()
+                    let g = UserDefaults.nowhere()
                     if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
                        Date.now < until
                     {
@@ -583,14 +583,14 @@ private struct StepsTraderProductionRoot: View {
                    action == "paygate",
                    let target = userInfo["target"] as? String,
                    let bundleId = userInfo["bundleId"] as? String {
-                    let g = UserDefaults.stepsTrader()
+                    let g = UserDefaults.nowhere()
                     if let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
                        Date.now < until
                     {
                         AppLogger.app.debug("🚫 PayGate local notification suppressed after dismiss")
                         return
                     }
-                    let lastOpen = g.object(forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId)) as? Date
+                    let lastOpen = g.object(forKey: SharedKeys.lastAppOpenedFromNowhere(bundleId)) as? Date
                     if let lastOpen {
                         let elapsed = Date.now.timeIntervalSince(lastOpen)
                         if elapsed < 10 {
@@ -713,7 +713,7 @@ private struct StepsTraderProductionRoot: View {
 
     private func checkForHandoffToken() {
         guard canPresentSessionUI, !isUITest else { return }
-        let userDefaults = UserDefaults.stepsTrader()
+        let userDefaults = UserDefaults.nowhere()
 
         AppLogger.app.debug("🔍 Checking for handoff token...")
         AppLogger.app.debug(
@@ -758,7 +758,7 @@ private struct StepsTraderProductionRoot: View {
     
     private func checkForPayGateFlags() {
         guard canPresentSessionUI, !isUITest, model.didCompleteBootstrap else { return }
-        let userDefaults = UserDefaults.stepsTrader()
+        let userDefaults = UserDefaults.nowhere()
         
         // Check if flags set to show PayGate (only set by notification intent)
         let shouldShowPayGate = userDefaults.bool(forKey: SharedKeys.shouldShowPayGate)
@@ -956,14 +956,14 @@ private struct TicketSettingsUITestFixtureView: View {
 }
 #endif
 
-private extension StepsTraderProductionRoot {
+private extension NowhereProductionRoot {
     var currentTheme: AppTheme {
         AppTheme.normalized(rawValue: appThemeRaw)
     }
 }
 
 // MARK: - Notification Handling
-extension StepsTraderProductionRoot {
+extension NowhereProductionRoot {
     func setupNotificationHandling() {
         NotificationDelegate.shared.model = model
     }

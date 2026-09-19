@@ -38,7 +38,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        defaults = UserDefaults.stepsTrader()
+        defaults = UserDefaults.nowhere()
         clearDefaults()
     }
 
@@ -934,7 +934,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
     }
 
     private func clearRemovalDefaults() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         [
             SharedKeys.dailyEnergyAnchor,
             SharedKeys.stepsBalanceAnchor,

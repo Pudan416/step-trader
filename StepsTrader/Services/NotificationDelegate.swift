@@ -10,7 +10,7 @@ final class NotificationDelegate: NSObject, @preconcurrency UNUserNotificationCe
     weak var model: AppModel?
 
     private func persistPayGateIntent(groupId: String? = nil, bundleId: String? = nil) {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         defaults.set(true, forKey: SharedKeys.shouldShowPayGate)
         defaults.set(Date.now, forKey: SharedKeys.payGateRequestedAt)
         if let groupId {
@@ -37,7 +37,7 @@ final class NotificationDelegate: NSObject, @preconcurrency UNUserNotificationCe
         }
         
         if let action = userInfo["action"] as? String, action == "unlock" {
-            let defaults = UserDefaults.stepsTrader()
+            let defaults = UserDefaults.nowhere()
             
             // User explicitly tapped a notification → clear any dismiss cooldown
             // so startPayGateSession won't suppress this intentional action.

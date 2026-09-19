@@ -14,7 +14,7 @@ final class HappeningStore {
     /// and reconstituted orphans in the order they were added.
     private(set) var all: [Happening] = []
 
-    init(defaults: UserDefaults = .stepsTrader()) {
+    init(defaults: UserDefaults = .nowhere()) {
         self.defaults = defaults
     }
 

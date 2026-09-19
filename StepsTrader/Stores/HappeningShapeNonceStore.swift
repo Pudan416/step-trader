@@ -8,7 +8,7 @@ import Foundation
 final class HappeningShapeNonceStore {
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .stepsTrader()) {
+    init(defaults: UserDefaults = .nowhere()) {
         self.defaults = defaults
     }
 

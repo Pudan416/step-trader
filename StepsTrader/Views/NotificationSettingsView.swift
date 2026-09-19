@@ -8,25 +8,25 @@ struct NotificationSettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.nowhere())
     private var oneMinBefore: Bool = true
 
-    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.nowhere())
     private var timerOver: Bool = true
 
-    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.nowhere())
     private var canvasReminder: Bool = false
 
-    @AppStorage(SharedKeys.canvasReminderHour, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.canvasReminderHour, store: UserDefaults.nowhere())
     private var canvasHour: Int = 21
 
-    @AppStorage(SharedKeys.canvasReminderMinute, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.canvasReminderMinute, store: UserDefaults.nowhere())
     private var canvasMinute: Int = 0
 
-    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.nowhere())
     private var dayResetWarning: Bool = true
 
-    @AppStorage(SharedKeys.dayResetWarningHours, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.dayResetWarningHours, store: UserDefaults.nowhere())
     private var dayResetWarningHours: Int = 1
 
     @State private var notificationFailure: SettingsPermissionFailurePresentation?

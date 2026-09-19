@@ -3,7 +3,7 @@ import UIKit
 
 // §5.8: re-entrancy guard for openTargetApp. Two simultaneous handoffs to the same
 // bundleId (rare but possible via fast Shortcuts automation) used to race on the
-// `lastAppOpenedFromStepsTrader` UserDefaults write — second open would overwrite
+// `lastAppOpenedFromNowhere` UserDefaults write — second open would overwrite
 // the first. Now skipped if already opening that bundleId.
 // File-scope `@MainActor` keeps the set safe; all callers are @MainActor.
 @MainActor
@@ -75,7 +75,7 @@ extension AppModel {
             "🚀 Before - showHandoffProtection: \(self.showHandoffProtection), handoffToken: \(self.handoffToken?.targetAppName ?? "nil")"
         )
 
-        let userDefaults = UserDefaults.stepsTrader()
+        let userDefaults = UserDefaults.nowhere()
 
         // Hide protection screen
         showHandoffProtection = false
@@ -101,7 +101,7 @@ extension AppModel {
         handoffToken = nil
 
         // Remove token
-        let userDefaults = UserDefaults.stepsTrader()
+        let userDefaults = UserDefaults.nowhere()
         userDefaults.removeObject(forKey: SharedKeys.handoffToken)
     }
 
@@ -113,9 +113,9 @@ extension AppModel {
         }
         _openingBundleIds.insert(bundleId)
 
-        let userDefaults = UserDefaults.stepsTrader()
+        let userDefaults = UserDefaults.nowhere()
         let now = Date.now
-        userDefaults.set(now, forKey: SharedKeys.lastAppOpenedFromStepsTrader(bundleId))
+        userDefaults.set(now, forKey: SharedKeys.lastAppOpenedFromNowhere(bundleId))
 
         AppLogger.app.debug("🚀 Opening \(bundleId) from HandoffManager and setting protection flag at \(now)")
 

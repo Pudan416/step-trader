@@ -2,7 +2,7 @@ import Foundation
 
 /// Single routing authority for the scalar user-preference keys that
 /// `restoreFromServer` used to write by hand across three UserDefaults domains
-/// — `.standard`, the shared app-group suite (`UserDefaults.stepsTrader()`),
+/// — `.standard`, the shared app-group suite (`UserDefaults.nowhere()`),
 /// and a hand-mirrored copy of the two theme keys the widgets read (§M3).
 ///
 /// Before this, adding a preference meant remembering its domain in every
@@ -67,7 +67,7 @@ enum PreferencesStore {
     /// unit-testable against isolated suites.
     static func applyScalars(
         _ s: Scalars,
-        group: UserDefaults = .stepsTrader(),
+        group: UserDefaults = .nowhere(),
         standard: UserDefaults = .standard,
         appGroupMirror: UserDefaults? = UserDefaults(suiteName: SharedKeys.appGroupId)
     ) {

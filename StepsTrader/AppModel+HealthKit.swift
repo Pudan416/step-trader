@@ -39,7 +39,7 @@ extension AppModel {
     }
     
     func fallbackCachedSteps() -> Double {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         if let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date,
            !isSameCustomDay(anchor, .now) {
             return 0
@@ -73,7 +73,7 @@ extension AppModel {
         dailySleepHours = 0
         healthStore.hasStepsData = false
         healthStore.hasSleepData = false
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.removeObject(forKey: SharedKeys.cachedStepsToday)
         g.set(false, forKey: SharedKeys.hasStepsData)
         g.removeObject(forKey: "cachedSleepHoursToday")

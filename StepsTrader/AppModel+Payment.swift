@@ -85,7 +85,7 @@ extension AppModel {
             consumeBonusSteps(remainingCost)
         }
 
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.set(self.spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
         
@@ -107,7 +107,7 @@ extension AppModel {
         spentStepsToday = max(0, spentStepsToday - refundToBase)
         stepsBalance = max(0, baseEnergyToday - spentStepsToday)
 
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.set(self.spentStepsToday, forKey: SharedKeys.spentStepsToday)
         g.set(self.stepsBalance, forKey: SharedKeys.stepsBalance)
 
@@ -117,7 +117,7 @@ extension AppModel {
 
     // MARK: - Steps Balance Management
     func loadSpentStepsBalance() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
         let isSameDay = isSameCustomDay(anchor, Date.now)
         let rawUDSpent = g.integer(forKey: SharedKeys.spentStepsToday)
@@ -149,7 +149,7 @@ extension AppModel {
     func clearBonusBreakdown() {
         self.bonusSteps = 0
         
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.set(0, forKey: SharedKeys.bonusSteps)
         g.removeObject(forKey: "debugStepsBonus_outerworld_v1")
         g.removeObject(forKey: "debugStepsBonus_debug_v1")

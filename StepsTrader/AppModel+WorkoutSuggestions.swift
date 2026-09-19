@@ -228,7 +228,7 @@ extension AppModel {
 
     /// Called on day boundary reset.
     func clearDismissedWorkouts() {
-        UserDefaults.stepsTrader().removeObject(forKey: Self.dismissedSuggestionsKey)
+        UserDefaults.nowhere().removeObject(forKey: Self.dismissedSuggestionsKey)
         pendingActivitySuggestions = []
         _pendingWorkoutSuggestions = []
     }
@@ -238,7 +238,7 @@ extension AppModel {
     private static let dismissedSuggestionsKey = "dismissedSuggestionIds_v1"
 
     private var dismissedSuggestionIds: Set<String> {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         guard let data = g.data(forKey: Self.dismissedSuggestionsKey),
               let decoded = try? JSONDecoder().decode(Set<String>.self, from: data) else {
             return []
@@ -247,7 +247,7 @@ extension AppModel {
     }
 
     private func saveDismissedSuggestionIds(_ ids: Set<String>) {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         if let data = try? JSONEncoder().encode(ids) {
             g.set(data, forKey: Self.dismissedSuggestionsKey)
         }

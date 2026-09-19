@@ -7,7 +7,7 @@ import FamilyControls
 extension AppModel {
     // MARK: - App Selection Save/Load
     func saveAppSelection() {
-        let userDefaults = UserDefaults.stepsTrader()
+        let userDefaults = UserDefaults.nowhere()
         
         // Save the full FamilyActivitySelection (appSelection_v1)
         // so it can be restored in both the main app and extensions.

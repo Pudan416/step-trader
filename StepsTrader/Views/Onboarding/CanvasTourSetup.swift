@@ -16,7 +16,7 @@ struct CanvasTourSetup: View {
     private var notifications: SettingsPermissionPresentation {
         .notifications(
             status: model.notificationAuthorizationStatus,
-            remindersEnabled: SettingsPermissionPresentation.remindersEnabled(in: .stepsTrader())
+            remindersEnabled: SettingsPermissionPresentation.remindersEnabled(in: .nowhere())
         )
     }
 

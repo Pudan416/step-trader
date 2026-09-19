@@ -348,7 +348,7 @@ final class SmudgePreparationTests: XCTestCase {
             presentation: .constant(.canvas), externalDataPanelPullDistance: 0,
             paletteRoute: .constant(CanvasPaletteRouteState()), isCanvasSelected: true
         )
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let previousStyle = defaults.object(forKey: SharedKeys.canvasOverlayStyle)
         defaults.set(CanvasOverlayStyle.smudge.rawValue, forKey: SharedKeys.canvasOverlayStyle)
         defer {

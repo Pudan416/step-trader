@@ -85,7 +85,7 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     /// A cumulative threshold is not a recurring minute timer; purchase schedules
     /// themselves provide the interval-end callback that closes each access window.
     private func buildHeartbeatEvents() -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]
 
         let liteData = g.data(forKey: SharedKeys.liteTicketConfig) ?? g.data(forKey: SharedKeys.liteShieldConfig)

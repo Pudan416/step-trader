@@ -22,19 +22,19 @@ struct SettingsSheet: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.nowhere())
     private var stepsTarget = EnergyDefaults.stepsTarget
-    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.nowhere())
     private var sleepTarget = EnergyDefaults.sleepTargetHours
-    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.nowhere())
     private var dayEndHour = 0
-    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.nowhere())
     private var dayEndMinute = 0
     @AppStorage(SharedKeys.canvasVisualStyle) private var canvasStyleRaw = CanvasVisualStyle.editorial.rawValue
-    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.stepsTrader()) private var oneMinBefore = true
-    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.stepsTrader()) private var timerOver = true
-    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.stepsTrader()) private var canvasReminder = false
-    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.stepsTrader()) private var dayResetWarning = true
+    @AppStorage(SharedKeys.notifyOneMinBefore, store: UserDefaults.nowhere()) private var oneMinBefore = true
+    @AppStorage(SharedKeys.notifyWhenTimerOver, store: UserDefaults.nowhere()) private var timerOver = true
+    @AppStorage(SharedKeys.notifyCanvasReminder, store: UserDefaults.nowhere()) private var canvasReminder = false
+    @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.nowhere()) private var dayResetWarning = true
     private var remindersEnabled: Bool { oneMinBefore || timerOver || canvasReminder || dayResetWarning }
     @State private var showLogin = false
     /// Fallback route storage when no external binding is supplied (preview /

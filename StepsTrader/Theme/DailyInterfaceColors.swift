@@ -10,7 +10,7 @@ final class DailyInterfaceColors {
     private(set) var palette: DailyInterfacePalette
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .stepsTrader()) {
+    init(defaults: UserDefaults = .nowhere()) {
         self.defaults = defaults
         self.palette = DailyInterfacePalette.load(from: defaults)
     }

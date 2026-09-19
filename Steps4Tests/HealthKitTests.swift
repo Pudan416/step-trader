@@ -80,13 +80,13 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
 final class HealthActivitySuggestionTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         defaults.removeObject(forKey: SharedKeys.todayAdditions)
         defaults.removeObject(forKey: "dismissedSuggestionIds_v1")
     }
 
     override func tearDown() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         defaults.removeObject(forKey: SharedKeys.todayAdditions)
         defaults.removeObject(forKey: "dismissedSuggestionIds_v1")
         super.tearDown()
@@ -148,7 +148,7 @@ final class HealthActivitySuggestionTests: XCTestCase {
     }
 
     func testAcceptingYogaInstallsItInCatalogAndActivePalette() throws {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let catalogBefore = defaults.data(forKey: SharedKeys.happeningCatalog)
         let selectionBefore = defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection)
         defer {
@@ -194,7 +194,7 @@ final class HealthActivitySuggestionTests: XCTestCase {
     }
 
     func testAcceptingWalkingReusesWalkWithoutReplacingAnotherPaletteSlot() throws {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let catalogBefore = defaults.data(forKey: SharedKeys.happeningCatalog)
         let selectionBefore = defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection)
         defer {
@@ -513,7 +513,7 @@ final class HealthStoreTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mock = ConfigurableHealthKitMock()
-        defaults = UserDefaults.stepsTrader()
+        defaults = UserDefaults.nowhere()
         // Clear cached values before creating the store (init reads cache)
         defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
         defaults.removeObject(forKey: SharedKeys.hasStepsData)

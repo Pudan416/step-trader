@@ -421,7 +421,7 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        defaults = UserDefaults.stepsTrader()
+        defaults = UserDefaults.nowhere()
         clearEnergyDefaults()
     }
 

@@ -299,7 +299,7 @@ extension SupabaseSyncService {
         
         var snapshots: [String: PastDaySnapshot] = [:]
         
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let now = Date.now
         let lastFullSync = g.object(forKey: historicalLastFullSyncKey) as? Date ?? .distantPast
         let shouldFullSync = now.timeIntervalSince(lastFullSync) >= historicalRefreshTTL

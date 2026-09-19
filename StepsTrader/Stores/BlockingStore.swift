@@ -85,7 +85,7 @@ final class BlockingStore: ObservableObject {
     }
     
     private func saveAppSelection() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         if let data = try? JSONEncoder().encode(appSelection) {
             defaults.set(data, forKey: SharedKeys.appSelection)
             defaults.set(Date.now, forKey: SharedKeys.appSelectionSavedDate)
@@ -103,7 +103,7 @@ final class BlockingStore: ObservableObject {
     
     // MARK: - Ticket Groups Management
     func loadTicketGroups() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         if let data = g.data(forKey: ticketGroupsKey),
            let decoded = try? JSONDecoder().decode([TicketGroup].self, from: data) {
             ticketGroups = decoded
@@ -121,7 +121,7 @@ final class BlockingStore: ObservableObject {
 
     func persistTicketGroups() {
         let startTime = CFAbsoluteTimeGetCurrent()
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         do {
             let data = try JSONEncoder().encode(ticketGroups)
             g.set(data, forKey: ticketGroupsKey)
@@ -210,7 +210,7 @@ final class BlockingStore: ObservableObject {
     }
     
     func timeAccessSelection(for bundleId: String) -> FamilyActivitySelection {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         #if canImport(FamilyControls)
         if let data = g.data(forKey: timeAccessSelectionKey(for: bundleId)),
            let decoded = try? JSONDecoder().decode(FamilyActivitySelection.self, from: data) {
@@ -221,7 +221,7 @@ final class BlockingStore: ObservableObject {
     }
 
     func saveTimeAccessSelection(_ selection: FamilyActivitySelection, for bundleId: String) {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         #if canImport(FamilyControls)
         if let data = try? JSONEncoder().encode(selection) {
             g.set(data, forKey: timeAccessSelectionKey(for: bundleId))
@@ -248,7 +248,7 @@ final class BlockingStore: ObservableObject {
             
             let startTime = CFAbsoluteTimeGetCurrent()
             var combined = FamilyActivitySelection()
-            let defaults = UserDefaults.stepsTrader()
+            let defaults = UserDefaults.nowhere()
             var diagLines: [String] = []
             
             for group in ticketGroups {
@@ -295,7 +295,7 @@ final class BlockingStore: ObservableObject {
                 AppLogger.shield.debug("⚠️ rebuildFamilyControlsShield took \(String(format: "%.3f", elapsed))s")
             }
             
-            let sharedDefaults = UserDefaults.stepsTrader()
+            let sharedDefaults = UserDefaults.nowhere()
             sharedDefaults.set(0, forKey: SharedKeys.shieldState)
 
             let detail = diagLines.joined(separator: " | ")
@@ -324,7 +324,7 @@ final class BlockingStore: ObservableObject {
     /// Append a diagnostic entry to the shared history ring buffer (last 20 entries).
     /// Called from app-side rebuild; the extension writes its own via the same keys.
     static func logShieldDiagnostic(source: String, apps: Int, categories: Int, detail: String) {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let iso = ISO8601DateFormatter()
         let ts = iso.string(from: Date.now)
         let entry = "[\(ts)] [\(source)] apps=\(apps) cats=\(categories) \(detail)"
@@ -343,7 +343,7 @@ final class BlockingStore: ObservableObject {
     /// Build a human-readable diagnostics string covering shield state, unlock keys,
     /// ticket groups, extension logs, and rebuild history.
     func dumpShieldDiagnostics() -> String {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let now = Date.now
         let iso = ISO8601DateFormatter()
         var lines: [String] = ["=== Shield Diagnostics (\(iso.string(from: now))) ===", ""]

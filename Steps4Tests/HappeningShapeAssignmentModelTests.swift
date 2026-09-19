@@ -28,7 +28,7 @@ final class HappeningShapeAssignmentModelTests: XCTestCase {
     }
 
     private func clearKeys() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         for key in [
             SharedKeys.todayAdditions,
             SharedKeys.happeningCatalog,

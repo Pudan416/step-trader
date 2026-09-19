@@ -499,7 +499,7 @@ struct AppsPageSimplified: View {
     private func refreshUsageBudgets() {
         var latest: [String: Int] = [:]
         var latestInitial: [String: Int] = [:]
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         for group in model.blockingStore.ticketGroups {
             let minutes = model.unspentUsageBudgetMatchingShield(for: group.id)
             guard minutes > 0 else { continue }

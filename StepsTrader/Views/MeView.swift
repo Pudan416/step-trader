@@ -733,7 +733,7 @@ struct MeView: View {
             return records
         }
 
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         guard let data = defaults.data(forKey: "paymentTransactions_v1"),
               let records = try? JSONDecoder().decode([MePosterUnlockRecord].self, from: data)
         else { return [] }

@@ -42,7 +42,7 @@ final class AppModel: ObservableObject {
     // Intentionally nonisolated: called from actor contexts (SupabaseSyncService, extensions).
     // UserDefaults is thread-safe for reads, so this is safe outside @MainActor.
     nonisolated static func storedDayEnd() -> (hour: Int, minute: Int) {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let h = (g.object(forKey: SharedKeys.dayEndHour) as? Int)
             ?? (UserDefaults.standard.object(forKey: SharedKeys.dayEndHour) as? Int)
             ?? 0
@@ -298,7 +298,7 @@ final class AppModel: ObservableObject {
         let now = Date.now
         let currentKey = Self.dayKey(for: now)
         let dayChanged = currentKey != lastDayKey
-        let anchor = UserDefaults.stepsTrader().object(forKey: SharedKeys.dailyEnergyAnchor) as? Date
+        let anchor = UserDefaults.nowhere().object(forKey: SharedKeys.dailyEnergyAnchor) as? Date
         let needsReset = anchor.map { !isSameCustomDay($0, now) } ?? false
         // Coalesce duplicate checks only within the same day. A timer firing
         // immediately before the cutoff cannot suppress the foreground reset.
@@ -335,7 +335,7 @@ final class AppModel: ObservableObject {
     /// Wipes every active usage-budget key and stops DeviceActivity monitoring,
     /// then rebuilds shields so apps become blocked again.
     private func clearAllUsageBudgets(reason: String) {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         var didClean = false
 
         for group in ticketGroups {
@@ -490,7 +490,7 @@ final class AppModel: ObservableObject {
         isBootstrapping = true
         
         // Diagnostic: dump raw UD values BEFORE any loading
-        let diagG = UserDefaults.stepsTrader()
+        let diagG = UserDefaults.nowhere()
         AppLogger.energy.debug("📊 BOOTSTRAP RAW UD: spentStepsToday=\(diagG.integer(forKey: SharedKeys.spentStepsToday)), baseEnergyToday=\(diagG.integer(forKey: SharedKeys.baseEnergyToday)), stepsBalance=\(diagG.integer(forKey: SharedKeys.stepsBalance)), anchor=\(String(describing: diagG.object(forKey: SharedKeys.dailyEnergyAnchor)))")
 
         await prepareLocalPurchaseState()
@@ -562,7 +562,7 @@ final class AppModel: ObservableObject {
         // the upgrade itself doesn't trigger one clobbering restore.
         await waitForAuthentication()
         let isAuthenticated = AuthenticationService.shared.isAuthenticated
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
         if isAuthenticated && !hasCompletedInitialRestore {
             let hasPriorLocalState = g.object(forKey: SharedKeys.dailyEnergyAnchor) != nil
@@ -656,7 +656,7 @@ extension AppModel {
         let familyMissing = !blockingStore.isAuthorized
         let notifications = SettingsPermissionPresentation.notifications(
             status: notificationAuthorizationStatus,
-            remindersEnabled: SettingsPermissionPresentation.remindersEnabled(in: UserDefaults.stepsTrader())
+            remindersEnabled: SettingsPermissionPresentation.remindersEnabled(in: UserDefaults.nowhere())
         )
         return familyMissing || notifications.contributesToWarning
     }

@@ -1,7 +1,7 @@
 import XCTest
 import UIKit
 
-final class Steps4UITestsLaunchTests: XCTestCase {
+final class NowhereUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         false

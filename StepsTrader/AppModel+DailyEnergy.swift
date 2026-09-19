@@ -240,7 +240,7 @@ extension AppModel {
 
     private func persistTodayAdditions() {
         do {
-            UserDefaults.stepsTrader().set(
+            UserDefaults.nowhere().set(
                 try JSONEncoder().encode(todayAdditions),
                 forKey: SharedKeys.todayAdditions
             )
@@ -250,7 +250,7 @@ extension AppModel {
     }
 
     func loadDailyEnergyState() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         happeningStore.load()
         happeningPaletteSelectionStore.load(catalog: happeningStore.all)
         loadTodayAdditions(from: g)
@@ -380,7 +380,7 @@ extension AppModel {
            let loaded = try? JSONDecoder().decode([String: PastDaySnapshot].self, from: data) {
             decoded = loaded
         } else {
-            let g = UserDefaults.stepsTrader()
+            let g = UserDefaults.nowhere()
             if let data = g.data(forKey: SharedKeys.pastDaySnapshots),
                let loaded = try? JSONDecoder().decode([String: PastDaySnapshot].self, from: data) {
                 decoded = loaded
@@ -421,7 +421,7 @@ extension AppModel {
     }
 
     private func resetDailyEnergyState() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
 
         // Capture ALL old-day values FIRST, before any state mutation.
         // This prevents reading stale/new-day values if checkDayBoundary already cleared some keys.
@@ -518,7 +518,7 @@ extension AppModel {
 
     @discardableResult
     func resetDailyEnergyIfNeeded() -> Bool {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         guard let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date else {
             AppLogger.energy.debug("⚠️ resetDailyEnergyIfNeeded: anchor missing — seeding, NOT resetting (additions=\(self.todayAdditions.count))")
             g.set(currentDayStart(for: Date.now), forKey: SharedKeys.dailyEnergyAnchor)
@@ -533,7 +533,7 @@ extension AppModel {
     }
 
     func persistDailyEnergyState() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         persistTodayAdditions()
         g.set(dailySleepHours, forKey: SharedKeys.dailySleepHours)
         g.set(baseEnergyToday, forKey: SharedKeys.baseEnergyToday)
@@ -587,31 +587,31 @@ extension AppModel {
     }
 
     private var userSleepTarget: Double {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         return g.object(forKey: "userSleepTarget") as? Double ?? EnergyDefaults.sleepTargetHours
     }
     
     private var userStepsTarget: Double {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         return g.object(forKey: "userStepsTarget") as? Double ?? EnergyDefaults.stepsTarget
     }
     
     var isRestDayOverrideEnabled: Bool {
-        UserDefaults.stepsTrader().bool(forKey: SharedKeys.restDayOverrideEnabled)
+        UserDefaults.nowhere().bool(forKey: SharedKeys.restDayOverrideEnabled)
     }
     
     // MARK: - Wallpaper Shortcut Tracking
     
     var hasWallpaperShortcut: Bool {
-        UserDefaults.stepsTrader().bool(forKey: "hasWallpaperShortcut")
+        UserDefaults.nowhere().bool(forKey: "hasWallpaperShortcut")
     }
     
     var wallpaperShortcutUses: Int {
-        UserDefaults.stepsTrader().integer(forKey: "wallpaperShortcutUses")
+        UserDefaults.nowhere().integer(forKey: "wallpaperShortcutUses")
     }
     
     func markWallpaperShortcutUsed() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.set(true, forKey: "hasWallpaperShortcut")
         let current = g.integer(forKey: "wallpaperShortcutUses")
         g.set(current + 1, forKey: "wallpaperShortcutUses")
@@ -619,7 +619,7 @@ extension AppModel {
     }
     
     func setRestDayOverrideEnabled(_ enabled: Bool) {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.set(enabled, forKey: SharedKeys.restDayOverrideEnabled)
         // Mirror in standard defaults for widgets/tests that may not use app-group accessor.
         UserDefaults.standard.set(enabled, forKey: SharedKeys.restDayOverrideEnabled)
@@ -662,7 +662,7 @@ extension AppModel {
         // for the same day, restore from UD. This catches any code path that
         // accidentally zeroes the in-memory value without going through resetDailyEnergyState.
         if spentStepsToday == 0 {
-            let udG = UserDefaults.stepsTrader()
+            let udG = UserDefaults.nowhere()
             let udSpent = udG.integer(forKey: SharedKeys.spentStepsToday)
             if udSpent > 0 {
                 let anchor = udG.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date ?? .distantPast
@@ -677,7 +677,7 @@ extension AppModel {
         stepsBalance = max(0, baseEnergyToday - spentStepsToday)
         AppLogger.energy.debug("⚡️ stepsBalance: \(oldBalance) → \(self.stepsBalance) (base=\(self.baseEnergyToday), spent=\(self.spentStepsToday))")
         
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         g.set(baseEnergyToday, forKey: SharedKeys.baseEnergyToday)
 
         writeWidgetSnapshot()
@@ -710,7 +710,7 @@ extension AppModel {
     /// Sync user preferences to Supabase (debounced in the service)
     func syncUserPreferencesToSupabase() {
         guard !isBootstrapping else { return }
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let std = UserDefaults.standard
         Task {
             await SupabaseSyncService.shared.syncUserPreferences(
@@ -751,7 +751,7 @@ extension AppModel {
     // MARK: - Widget Data
 
     func writeWidgetSnapshot() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         WidgetDataFile.write(WidgetSnapshot(
             balance: stepsBalance + g.integer(forKey: SharedKeys.bonusSteps),
             earned: baseEnergyToday,
@@ -786,7 +786,7 @@ extension AppModel {
     // MARK: - Routines (Saved Presets)
 
     func loadSavedRoutines() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         guard let data = g.data(forKey: SharedKeys.savedRoutines),
               let decoded = try? JSONDecoder().decode([EnergyRoutine].self, from: data) else {
             savedRoutines = []
@@ -796,7 +796,7 @@ extension AppModel {
     }
 
     private func persistSavedRoutines() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         do {
             let data = try JSONEncoder().encode(savedRoutines)
             g.set(data, forKey: SharedKeys.savedRoutines)

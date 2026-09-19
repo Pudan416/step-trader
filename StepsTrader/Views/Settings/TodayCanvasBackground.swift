@@ -398,8 +398,8 @@ struct TodayCanvasBackdropHost: ViewModifier {
     @AppStorage(SharedKeys.gradientPalette) private var palette = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.canvasTexture) private var texture = CanvasTexture.grainSmall.rawValue
     @AppStorage(SharedKeys.modernPaletteCategories) private var categories = ModernPaletteSelection.encode(ModernPaletteSelection.all)
-    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.stepsTrader()) private var dayEndHour = 0
-    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.stepsTrader()) private var dayEndMinute = 0
+    @AppStorage(SharedKeys.dayEndHour, store: UserDefaults.nowhere()) private var dayEndHour = 0
+    @AppStorage(SharedKeys.dayEndMinute, store: UserDefaults.nowhere()) private var dayEndMinute = 0
     @State private var currentDay = AppModel.dayKey(for: .now)
     private let dayCheck = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 

@@ -8,7 +8,7 @@ extension UserDefaults {
     /// In DEBUG builds, asserts if the container is unavailable (entitlements misconfiguration).
     /// In RELEASE builds, falls back to .standard with a warning — but data written here
     /// will NOT be visible to extensions, causing shields/charges to silently break (audit fix #24).
-    static func stepsTrader() -> UserDefaults {
+    static func nowhere() -> UserDefaults {
         let groupId = SharedKeys.appGroupId
         #if DEBUG
         if !hasLoggedGroupInfo {

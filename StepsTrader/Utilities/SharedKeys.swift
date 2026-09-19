@@ -246,7 +246,7 @@ enum SharedKeys {
     static func dailySelectionsKey(_ category: String) -> String { "dailyEnergySelections_v1_\(category)" }
     static func preferredOptionsKey(_ category: String) -> String { "preferredEnergyOptions_v1_\(category)" }
     static func minuteCountKey(dayKey: String, bundleId: String) -> String { "minuteCount_\(dayKey)_\(bundleId)" }
-    static func lastAppOpenedFromStepsTrader(_ bundleId: String) -> String { "lastAppOpenedFromStepsTrader_\(bundleId)" }
+    static func lastAppOpenedFromNowhere(_ bundleId: String) -> String { "lastAppOpenedFromStepsTrader_\(bundleId)" }
     static func usageBudgetKey(_ groupId: String) -> String { "usageBudget_\(groupId)" }
     static func usageBudgetStartedKey(_ groupId: String) -> String { "usageBudgetStarted_\(groupId)" }
     static func usageBudgetInitialKey(_ groupId: String) -> String { "usageBudgetInitial_\(groupId)" }

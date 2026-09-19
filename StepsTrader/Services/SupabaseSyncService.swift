@@ -185,12 +185,12 @@ actor SupabaseSyncService {
     private init() {
         let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
         retryQueueStore = SupabaseRetryQueuePersistence(
-            defaults: UserDefaults.stepsTrader(),
+            defaults: UserDefaults.nowhere(),
             key: Self.retryQueueKey,
             maximumCount: Self.maxRetryQueueSize
         )
         optionEntryIntentStore = OptionEntryIntentPersistence(
-            defaults: UserDefaults.stepsTrader(),
+            defaults: UserDefaults.nowhere(),
             key: Self.optionEntryIntentKey
         )
         let ttl = g.double(forKey: SharedKeys.supabaseTodayCacheTTLSeconds)
@@ -589,7 +589,7 @@ actor SupabaseSyncService {
         AppLogger.network.debug("📡 Starting full Supabase sync...")
         
         let snapshot = await MainActor.run {
-            let g = UserDefaults.stepsTrader()
+            let g = UserDefaults.nowhere()
             return (
                 todayAdditions: model.todayAdditions,
                 customHappenings: model.happeningStore.all.filter { !$0.isBuiltIn },
@@ -737,7 +737,7 @@ actor SupabaseSyncService {
         
         if let prefs = await loadUserPreferencesFromServer() {
             await MainActor.run {
-                let g = UserDefaults.stepsTrader()
+                let g = UserDefaults.nowhere()
                 // Scalar preferences (across .standard / app-group / theme-mirror
                 // domains) route through one tested authority — see PreferencesStore.
                 PreferencesStore.applyScalars(
@@ -800,7 +800,7 @@ actor SupabaseSyncService {
         if let routines = await loadSavedRoutinesFromServer(), !routines.isEmpty {
             await MainActor.run {
                 model.savedRoutines = routines
-                let g = UserDefaults.stepsTrader()
+                let g = UserDefaults.nowhere()
                 if let data = try? JSONEncoder().encode(routines) {
                     g.set(data, forKey: SharedKeys.savedRoutines)
                 }

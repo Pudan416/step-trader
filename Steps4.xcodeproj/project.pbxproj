@@ -289,7 +289,7 @@
 		2089F0ED2E71AE3400ABF5FA /* FamilyControlsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */; };
 		2089F0EE2E71AE3400ABF5FA /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */; };
 		2089F0EF2E71AE3400ABF5FA /* Date+Today.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E72E71AE3400ABF5FA /* Date+Today.swift */; };
-		2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */; };
+		2089F0F02E71AE3400ABF5FA /* NowhereApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2089F0E92E71AE3400ABF5FA /* NowhereApp.swift */; };
 		209424C82E85952D00904A0A /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C52E85952D00904A0A /* NotificationManager.swift */; };
 		209424C92E85952D00904A0A /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C62E85952D00904A0A /* AppModel.swift */; };
 		209424CA2E85952D00904A0A /* DIContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209424C72E85952D00904A0A /* DIContainer.swift */; };
@@ -324,7 +324,7 @@
 		20AA248A2F70C00100000001 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */; };
 		20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */; };
-		20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */; };
+		20B0A3542E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift */; };
 		20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
 		20B0A3582E8C930700D5EBE4 /* HandoffManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */; };
 		20B0A3592E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
@@ -534,7 +534,7 @@
 		PREF5702570057005700B002 /* PreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PREF5702570057005700F002 /* PreferencesStoreTests.swift */; };
 		T1E5T5C22E71A18F00ABF5FA /* DailyEnergyLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */; };
 		FA7150012026091500000004 /* FeatureTipPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7150012026091500000003 /* FeatureTipPolicyTests.swift */; };
-		T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */; };
+		T1E5T5E22E71A18F00ABF5FA /* NowhereUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1E5T5E12E71A18F00ABF5FA /* NowhereUITestsLaunchTests.swift */; };
 		CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */; };
 		FA7150012026091500000006 /* FeatureTipFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7150012026091500000005 /* FeatureTipFlowUITests.swift */; };
 		20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */; };
@@ -935,7 +935,7 @@
 		2089F0E42E71AE3400ABF5FA /* FamilyControlsService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FamilyControlsService.swift; sourceTree = "<group>"; };
 		2089F0E52E71AE3400ABF5FA /* HealthKitService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		2089F0E72E71AE3400ABF5FA /* Date+Today.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Date+Today.swift"; sourceTree = "<group>"; };
-		2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepsTraderApp.swift; sourceTree = "<group>"; };
+		2089F0E92E71AE3400ABF5FA /* NowhereApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NowhereApp.swift; sourceTree = "<group>"; };
 		2089F0F12E72D68C00ABF5FA /* Steps4.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Steps4.entitlements; sourceTree = "<group>"; };
 		2089F0F42E72EC1700ABF5FA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		209424C52E85952D00904A0A /* NotificationManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
@@ -958,7 +958,7 @@
 		20AA24862F70BDC4002F2F2C /* UnlockWidgetExtensionRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UnlockWidgetExtensionRelease.entitlements; sourceTree = "<group>"; };
 		20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionRestoreTests.swift; sourceTree = "<group>"; };
 		20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryQueueClassificationTests.swift; sourceTree = "<group>"; };
-		20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StepsTrader.swift"; sourceTree = "<group>"; };
+		20B0A3532E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Nowhere.swift"; sourceTree = "<group>"; };
 		20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeys.swift; sourceTree = "<group>"; };
 		20B0A3572E8C930700D5EBE4 /* HandoffManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffManager.swift; sourceTree = "<group>"; };
 		20B8843E2FAF9B8C0088AA6D /* BlockingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockingStore.swift; sourceTree = "<group>"; };
@@ -1162,7 +1162,7 @@
 		PREF5702570057005700F002 /* PreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStoreTests.swift; sourceTree = "<group>"; };
 		T1E5T5C12E71A18F00ABF5FA /* DailyEnergyLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyEnergyLogicTests.swift; sourceTree = "<group>"; };
 		FA7150012026091500000003 /* FeatureTipPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipPolicyTests.swift; sourceTree = "<group>"; };
-		T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Steps4UITestsLaunchTests.swift; sourceTree = "<group>"; };
+		T1E5T5E12E71A18F00ABF5FA /* NowhereUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowhereUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSimplificationUITests.swift; sourceTree = "<group>"; };
 		FA7150012026091500000005 /* FeatureTipFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTipFlowUITests.swift; sourceTree = "<group>"; };
 		20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRedesignUITests.swift; sourceTree = "<group>"; };
@@ -1756,7 +1756,7 @@
 				20AA247A2F70BCF5002F2F2C /* SharedKeys.swift */,
 				20DE0E642F2B78970016EEAE /* AppLogger.swift */,
 				AC000002300400000000AC02 /* AppConstants.swift */,
-				20B0A3532E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift */,
+				20B0A3532E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift */,
 				20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */,
 				20F5A0122FFF030000000003 /* Localization.swift */,
 				BB000001BBBB000100000002 /* CachedFormatters.swift */,
@@ -1786,7 +1786,7 @@
 				50SM00073002000050SM0007 /* Metal */,
 				40IN00052FFF050000000005 /* Intents */,
 				20F0NT032FFF040000000003 /* Fonts */,
-				2089F0E92E71AE3400ABF5FA /* StepsTraderApp.swift */,
+				2089F0E92E71AE3400ABF5FA /* NowhereApp.swift */,
 				A7EDE3C1122147E0986F21D2 /* NowhereLaunchView.swift */,
 				200AC47A2F0C795D0018004E /* TargetResolver.swift */,
 				FA0111111111111111111102 /* UnlockGroupWidgetIntent.swift */,
@@ -2174,7 +2174,7 @@
 		T1E5T5E02E71A18F00ABF5FA /* Steps4UITests */ = {
 			isa = PBXGroup;
 			children = (
-				T1E5T5E12E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift */,
+				T1E5T5E12E71A18F00ABF5FA /* NowhereUITestsLaunchTests.swift */,
 				CA51F0210000000000000021 /* CanvasSimplificationUITests.swift */,
 				FA7150012026091500000005 /* FeatureTipFlowUITests.swift */,
 				20CC010D2F86000000000013 /* SettingsRedesignUITests.swift */,
@@ -2794,7 +2794,7 @@
 				FE000004FEED000100000001 /* UnlockTimerModel.swift in Sources */,
 				FE000006FEED000100000001 /* UsageBudgetMonitoringError.swift in Sources */,
 				2061EBA32F269D19009FEC24 /* AppSelectionComponents.swift in Sources */,
-				20B0A3542E8C65E700D5EBE4 /* UserDefaults+StepsTrader.swift in Sources */,
+				20B0A3542E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift in Sources */,
 				20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */,
 				A71300000000000000000011 /* DailyInterfacePalette.swift in Sources */,
 				A71000000000000000000011 /* GateArtwork.swift in Sources */,
@@ -2805,7 +2805,7 @@
 				20AA24892F70BEEA002F2F2C /* AccessWindow.swift in Sources */,
 				62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */,
 				2061EB8A2F269CC7009FEC24 /* NotificationDelegate.swift in Sources */,
-				2089F0F02E71AE3400ABF5FA /* StepsTraderApp.swift in Sources */,
+				2089F0F02E71AE3400ABF5FA /* NowhereApp.swift in Sources */,
 				A7EDE3C1122147E0986F21D1 /* NowhereLaunchView.swift in Sources */,
 				20AA24812F70BD6F002F2F2C /* ShieldRebuildHelper.swift in Sources */,
 				20DB000B2F85000000000002 /* DayBoundary.swift in Sources */,
@@ -3124,7 +3124,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				T1E5T5E22E71A18F00ABF5FA /* Steps4UITestsLaunchTests.swift in Sources */,
+				T1E5T5E22E71A18F00ABF5FA /* NowhereUITestsLaunchTests.swift in Sources */,
 				CA51B0210000000000000021 /* CanvasSimplificationUITests.swift in Sources */,
 				FA7150012026091500000006 /* FeatureTipFlowUITests.swift in Sources */,
 				20CC020D2F86000000000013 /* SettingsRedesignUITests.swift in Sources */,

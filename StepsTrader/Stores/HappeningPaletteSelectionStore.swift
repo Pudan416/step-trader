@@ -65,7 +65,7 @@ final class HappeningPaletteSelectionStore {
     private let defaults: UserDefaults
     private(set) var ids: [String] = []
 
-    init(defaults: UserDefaults = .stepsTrader()) {
+    init(defaults: UserDefaults = .nowhere()) {
         self.defaults = defaults
     }
 
@@ -139,7 +139,7 @@ final class FrequentHappeningStore {
     private let defaults: UserDefaults
     private var snapshot: Snapshot?
 
-    init(defaults: UserDefaults = .stepsTrader()) {
+    init(defaults: UserDefaults = .nowhere()) {
         self.defaults = defaults
         snapshot = defaults.data(forKey: SharedKeys.happeningFrequentPalette).flatMap {
             try? JSONDecoder().decode(Snapshot.self, from: $0)

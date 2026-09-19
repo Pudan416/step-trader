@@ -1,7 +1,7 @@
 import Foundation
 
 func loadAnalyticsQueueFromDefaults() -> [AnalyticsEventPayload] {
-    let g = UserDefaults.stepsTrader()
+    let g = UserDefaults.nowhere()
     guard let data = g.data(forKey: SharedKeys.analyticsEventsQueue),
           let decoded = try? JSONDecoder().decode([AnalyticsEventPayload].self, from: data) else {
         return []

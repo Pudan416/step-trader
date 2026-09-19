@@ -20,7 +20,7 @@ extension AppModel {
     func startPayGateSession(for groupId: String) {
         if showPayGate, payGateTargetGroupId == groupId { return }
 
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         if !showPayGate,
            let until = g.object(forKey: SharedKeys.payGateDismissedUntil) as? Date,
            Date.now < until
@@ -100,7 +100,7 @@ extension AppModel {
         
         // A paid continuation that could not register is resumed before a new
         // charge. Never turn recovery into another purchase.
-        let store = UserDefaults.stepsTrader()
+        let store = UserDefaults.nowhere()
         if ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: store, groupId: groupId),
            let session = UsageBudgetSession.load(from: store, groupId: groupId) {
             if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: session.remainingMinutes) {
@@ -126,7 +126,7 @@ extension AppModel {
         
         AppLogger.shield.debug("✅ Payment successful! New balance: \(self.totalStepsBalance)")
         
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         do {
             try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: groupId, minutes: minutes)
         } catch {
@@ -162,7 +162,7 @@ extension AppModel {
     @discardableResult
     private func startUsageBudgetMonitoring(groupId: String, minutes: Int) -> UsageBudgetMonitoringError? {
         #if canImport(DeviceActivity) && canImport(FamilyControls)
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         do {
             try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: groupId)
             defaults.set("OK usage thresholds usageBudget_\(groupId), \(minutes)m", forKey: SharedKeys.lastStartMonitoringLog)
@@ -179,7 +179,7 @@ extension AppModel {
     // MARK: - Pending Widget Budget Monitoring
 
     func startPendingWidgetBudgetMonitoring() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         ShieldRebuildHelper.startPendingWidgetBudgets()
 
         for group in ticketGroups {
@@ -224,7 +224,7 @@ extension AppModel {
     func reconcileOrphanUsageBudgetMonitors() {
         #if canImport(DeviceActivity)
         let center = DeviceActivityCenter()
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let prefix = "usageBudget_"
         var toStop: [DeviceActivityName] = []
         for activity in center.activities {
@@ -245,7 +245,7 @@ extension AppModel {
     /// that still has budget valid for this custom day but no registered `usageBudget_*` activity.
     func ensureUsageBudgetMonitoringForActiveGroups() {
         #if canImport(DeviceActivity) && canImport(FamilyControls)
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let center = DeviceActivityCenter()
         for group in ticketGroups {
             let gid = group.id
@@ -276,7 +276,7 @@ extension AppModel {
     }
 
     private func clearUsageBudgetPrefsForGroup(_ groupId: String) {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         defaults.removeObject(forKey: SharedKeys.usageBudgetKey(groupId))
         defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(groupId))
         defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(groupId))
@@ -294,7 +294,7 @@ extension AppModel {
         payGateTargetGroupId = nil
         payGateSessions.removeAll()
         currentPayGateSessionId = nil
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let now = Date.now
         if reason == .userDismiss {
             // Cooldown to prevent instant re-open loops when the user dismisses PayGate.
@@ -339,7 +339,7 @@ extension AppModel {
            let decoded = try? JSONDecoder().decode([PaymentTransaction].self, from: data) {
             transactions = decoded
         } else {
-            let defaults = UserDefaults.stepsTrader()
+            let defaults = UserDefaults.nowhere()
             if let data = defaults.data(forKey: "paymentTransactions_v1"),
                let decoded = try? JSONDecoder().decode([PaymentTransaction].self, from: data) {
                 transactions = decoded

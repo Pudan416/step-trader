@@ -88,7 +88,7 @@ extension SupabaseSyncService {
     private func persistAnalyticsQueueToDefaults() {
         guard let data = try? JSONEncoder().encode(pendingAnalyticsEvents) else { return }
         Task { @MainActor in
-            UserDefaults.stepsTrader().set(data, forKey: SharedKeys.analyticsEventsQueue)
+            UserDefaults.nowhere().set(data, forKey: SharedKeys.analyticsEventsQueue)
         }
     }
     

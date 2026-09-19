@@ -108,7 +108,7 @@ struct SettingsDeveloperPage: View {
         rowDivider
 
         Button {
-            let defaults = UserDefaults.stepsTrader()
+            let defaults = UserDefaults.nowhere()
             for group in model.blockingStore.ticketGroups {
                 defaults.removeObject(forKey: SharedKeys.usageBudgetKey(group.id))
                 defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))

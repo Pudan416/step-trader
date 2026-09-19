@@ -58,21 +58,21 @@ struct GalleryView: View {
     @ObservedObject var model: AppModel
     @Environment(\.appTheme) private var theme
     @Binding var metricOverlay: MetricOverlayKind?
-    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.stepsTrader()) private var userStepsTarget: Double = 10_000
-    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.stepsTrader()) private var userSleepTarget: Double = 8.0
-    @AppStorage("gallery_sleep_color", store: UserDefaults.stepsTrader()) private var sleepColorHex: String = "#000000"
-    @AppStorage("gallery_steps_color", store: UserDefaults.stepsTrader()) private var stepsColorHex: String = "#FED415"
+    @AppStorage(SharedKeys.userStepsTarget, store: UserDefaults.nowhere()) private var userStepsTarget: Double = 10_000
+    @AppStorage(SharedKeys.userSleepTarget, store: UserDefaults.nowhere()) private var userSleepTarget: Double = 8.0
+    @AppStorage("gallery_sleep_color", store: UserDefaults.nowhere()) private var sleepColorHex: String = "#000000"
+    @AppStorage("gallery_steps_color", store: UserDefaults.nowhere()) private var stepsColorHex: String = "#FED415"
     @AppStorage(SharedKeys.gradientStyle) private var currentGradientStyle: String = GradientStyle.radial.rawValue
     @AppStorage(SharedKeys.gradientPalette) private var currentGradientPalette: String = GradientPalette.warmSunset.rawValue
     @AppStorage(SharedKeys.canvasTexture) private var canvasTextureRaw: String = CanvasTexture.grainSmall.rawValue
     @AppStorage(SharedKeys.modernPaletteCategories) private var modernPaletteCategoriesRaw = ""
     @AppStorage(SharedKeys.canvasVisualStyle) private var preferredCanvasVisualStyleRaw = CanvasVisualStyle.editorial.rawValue
-    @AppStorage(SharedKeys.canvasVisualStyleMigrationVersion, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.canvasVisualStyleMigrationVersion, store: UserDefaults.nowhere())
     private var canvasVisualStyleMigrationVersion = 0
     /// Last day key whose remote bootstrap finished. When `== todayKey`, an empty
     /// canvas (post-fetch with no remote data) is treated as a real "nothing yet"
     /// state instead of re-firing the remote round-trip on every appear.
-    @AppStorage("gallery_last_bootstrapped_day", store: UserDefaults.stepsTrader()) private var lastBootstrappedDayKey: String = ""
+    @AppStorage("gallery_last_bootstrapped_day", store: UserDefaults.nowhere()) private var lastBootstrappedDayKey: String = ""
     @Environment(\.scenePhase) private var scenePhase
     @State private var dayCanvas: DayCanvas = DayCanvas(dayKey: AppModel.dayKey(for: Date.now))
     @State private var activeDayKey: String = AppModel.dayKey(for: Date.now)
@@ -136,11 +136,11 @@ struct GalleryView: View {
     /// Which window's copy is currently on the bubble (set when it appears).
     @State private var activeHintWindow: AddHintWindow = .evening
     /// Day key the `addHintShownWindowsRaw` set belongs to (reset on rollover).
-    @AppStorage("addHint_dayKey", store: UserDefaults.stepsTrader()) private var addHintDayKey: String = ""
+    @AppStorage("addHint_dayKey", store: UserDefaults.nowhere()) private var addHintDayKey: String = ""
     /// Comma-joined `AddHintWindow.rawValue`s already shown today.
-    @AppStorage("addHint_shownWindows", store: UserDefaults.stepsTrader()) private var addHintShownWindowsRaw: String = ""
+    @AppStorage("addHint_shownWindows", store: UserDefaults.nowhere()) private var addHintShownWindowsRaw: String = ""
     /// The drag hint earns one appearance per install, then gets out of the way.
-    @AppStorage("canvasEditDragHintShown", store: UserDefaults.stepsTrader())
+    @AppStorage("canvasEditDragHintShown", store: UserDefaults.nowhere())
     private var editDragHintShown: Bool = false
     @State private var showsEditDragHint = false
     @State private var editDragHintTask: Task<Void, Never>? = nil
@@ -1995,7 +1995,7 @@ struct GalleryView: View {
         let newEarned = model.baseEnergyToday
         let newSpent = model.spentStepsToday
 
-        let currentOverlay = UserDefaults.stepsTrader().string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue
+        let currentOverlay = UserDefaults.nowhere().string(forKey: SharedKeys.canvasOverlayStyle) ?? CanvasOverlayStyle.smudge.rawValue
         let currentTexture = UserDefaults.standard.string(forKey: SharedKeys.canvasTexture) ?? CanvasTexture.grainSmall.rawValue
         didChange = dayCanvas.applyVisualPreferences(
             gradientStyle: currentGradientStyle, gradientPalette: currentGradientPalette,

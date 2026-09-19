@@ -88,7 +88,7 @@ extension AppModel {
     /// economy state intact, and extend any live usage-budget expiries so a
     /// running unlock isn't cut short (or orphaned past) the new day-end.
     private func reanchorForDayEndChange() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         let now = Date.now
         let newDayStart = currentDayStart(for: now)
 

@@ -50,7 +50,7 @@ extension AppModel {
     }
 
     func loadAppUnlockSettings() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         guard let data = g.data(forKey: SharedKeys.appUnlockSettings) else { return }
         if let decoded = try? JSONDecoder().decode([String: AppUnlockSettings].self, from: data) {
             // Normalize values that were previously clamped to 1
@@ -64,7 +64,7 @@ extension AppModel {
     }
     
     func persistAppUnlockSettings() {
-        let g = UserDefaults.stepsTrader()
+        let g = UserDefaults.nowhere()
         if let data = try? JSONEncoder().encode(appUnlockSettings) {
             g.set(data, forKey: SharedKeys.appUnlockSettings)
         }

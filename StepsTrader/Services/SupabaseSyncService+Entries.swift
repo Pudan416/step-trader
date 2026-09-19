@@ -19,7 +19,7 @@ enum OptionEntryRetrySupersession {
     }
 
     static func persistedDesiredEntries() -> [OptionEntry] {
-        guard let data = UserDefaults.stepsTrader().data(forKey: SharedKeys.todayAdditions),
+        guard let data = UserDefaults.nowhere().data(forKey: SharedKeys.todayAdditions),
               let entries = try? JSONDecoder().decode([OptionEntry].self, from: data)
         else { return [] }
         return entries

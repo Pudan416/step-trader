@@ -32,11 +32,11 @@ final class AppGroupRMWConcurrencyTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        UserDefaults.stepsTrader().removeObject(forKey: testKey)
+        UserDefaults.nowhere().removeObject(forKey: testKey)
     }
 
     override func tearDown() {
-        UserDefaults.stepsTrader().removeObject(forKey: testKey)
+        UserDefaults.nowhere().removeObject(forKey: testKey)
         super.tearDown()
     }
 
@@ -44,7 +44,7 @@ final class AppGroupRMWConcurrencyTests: XCTestCase {
 
     /// One read-modify-write increment of `field` against the shared blob.
     private func rmwIncrement(_ field: String, readWriteGap: useconds_t) {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         var dict: [String: Int] = [:]
         if let data = defaults.data(forKey: testKey),
            let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
@@ -58,7 +58,7 @@ final class AppGroupRMWConcurrencyTests: XCTestCase {
     }
 
     private func storedCount(_ field: String) -> Int {
-        guard let data = UserDefaults.stepsTrader().data(forKey: testKey),
+        guard let data = UserDefaults.nowhere().data(forKey: testKey),
               let dict = try? JSONDecoder().decode([String: Int].self, from: data)
         else { return 0 }
         return dict[field] ?? 0

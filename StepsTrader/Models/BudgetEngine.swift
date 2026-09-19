@@ -22,7 +22,7 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     private let standardDefaults: UserDefaults
 
     init(
-        sharedDefaults: UserDefaults = .stepsTrader(),
+        sharedDefaults: UserDefaults = .nowhere(),
         standardDefaults: UserDefaults = .standard
     ) {
         self.sharedDefaults = sharedDefaults

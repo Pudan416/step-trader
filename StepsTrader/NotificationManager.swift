@@ -224,7 +224,7 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
     // MARK: - Daily Scheduled Notifications
 
     func sendActivityDetectedNotification(for suggestion: ActivitySuggestion) {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let enabled = defaults.object(forKey: SharedKeys.notifyActivityDetected) as? Bool ?? true
         guard enabled else { return }
 
@@ -264,7 +264,7 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
     }
 
     func scheduleDailyCanvasReminder() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let enabled = defaults.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? false
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ["dailyCanvasReminder"])
@@ -294,7 +294,7 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
     }
 
     func scheduleDayResetWarning(dayEndHour: Int, dayEndMinute: Int) {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let enabled = defaults.object(forKey: SharedKeys.notifyDayResetWarning) as? Bool ?? true
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ["dayResetWarning"])

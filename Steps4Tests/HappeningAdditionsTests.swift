@@ -53,7 +53,7 @@ final class HappeningAdditionsTests: XCTestCase {
     }
 
     private func clearLegacyKeys() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         Self.legacyKeys.forEach { defaults.removeObject(forKey: $0) }
         defaults.removeObject(forKey: SharedKeys.todayAdditions)
         defaults.removeObject(forKey: SharedKeys.happeningCatalog)
@@ -341,7 +341,7 @@ final class HappeningAdditionsTests: XCTestCase {
     }
 
     func testConfiguredPaletteHappeningsUsesPersistedSelection() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         let configuredIDs = Array(HappeningDefaults.builtIns.prefix(10).map(\.id).reversed())
         defaults.set(configuredIDs, forKey: SharedKeys.happeningPaletteSelection)
         let model = makeModel()
@@ -396,7 +396,7 @@ final class HappeningAdditionsTests: XCTestCase {
                 colorHex: "#DDEEFF", timestamp: .distantPast, assetVariant: nil
             )
         ]
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         defaults.set(try JSONEncoder().encode(entries), forKey: SharedKeys.todayAdditions)
         defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
 
@@ -412,7 +412,7 @@ final class HappeningAdditionsTests: XCTestCase {
     /// silently read nothing, which is exactly the failure mode this migration
     /// exists to prevent.
     func testLoadMigratesLegacyCategorySelectionsWhenAdditionsKeyIsAbsent() throws {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         defaults.removeObject(forKey: SharedKeys.todayAdditions)
         try setLegacySelections(["body_walking"], category: "body", in: defaults)
         try setLegacySelections(["mind_learning"], category: "mind", in: defaults)
@@ -434,7 +434,7 @@ final class HappeningAdditionsTests: XCTestCase {
     /// Some values may have been written as a native array by other code paths.
     /// Tolerated, so neither shape is lost.
     func testLoadMigratesLegacySelectionsStoredAsNativeArray() {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         defaults.removeObject(forKey: SharedKeys.todayAdditions)
         defaults.set(["body_walking"], forKey: "dailyEnergySelections_v1_body")
         defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
@@ -456,7 +456,7 @@ final class HappeningAdditionsTests: XCTestCase {
     }
 
     private func makeModel(clearAdditions: Bool = true) -> AppModel {
-        let defaults = UserDefaults.stepsTrader()
+        let defaults = UserDefaults.nowhere()
         if clearAdditions {
             defaults.removeObject(forKey: SharedKeys.todayAdditions)
         }

@@ -24,7 +24,7 @@ struct CanvasAnimationOverlay: View {
     var onGestureUpdated: @MainActor (CanvasTouchGestureSample) -> Void = { _ in }
     var onGestureEnded: @MainActor () -> Void = {}
 
-    @AppStorage(SharedKeys.canvasOverlayStyle, store: UserDefaults.stepsTrader())
+    @AppStorage(SharedKeys.canvasOverlayStyle, store: UserDefaults.nowhere())
     private var styleRaw: String = CanvasOverlayStyle.smudge.rawValue
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
