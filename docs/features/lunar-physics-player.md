@@ -76,12 +76,19 @@ The Canvas remains portrait-only. Landscape is not a separate clean-view mode.
 
 When Play is requested, full-screen controls remain visible while audio starts. Once sound
 is actually on, a 2.5-second idle timer fades the dock, its scrim and system chrome. A small persistent
-folded-corner affordance remains flush with the physical lower-right corner. Pressing it restores
-the playback/remix dock and starts the idle timer again.
+30-point folded-corner affordance remains flush with the physical lower-right corner. Its visible
+curl has no icon, but it retains a 56 by 56 point hit area. Pressing it restores the playback/remix
+dock and starts the idle timer again.
 
-The corner owns only a 56 by 56 point hit area. Smudge remains immediate everywhere else;
-Smudge gestures do not reveal the interface. Stop, an audio error, leaving Canvas, or closing
-full screen restores the ordinary visible interface.
+The revealed interface has one Stop action: the close button stops sound, returns the figures and
+leaves full screen. There is no duplicate mute control. A question-mark button in the upper-right
+opens Kosta's short note explaining that sleep shapes harmony, activity shapes rhythm and
+Happenings add bright moments. Playback continues behind the note while the modal surface owns
+its touches.
+
+Smudge remains immediate everywhere outside the folded corner and visible controls; Smudge
+gestures do not reveal the interface. Stop, an audio error, leaving Canvas, or closing full screen
+restores the ordinary visible interface.
 
 ## Lifecycle and failure rules
 
@@ -107,6 +114,8 @@ physical-device verification is still required for tilt behavior.
 - Smudge still produces immediate Lead and can nudge a crossed moving figure.
 - The dock hides automatically, its folded corner restores it, and the corner alone blocks the
   underlying Smudge hit area.
+- Full screen has no separate mute action; the close button is the single way to stop and leave.
+- The question-mark control opens and closes the English music note without stopping playback.
 - Rotation does not enter a landscape Canvas mode.
 - Stop returns figures to the current composition and does not save physical positions.
 

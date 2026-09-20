@@ -299,21 +299,26 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
     }
 
-    func testFullScreenReportsWhetherDayMusicStarted() {
+    func testFullScreenExplainsMusicWithoutDuplicateSoundControl() {
         let app = launchCanvas()
         app.buttons["canvas_sound_button"].tap()
 
-        let sound = app.buttons["canvas_fullscreen_sound_button"]
-        XCTAssertTrue(sound.waitForExistence(timeout: 5))
-        let started = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == 'on'"),
-            object: sound
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [started], timeout: 20),
-            .completed,
-            "Full-screen Canvas must report a successful audio start: \(sound.value)"
-        )
+        let info = app.buttons["canvas_music_info_button"]
+        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["canvas_fullscreen_sound_button"].exists)
+
+        info.tap()
+        let note = app.otherElements["canvas_music_info_card"]
+        XCTAssertTrue(note.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["About the music"].exists)
+        XCTAssertTrue(app.staticTexts["Sleep shapes the harmony. Activity shapes the rhythm. Happenings add bright, unexpected moments."].exists)
+        let noteCapture = XCTAttachment(screenshot: app.screenshot())
+        noteCapture.name = "music-info-note"
+        noteCapture.lifetime = .keepAlways
+        add(noteCapture)
+
+        app.buttons["canvas_music_info_close_button"].tap()
+        XCTAssertTrue(note.waitForNonExistence(timeout: 3))
     }
 
     func testCloseReturnsToCanvasWithoutWaitingForAudioStartup() {

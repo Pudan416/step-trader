@@ -161,6 +161,7 @@ struct GalleryView: View {
     @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
     @State private var playbackChrome = CanvasPlaybackChromeState()
     @State private var playbackChromeHideTask: Task<Void, Never>?
+    @State private var showsMusicInfo = false
     @State private var lunarPhysicsPlayback = CanvasLunarPhysicsPlaybackState()
     @State private var lunarInteractionBus = DayObjectLunarInteractionBus()
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
@@ -320,18 +321,6 @@ struct GalleryView: View {
               let intent = musicController.acceptSoundButtonIntent()
         else { return }
         Task { await musicController.completeSoundButtonIntent(intent) }
-    }
-
-    private func handleFullScreenSoundControl() {
-        switch CanvasFullScreenSoundAction.resolve(appearance: canvasSoundAppearance) {
-        case .retryInPlace:
-            startCanvasSoundIfNeeded()
-            lightHapticTick &+= 1
-        case .turnOffAndExit:
-            stopCanvasSoundAndExitAfterReturn()
-        case .none:
-            break
-        }
     }
 
     private func stopCanvasSoundAndExitAfterReturn() {
@@ -1089,6 +1078,13 @@ struct GalleryView: View {
             }
         }
         .overlay {
+            if showsMusicInfo {
+                CanvasMusicInfoOverlay(onDismiss: dismissMusicInfo)
+                    .ignoresSafeArea()
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+        .overlay {
             if presentation.showsEditingChrome,
                (dayCanvas.resolvedVisualStyle == .legacy || dayCanvas.artworkRecipe?.isSupported == true) {
                 CanvasEditingDock(
@@ -1310,6 +1306,7 @@ struct GalleryView: View {
 
             if !new.isWideCanvas {
                 isManuallyExpanded = false
+                showsMusicInfo = false
             } else {
                 userCollapsedWide = false
                 isManuallyExpanded = true
@@ -2327,6 +2324,24 @@ struct GalleryView: View {
 
     private var wideCanvasOverlay: some View {
         VStack {
+            HStack {
+                Spacer(minLength: 0)
+                Button(action: presentMusicInfo) {
+                    Image(systemName: "questionmark")
+                        .font(.geist(size: 18, weight: .semibold))
+                        .foregroundStyle(buttonColor)
+                        .frame(width: 48, height: 48)
+                        .canvasChromeSurface(in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "About the music"))
+                .accessibilityHint(String(localized: "Explains how your day shapes the music"))
+                .accessibilityIdentifier("canvas_music_info_button")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, deviceTopSafeAreaInset + 8)
+
             Spacer()
             if let remixFeedback {
                 Text(remixFeedback)
@@ -2338,8 +2353,6 @@ struct GalleryView: View {
                 .padding(.bottom, 10)
             }
             CanvasFullScreenDock(
-                soundAppearance: canvasSoundAppearance,
-                onSound: handleFullScreenSoundControl,
                 onClose: {
                     stopCanvasSoundAndExitAfterReturn()
                 },
@@ -2354,6 +2367,21 @@ struct GalleryView: View {
         }
     }
 
+    private func presentMusicInfo() {
+        playbackChromeHideTask?.cancel()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showsMusicInfo = true
+        }
+        lightHapticTick &+= 1
+    }
+
+    private func dismissMusicInfo() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showsMusicInfo = false
+        }
+        schedulePlaybackChromeHide()
+    }
+
     private var playbackRevealOverlay: some View {
         Button {
             playbackChrome.handle(.revealControls)
@@ -2365,12 +2393,11 @@ struct GalleryView: View {
                     .fill(.ultraThinMaterial)
                     .overlay {
                         CanvasPlaybackRevealCornerShape()
-                            .stroke(.white.opacity(0.42), lineWidth: 0.75)
+                            .stroke(.white.opacity(0.28), lineWidth: 0.75)
                     }
-                Image(systemName: "chevron.up.left")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .padding(12)
+                    .shadow(color: .black.opacity(0.08), radius: 5, x: -2, y: -2)
+                    .frame(width: 30, height: 30)
+                    .opacity(0.72)
             }
             .frame(width: 56, height: 56)
             .contentShape(Rectangle())
