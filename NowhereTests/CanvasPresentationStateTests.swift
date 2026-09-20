@@ -6,6 +6,39 @@ import XCTest
 /// screen, edit mode without full screen, chrome over a full-screen canvas —
 /// must be unrepresentable, not merely unreachable.
 final class CanvasPresentationStateTests: XCTestCase {
+    func testPlaybackChromeHidesOnlyAfterSoundIsActuallyOn() {
+        var chrome = CanvasPlaybackChromeState()
+
+        chrome.handle(.playRequested)
+        chrome.handle(.hideDelayElapsed)
+        XCTAssertEqual(chrome.visibility, .controls)
+
+        chrome.handle(.soundStarted)
+        chrome.handle(.hideDelayElapsed)
+        XCTAssertEqual(chrome.visibility, .revealHandle)
+    }
+
+    func testRevealHandleRestoresControlsAndStopKeepsThemVisible() {
+        var chrome = CanvasPlaybackChromeState()
+        chrome.handle(.soundStarted)
+        chrome.handle(.hideDelayElapsed)
+        chrome.handle(.revealControls)
+        XCTAssertEqual(chrome.visibility, .controls)
+        XCTAssertTrue(chrome.shouldScheduleHide)
+
+        chrome.handle(.soundStopped)
+        chrome.handle(.hideDelayElapsed)
+        XCTAssertEqual(chrome.visibility, .controls)
+        XCTAssertFalse(chrome.shouldScheduleHide)
+    }
+
+    func testSmudgeDoesNotRevealPlaybackChrome() {
+        var chrome = CanvasPlaybackChromeState()
+        chrome.handle(.soundStarted)
+        chrome.handle(.hideDelayElapsed)
+        chrome.handle(.canvasInteraction)
+        XCTAssertEqual(chrome.visibility, .revealHandle)
+    }
     func testRemixAndUndoControlsAreAvailableOnlyInFullScreenViewing() {
         for state in CanvasPresentationState.allCases {
             XCTAssertEqual(CanvasFullScreenRemixPresentation.isVisible(in: state), state == .fullScreen)

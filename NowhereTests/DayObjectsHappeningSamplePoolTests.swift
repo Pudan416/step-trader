@@ -387,6 +387,51 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.pool.metrics.stealCount, 0)
     }
 
+    func testMaterialResonanceCannotStealRegularHappeningVoices() throws {
+        let harness = try preparedHarness()
+        for recipeID in 1...4 {
+            _ = try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.7,
+                priority: .recurrence
+            )
+        }
+
+        XCTAssertThrowsError(try harness.pool.play(
+            sound(id: 5, resource: "5.wav"),
+            gain: 0.4,
+            priority: .materialResonance
+        )) {
+            XCTAssertEqual($0 as? HappeningSamplePoolError, .noEligibleVoice)
+        }
+        XCTAssertEqual(harness.pool.metrics.stealCount, 0)
+    }
+
+    func testRegularHappeningCanStealMaterialResonanceVoice() throws {
+        let harness = try preparedHarness()
+        let resonance = try harness.pool.play(
+            sound(id: 1, resource: "1.wav"),
+            gain: 0.4,
+            priority: .materialResonance
+        )
+        for recipeID in 2...4 {
+            _ = try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.7,
+                priority: .recurrence
+            )
+        }
+
+        let regular = try harness.pool.play(
+            sound(id: 5, resource: "5.wav"),
+            gain: 0.7,
+            priority: .recurrence
+        )
+
+        XCTAssertEqual(regular.voiceID, resonance.voiceID)
+        XCTAssertEqual(harness.pool.metrics.stealCount, 1)
+    }
+
     func testCompatibilityPlayDefaultsToRecurrencePriority() throws {
         let harness = try preparedHarness()
         for recipeID in 1...4 {

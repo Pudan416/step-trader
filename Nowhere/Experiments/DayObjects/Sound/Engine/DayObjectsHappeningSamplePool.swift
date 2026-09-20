@@ -5,9 +5,10 @@ import Foundation
 import SoundpipeAudioKit
 
 enum HappeningPlaybackPriority: Int, Comparable, Sendable {
-    case recurrence = 0
-    case birth = 1
-    case manualAudition = 2
+    case materialResonance = 0
+    case recurrence = 1
+    case birth = 2
+    case manualAudition = 3
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }

@@ -41,6 +41,9 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
     let isAnimating: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
     let presentationMode: DayObjectsPresentationMode
+    let lunarPhysicsIsActive: Bool
+    let lunarInteractionBus: DayObjectLunarInteractionBus?
+    let onWallImpact: @MainActor (DayObjectWallImpact) -> Void
     private let legacyArtwork: () -> LegacyArtwork
 
     init(
@@ -49,6 +52,9 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
         isAnimating: Bool,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
         presentationMode: DayObjectsPresentationMode = .canvas,
+        lunarPhysicsIsActive: Bool = false,
+        lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
+        onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
         @ViewBuilder legacyArtwork: @escaping () -> LegacyArtwork
     ) {
         self.style = style
@@ -56,6 +62,9 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
         self.isAnimating = isAnimating
         self.soundPulseBus = soundPulseBus
         self.presentationMode = presentationMode
+        self.lunarPhysicsIsActive = lunarPhysicsIsActive
+        self.lunarInteractionBus = lunarInteractionBus
+        self.onWallImpact = onWallImpact
         self.legacyArtwork = legacyArtwork
     }
 
@@ -68,7 +77,10 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
                 digitalImpact: editorial.digitalImpact,
                 isAnimating: isAnimating,
                 soundPulseBus: soundPulseBus,
-                presentationMode: presentationMode
+                presentationMode: presentationMode,
+                lunarPhysicsIsActive: lunarPhysicsIsActive,
+                lunarInteractionBus: lunarInteractionBus,
+                onWallImpact: onWallImpact
             )
         case .legacy:
             legacyArtwork()

@@ -69,19 +69,8 @@ private struct Task7UITestAccessibilityModifier: ViewModifier {
 
 // MARK: - AppDelegate (Remote Notifications)
 class AppDelegate: NSObject, UIApplicationDelegate {
-    static var canvasViewing = false
-
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        Self.canvasViewing ? .allButUpsideDown : .portrait
-    }
-
-    static func allowCanvasRotation(_ enabled: Bool) {
-        guard canvasViewing != enabled else { return }
-        canvasViewing = enabled
-        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
-            scene.windows.forEach { $0.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations() }
-            scene.requestGeometryUpdate(.iOS(interfaceOrientations: enabled ? .allButUpsideDown : .portrait))
-        }
+        .portrait
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {

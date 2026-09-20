@@ -33,6 +33,11 @@ Do not trim samples, reduce precision or remove roots during repository housekee
 
 ## Verification
 
+Wall collisions in the [lunar physics player](features/lunar-physics-player.md) reuse a
+small world-specific subset of the bundled happening resonances. They are an atmospheric
+material layer, not replacements for scheduled happening one-shots or the gesture Lead.
+Keep their global throttle and physics contact cooldown when changing playback routing.
+
 For resource changes, run `DayObjectsAudioResourceTests`, `DayObjectsFeltPianoTests`,
 `DayObjectsDrumBankTests`, `DayObjectsHappeningSamplePoolTests` and catalog tests.
 For lifecycle changes, also run playback, transport, remix and bank tests.

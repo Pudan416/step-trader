@@ -1,6 +1,26 @@
 import Combine
 import Foundation
 
+enum DayObjectMaterialResonance {
+    static func recipeID(
+        for world: DayObjectsSoundWorld,
+        actorID: DayObjectActorID
+    ) -> HappeningSoundRecipeID? {
+        let variants: [Int] = switch world {
+        case .feltAndWood: [31, 33]
+        case .livingField: [41, 34]
+        case .metalAndCurrent: [37, 38]
+        case .electricDream: [35, 36]
+        }
+        let eventHash = actorID.eventID.utf8.reduce(UInt64(0)) { partial, byte in
+            partial &* 31 &+ UInt64(byte)
+        }
+        let member = UInt64(actorID.memberIndex.magnitude)
+        let index = Int((eventHash &+ member) % UInt64(variants.count))
+        return HappeningSoundRecipeID(rawValue: variants[index])
+    }
+}
+
 enum HappeningPadAuditionStatus: Equatable, Sendable {
     case ready
     case loading
@@ -106,6 +126,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var diagnosticActionGeneration: UInt64 = 0
     private var diagnosticActionTask: Task<Void, Never>?
     private var configuredHappeningIDs: [String]
+    private var lastMaterialResonanceAt: TimeInterval = -.infinity
     private var musicVariantHistory: [MusicVariant] = []
     @Published private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
 
@@ -166,6 +187,18 @@ final class DayObjectsMusicLabController: ObservableObject {
     var canUndoMusicRemix: Bool { !musicVariantHistory.isEmpty }
     var canToggleSound: Bool {
         !isExportingAuditions && acceptedSoundButtonIntent == nil && soundState != .starting
+    }
+
+    func playMaterialResonance(_ impact: DayObjectWallImpact) async {
+        guard soundState == .on,
+              let recipeID = DayObjectMaterialResonance.recipeID(
+                  for: currentPlan.soundWorld,
+                  actorID: impact.actorID
+              ) else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastMaterialResonanceAt >= 0.75 else { return }
+        lastMaterialResonanceAt = now
+        try? await playback.playMaterialResonance(recipeID)
     }
 
     var worldSummary: String {

@@ -1012,6 +1012,12 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private lazy var nativeAtlasRenderer = NativeAtlasMetalRenderer(device: device)
     private var soundPulseBus: DayObjectsSoundPulseBus?
     private var soundPulseTimeline = DayObjectsSoundPulseTimeline()
+    private var lunarPhysics = DayObjectLunarPhysicsEngine()
+    private var lunarPhysicsIsActive = false
+    private weak var motionInput: DayObjectMotionInputProvider?
+    private weak var lunarInteractionBus: DayObjectLunarInteractionBus?
+    private var lastLunarInteractionSequence: UInt64 = 0
+    private weak var wallImpactSink: DayObjectWallImpactSink?
     private var glitchBandSeed: UInt64
     private var glitchBandUniforms: [DayObjectsGlitchBandUniform]
     private var insertionTimeline: DayObjectInsertionTimeline
@@ -1238,10 +1244,22 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         environment: DayObjectEnvironment,
         digitalImpact: DayObjectDigitalImpact = .none,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
-        presentationMode: DayObjectsPresentationMode = .canvas
+        presentationMode: DayObjectsPresentationMode = .canvas,
+        lunarPhysicsIsActive: Bool = false,
+        lunarPhysicsReturnIsAnimated: Bool = true,
+        motionInput: DayObjectMotionInputProvider? = nil,
+        lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
+        wallImpactSink: DayObjectWallImpactSink? = nil
     ) {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
         self.presentationMode = presentationMode
+        if !lunarPhysicsIsActive && !lunarPhysicsReturnIsAnimated {
+            lunarPhysics.reset()
+        }
+        self.lunarPhysicsIsActive = lunarPhysicsIsActive
+        self.motionInput = motionInput
+        self.lunarInteractionBus = lunarInteractionBus
+        self.wallImpactSink = wallImpactSink
         switch presentationMode {
         case .canvas:
             backgroundRenderPolicy.invalidate()
@@ -1400,6 +1418,73 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         commandBuffer.commit()
     }
 
+    private func frameApplyingLunarPhysics(
+        _ frame: DayObjectRenderFrame,
+        elapsedTime: TimeInterval,
+        canvasAspect: Float
+    ) -> DayObjectRenderFrame {
+        let canvasSpan = canvasAspect >= 1
+            ? SIMD2<Float>(canvasAspect, 1)
+            : SIMD2<Float>(1, 1 / max(canvasAspect, 0.001))
+        let canvasHalfSpan = canvasSpan * 0.5
+        let physicsActors = frame.actors.map {
+            DayObjectLunarPhysicsActor(
+                id: $0.actorID,
+                position: $0.gpuActor.position,
+                halfSize: $0.gpuActor.halfSize
+            )
+        }
+        let physicsOutput = lunarPhysics.update(
+            actors: physicsActors,
+            gravity: motionInput?.projectedGravity ?? SIMD2(0, -0.35),
+            canvasHalfSpan: canvasHalfSpan,
+            elapsed: elapsedTime,
+            playbackIsActive: lunarPhysicsIsActive
+        )
+        if let lunarInteractionBus {
+            var accumulatedImpulses = [DayObjectActorID: SIMD2<Float>]()
+            for event in lunarInteractionBus.events(after: lastLunarInteractionSequence) {
+                lastLunarInteractionSequence = max(lastLunarInteractionSequence, event.sequence)
+                guard lunarPhysicsIsActive else { continue }
+                let interactiveActors = physicsActors.map { actor in
+                    DayObjectLunarPhysicsActor(
+                        id: actor.id,
+                        position: physicsOutput.positions[actor.id] ?? actor.position,
+                        halfSize: actor.halfSize
+                    )
+                }
+                for (actorID, impulse) in DayObjectLunarInteractionField.impulses(
+                    from: event.startPoint * canvasHalfSpan,
+                    to: event.endPoint * canvasHalfSpan,
+                    gestureImpulse: DayObjectLunarInteractionField.canvasVector(
+                        event.impulse,
+                        halfSpan: canvasHalfSpan
+                    ),
+                    actors: interactiveActors
+                ) {
+                    accumulatedImpulses[actorID, default: .zero] += impulse
+                }
+            }
+            for (actorID, impulse) in accumulatedImpulses {
+                lunarPhysics.applyImpulse(
+                    DayObjectLunarInteractionField.bounded(
+                        impulse,
+                        maximumMagnitude: 0.42
+                    ),
+                    to: actorID
+                )
+            }
+        }
+        if let wallImpactSink {
+            for impact in physicsOutput.impacts.prefix(2) {
+                Task { @MainActor [weak wallImpactSink] in
+                    wallImpactSink?.send(impact)
+                }
+            }
+        }
+        return frame.applyingLunarPositions(physicsOutput.positions)
+    }
+
     private func encodeFrame(
         outputTexture: MTLTexture,
         outputPass: MTLRenderPassDescriptor,
@@ -1412,7 +1497,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         soundPulseTimeline.consume(soundPulseBus, at: elapsedTime)
         let renderImpact: DayObjectDigitalImpact
         let renderScene: DayObjectScene
-        let frame: DayObjectRenderFrame
+        var frame: DayObjectRenderFrame
         switch presentationMode {
         case .canvas:
             renderImpact = digitalImpact
@@ -1434,8 +1519,6 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 timeline: paletteTimeline
             )
         }
-        currentFrame = frame
-
         if var recipe = renderScene.input.nativeAtlasRecipe, recipe.isSupported {
             guard let renderer = nativeAtlasRenderer, let buffer = commandQueue.makeCommandBuffer() else { return nil }
             var isPalette = false
@@ -1451,13 +1534,29 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 }
                 recipe.intersectionStrength = 0
             }
-            let nativeFrame = renderer.adapt(frame, recipe: recipe, aspect: Float(drawableSize.width / max(drawableSize.height, 1)), elapsed: elapsedTime, soundPulses: soundPulseTimeline.timestamps, isPalette: isPalette)
+            var nativeFrame = renderer.adapt(frame, recipe: recipe, aspect: Float(drawableSize.width / max(drawableSize.height, 1)), elapsed: elapsedTime, soundPulses: soundPulseTimeline.timestamps, isPalette: isPalette)
+            if !isPalette {
+                nativeFrame = frameApplyingLunarPhysics(
+                    nativeFrame,
+                    elapsedTime: elapsedTime,
+                    canvasAspect: Float(drawableSize.width / max(drawableSize.height, 1))
+                )
+            }
             currentFrame = nativeFrame
             guard renderer.encode(commandBuffer: buffer, output: outputTexture, recipe: recipe, frame: nativeFrame, damage: isPalette ? 0 : (recipe.glitchStrength ?? Float(renderImpact.damage)), scene: renderScene, elapsed: elapsedTime, pointToPixelScale: pointToPixelScale, isPalette: isPalette, colorVariants: variants) else { return nil }
             if let drawable { buffer.present(drawable) }
             performanceProbe?.recordSubmission(buffer)
             return buffer
         }
+
+        if case .canvas = presentationMode {
+            frame = frameApplyingLunarPhysics(
+                frame,
+                elapsedTime: elapsedTime,
+                canvasAspect: Float(drawableSize.width / max(drawableSize.height, 1))
+            )
+        }
+        currentFrame = frame
 
         resizeRenderTargets(to: drawableSize)
         guard let renderTargets,

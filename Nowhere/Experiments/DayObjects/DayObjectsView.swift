@@ -8,6 +8,9 @@ struct DayObjectsView: View {
     let isAnimating: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
     let presentationMode: DayObjectsPresentationMode
+    let lunarPhysicsIsActive: Bool
+    let lunarInteractionBus: DayObjectLunarInteractionBus?
+    let onWallImpact: @MainActor (DayObjectWallImpact) -> Void
 
     private let scene: DayObjectScene
     private let environment: DayObjectEnvironment
@@ -17,13 +20,19 @@ struct DayObjectsView: View {
         digitalImpact: DayObjectDigitalImpact = .none,
         isAnimating: Bool = true,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
-        presentationMode: DayObjectsPresentationMode = .canvas
+        presentationMode: DayObjectsPresentationMode = .canvas,
+        lunarPhysicsIsActive: Bool = false,
+        lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
+        onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in }
     ) {
         self.sceneInput = sceneInput
         self.digitalImpact = digitalImpact
         self.isAnimating = isAnimating
         self.soundPulseBus = soundPulseBus
         self.presentationMode = presentationMode
+        self.lunarPhysicsIsActive = lunarPhysicsIsActive
+        self.lunarInteractionBus = lunarInteractionBus
+        self.onWallImpact = onWallImpact
         scene = DayObjectScene.make(input: sceneInput)
         environment = DayObjectEnvironment(
             motionEnergy: sceneInput.motionEnergy,
@@ -46,7 +55,10 @@ struct DayObjectsView: View {
                 digitalImpact: digitalImpact,
                 isAnimating: isAnimating && scenePhase == .active,
                 soundPulseBus: soundPulseBus,
-                presentationMode: presentationMode
+                presentationMode: presentationMode,
+                lunarPhysicsIsActive: lunarPhysicsIsActive,
+                lunarInteractionBus: lunarInteractionBus,
+                onWallImpact: onWallImpact
             )
         }
         .clipped()

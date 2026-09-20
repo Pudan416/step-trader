@@ -1,6 +1,398 @@
 import Foundation
 import simd
 
+enum DayObjectCanvasWall: Equatable, Sendable {
+    case left
+    case right
+    case top
+    case bottom
+}
+
+struct DayObjectWallImpact: Equatable, Sendable {
+    let actorID: DayObjectActorID
+    let eventID: String
+    let wall: DayObjectCanvasWall
+    let speed: Float
+    let normalizedX: Float
+}
+
+struct DayObjectLunarPhysicsActor: Equatable {
+    let id: DayObjectActorID
+    let position: SIMD2<Float>
+    let halfSize: SIMD2<Float>
+}
+
+struct DayObjectLunarPhysicsOutput: Equatable {
+    let positions: [DayObjectActorID: SIMD2<Float>]
+    let impacts: [DayObjectWallImpact]
+}
+
+struct DayObjectLunarInteractionField {
+    static func impulses(
+        from startPoint: SIMD2<Float>,
+        to endPoint: SIMD2<Float>,
+        gestureImpulse rawImpulse: SIMD2<Float>,
+        actors: [DayObjectLunarPhysicsActor]
+    ) -> [DayObjectActorID: SIMD2<Float>] {
+        guard startPoint.x.isFinite, startPoint.y.isFinite,
+              endPoint.x.isFinite, endPoint.y.isFinite,
+              rawImpulse.x.isFinite, rawImpulse.y.isFinite else { return [:] }
+        let magnitude = simd_length(rawImpulse)
+        guard magnitude > 0 else { return [:] }
+        let impulse = bounded(rawImpulse)
+        var result = [DayObjectActorID: SIMD2<Float>]()
+        for actor in actors {
+            let reach = max(actor.halfSize.x, actor.halfSize.y) + 0.12
+            guard distance(
+                from: actor.position,
+                toSegmentFrom: startPoint,
+                to: endPoint
+            ) <= reach else { continue }
+            result[actor.id] = impulse
+        }
+        return result
+    }
+
+    static func canvasVector(
+        _ normalizedVector: SIMD2<Float>,
+        halfSpan: SIMD2<Float>
+    ) -> SIMD2<Float> {
+        normalizedVector * halfSpan
+    }
+
+    static func bounded(
+        _ impulse: SIMD2<Float>,
+        maximumMagnitude: Float = 0.48
+    ) -> SIMD2<Float> {
+        let magnitude = simd_length(impulse)
+        guard magnitude.isFinite, magnitude > 0 else { return .zero }
+        return impulse / magnitude * min(magnitude, max(maximumMagnitude, 0))
+    }
+
+    private static func distance(
+        from point: SIMD2<Float>,
+        toSegmentFrom start: SIMD2<Float>,
+        to end: SIMD2<Float>
+    ) -> Float {
+        let segment = end - start
+        let lengthSquared = simd_length_squared(segment)
+        guard lengthSquared > 0.000_001 else { return simd_distance(point, end) }
+        let progress = min(max(simd_dot(point - start, segment) / lengthSquared, 0), 1)
+        return simd_distance(point, start + segment * progress)
+    }
+}
+
+struct DayObjectLunarInteractionEvent: Sendable {
+    let sequence: UInt64
+    let startPoint: SIMD2<Float>
+    let endPoint: SIMD2<Float>
+    let impulse: SIMD2<Float>
+}
+
+final class DayObjectLunarInteractionBus: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sequence: UInt64 = 0
+    private var previousPoint: SIMD2<Float>?
+    private var events = [DayObjectLunarInteractionEvent]()
+
+    func begin(normalizedX: Double, normalizedY: Double) {
+        lock.lock()
+        previousPoint = Self.canvasPoint(x: normalizedX, y: normalizedY)
+        lock.unlock()
+    }
+
+    func move(normalizedX: Double, normalizedY: Double, speed: Double) {
+        let point = Self.canvasPoint(x: normalizedX, y: normalizedY)
+        lock.lock()
+        defer { lock.unlock() }
+        guard let previousPoint else {
+            self.previousPoint = point
+            return
+        }
+        let delta = point - previousPoint
+        self.previousPoint = point
+        let directionMagnitude = simd_length(delta)
+        guard directionMagnitude > 0.0001 else { return }
+        let normalizedSpeed = Float(min(max(speed.isFinite ? speed : 0, 0) / 2.2, 1))
+        sequence &+= 1
+        events.append(.init(
+            sequence: sequence,
+            startPoint: previousPoint,
+            endPoint: point,
+            impulse: delta / directionMagnitude * (0.12 + 0.36 * normalizedSpeed)
+        ))
+        if events.count > 16 { events.removeFirst(events.count - 16) }
+    }
+
+    func end() {
+        lock.lock()
+        previousPoint = nil
+        lock.unlock()
+    }
+
+    func events(after consumedSequence: UInt64) -> [DayObjectLunarInteractionEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events.filter { $0.sequence > consumedSequence }
+    }
+
+    private static func canvasPoint(x: Double, y: Double) -> SIMD2<Float> {
+        SIMD2(Float(min(max(x, 0), 1) * 2 - 1), Float(1 - min(max(y, 0), 1) * 2))
+    }
+}
+
+/// A small deterministic simulation in the renderer's short-side canvas space.
+/// Actors collide only with walls; overlap between actors is intentional.
+struct DayObjectLunarPhysicsEngine {
+    struct Configuration: Equatable {
+        var acceleration: Float = 0.46
+        var linearDrag: Float = 0.12
+        var restitution: Float = 0.7
+        var minimumImpactSpeed: Float = 0.15
+        var impactCooldown: TimeInterval = 0.28
+        var returnDuration: TimeInterval = 0.72
+        var maximumFrameDelta: TimeInterval = 1
+        var integrationStep: TimeInterval = 1.0 / 60.0
+    }
+
+    private enum Phase: Equatable {
+        case inactive
+        case active
+        case returning(startedAt: TimeInterval)
+    }
+
+    private struct Body: Equatable {
+        var position: SIMD2<Float>
+        var velocity: SIMD2<Float>
+        var halfSize: SIMD2<Float>
+        var returnOrigin: SIMD2<Float>
+        var lastImpactAt: TimeInterval
+    }
+
+    private let configuration: Configuration
+    private var phase: Phase = .inactive
+    private var bodies: [DayObjectActorID: Body] = [:]
+    private var lastElapsed: TimeInterval?
+    private var canvasHalfSpan = SIMD2<Float>(repeating: 1)
+
+    init(configuration: Configuration = .init()) {
+        self.configuration = configuration
+    }
+
+    var isDisplacingActors: Bool { phase != .inactive }
+
+    mutating func reset() {
+        phase = .inactive
+        bodies.removeAll(keepingCapacity: true)
+        lastElapsed = nil
+    }
+
+    mutating func applyImpulse(_ impulse: SIMD2<Float>, to actorID: DayObjectActorID) {
+        guard phase == .active, impulse.x.isFinite, impulse.y.isFinite,
+              var body = bodies[actorID] else { return }
+        body.velocity += impulse
+        bodies[actorID] = body
+    }
+
+    mutating func update(
+        actors: [DayObjectLunarPhysicsActor],
+        gravity rawGravity: SIMD2<Float>,
+        canvasHalfSpan rawCanvasHalfSpan: SIMD2<Float> = SIMD2(repeating: 1),
+        elapsed rawElapsed: TimeInterval,
+        playbackIsActive: Bool
+    ) -> DayObjectLunarPhysicsOutput {
+        let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : (lastElapsed ?? 0)
+        let gravity = Self.sanitizedGravity(rawGravity)
+        canvasHalfSpan = Self.sanitizedCanvasHalfSpan(rawCanvasHalfSpan)
+
+        if playbackIsActive {
+            if phase != .active {
+                phase = .active
+                bodies = Dictionary(uniqueKeysWithValues: actors.map { actor in
+                    (actor.id, Body(
+                        position: actor.position,
+                        velocity: .zero,
+                        halfSize: Self.sanitizedHalfSize(actor.halfSize),
+                        returnOrigin: actor.position,
+                        lastImpactAt: -.infinity
+                    ))
+                })
+                lastElapsed = elapsed
+                return .init(positions: positions, impacts: [])
+            }
+
+            synchronizeBodies(with: actors)
+            let rawDelta = elapsed - (lastElapsed ?? elapsed)
+            let delta = min(max(rawDelta.isFinite ? rawDelta : 0, 0), configuration.maximumFrameDelta)
+            lastElapsed = elapsed
+            let impacts = integrate(delta: delta, gravity: gravity, elapsed: elapsed)
+            return .init(positions: positions, impacts: impacts)
+        }
+
+        switch phase {
+        case .inactive:
+            lastElapsed = elapsed
+            return .init(positions: [:], impacts: [])
+        case .active:
+            for id in bodies.keys {
+                guard var body = bodies[id] else { continue }
+                body.returnOrigin = body.position
+                bodies[id] = body
+            }
+            phase = .returning(startedAt: elapsed)
+        case .returning:
+            break
+        }
+
+        synchronizeBodies(with: actors)
+        guard case let .returning(startedAt) = phase else {
+            return .init(positions: [:], impacts: [])
+        }
+        let progress = configuration.returnDuration > 0
+            ? min(max((elapsed - startedAt) / configuration.returnDuration, 0), 1)
+            : 1
+        if progress >= 1 {
+            bodies.removeAll(keepingCapacity: true)
+            phase = .inactive
+            lastElapsed = elapsed
+            return .init(positions: [:], impacts: [])
+        }
+        let eased = Float(progress * progress * (3 - 2 * progress))
+        let bases = Dictionary(uniqueKeysWithValues: actors.map { ($0.id, $0.position) })
+        var returned = [DayObjectActorID: SIMD2<Float>]()
+        for (id, body) in bodies {
+            guard let base = bases[id] else { continue }
+            returned[id] = simd_mix(body.returnOrigin, base, SIMD2(repeating: eased))
+        }
+        lastElapsed = elapsed
+        return .init(positions: returned, impacts: [])
+    }
+
+    private var positions: [DayObjectActorID: SIMD2<Float>] {
+        bodies.mapValues(\.position)
+    }
+
+    private mutating func synchronizeBodies(with actors: [DayObjectLunarPhysicsActor]) {
+        let actorIDs = Set(actors.map(\.id))
+        bodies = bodies.filter { actorIDs.contains($0.key) }
+        for actor in actors {
+            let halfSize = Self.sanitizedHalfSize(actor.halfSize)
+            if bodies[actor.id] == nil {
+                bodies[actor.id] = Body(
+                    position: actor.position, velocity: .zero, halfSize: halfSize,
+                    returnOrigin: actor.position, lastImpactAt: -.infinity
+                )
+            } else {
+                bodies[actor.id]?.halfSize = halfSize
+            }
+        }
+    }
+
+    private mutating func integrate(
+        delta: TimeInterval,
+        gravity: SIMD2<Float>,
+        elapsed: TimeInterval
+    ) -> [DayObjectWallImpact] {
+        guard delta > 0 else { return [] }
+        let stepCount = max(1, Int(ceil(delta / configuration.integrationStep)))
+        let step = Float(delta / Double(stepCount))
+        let damping = exp(-configuration.linearDrag * step)
+        var impacts = [DayObjectWallImpact]()
+
+        for _ in 0..<stepCount {
+            for id in bodies.keys.sorted() {
+                guard var body = bodies[id] else { continue }
+                body.velocity += gravity * configuration.acceleration * step
+                body.velocity *= damping
+                body.position += body.velocity * step
+                resolveWalls(id: id, body: &body, elapsed: elapsed, impacts: &impacts)
+                bodies[id] = body
+            }
+        }
+        return impacts
+    }
+
+    private func resolveWalls(
+        id: DayObjectActorID,
+        body: inout Body,
+        elapsed: TimeInterval,
+        impacts: inout [DayObjectWallImpact]
+    ) {
+        let minX = -canvasHalfSpan.x + body.halfSize.x
+        let maxX = canvasHalfSpan.x - body.halfSize.x
+        let minY = -canvasHalfSpan.y + body.halfSize.y
+        let maxY = canvasHalfSpan.y - body.halfSize.y
+
+        if body.position.x < minX {
+            let speed = abs(body.velocity.x)
+            body.position.x = minX
+            body.velocity.x = speed * configuration.restitution
+            recordImpact(.left, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        } else if body.position.x > maxX {
+            let speed = abs(body.velocity.x)
+            body.position.x = maxX
+            body.velocity.x = -speed * configuration.restitution
+            recordImpact(.right, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        }
+
+        if body.position.y < minY {
+            let speed = abs(body.velocity.y)
+            body.position.y = minY
+            body.velocity.y = speed * configuration.restitution
+            recordImpact(.bottom, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        } else if body.position.y > maxY {
+            let speed = abs(body.velocity.y)
+            body.position.y = maxY
+            body.velocity.y = -speed * configuration.restitution
+            recordImpact(.top, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        }
+    }
+
+    private func recordImpact(
+        _ wall: DayObjectCanvasWall,
+        id: DayObjectActorID,
+        speed: Float,
+        body: inout Body,
+        elapsed: TimeInterval,
+        impacts: inout [DayObjectWallImpact]
+    ) {
+        guard speed >= configuration.minimumImpactSpeed,
+              elapsed - body.lastImpactAt >= configuration.impactCooldown else { return }
+        body.lastImpactAt = elapsed
+        impacts.append(.init(
+            actorID: id,
+            eventID: id.eventID,
+            wall: wall,
+            speed: speed,
+            normalizedX: min(max(
+                (body.position.x + canvasHalfSpan.x) / max(canvasHalfSpan.x * 2, 0.001),
+                0
+            ), 1)
+        ))
+    }
+
+    private static func sanitizedGravity(_ gravity: SIMD2<Float>) -> SIMD2<Float> {
+        guard gravity.x.isFinite, gravity.y.isFinite else { return .zero }
+        let magnitude = simd_length(gravity)
+        guard magnitude > 0.045 else { return .zero }
+        return magnitude > 1 ? gravity / magnitude : gravity
+    }
+
+    private static func sanitizedHalfSize(_ halfSize: SIMD2<Float>) -> SIMD2<Float> {
+        SIMD2(
+            min(max(halfSize.x.isFinite ? halfSize.x : 0, 0.01), 0.95),
+            min(max(halfSize.y.isFinite ? halfSize.y : 0, 0.01), 0.95)
+        )
+    }
+
+    private static func sanitizedCanvasHalfSpan(_ span: SIMD2<Float>) -> SIMD2<Float> {
+        SIMD2(
+            span.x.isFinite ? max(span.x, 0.05) : 1,
+            span.y.isFinite ? max(span.y, 0.05) : 1
+        )
+    }
+}
+
 struct DayObjectsSoundPulseEvent: Equatable, Sendable {
     let sequence: UInt64
     let eventID: String
@@ -911,5 +1303,45 @@ struct DayObjectRenderFrame: Equatable {
         value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
         value ^= value >> 31
         return Double(value >> 11) / Double(UInt64(1) << 53)
+    }
+}
+
+extension DayObjectGPUActor {
+    func replacingPosition(_ position: SIMD2<Float>) -> Self {
+        Self(
+            position: position,
+            direction: direction,
+            halfSize: halfSize,
+            opacity: opacity,
+            trailLength: trailLength,
+            shape: shape,
+            appearanceIndex: appearanceIndex,
+            depth: depth,
+            materialPhase: materialPhase,
+            localDepthSoftness: localDepthSoftness,
+            paletteMorph: paletteMorph,
+            presentationSaturation: presentationSaturation,
+            removalEmphasis: removalEmphasis,
+            silhouetteVariant: silhouetteVariant
+        )
+    }
+}
+
+extension DayObjectRenderFrame {
+    func applyingLunarPositions(_ positions: [DayObjectActorID: SIMD2<Float>]) -> Self {
+        guard !positions.isEmpty else { return self }
+        return Self(
+            choreographyTime: choreographyTime,
+            actors: actors.map { actor in
+                guard let position = positions[actor.actorID] else { return actor }
+                return DayObjectRenderActor(
+                    actorID: actor.actorID,
+                    eventID: actor.eventID,
+                    gpuActor: actor.gpuActor.replacingPosition(position),
+                    gpuAppearance: actor.gpuAppearance
+                )
+            },
+            postProcess: postProcess
+        )
     }
 }

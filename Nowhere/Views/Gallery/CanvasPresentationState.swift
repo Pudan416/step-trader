@@ -1,5 +1,48 @@
 import Foundation
 
+/// Playback chrome is independent from the canvas navigation state: full-screen
+/// can stay active while its controls temporarily get out of the artwork's way.
+struct CanvasPlaybackChromeState: Equatable {
+    enum Visibility: Equatable {
+        case controls
+        case revealHandle
+    }
+
+    enum Event: Equatable {
+        case playRequested
+        case soundStarted
+        case soundStopped
+        case hideDelayElapsed
+        case revealControls
+        case canvasInteraction
+    }
+
+    private(set) var visibility: Visibility = .controls
+    private(set) var soundIsOn = false
+
+    var shouldScheduleHide: Bool { soundIsOn && visibility == .controls }
+
+    mutating func handle(_ event: Event) {
+        switch event {
+        case .playRequested:
+            visibility = .controls
+        case .soundStarted:
+            soundIsOn = true
+            visibility = .controls
+        case .soundStopped:
+            soundIsOn = false
+            visibility = .controls
+        case .hideDelayElapsed:
+            if soundIsOn { visibility = .revealHandle }
+        case .revealControls:
+            if soundIsOn { visibility = .controls }
+        case .canvasInteraction:
+            // Smudge is a musical gesture, not a request to reveal interface.
+            break
+        }
+    }
+}
+
 /// The Canvas screen's four mutually exclusive presentation states.
 ///
 /// This replaces the old `isWideCanvas` + `editState.isEditMode` pair, whose

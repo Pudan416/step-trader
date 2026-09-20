@@ -166,7 +166,7 @@ extension DayObjectSceneInput {
 }
 #endif
 
-struct DayObjectActorID: Hashable, Comparable {
+struct DayObjectActorID: Hashable, Comparable, Sendable {
     let eventID: String
     let memberIndex: Int
 

@@ -5,6 +5,49 @@ import SwiftUI
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testLunarMaterialResonancesFollowTheSelectedSoundWorld() throws {
+        let actor = DayObjectActorID(eventID: "", memberIndex: 0)
+        let alternate = DayObjectActorID(eventID: "a", memberIndex: 0)
+
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .feltAndWood, actorID: actor)?.rawValue,
+            31
+        )
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .livingField, actorID: actor)?.rawValue,
+            41
+        )
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .metalAndCurrent, actorID: actor)?.rawValue,
+            37
+        )
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .electricDream, actorID: actor)?.rawValue,
+            35
+        )
+        XCTAssertNotEqual(
+            DayObjectMaterialResonance.recipeID(for: .feltAndWood, actorID: actor),
+            DayObjectMaterialResonance.recipeID(for: .feltAndWood, actorID: alternate)
+        )
+    }
+
+    func testWallImpactUsesMaterialResonanceInsteadOfManualAudition() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+
+        await controller.playMaterialResonance(.init(
+            actorID: .init(eventID: "impact", memberIndex: 0),
+            eventID: "impact",
+            wall: .bottom,
+            speed: 0.7,
+            normalizedX: 0
+        ))
+
+        XCTAssertEqual(playback.materialResonanceRecipeIDs.count, 1)
+        XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
+    }
+
     func testCanvasLeadReceivesCompleteGestureBeforeSmudgeIsPrepared() async throws {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)
@@ -1039,6 +1082,7 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var endLeadCount = 0
     var activeHappeningIDs: Set<String> = []
     var auditionedRecipeIDs: [HappeningSoundRecipeID] = []
+    var materialResonanceRecipeIDs: [HappeningSoundRecipeID] = []
     var auditionError: Error?
     var suspendStop = false
     var stopContinuation: CheckedContinuation<Void, Never>?
@@ -1104,6 +1148,10 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     func endLead() { endLeadCount += 1 }
     func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
         auditionedRecipeIDs.append(recipeID)
+        if let auditionError { throw auditionError }
+    }
+    func playMaterialResonance(_ recipeID: HappeningSoundRecipeID) async throws {
+        materialResonanceRecipeIDs.append(recipeID)
         if let auditionError { throw auditionError }
     }
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {

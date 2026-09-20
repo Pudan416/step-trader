@@ -56,6 +56,10 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
         _ recipeID: HappeningSoundRecipeID,
         harmony: DayObjectsHappeningAuditionHarmony
     ) throws
+    func playMaterialResonance(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws
     func releaseAuditions()
     func rollbackFullStartToSampleOnly()
 
@@ -321,6 +325,14 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
             }
             throw error
         }
+    }
+
+    func playMaterialResonance(_ recipeID: HappeningSoundRecipeID) async throws {
+        guard state == .on, runtimeState == .fullMusic else { return }
+        guard HappeningSoundCatalog.recipe(for: recipeID) != nil else {
+            throw HappeningSamplePoolError.recipeUnavailable(recipeID)
+        }
+        try runtime.playMaterialResonance(recipeID, harmony: .currentHarmony)
     }
 
     func stop() async {
@@ -1511,6 +1523,34 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         ))
     }
 
+    func playMaterialResonance(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws {
+        let recipe = try Self.recipe(recipeID)
+        let reference = try auditionReference(harmony)
+        let sound = HappeningPitchResolver.resolve(
+            recipe: recipe,
+            chord: reference.chord,
+            tonalWorld: reference.world
+        )
+        let effects = DayObjectsHappeningAuditionReference.effects(for: recipe)
+        let handle = try pair.bankA.happenings.play(
+            sound,
+            gain: 0.42,
+            priority: .materialResonance,
+            effects: effects,
+            pan: 0
+        )
+        auditionHandles.append(handle)
+        scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: pair.bankA.happenings)
+        auditionRecordsForTesting.append(.init(
+            resolvedSound: sound,
+            effects: effects,
+            priority: .materialResonance
+        ))
+    }
+
     func releaseAuditions() {
         let pool = pair.bankA.happenings
         auditionReleaseTasks.values.forEach { $0.cancel() }
@@ -2050,6 +2090,50 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
             resolvedSound: sound,
             effects: effects,
             priority: .manualAudition
+        ))
+    }
+
+    func playMaterialResonance(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony
+    ) throws {
+        guard let recipe = HappeningSoundCatalog.recipe(for: recipeID) else {
+            throw HappeningSamplePoolError.recipeUnavailable(recipeID)
+        }
+        let reference: (chord: ChordPlan, world: TonalWorldPlan)
+        switch harmony {
+        case .referenceC4:
+            reference = (
+                DayObjectsHappeningAuditionReference.c4Chord,
+                DayObjectsHappeningAuditionReference.c4World
+            )
+        case .currentHarmony:
+            guard let plan = world.plan,
+                  let chord = plan.world.progression[safe: world.currentChordIndex] else {
+                throw DayObjectsAudioError("No sounding harmony for material resonance")
+            }
+            reference = (chord, plan.world)
+        }
+        let sound = HappeningPitchResolver.resolve(
+            recipe: recipe,
+            chord: reference.chord,
+            tonalWorld: reference.world
+        )
+        let effects = DayObjectsHappeningAuditionReference.effects(for: recipe)
+        try world.bank.happenings.prepare(recipeIDs: [recipeID])
+        let handle = try world.bank.happenings.play(
+            sound,
+            gain: 0.42,
+            priority: .materialResonance,
+            effects: effects,
+            pan: 0
+        )
+        auditionHandles.append(handle)
+        scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: world.bank.happenings)
+        auditionRecordsForTesting.append(.init(
+            resolvedSound: sound,
+            effects: effects,
+            priority: .materialResonance
         ))
     }
 
