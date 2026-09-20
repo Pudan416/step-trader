@@ -92,13 +92,19 @@ restores the ordinary visible interface.
 
 ## Lifecycle and failure rules
 
-- Motion sampling starts only while sound is `on` and stops with playback.
+- Motion sampling runs only while sound is `on` and the Canvas is animating.
+  Pausing the Canvas, including background playback with the screen locked, stops
+  motion sampling without stopping the music.
 - Audio interruption or failure follows the same path as Stop.
 - Return-to-composition runs for roughly 0.72 seconds. The Metal renderer signals actual
   completion; only then may the Canvas leave full screen and pause. No independent UI timer
   is allowed to truncate the return.
 - Adding/removing actors during playback synchronizes bodies by stable actor ID.
 - Palette rendering never runs lunar physics.
+- Frames without wall impacts do not schedule audio-delivery tasks. Physics sorts
+  actor IDs once per frame and reuses one actor snapshot for a batch of gestures.
+- Wall-impact and audition history is recorded only in Debug/internal builds,
+  retaining at most the latest 128 records.
 - The simulator uses a small downward fallback vector because Core Motion is unavailable;
 physical-device verification is still required for tilt behavior.
 

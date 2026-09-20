@@ -149,6 +149,29 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertLessThanOrEqual(second.effects.reverbSend, 0.22)
     }
 
+    func testMobileRuntimeBoundsDiagnosticHistoryDuringSustainedWallImpacts() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 0xC011_1DE, happeningIDs: [])
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 9))
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        defer { runtime.releaseAuditions() }
+
+        for index in 0..<300 {
+            try runtime.playMaterialResonance(
+                recipeID,
+                harmony: .currentHarmony,
+                degreeOffset: index % 3
+            )
+            runtime.releaseAuditions()
+        }
+
+        XCTAssertFalse(runtime.auditionRecordsForTesting.isEmpty)
+        XCTAssertLessThanOrEqual(runtime.auditionRecordsForTesting.count, 128)
+        XCTAssertEqual(runtime.auditionHandleCountForTesting, 0)
+        XCTAssertEqual(runtime.auditionReleaseTaskCountForTesting, 0)
+    }
+
     func testMobileRuntimePreparesEveryWallImpactMalletForSoundWorldRemixes() throws {
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let plan = makePlaybackEnginePlan(seed: 0xA11E7, happeningIDs: [])

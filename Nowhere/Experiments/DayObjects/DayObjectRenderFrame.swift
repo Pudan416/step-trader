@@ -352,8 +352,9 @@ struct DayObjectLunarPhysicsEngine {
         let damping = exp(-configuration.linearDrag * step)
         var impacts = [DayObjectWallImpact]()
 
+        let sortedIDs = bodies.keys.sorted()
         for _ in 0..<stepCount {
-            for id in bodies.keys.sorted() {
+            for id in sortedIDs {
                 guard var body = bodies[id] else { continue }
                 body.velocity += gravity * configuration.acceleration * step
                 body.velocity *= damping

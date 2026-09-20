@@ -1450,10 +1450,11 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             playbackIsActive: lunarPhysicsIsActive
         )
         if let lunarInteractionBus {
-            var accumulatedImpulses = [DayObjectActorID: SIMD2<Float>]()
-            for event in lunarInteractionBus.events(after: lastLunarInteractionSequence) {
-                lastLunarInteractionSequence = max(lastLunarInteractionSequence, event.sequence)
-                guard lunarPhysicsIsActive else { continue }
+            let events = lunarInteractionBus.events(after: lastLunarInteractionSequence)
+            if let latestEvent = events.last {
+                lastLunarInteractionSequence = max(lastLunarInteractionSequence, latestEvent.sequence)
+            }
+            if lunarPhysicsIsActive && !events.isEmpty {
                 let interactiveActors = physicsActors.map { actor in
                     DayObjectLunarPhysicsActor(
                         id: actor.id,
@@ -1461,29 +1462,32 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                         halfSize: actor.halfSize
                     )
                 }
-                for (actorID, impulse) in DayObjectLunarInteractionField.impulses(
-                    from: event.startPoint * canvasHalfSpan,
-                    to: event.endPoint * canvasHalfSpan,
-                    gestureImpulse: DayObjectLunarInteractionField.canvasVector(
-                        event.impulse,
-                        halfSpan: canvasHalfSpan
-                    ),
-                    actors: interactiveActors
-                ) {
-                    accumulatedImpulses[actorID, default: .zero] += impulse
+                var accumulatedImpulses = [DayObjectActorID: SIMD2<Float>]()
+                for event in events {
+                    for (actorID, impulse) in DayObjectLunarInteractionField.impulses(
+                        from: event.startPoint * canvasHalfSpan,
+                        to: event.endPoint * canvasHalfSpan,
+                        gestureImpulse: DayObjectLunarInteractionField.canvasVector(
+                            event.impulse,
+                            halfSpan: canvasHalfSpan
+                        ),
+                        actors: interactiveActors
+                    ) {
+                        accumulatedImpulses[actorID, default: .zero] += impulse
+                    }
+                }
+                for (actorID, impulse) in accumulatedImpulses {
+                    lunarPhysics.applyImpulse(
+                        DayObjectLunarInteractionField.bounded(
+                            impulse,
+                            maximumMagnitude: 0.42
+                        ),
+                        to: actorID
+                    )
                 }
             }
-            for (actorID, impulse) in accumulatedImpulses {
-                lunarPhysics.applyImpulse(
-                    DayObjectLunarInteractionField.bounded(
-                        impulse,
-                        maximumMagnitude: 0.42
-                    ),
-                    to: actorID
-                )
-            }
         }
-        if let wallImpactSink {
+        if !physicsOutput.impacts.isEmpty, let wallImpactSink {
             let impacts = physicsOutput.impacts
             Task { @MainActor [weak wallImpactSink] in
                 guard let wallImpactSink else { return }

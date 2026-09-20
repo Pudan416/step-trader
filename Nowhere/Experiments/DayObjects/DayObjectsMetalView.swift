@@ -267,7 +267,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
                             lunarInteractionBus: lunarInteractionBus,
                             wallImpactSink: wallImpactSink,
                             lunarPhysicsReturnSink: lunarPhysicsReturnSink)
-            if lunarPhysicsIsActive { motionInput.start() } else { motionInput.stop() }
+            // Background audio can stay on while the canvas display link is paused.
+            if lunarPhysicsIsActive && isAnimating { motionInput.start() } else { motionInput.stop() }
             renderer.setAnimating(isAnimating)
             renderer.configureAnimation(view)
         }

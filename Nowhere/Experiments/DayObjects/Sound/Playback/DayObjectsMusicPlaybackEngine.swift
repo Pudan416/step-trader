@@ -16,6 +16,15 @@ struct DayObjectsHappeningAuditionRecord: Equatable, Sendable {
     let releaseSeconds: Double?
 }
 
+private extension Array where Element == DayObjectsHappeningAuditionRecord {
+    mutating func appendDiagnosticRecord(_ record: @autoclosure () -> Element) {
+        #if DEBUG || INTERNAL_BUILD
+        append(record())
+        if count > 128 { removeFirst(count - 128) }
+        #endif
+    }
+}
+
 private enum DayObjectsHappeningAuditionReference {
     static let c4World = TonalWorldPlan(
         centerPitchClass: 0,
@@ -1526,7 +1535,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         )
         auditionHandles.append(handle)
         scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: pair.bankA.happenings)
-        auditionRecordsForTesting.append(.init(
+        auditionRecordsForTesting.appendDiagnosticRecord(.init(
             resolvedSound: sound,
             effects: effects,
             priority: .manualAudition,
@@ -1567,7 +1576,7 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         )
         auditionHandles.append(handle)
         scheduleAuditionRelease(handle, after: 0.52, pool: pair.bankA.happenings)
-        auditionRecordsForTesting.append(.init(
+        auditionRecordsForTesting.appendDiagnosticRecord(.init(
             resolvedSound: sound,
             effects: effects,
             priority: .materialResonance,
@@ -2115,7 +2124,7 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         )
         auditionHandles.append(handle)
         scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: world.bank.happenings)
-        auditionRecordsForTesting.append(.init(
+        auditionRecordsForTesting.appendDiagnosticRecord(.init(
             resolvedSound: sound,
             effects: effects,
             priority: .manualAudition,
@@ -2172,7 +2181,7 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         )
         auditionHandles.append(handle)
         scheduleAuditionRelease(handle, after: 0.52, pool: world.bank.happenings)
-        auditionRecordsForTesting.append(.init(
+        auditionRecordsForTesting.appendDiagnosticRecord(.init(
             resolvedSound: sound,
             effects: effects,
             priority: .materialResonance,
