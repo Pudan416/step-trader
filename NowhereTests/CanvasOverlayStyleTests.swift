@@ -15,4 +15,28 @@ final class CanvasOverlayStyleTests: XCTestCase {
         XCTAssertEqual(CanvasOverlayStyle.none.requiredResource, .none)
         XCTAssertFalse(CanvasOverlayStyle.none.interceptsTouches)
     }
+
+    func testCurrentCanvasAlwaysUsesSmudgeWhenLegacyPreferenceWasOff() {
+        XCTAssertEqual(
+            CanvasOverlayStyle.currentCanvasStyle(storedRaw: CanvasOverlayStyle.none.rawValue),
+            .smudge
+        )
+    }
+
+    func testCurrentCanvasAlwaysUsesSmudgeWhenLegacyPreferenceWasCosmic() {
+        XCTAssertEqual(
+            CanvasOverlayStyle.currentCanvasStyle(storedRaw: CanvasOverlayStyle.cosmic.rawValue),
+            .smudge
+        )
+    }
+
+    func testCurrentCanvasIgnoresLegacyOverrideFromSavedRemix() {
+        XCTAssertEqual(
+            CanvasOverlayStyle.currentCanvasStyle(
+                storedRaw: CanvasOverlayStyle.none.rawValue,
+                overrideRaw: CanvasOverlayStyle.none.rawValue
+            ),
+            .smudge
+        )
+    }
 }

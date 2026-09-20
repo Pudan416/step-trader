@@ -32,7 +32,10 @@ struct CanvasAnimationOverlay: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var style: CanvasOverlayStyle {
-        CanvasOverlayStyle(rawValue: overlayStyleOverride ?? styleRaw) ?? .smudge
+        CanvasOverlayStyle.currentCanvasStyle(
+            storedRaw: styleRaw,
+            overrideRaw: overlayStyleOverride
+        )
     }
 
     private var isRenderingAllowed: Bool {

@@ -21,6 +21,16 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// The current canvas no longer exposes an overlay picker, so values left
+    /// behind by older builds or saved remixes must not silently disable its
+    /// interaction layer.
+    static func currentCanvasStyle(
+        storedRaw _: String?,
+        overrideRaw _: String? = nil
+    ) -> CanvasOverlayStyle {
+        .smudge
+    }
+
     /// The sole renderer resource the overlay router may create for this style.
     var requiredResource: CanvasOverlayResource {
         switch self {
