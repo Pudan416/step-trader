@@ -10,6 +10,38 @@ import simd
 @testable import Nowhere
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    func testReturnHandshakeAcknowledgesStopBeforeFirstPhysicsFrame() {
+        var handshake = DayObjectLunarPhysicsReturnHandshake()
+
+        handshake.update(playbackIsActive: true, returnIsAnimated: true)
+        handshake.update(playbackIsActive: false, returnIsAnimated: true)
+
+        XCTAssertTrue(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: false,
+            returnDidComplete: false
+        ))
+        XCTAssertFalse(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: false,
+            returnDidComplete: false
+        ))
+    }
+
+    func testReturnHandshakeWaitsForDisplacedActorsAndRestartCancelsPendingReturn() {
+        var handshake = DayObjectLunarPhysicsReturnHandshake()
+        handshake.update(playbackIsActive: true, returnIsAnimated: true)
+        handshake.update(playbackIsActive: false, returnIsAnimated: true)
+
+        XCTAssertFalse(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: true,
+            returnDidComplete: false
+        ))
+
+        handshake.update(playbackIsActive: true, returnIsAnimated: true)
+        XCTAssertFalse(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: false,
+            returnDidComplete: true
+        ))
+    }
     func testLunarPhysicsFallsAndBouncesInsideCanvasWalls() {
         var physics = DayObjectLunarPhysicsEngine()
         let actor = DayObjectLunarPhysicsActor(
@@ -91,11 +123,18 @@ final class DayObjectRenderFrameTests: XCTestCase {
             actors: [updatedBase], gravity: .zero, elapsed: 1.1,
             playbackIsActive: false
         )
+        let returning = physics.update(
+            actors: [updatedBase], gravity: .zero, elapsed: 1.4,
+            playbackIsActive: false
+        )
         let returned = physics.update(
             actors: [updatedBase], gravity: .zero, elapsed: 2,
             playbackIsActive: false
         )
 
+        XCTAssertFalse(returning.returnDidComplete)
+        XCTAssertFalse(returning.positions.isEmpty)
+        XCTAssertTrue(returned.returnDidComplete)
         XCTAssertEqual(returned.positions, [:])
         XCTAssertFalse(physics.isDisplacingActors)
     }

@@ -1,5 +1,66 @@
 import Foundation
 
+/// Keeps the renderer alive while objects visibly travel back to their saved
+/// composition. Full-screen exit is emitted only after the renderer confirms
+/// that the return animation has actually completed.
+struct CanvasLunarPhysicsPlaybackState: Equatable {
+    enum Phase: Equatable {
+        case inactive
+        case active
+        case returning
+    }
+
+    enum Event: Equatable {
+        case soundStarted
+        case stopAndExitRequested
+        case soundStopped(exitFullScreen: Bool)
+        case returnCompleted
+    }
+
+    struct Action: Equatable {
+        let shouldExitFullScreen: Bool
+    }
+
+    private(set) var phase: Phase = .inactive
+    private var exitsAfterReturn = false
+
+    var keepsCanvasAnimating: Bool { phase != .inactive }
+
+    @discardableResult
+    mutating func handle(_ event: Event) -> Action {
+        switch event {
+        case .soundStarted:
+            phase = .active
+            exitsAfterReturn = false
+            return .init(shouldExitFullScreen: false)
+        case .stopAndExitRequested:
+            guard phase != .inactive else {
+                exitsAfterReturn = false
+                return .init(shouldExitFullScreen: true)
+            }
+            exitsAfterReturn = true
+            return .init(shouldExitFullScreen: false)
+        case let .soundStopped(exitFullScreen):
+            if exitFullScreen { exitsAfterReturn = true }
+            if phase == .active { phase = .returning }
+            guard phase == .inactive else {
+                return .init(shouldExitFullScreen: false)
+            }
+            let shouldExit = exitsAfterReturn
+            exitsAfterReturn = false
+            return .init(shouldExitFullScreen: shouldExit)
+        case .returnCompleted:
+            guard phase == .returning else {
+                return .init(shouldExitFullScreen: false)
+            }
+            phase = .inactive
+            let shouldExit = exitsAfterReturn
+            exitsAfterReturn = false
+            return .init(shouldExitFullScreen: shouldExit)
+        }
+    }
+}
+
 /// Playback chrome is independent from the canvas navigation state: full-screen
 /// can stay active while its controls temporarily get out of the artwork's way.
 struct CanvasPlaybackChromeState: Equatable {

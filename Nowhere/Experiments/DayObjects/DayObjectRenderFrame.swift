@@ -25,6 +25,47 @@ struct DayObjectLunarPhysicsActor: Equatable {
 struct DayObjectLunarPhysicsOutput: Equatable {
     let positions: [DayObjectActorID: SIMD2<Float>]
     let impacts: [DayObjectWallImpact]
+    let returnDidComplete: Bool
+
+    init(
+        positions: [DayObjectActorID: SIMD2<Float>],
+        impacts: [DayObjectWallImpact],
+        returnDidComplete: Bool = false
+    ) {
+        self.positions = positions
+        self.impacts = impacts
+        self.returnDidComplete = returnDidComplete
+    }
+}
+
+/// Bridges SwiftUI's requested playback state and the renderer's frame-based
+/// simulation. A Stop must be acknowledged even when it arrives before the
+/// first active physics frame, while a restarted playback cancels the old
+/// acknowledgement.
+struct DayObjectLunarPhysicsReturnHandshake {
+    private var playbackWasActive = false
+    private var returnIsPending = false
+
+    mutating func update(playbackIsActive: Bool, returnIsAnimated: Bool) {
+        if playbackIsActive {
+            returnIsPending = false
+        } else if playbackWasActive && returnIsAnimated {
+            returnIsPending = true
+        } else if !returnIsAnimated {
+            returnIsPending = false
+        }
+        playbackWasActive = playbackIsActive
+    }
+
+    mutating func consumeCompletionIfReady(
+        physicsIsDisplacingActors: Bool,
+        returnDidComplete: Bool
+    ) -> Bool {
+        guard returnIsPending,
+              returnDidComplete || !physicsIsDisplacingActors else { return false }
+        returnIsPending = false
+        return true
+    }
 }
 
 struct DayObjectLunarInteractionField {
@@ -255,7 +296,7 @@ struct DayObjectLunarPhysicsEngine {
             bodies.removeAll(keepingCapacity: true)
             phase = .inactive
             lastElapsed = elapsed
-            return .init(positions: [:], impacts: [])
+            return .init(positions: [:], impacts: [], returnDidComplete: true)
         }
         let eased = Float(progress * progress * (3 - 2 * progress))
         let bases = Dictionary(uniqueKeysWithValues: actors.map { ($0.id, $0.position) })

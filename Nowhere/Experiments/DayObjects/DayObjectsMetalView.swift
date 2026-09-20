@@ -53,6 +53,19 @@ final class DayObjectWallImpactSink {
     }
 }
 
+@MainActor
+final class DayObjectLunarPhysicsReturnSink {
+    var handler: @MainActor () -> Void
+
+    init(handler: @escaping @MainActor () -> Void) {
+        self.handler = handler
+    }
+
+    func send() {
+        handler()
+    }
+}
+
 struct DayObjectsMetalView: UIViewRepresentable {
     @Environment(\.isTodayCanvasSource) private var isTodayCanvasSource
     let scene: DayObjectScene
@@ -64,6 +77,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     var lunarPhysicsIsActive = false
     var lunarInteractionBus: DayObjectLunarInteractionBus?
     var onWallImpact: @MainActor (DayObjectWallImpact) -> Void = { _ in }
+    var onLunarPhysicsReturnCompleted: @MainActor () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -74,7 +88,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: presentationMode,
             lunarPhysicsIsActive: lunarPhysicsIsActive,
             lunarInteractionBus: lunarInteractionBus,
-            onWallImpact: onWallImpact
+            onWallImpact: onWallImpact,
+            onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
         )
     }
 
@@ -116,7 +131,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
             isAnimating: isAnimating,
             lunarPhysicsIsActive: lunarPhysicsIsActive,
             lunarInteractionBus: lunarInteractionBus,
-            onWallImpact: onWallImpact
+            onWallImpact: onWallImpact,
+            onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
         )
     }
 
@@ -145,6 +161,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
         private var lunarPhysicsIsActive: Bool
         private var lunarInteractionBus: DayObjectLunarInteractionBus?
         let wallImpactSink: DayObjectWallImpactSink
+        let lunarPhysicsReturnSink: DayObjectLunarPhysicsReturnSink
 
         init(
             scene: DayObjectScene,
@@ -154,7 +171,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: DayObjectsPresentationMode = .canvas,
             lunarPhysicsIsActive: Bool = false,
             lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
-            onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in }
+            onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
+            onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {}
         ) {
             self.scene = scene
             self.environment = environment
@@ -164,6 +182,9 @@ struct DayObjectsMetalView: UIViewRepresentable {
             self.lunarPhysicsIsActive = lunarPhysicsIsActive
             self.lunarInteractionBus = lunarInteractionBus
             wallImpactSink = DayObjectWallImpactSink(handler: onWallImpact)
+            lunarPhysicsReturnSink = DayObjectLunarPhysicsReturnSink(
+                handler: onLunarPhysicsReturnCompleted
+            )
         }
 
         func prepareRenderer() async {
@@ -193,8 +214,10 @@ struct DayObjectsMetalView: UIViewRepresentable {
             isAnimating: Bool,
             lunarPhysicsIsActive: Bool = false,
             lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
-            onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in }
+            onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
+            onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {}
         ) {
+            let playbackWasActive = self.lunarPhysicsIsActive
             self.scene = scene
             self.environment = environment
             self.digitalImpact = digitalImpact
@@ -204,9 +227,15 @@ struct DayObjectsMetalView: UIViewRepresentable {
             self.lunarPhysicsIsActive = lunarPhysicsIsActive
             self.lunarInteractionBus = lunarInteractionBus
             wallImpactSink.handler = onWallImpact
+            lunarPhysicsReturnSink.handler = onLunarPhysicsReturnCompleted
             mtkView = view
             guard renderer != nil else {
                 view.isPaused = true
+                if playbackWasActive && !lunarPhysicsIsActive && isAnimating {
+                    Task { @MainActor [weak lunarPhysicsReturnSink] in
+                        lunarPhysicsReturnSink?.send()
+                    }
+                }
                 if preparation == nil {
                     preparation = Task { @MainActor [weak self] in
                         guard let self else { return }
@@ -236,7 +265,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
                             lunarPhysicsReturnIsAnimated: isAnimating && !lunarPhysicsIsActive,
                             motionInput: motionInput,
                             lunarInteractionBus: lunarInteractionBus,
-                            wallImpactSink: wallImpactSink)
+                            wallImpactSink: wallImpactSink,
+                            lunarPhysicsReturnSink: lunarPhysicsReturnSink)
             if lunarPhysicsIsActive { motionInput.start() } else { motionInput.stop() }
             renderer.setAnimating(isAnimating)
             renderer.configureAnimation(view)

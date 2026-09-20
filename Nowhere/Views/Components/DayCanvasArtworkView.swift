@@ -44,6 +44,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
     let lunarPhysicsIsActive: Bool
     let lunarInteractionBus: DayObjectLunarInteractionBus?
     let onWallImpact: @MainActor (DayObjectWallImpact) -> Void
+    let onLunarPhysicsReturnCompleted: @MainActor () -> Void
     private let legacyArtwork: () -> LegacyArtwork
 
     init(
@@ -55,6 +56,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
         lunarPhysicsIsActive: Bool = false,
         lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
         onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
+        onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {},
         @ViewBuilder legacyArtwork: @escaping () -> LegacyArtwork
     ) {
         self.style = style
@@ -65,6 +67,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
         self.lunarPhysicsIsActive = lunarPhysicsIsActive
         self.lunarInteractionBus = lunarInteractionBus
         self.onWallImpact = onWallImpact
+        self.onLunarPhysicsReturnCompleted = onLunarPhysicsReturnCompleted
         self.legacyArtwork = legacyArtwork
     }
 
@@ -80,7 +83,8 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
                 presentationMode: presentationMode,
                 lunarPhysicsIsActive: lunarPhysicsIsActive,
                 lunarInteractionBus: lunarInteractionBus,
-                onWallImpact: onWallImpact
+                onWallImpact: onWallImpact,
+                onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
             )
         case .legacy:
             legacyArtwork()

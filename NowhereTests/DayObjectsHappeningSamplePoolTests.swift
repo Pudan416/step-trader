@@ -310,11 +310,11 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices[replacement.voiceID].updateCalls.count, count)
     }
 
-    func testAllocatesExactlyFourPlayersAndNeverCreatesAFifthOnPlay() throws {
+    func testAllocatesFourMusicalPlayersAndOneReservedMaterialPlayer() throws {
         let harness = try makeHarness(recipes: [makeRecipe(id: 1, resources: ["one.wav"])])
 
-        XCTAssertEqual(harness.pool.metrics.allocatedPlayerCount, 4)
-        XCTAssertEqual(harness.voices.count, 4)
+        XCTAssertEqual(harness.pool.metrics.allocatedPlayerCount, 5)
+        XCTAssertEqual(harness.voices.count, 5)
         let identities = harness.pool.metrics.fixedPlayerIdentities
 
         try harness.pool.prepare(recipeIDs: [id(1)])
@@ -323,7 +323,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             harness.pool.stop(voiceID)
         }
 
-        XCTAssertEqual(harness.voices.count, 4)
+        XCTAssertEqual(harness.voices.count, 5)
         XCTAssertEqual(harness.pool.metrics.fixedPlayerIdentities, identities)
     }
 
@@ -387,7 +387,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.pool.metrics.stealCount, 0)
     }
 
-    func testMaterialResonanceCannotStealRegularHappeningVoices() throws {
+    func testMaterialResonanceAlwaysUsesItsReservedVoiceWhenRegularVoicesAreFull() throws {
         let harness = try preparedHarness()
         for recipeID in 1...4 {
             _ = try harness.pool.play(
@@ -397,24 +397,25 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             )
         }
 
-        XCTAssertThrowsError(try harness.pool.play(
+        let resonance = try harness.pool.play(
             sound(id: 5, resource: "5.wav"),
             gain: 0.4,
             priority: .materialResonance
-        )) {
-            XCTAssertEqual($0 as? HappeningSamplePoolError, .noEligibleVoice)
-        }
+        )
+
+        XCTAssertEqual(resonance.voiceID, 4)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 5)
         XCTAssertEqual(harness.pool.metrics.stealCount, 0)
     }
 
-    func testRegularHappeningCanStealMaterialResonanceVoice() throws {
+    func testRegularHappeningNeverUsesTheReservedMaterialVoice() throws {
         let harness = try preparedHarness()
         let resonance = try harness.pool.play(
             sound(id: 1, resource: "1.wav"),
             gain: 0.4,
             priority: .materialResonance
         )
-        for recipeID in 2...4 {
+        for recipeID in 2...5 {
             _ = try harness.pool.play(
                 sound(id: recipeID, resource: "\(recipeID).wav"),
                 gain: 0.7,
@@ -422,13 +423,35 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             )
         }
 
-        let regular = try harness.pool.play(
-            sound(id: 5, resource: "5.wav"),
+        XCTAssertThrowsError(try harness.pool.play(
+            sound(id: 6, resource: "6.wav"),
             gain: 0.7,
             priority: .recurrence
+        )) {
+            XCTAssertEqual($0 as? HappeningSamplePoolError, .noEligibleVoice)
+        }
+
+        XCTAssertEqual(resonance.voiceID, 4)
+        XCTAssertEqual(harness.pool.metrics.stealCount, 0)
+    }
+
+    func testLaterMaterialResonanceReplacesOnlyThePreviousMaterialResonance() throws {
+        let harness = try preparedHarness()
+        let first = try harness.pool.play(
+            sound(id: 1, resource: "1.wav"),
+            gain: 0.4,
+            priority: .materialResonance
+        )
+        let second = try harness.pool.play(
+            sound(id: 2, resource: "2.wav"),
+            gain: 0.4,
+            priority: .materialResonance
         )
 
-        XCTAssertEqual(regular.voiceID, resonance.voiceID)
+        XCTAssertEqual(first.voiceID, 4)
+        XCTAssertEqual(second.voiceID, 4)
+        XCTAssertNotEqual(first.generation, second.generation)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 1)
         XCTAssertEqual(harness.pool.metrics.stealCount, 1)
     }
 
@@ -688,7 +711,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         ))
         XCTAssertEqual(harness.pool.metrics.lastEffectRampSeconds, 2)
         XCTAssertEqual(harness.pool.metrics.fixedPlayerIdentities, identities)
-        XCTAssertEqual(harness.voices.count, 4)
+        XCTAssertEqual(harness.voices.count, 5)
     }
 
     func testBackendReceivesPreparedBufferRateGainAndEnvelope() throws {
@@ -801,7 +824,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
 
         try pool.prepare(recipeIDs: Set(HappeningSoundCatalog.recipes.map(\.id)))
 
-        XCTAssertEqual(pool.metrics.allocatedPlayerCount, 4)
+        XCTAssertEqual(pool.metrics.allocatedPlayerCount, 5)
         XCTAssertEqual(pool.metrics.availableRecipeIDs.count, 42)
         XCTAssertEqual(pool.metrics.unavailableRecipeIDs, [])
         XCTAssertEqual(pool.metrics.decodedBufferCount, 114)

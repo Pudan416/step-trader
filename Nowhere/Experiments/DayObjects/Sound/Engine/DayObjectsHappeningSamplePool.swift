@@ -221,7 +221,11 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     typealias BufferLoader = (URL) throws -> DayObjectsHappeningDecodedBuffer
     typealias VoiceFactory = (Int) -> DayObjectsHappeningSampleVoiceBackend
 
-    static let voiceCount = 4
+    /// Four voices belong to the musical happening scheduler. The final voice
+    /// is reserved for wall-impact material resonance so a full musical phrase
+    /// can never make a physical collision inaudible.
+    static let musicalVoiceCount = 4
+    static let voiceCount = musicalVoiceCount + 1
     static let maximumDecodedByteCount = 48 * 1_024 * 1_024
 
     let output: Mixer
@@ -553,13 +557,20 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private func selectSlot(for priority: HappeningPlaybackPriority) throws -> Int {
         refreshReleasedSlots()
-        if let released = slots.indices
+        if priority == .materialResonance {
+            // A new impact may replace the previous impact, but it never takes
+            // a musical voice and music never takes this reserved voice.
+            return Self.musicalVoiceCount
+        }
+
+        let musicalIndices = 0..<Self.musicalVoiceCount
+        if let released = musicalIndices
             .filter({ !slots[$0].state.isActive })
             .min(by: { slots[$0].state.releaseOrdering < slots[$1].state.releaseOrdering }) {
             return released
         }
 
-        let eligible = slots.indices.filter {
+        let eligible = musicalIndices.filter {
             guard case let .active(_, existingPriority, _, _, _, _) = slots[$0].state else { return false }
             return existingPriority < priority
         }

@@ -1018,6 +1018,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private weak var lunarInteractionBus: DayObjectLunarInteractionBus?
     private var lastLunarInteractionSequence: UInt64 = 0
     private weak var wallImpactSink: DayObjectWallImpactSink?
+    private weak var lunarPhysicsReturnSink: DayObjectLunarPhysicsReturnSink?
+    private var lunarPhysicsReturnHandshake = DayObjectLunarPhysicsReturnHandshake()
     private var glitchBandSeed: UInt64
     private var glitchBandUniforms: [DayObjectsGlitchBandUniform]
     private var insertionTimeline: DayObjectInsertionTimeline
@@ -1249,10 +1251,15 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         lunarPhysicsReturnIsAnimated: Bool = true,
         motionInput: DayObjectMotionInputProvider? = nil,
         lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
-        wallImpactSink: DayObjectWallImpactSink? = nil
+        wallImpactSink: DayObjectWallImpactSink? = nil,
+        lunarPhysicsReturnSink: DayObjectLunarPhysicsReturnSink? = nil
     ) {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
         self.presentationMode = presentationMode
+        lunarPhysicsReturnHandshake.update(
+            playbackIsActive: lunarPhysicsIsActive,
+            returnIsAnimated: lunarPhysicsReturnIsAnimated
+        )
         if !lunarPhysicsIsActive && !lunarPhysicsReturnIsAnimated {
             lunarPhysics.reset()
         }
@@ -1260,6 +1267,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         self.motionInput = motionInput
         self.lunarInteractionBus = lunarInteractionBus
         self.wallImpactSink = wallImpactSink
+        self.lunarPhysicsReturnSink = lunarPhysicsReturnSink
         switch presentationMode {
         case .canvas:
             backgroundRenderPolicy.invalidate()
@@ -1480,6 +1488,14 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 Task { @MainActor [weak wallImpactSink] in
                     wallImpactSink?.send(impact)
                 }
+            }
+        }
+        if lunarPhysicsReturnHandshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: lunarPhysics.isDisplacingActors,
+            returnDidComplete: physicsOutput.returnDidComplete
+        ), let lunarPhysicsReturnSink {
+            Task { @MainActor [weak lunarPhysicsReturnSink] in
+                lunarPhysicsReturnSink?.send()
             }
         }
         return frame.applyingLunarPositions(physicsOutput.positions)

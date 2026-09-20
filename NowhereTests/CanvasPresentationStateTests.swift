@@ -6,6 +6,57 @@ import XCTest
 /// screen, edit mode without full screen, chrome over a full-screen canvas —
 /// must be unrepresentable, not merely unreachable.
 final class CanvasPresentationStateTests: XCTestCase {
+    func testStoppingPlaybackDefersFullscreenExitUntilPhysicsReturnCompletes() {
+        var state = CanvasLunarPhysicsPlaybackState()
+
+        XCTAssertFalse(state.handle(.soundStarted).shouldExitFullScreen)
+        XCTAssertEqual(state.phase, .active)
+
+        XCTAssertFalse(state.handle(.stopAndExitRequested).shouldExitFullScreen)
+        XCTAssertFalse(state.handle(.soundStopped(exitFullScreen: true)).shouldExitFullScreen)
+        XCTAssertEqual(state.phase, .returning)
+        XCTAssertTrue(state.keepsCanvasAnimating)
+
+        XCTAssertTrue(state.handle(.returnCompleted).shouldExitFullScreen)
+        XCTAssertEqual(state.phase, .inactive)
+        XCTAssertFalse(state.keepsCanvasAnimating)
+    }
+
+    func testStoppingBeforePlaybackStartsCanExitWithoutWaitingForPhysics() {
+        var state = CanvasLunarPhysicsPlaybackState()
+
+        XCTAssertTrue(state.handle(.stopAndExitRequested).shouldExitFullScreen)
+        XCTAssertEqual(state.phase, .inactive)
+    }
+
+    func testPlaybackFailureBeforeSoundStartsExitsFullscreenImmediately() {
+        var state = CanvasLunarPhysicsPlaybackState()
+
+        XCTAssertTrue(state.handle(.soundStopped(exitFullScreen: true)).shouldExitFullScreen)
+        XCTAssertEqual(state.phase, .inactive)
+    }
+
+    func testInterruptionReturnsBeforeExitingFullscreen() {
+        var state = CanvasLunarPhysicsPlaybackState()
+        state.handle(.soundStarted)
+
+        XCTAssertFalse(state.handle(.soundStopped(exitFullScreen: true)).shouldExitFullScreen)
+        XCTAssertEqual(state.phase, .returning)
+        XCTAssertTrue(state.handle(.returnCompleted).shouldExitFullScreen)
+    }
+
+    func testStaleReturnCompletionCannotStopRestartedPlayback() {
+        var state = CanvasLunarPhysicsPlaybackState()
+        state.handle(.soundStarted)
+        state.handle(.stopAndExitRequested)
+        state.handle(.soundStopped(exitFullScreen: true))
+        state.handle(.soundStarted)
+
+        XCTAssertFalse(state.handle(.returnCompleted).shouldExitFullScreen)
+        XCTAssertEqual(state.phase, .active)
+        XCTAssertTrue(state.keepsCanvasAnimating)
+    }
+
     func testPlaybackChromeHidesOnlyAfterSoundIsActuallyOn() {
         var chrome = CanvasPlaybackChromeState()
 

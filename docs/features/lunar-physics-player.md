@@ -53,9 +53,10 @@ derived from the selected sound world and remains subordinate to the existing ar
 
 The actor's stable event ID and member index select one of the two variants. A global throttle and the
 physics contact cooldown keep resonances rare. The bundled recipes already carry restrained
-gain and reverb tails. Resonances use the lowest playback priority: they only occupy a free
-Happening voice and may be displaced by every regular one-shot, birth accent or manual audition.
-Regular one-shots are not rescheduled by collisions.
+gain and reverb tails. Resonances use a reserved fifth Happening voice. A new collision may
+replace the previous resonance, but a
+collision can never displace one of the four musical voices and regular one-shots can never
+make the collision path unavailable. Regular one-shots are not rescheduled by collisions.
 
 ## Smudge and Lead
 
@@ -74,10 +75,10 @@ The Canvas remains portrait-only. Landscape is not a separate clean-view mode.
 
 When Play is requested, full-screen controls remain visible while audio starts. Once sound
 is actually on, a 2.5-second idle timer fades the dock, its scrim and system chrome. A small persistent
-capsule in the lower safe area remains as the only interface affordance. Pressing it restores
+folded-corner affordance remains flush with the physical lower-right corner. Pressing it restores
 the playback/remix dock and starts the idle timer again.
 
-The capsule owns only a 64 by 44 point hit area. Smudge remains immediate everywhere else;
+The corner owns only a 56 by 56 point hit area. Smudge remains immediate everywhere else;
 Smudge gestures do not reveal the interface. Stop, an audio error, leaving Canvas, or closing
 full screen restores the ordinary visible interface.
 
@@ -85,11 +86,13 @@ full screen restores the ordinary visible interface.
 
 - Motion sampling starts only while sound is `on` and stops with playback.
 - Audio interruption or failure follows the same path as Stop.
-- Return-to-composition runs for roughly 0.72 seconds, then the Metal view may pause.
+- Return-to-composition runs for roughly 0.72 seconds. The Metal renderer signals actual
+  completion; only then may the Canvas leave full screen and pause. No independent UI timer
+  is allowed to truncate the return.
 - Adding/removing actors during playback synchronizes bodies by stable actor ID.
 - Palette rendering never runs lunar physics.
 - The simulator uses a small downward fallback vector because Core Motion is unavailable;
-  physical-device verification is still required for tilt behavior.
+physical-device verification is still required for tilt behavior.
 
 ## Acceptance criteria
 
@@ -101,7 +104,7 @@ full screen restores the ordinary visible interface.
 - A strong wall hit can produce a rare world-appropriate resonance; resting contact cannot
   produce rapid repeats.
 - Smudge still produces immediate Lead and can nudge a crossed moving figure.
-- The dock hides automatically, its capsule restores it, and the capsule alone blocks the
+- The dock hides automatically, its folded corner restores it, and the corner alone blocks the
   underlying Smudge hit area.
 - Rotation does not enter a landscape Canvas mode.
 - Stop returns figures to the current composition and does not save physical positions.
@@ -113,6 +116,6 @@ collision, exact Stop return, Smudge intersection and world-to-material mapping.
 checks dock auto-hide, reveal and portrait locking.
 
 Before merging, verify on a physical iPhone: gravity axes in all portrait hand positions,
-slow and fast tilt, repeated Play/Stop, Smudge at the reveal capsule boundary, collision-tail
+slow and fast tilt, repeated Play/Stop, Smudge at the folded-corner boundary, collision-tail
 density in all four sound worlds, audio interruptions, Reduce Motion, VoiceOver and sustained
 CPU/GPU/audio performance.

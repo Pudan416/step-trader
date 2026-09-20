@@ -18,6 +18,11 @@ final class CanvasSimplificationUITests: XCTestCase {
 
         let reveal = app.buttons["canvas_reveal_controls_button"]
         XCTAssertTrue(reveal.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(reveal.frame.midX, app.frame.midX)
+        XCTAssertEqual(reveal.frame.width, 56, accuracy: 2)
+        XCTAssertEqual(reveal.frame.height, 56, accuracy: 2)
+        XCTAssertEqual(reveal.frame.maxX, app.frame.maxX, accuracy: 2)
+        XCTAssertEqual(reveal.frame.maxY, app.frame.maxY, accuracy: 2)
         XCTAssertFalse(close.exists)
         XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
         reveal.tap()
