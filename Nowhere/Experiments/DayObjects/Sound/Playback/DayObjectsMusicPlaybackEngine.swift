@@ -12,6 +12,8 @@ struct DayObjectsHappeningAuditionRecord: Equatable, Sendable {
     let resolvedSound: ResolvedHappeningSound
     let effects: HappeningEffectCommand
     let priority: HappeningPlaybackPriority
+    let attackSeconds: Double?
+    let releaseSeconds: Double?
 }
 
 private enum DayObjectsHappeningAuditionReference {
@@ -58,7 +60,8 @@ protocol DayObjectsPlaybackRuntimeProtocol: AnyObject {
     ) throws
     func playMaterialResonance(
         _ recipeID: HappeningSoundRecipeID,
-        harmony: DayObjectsHappeningAuditionHarmony
+        harmony: DayObjectsHappeningAuditionHarmony,
+        degreeOffset: Int
     ) throws
     func releaseAuditions()
     func rollbackFullStartToSampleOnly()
@@ -327,12 +330,19 @@ final class DayObjectsMusicPlaybackEngine: DayObjectsMusicPlaybackProtocol {
         }
     }
 
-    func playMaterialResonance(_ recipeID: HappeningSoundRecipeID) async throws {
+    func playMaterialResonance(
+        _ recipeID: HappeningSoundRecipeID,
+        degreeOffset: Int
+    ) async throws {
         guard state == .on, runtimeState == .fullMusic else { return }
         guard HappeningSoundCatalog.recipe(for: recipeID) != nil else {
             throw HappeningSamplePoolError.recipeUnavailable(recipeID)
         }
-        try runtime.playMaterialResonance(recipeID, harmony: .currentHarmony)
+        try runtime.playMaterialResonance(
+            recipeID,
+            harmony: .currentHarmony,
+            degreeOffset: degreeOffset
+        )
     }
 
     func stop() async {
@@ -1519,35 +1529,50 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
         auditionRecordsForTesting.append(.init(
             resolvedSound: sound,
             effects: effects,
-            priority: .manualAudition
+            priority: .manualAudition,
+            attackSeconds: nil,
+            releaseSeconds: nil
         ))
     }
 
     func playMaterialResonance(
         _ recipeID: HappeningSoundRecipeID,
-        harmony: DayObjectsHappeningAuditionHarmony
+        harmony: DayObjectsHappeningAuditionHarmony,
+        degreeOffset: Int
     ) throws {
         let recipe = try Self.recipe(recipeID)
         let reference = try auditionReference(harmony)
         let sound = HappeningPitchResolver.resolve(
             recipe: recipe,
             chord: reference.chord,
-            tonalWorld: reference.world
+            tonalWorld: reference.world,
+            degreeOffset: degreeOffset
         )
-        let effects = DayObjectsHappeningAuditionReference.effects(for: recipe)
+        let effects = HappeningEffectCommand(
+            filterCutoffHz: recipe.filterEndHz,
+            directLevel: 0.86,
+            delaySend: 0.01,
+            delayFeedback: 0.04,
+            reverbSend: 0.18,
+            reverbDecay: 0.32
+        )
         let handle = try pair.bankA.happenings.play(
             sound,
-            gain: 0.42,
+            gain: 0.52,
             priority: .materialResonance,
             effects: effects,
+            attackSeconds: 0.004,
+            releaseSeconds: 0.42,
             pan: 0
         )
         auditionHandles.append(handle)
-        scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: pair.bankA.happenings)
+        scheduleAuditionRelease(handle, after: 0.52, pool: pair.bankA.happenings)
         auditionRecordsForTesting.append(.init(
             resolvedSound: sound,
             effects: effects,
-            priority: .materialResonance
+            priority: .materialResonance,
+            attackSeconds: 0.004,
+            releaseSeconds: 0.42
         ))
     }
 
@@ -2006,17 +2031,21 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
     }
 
     func prepareForPlayback(plan: DayMusicPlan) async throws {
+        let recipeIDs = Set(plan.happenings.map(\.recipeID))
+            .union(DayObjectMaterialResonance.allRecipeIDs)
         if let bank = world.bank.instrumentBank as? DayObjectsInstrumentBank {
             try await bank.prepareForPlayback(configuration: PlaybackWorldBankConfiguration.mobilePlaybackWorld,
-                                              happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)))
+                                              happeningRecipeIDs: recipeIDs)
         }
         try Task.checkCancellation()
         try prepare(plan: plan)
     }
 
     func prepare(plan: DayMusicPlan) throws {
+        let recipeIDs = Set(plan.happenings.map(\.recipeID))
+            .union(DayObjectMaterialResonance.allRecipeIDs)
         try world.bank.prepare(
-            happeningRecipeIDs: Set(plan.happenings.map(\.recipeID)),
+            happeningRecipeIDs: recipeIDs,
             configuration: PlaybackWorldBankConfiguration.mobilePlaybackWorld
         )
         try world.bindPreparedPlayersIfNeeded()
@@ -2089,13 +2118,16 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         auditionRecordsForTesting.append(.init(
             resolvedSound: sound,
             effects: effects,
-            priority: .manualAudition
+            priority: .manualAudition,
+            attackSeconds: nil,
+            releaseSeconds: nil
         ))
     }
 
     func playMaterialResonance(
         _ recipeID: HappeningSoundRecipeID,
-        harmony: DayObjectsHappeningAuditionHarmony
+        harmony: DayObjectsHappeningAuditionHarmony,
+        degreeOffset: Int
     ) throws {
         guard let recipe = HappeningSoundCatalog.recipe(for: recipeID) else {
             throw HappeningSamplePoolError.recipeUnavailable(recipeID)
@@ -2117,23 +2149,35 @@ final class DayObjectsMobilePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol {
         let sound = HappeningPitchResolver.resolve(
             recipe: recipe,
             chord: reference.chord,
-            tonalWorld: reference.world
+            tonalWorld: reference.world,
+            degreeOffset: degreeOffset
         )
-        let effects = DayObjectsHappeningAuditionReference.effects(for: recipe)
+        let effects = HappeningEffectCommand(
+            filterCutoffHz: recipe.filterEndHz,
+            directLevel: 0.86,
+            delaySend: 0.01,
+            delayFeedback: 0.04,
+            reverbSend: 0.18,
+            reverbDecay: 0.32
+        )
         try world.bank.happenings.prepare(recipeIDs: [recipeID])
         let handle = try world.bank.happenings.play(
             sound,
-            gain: 0.42,
+            gain: 0.52,
             priority: .materialResonance,
             effects: effects,
+            attackSeconds: 0.004,
+            releaseSeconds: 0.42,
             pan: 0
         )
         auditionHandles.append(handle)
-        scheduleAuditionRelease(handle, after: recipe.releaseSeconds, pool: world.bank.happenings)
+        scheduleAuditionRelease(handle, after: 0.52, pool: world.bank.happenings)
         auditionRecordsForTesting.append(.init(
             resolvedSound: sound,
             effects: effects,
-            priority: .materialResonance
+            priority: .materialResonance,
+            attackSeconds: 0.004,
+            releaseSeconds: 0.42
         ))
     }
 

@@ -125,13 +125,48 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
     func testMobileRuntimeMaterialResonanceUsesLowestVoicePriority() throws {
         let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         let plan = makePlaybackEnginePlan(seed: 0xC011_1DE, happeningIDs: [])
-        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 31))
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 9))
         try runtime.prepare(plan: plan)
         try runtime.startPreparedWorldForTesting()
 
-        try runtime.playMaterialResonance(recipeID, harmony: .currentHarmony)
+        try runtime.playMaterialResonance(
+            recipeID,
+            harmony: .currentHarmony,
+            degreeOffset: 0
+        )
+        let first = try XCTUnwrap(runtime.auditionRecordsForTesting.last)
+        try runtime.playMaterialResonance(
+            recipeID,
+            harmony: .currentHarmony,
+            degreeOffset: 1
+        )
+        let second = try XCTUnwrap(runtime.auditionRecordsForTesting.last)
 
-        XCTAssertEqual(runtime.auditionRecordsForTesting.last?.priority, .materialResonance)
+        XCTAssertEqual(second.priority, .materialResonance)
+        XCTAssertNotEqual(first.resolvedSound.targetMIDI, second.resolvedSound.targetMIDI)
+        XCTAssertEqual(second.attackSeconds, 0.004)
+        XCTAssertEqual(second.releaseSeconds, 0.42)
+        XCTAssertLessThanOrEqual(second.effects.reverbSend, 0.22)
+    }
+
+    func testMobileRuntimePreparesEveryWallImpactMalletForSoundWorldRemixes() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 0xA11E7, happeningIDs: [])
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        let malletIDs = Set([8, 9, 10, 11].compactMap(HappeningSoundRecipeID.init(rawValue:)))
+
+        XCTAssertTrue(malletIDs.isSubset(of: runtime.preparedHappeningRecipeIDsForTesting))
+
+        for rawID in [8, 9, 10, 11] {
+            try runtime.playMaterialResonance(
+                XCTUnwrap(HappeningSoundRecipeID(rawValue: rawID)),
+                harmony: .currentHarmony,
+                degreeOffset: rawID % 3
+            )
+        }
+
+        XCTAssertEqual(runtime.auditionRecordsForTesting.map(\.resolvedSound.recipeID.rawValue), [8, 9, 10, 11])
     }
 
     func testRunningAuditionUsesCurrentHarmonyWithoutRestartingMusic() async throws {
@@ -161,11 +196,11 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         try await engine.start(plan: makePlaybackEnginePlan(seed: 0xC011_1DE))
         log.values.removeAll()
 
-        try await engine.playMaterialResonance(recipeID)
+        try await engine.playMaterialResonance(recipeID, degreeOffset: 2)
 
-        XCTAssertEqual(runtime.materialResonanceRequests, ["31:currentHarmony"])
+        XCTAssertEqual(runtime.materialResonanceRequests, ["31:currentHarmony:2"])
         XCTAssertTrue(runtime.auditionRequests.isEmpty)
-        XCTAssertEqual(log.values, ["runtime.material-resonance:31:currentHarmony"])
+        XCTAssertEqual(log.values, ["runtime.material-resonance:31:currentHarmony:2"])
         XCTAssertEqual(engine.state, .on)
         XCTAssertEqual(engine.metrics.engineStartCount, 1)
         XCTAssertEqual(session.activationCount, 1)
@@ -1251,6 +1286,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(
             runtime.preparedHappeningRecipeIDsForTesting,
             Set(plan.happenings.map(\.recipeID))
+                .union(DayObjectMaterialResonance.allRecipeIDs)
         )
     }
 
@@ -2481,7 +2517,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty)
     }
 
-    func testLiveRuntimeUsesFourMusicalPlayersPlusMaterialPlayerAndOneSharedEngineStart() async throws {
+    func testLiveRuntimeUsesFourMusicalAndFourMaterialPlayersWithOneSharedEngineStart() async throws {
         try requireLiveAudioOutput()
         let log = PlaybackEngineCallLog()
         let session = RecordingDayObjectsAudioSession(log: log)
@@ -2491,8 +2527,8 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         try await engine.start(plan: makePlaybackEnginePlan(seed: 0x404, happeningIDs: []))
 
         let metrics = runtime.playbackPairMetricsForTesting
-        XCTAssertEqual(Set(metrics.happeningFixedPlayerIdentities).count, 5)
-        XCTAssertEqual(metrics.happeningFixedPlayerIdentities.count, 5)
+        XCTAssertEqual(Set(metrics.happeningFixedPlayerIdentities).count, 8)
+        XCTAssertEqual(metrics.happeningFixedPlayerIdentities.count, 8)
         XCTAssertEqual(Set(metrics.happeningDecodedBufferIdentities).count, 114)
         XCTAssertEqual(metrics.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(metrics.happeningDecodedByteCount, 48 * 1_024 * 1_024)
@@ -2601,9 +2637,14 @@ private final class FaultInjectingRealPlaybackRuntime: DayObjectsPlaybackRuntime
 
     func playMaterialResonance(
         _ recipeID: HappeningSoundRecipeID,
-        harmony: DayObjectsHappeningAuditionHarmony
+        harmony: DayObjectsHappeningAuditionHarmony,
+        degreeOffset: Int
     ) throws {
-        try base.playMaterialResonance(recipeID, harmony: harmony)
+        try base.playMaterialResonance(
+            recipeID,
+            harmony: harmony,
+            degreeOffset: degreeOffset
+        )
     }
 
     func releaseAuditions() { base.releaseAuditions() }
@@ -2808,9 +2849,10 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     }
     func playMaterialResonance(
         _ recipeID: HappeningSoundRecipeID,
-        harmony: DayObjectsHappeningAuditionHarmony
+        harmony: DayObjectsHappeningAuditionHarmony,
+        degreeOffset: Int
     ) throws {
-        let value = "\(recipeID.rawValue):\(harmony)"
+        let value = "\(recipeID.rawValue):\(harmony):\(degreeOffset)"
         materialResonanceRequests.append(value)
         log.values.append("runtime.material-resonance:\(value)")
     }

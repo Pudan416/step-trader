@@ -16,6 +16,18 @@ struct DayObjectWallImpact: Equatable, Sendable {
     let normalizedX: Float
 }
 
+@MainActor
+enum DayObjectWallImpactDelivery {
+    static func send(
+        _ impacts: [DayObjectWallImpact],
+        to sink: DayObjectWallImpactSink
+    ) {
+        for impact in impacts {
+            sink.send(impact)
+        }
+    }
+}
+
 struct DayObjectLunarPhysicsActor: Equatable {
     let id: DayObjectActorID
     let position: SIMD2<Float>

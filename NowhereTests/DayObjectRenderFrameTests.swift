@@ -10,6 +10,25 @@ import simd
 @testable import Nowhere
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    @MainActor
+    func testWallImpactDeliverySendsEverySimultaneousContactToTheSink() {
+        let impacts = (0..<4).map { index in
+            DayObjectWallImpact(
+                actorID: .init(eventID: "impact-\(index)", memberIndex: 0),
+                eventID: "impact-\(index)",
+                wall: .bottom,
+                speed: 0.5,
+                normalizedX: Float(index) / 3
+            )
+        }
+        var delivered: [DayObjectWallImpact] = []
+        let sink = DayObjectWallImpactSink { delivered.append($0) }
+
+        DayObjectWallImpactDelivery.send(impacts, to: sink)
+
+        XCTAssertEqual(delivered, impacts)
+    }
+
     func testReturnHandshakeAcknowledgesStopBeforeFirstPhysicsFrame() {
         var handshake = DayObjectLunarPhysicsReturnHandshake()
 

@@ -221,11 +221,12 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     typealias BufferLoader = (URL) throws -> DayObjectsHappeningDecodedBuffer
     typealias VoiceFactory = (Int) -> DayObjectsHappeningSampleVoiceBackend
 
-    /// Four voices belong to the musical happening scheduler. The final voice
-    /// is reserved for wall-impact material resonance so a full musical phrase
-    /// can never make a physical collision inaudible.
+    /// Four voices belong to the musical happening scheduler. Four more are
+    /// reserved for short wall-impact mallets so simultaneous contacts stay
+    /// audible without stealing the autonomous musical voices.
     static let musicalVoiceCount = 4
-    static let voiceCount = musicalVoiceCount + 1
+    static let materialVoiceCount = 4
+    static let voiceCount = musicalVoiceCount + materialVoiceCount
     static let maximumDecodedByteCount = 48 * 1_024 * 1_024
 
     let output: Mixer
@@ -558,9 +559,17 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     private func selectSlot(for priority: HappeningPlaybackPriority) throws -> Int {
         refreshReleasedSlots()
         if priority == .materialResonance {
-            // A new impact may replace the previous impact, but it never takes
-            // a musical voice and music never takes this reserved voice.
-            return Self.musicalVoiceCount
+            let materialIndices = Self.musicalVoiceCount..<Self.voiceCount
+            if let available = materialIndices
+                .filter({ !slots[$0].state.isActive })
+                .min(by: { slots[$0].state.releaseOrdering < slots[$1].state.releaseOrdering }) {
+                return available
+            }
+            // Only a fifth overlapping impact can replace the oldest impact;
+            // material sounds never take a musical voice.
+            return materialIndices.min(by: {
+                slots[$0].state.activeOrdering < slots[$1].state.activeOrdering
+            }) ?? Self.musicalVoiceCount
         }
 
         let musicalIndices = 0..<Self.musicalVoiceCount

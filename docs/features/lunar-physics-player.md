@@ -39,24 +39,25 @@ The player retains three distinct layers:
 
 1. Regular happening one-shots remain the autonomous musical voices of the figures.
 2. Smudge remains the directly played Lead voice.
-3. A sufficiently energetic wall contact may add a quiet, long-tailed material resonance.
+3. Every distinct wall bounce adds a short mallet note.
 
-Collision sounds are not another instrument family chosen by the user. Their material is
-derived from the selected sound world and remains subordinate to the existing arrangement:
+Collision sounds form one compact marimba/xylophone family. The selected sound world chooses
+its material, while every hit stays tuned to the chord sounding at that moment:
 
 | Sound world | Prototype materials |
 | --- | --- |
-| Felt and Wood | felt kalimba whisper / cedar knock |
-| Living Field | water pearl / bamboo air pluck |
-| Metal and Current | current metal pluck / brushed resonator |
-| Electric Dream | frost glass tap / glass sustain bloom |
+| Felt and Wood | soft marimba |
+| Living Field | dry balafon |
+| Metal and Current | ceramic xylophone-like knock |
+| Electric Dream | muted vibraphone |
 
-The actor's stable event ID and member index select one of the two variants. A global throttle and the
-physics contact cooldown keep resonances rare. The bundled recipes already carry restrained
-gain and reverb tails. Resonances use a reserved fifth Happening voice. A new collision may
-replace the previous resonance, but a
-collision can never displace one of the four musical voices and regular one-shots can never
-make the collision path unavailable. Regular one-shots are not rescheduled by collisions.
+Successive contacts rotate across three nearby chord degrees, giving audible pitch variation
+without leaving the current harmony. The attack is immediate, release is about 0.42 seconds,
+and reverb remains small. There is no global collision throttle: the physics threshold and
+per-object contact cooldown only suppress resting edge chatter. The renderer forwards every
+reported impact. Four reserved mallet voices preserve simultaneous contacts; a fifth overlap
+may replace the oldest mallet tail, but collisions never displace the four musical Happening
+voices. Regular one-shots are not rescheduled by collisions.
 
 ## Smudge and Lead
 
@@ -101,8 +102,8 @@ physical-device verification is still required for tilt behavior.
 - Tilting a physical phone changes their acceleration smoothly.
 - Figures bounce from every edge and never escape the visible canvas.
 - Figures pass through one another.
-- A strong wall hit can produce a rare world-appropriate resonance; resting contact cannot
-  produce rapid repeats.
+- Every distinct wall bounce produces a short world-appropriate mallet note; resting contact
+  cannot produce rapid repeats.
 - Smudge still produces immediate Lead and can nudge a crossed moving figure.
 - The dock hides automatically, its folded corner restores it, and the corner alone blocks the
   underlying Smudge hit area.
@@ -116,6 +117,6 @@ collision, exact Stop return, Smudge intersection and world-to-material mapping.
 checks dock auto-hide, reveal and portrait locking.
 
 Before merging, verify on a physical iPhone: gravity axes in all portrait hand positions,
-slow and fast tilt, repeated Play/Stop, Smudge at the folded-corner boundary, collision-tail
-density in all four sound worlds, audio interruptions, Reduce Motion, VoiceOver and sustained
+slow and fast tilt, repeated Play/Stop, Smudge at the folded-corner boundary, collision-note
+clarity and pitch variation in all four sound worlds, audio interruptions, Reduce Motion, VoiceOver and sustained
 CPU/GPU/audio performance.

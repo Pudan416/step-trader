@@ -310,11 +310,11 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices[replacement.voiceID].updateCalls.count, count)
     }
 
-    func testAllocatesFourMusicalPlayersAndOneReservedMaterialPlayer() throws {
+    func testAllocatesFourMusicalPlayersAndFourReservedMaterialPlayers() throws {
         let harness = try makeHarness(recipes: [makeRecipe(id: 1, resources: ["one.wav"])])
 
-        XCTAssertEqual(harness.pool.metrics.allocatedPlayerCount, 5)
-        XCTAssertEqual(harness.voices.count, 5)
+        XCTAssertEqual(harness.pool.metrics.allocatedPlayerCount, 8)
+        XCTAssertEqual(harness.voices.count, 8)
         let identities = harness.pool.metrics.fixedPlayerIdentities
 
         try harness.pool.prepare(recipeIDs: [id(1)])
@@ -323,7 +323,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             harness.pool.stop(voiceID)
         }
 
-        XCTAssertEqual(harness.voices.count, 5)
+        XCTAssertEqual(harness.voices.count, 8)
         XCTAssertEqual(harness.pool.metrics.fixedPlayerIdentities, identities)
     }
 
@@ -435,24 +435,39 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.pool.metrics.stealCount, 0)
     }
 
-    func testLaterMaterialResonanceReplacesOnlyThePreviousMaterialResonance() throws {
+    func testFifthMaterialResonanceReplacesOnlyTheOldestMaterialResonance() throws {
         let harness = try preparedHarness()
-        let first = try harness.pool.play(
-            sound(id: 1, resource: "1.wav"),
-            gain: 0.4,
-            priority: .materialResonance
-        )
-        let second = try harness.pool.play(
-            sound(id: 2, resource: "2.wav"),
-            gain: 0.4,
-            priority: .materialResonance
+        let firstFour = try (1...4).map { recipeID in
+            try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.4,
+                priority: .materialResonance
+            )
+        }
+        let fifth = try harness.pool.play(
+            sound(id: 5, resource: "5.wav"), gain: 0.4, priority: .materialResonance
         )
 
-        XCTAssertEqual(first.voiceID, 4)
-        XCTAssertEqual(second.voiceID, 4)
-        XCTAssertNotEqual(first.generation, second.generation)
-        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 1)
+        XCTAssertEqual(firstFour.map(\.voiceID), [4, 5, 6, 7])
+        XCTAssertEqual(fifth.voiceID, 4)
+        XCTAssertNotEqual(firstFour[0].generation, fifth.generation)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 4)
         XCTAssertEqual(harness.pool.metrics.stealCount, 1)
+    }
+
+    func testFourSimultaneousWallImpactsUseDistinctReservedVoices() throws {
+        let harness = try preparedHarness()
+
+        let handles = try (1...4).map { recipeID in
+            try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.4,
+                priority: .materialResonance
+            )
+        }
+
+        XCTAssertEqual(Set(handles.map(\.voiceID)).count, 4)
+        XCTAssertEqual(harness.pool.metrics.stealCount, 0)
     }
 
     func testCompatibilityPlayDefaultsToRecurrencePriority() throws {
@@ -711,7 +726,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         ))
         XCTAssertEqual(harness.pool.metrics.lastEffectRampSeconds, 2)
         XCTAssertEqual(harness.pool.metrics.fixedPlayerIdentities, identities)
-        XCTAssertEqual(harness.voices.count, 5)
+        XCTAssertEqual(harness.voices.count, 8)
     }
 
     func testBackendReceivesPreparedBufferRateGainAndEnvelope() throws {
@@ -824,7 +839,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
 
         try pool.prepare(recipeIDs: Set(HappeningSoundCatalog.recipes.map(\.id)))
 
-        XCTAssertEqual(pool.metrics.allocatedPlayerCount, 5)
+        XCTAssertEqual(pool.metrics.allocatedPlayerCount, 8)
         XCTAssertEqual(pool.metrics.availableRecipeIDs.count, 42)
         XCTAssertEqual(pool.metrics.unavailableRecipeIDs, [])
         XCTAssertEqual(pool.metrics.decodedBufferCount, 114)

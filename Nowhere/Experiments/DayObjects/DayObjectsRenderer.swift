@@ -1484,10 +1484,10 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             }
         }
         if let wallImpactSink {
-            for impact in physicsOutput.impacts.prefix(2) {
-                Task { @MainActor [weak wallImpactSink] in
-                    wallImpactSink?.send(impact)
-                }
+            let impacts = physicsOutput.impacts
+            Task { @MainActor [weak wallImpactSink] in
+                guard let wallImpactSink else { return }
+                DayObjectWallImpactDelivery.send(impacts, to: wallImpactSink)
             }
         }
         if lunarPhysicsReturnHandshake.consumeCompletionIfReady(

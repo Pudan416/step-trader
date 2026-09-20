@@ -601,8 +601,8 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         try bank.prepare(configuration: configuration)
 
-        XCTAssertEqual(bank.happenings.metrics.allocatedPlayerCount, 5)
-        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 5)
+        XCTAssertEqual(bank.happenings.metrics.allocatedPlayerCount, 8)
+        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 8)
         XCTAssertLessThanOrEqual(bank.metrics.happeningMetrics.decodedByteCount, 48 * 1_024 * 1_024)
     }
 
@@ -634,7 +634,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(bank.preparationLevel, .fullMusic(.playbackWorld))
         XCTAssertEqual(bank.metrics.engineInstanceCount, 1)
         XCTAssertEqual(bank.metrics.engineStartCount, 1)
-        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 5)
+        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 8)
         await bank.stop()
     }
 
@@ -1060,10 +1060,10 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.sharedAudioEngineCount, 1)
         XCTAssertEqual(baseline.finalPeakLimiterCount, 1)
         XCTAssertTrue(pair.bankA.happenings === pair.bankB.happenings)
-        XCTAssertEqual(pair.bankA.happenings.metrics.allocatedPlayerCount, 5)
+        XCTAssertEqual(pair.bankA.happenings.metrics.allocatedPlayerCount, 8)
         XCTAssertEqual(pair.bankA.happenings.metrics.decodedBufferCount, 114)
-        XCTAssertEqual(Set(baseline.happeningFixedPlayerIdentities).count, 5)
-        XCTAssertEqual(baseline.happeningFixedPlayerIdentities.count, 5)
+        XCTAssertEqual(Set(baseline.happeningFixedPlayerIdentities).count, 8)
+        XCTAssertEqual(baseline.happeningFixedPlayerIdentities.count, 8)
         XCTAssertEqual(Set(baseline.happeningDecodedBufferIdentities).count, 114)
         XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(baseline.happeningDecodedByteCount, 48 * 1_024 * 1_024)
