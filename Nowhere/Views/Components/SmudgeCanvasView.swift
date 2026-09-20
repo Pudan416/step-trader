@@ -119,8 +119,10 @@ final class SmudgeMTKView: MTKView {
         if drawableSize != size { drawableSize = size }
     }
     private var lastSamples: [ObjectIdentifier: (point: CGPoint, time: TimeInterval)] = [:]
+    private var movedTouches: Set<ObjectIdentifier> = []
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        AppLogger.ui.notice("[CANVAS_INPUT] UIKit began enabled=\(self.isUserInteractionEnabled, privacy: .public)")
         for touch in touches {
             let id = ObjectIdentifier(touch)
             let point = touch.location(in: self)
@@ -135,7 +137,12 @@ final class SmudgeMTKView: MTKView {
             guard let previous = lastSamples[id], sample.timestamp > previous.time else { continue }
             let point = sample.location(in: self)
             lastSamples[id] = (point, sample.timestamp)
-            if point != previous.point { onTouchMoved?(id, previous.point, point, sample.timestamp) }
+            if point != previous.point {
+                if movedTouches.insert(id).inserted {
+                    AppLogger.ui.notice("[CANVAS_INPUT] UIKit first movement")
+                }
+                onTouchMoved?(id, previous.point, point, sample.timestamp)
+            }
         }
     }
 
@@ -148,6 +155,7 @@ final class SmudgeMTKView: MTKView {
             deliverMovement(touch, event: event)
             let id = ObjectIdentifier(touch)
             lastSamples.removeValue(forKey: id)
+            movedTouches.remove(id)
             onTouchEnded?(id)
         }
     }
@@ -156,6 +164,7 @@ final class SmudgeMTKView: MTKView {
         for touch in touches {
             let id = ObjectIdentifier(touch)
             lastSamples.removeValue(forKey: id)
+            movedTouches.remove(id)
             onTouchEnded?(id)
         }
     }
@@ -203,6 +212,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
         let coord = context.coordinator
         coord.storedConfig = self
         coord.renderingIsAllowed = isRenderingAllowed
+        AppLogger.ui.notice("[CANVAS_INPUT] Smudge view created active=\(isRenderingAllowed, privacy: .public)")
 
         // UIKit haptic is correct here: `.sensoryFeedback` is a SwiftUI view
         // modifier and can't attach to UIView touch callbacks. The generator
@@ -313,6 +323,13 @@ struct SmudgeOverlayView: UIViewRepresentable {
         private var preparation: Task<Void, Never>?
         private var preparedKey: SnapshotKey?
         private var pendingInput: [() -> Void] = []
+        private var lastPreparationDiagnostic: String?
+
+        private func reportPreparation(_ state: String) {
+            guard state != lastPreparationDiagnostic else { return }
+            lastPreparationDiagnostic = state
+            AppLogger.ui.notice("[CANVAS_INPUT] preparation \(state, privacy: .public)")
+        }
 
         private struct SnapshotKey: Equatable {
             let steps: Int
@@ -342,7 +359,10 @@ struct SmudgeOverlayView: UIViewRepresentable {
                       drawableSize: view.drawableSize,
                       scale: view.contentScaleFactor
                   )
-            else { return }
+            else {
+                reportPreparation("waiting active=\(renderingIsAllowed) renderer=\(renderer != nil) drawable=\(String(describing: mtkView?.drawableSize))")
+                return
+            }
             let key = SnapshotKey(
                 steps: cfg.stepsPoints, sleep: cfg.sleepPoints,
                 hasSteps: cfg.hasStepsData, hasSleep: cfg.hasSleepData,
@@ -359,6 +379,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
                 preparedKey = key
             }
             guard renderer.needsSnapshot, preparation == nil else { return }
+            reportPreparation("snapshot scheduled drawable=\(view.drawableSize)")
             preparation = Task { @MainActor [weak self] in
                 await Task.yield()
                 guard !Task.isCancelled, let self else { return }
@@ -381,6 +402,7 @@ struct SmudgeOverlayView: UIViewRepresentable {
                 self.rendererPreparation = nil
                 guard let view = self.mtkView else { return }
                 self.renderer = prepared
+                self.reportPreparation(prepared == nil ? "Metal unavailable" : "Metal ready")
                 view.device = prepared?.device
                 view.refreshDrawableSizeFromBounds()
                 view.delegate = prepared
@@ -500,6 +522,9 @@ struct SmudgeOverlayView: UIViewRepresentable {
 
             if let cgImage = imageRenderer.cgImage {
                 renderer.updateBaseTexture(from: cgImage)
+                reportPreparation(renderer.needsSnapshot ? "texture upload failed" : "snapshot ready")
+            } else {
+                reportPreparation("ImageRenderer returned no image")
             }
         }
 

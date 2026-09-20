@@ -51,6 +51,17 @@ struct CanvasAnimationOverlay: View {
     }
 
     var body: some View {
+        overlayContent.onChange(of: diagnosticState, initial: true) { _, state in
+            AppLogger.ui.notice("[CANVAS_INPUT] route \(state, privacy: .public)")
+        }
+    }
+
+    private var diagnosticState: String {
+        "style=\(style.rawValue) viewActive=\(renderingIsActive) sceneActive=\(scenePhase == .active) interaction=\(isDirectInteractionAllowed)"
+    }
+
+    @ViewBuilder
+    private var overlayContent: some View {
         switch style.requiredResource {
         case .none:
             EmptyView()

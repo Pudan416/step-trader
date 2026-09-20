@@ -486,6 +486,7 @@ final class DayObjectsMusicLabController: ObservableObject {
             isGridVisible: isGridVisible,
             isVoiceOverRunning: isVoiceOverRunning
         )
+        AppLogger.ui.notice("[CANVAS_INPUT] lead began soundOn=\(self.soundState == .on, privacy: .public) available=\(self.isLeadAvailable, privacy: .public) exporting=\(self.isExportingAuditions, privacy: .public)")
         guard !isExportingAuditions, soundState == .on, isLeadAvailable else { return }
         isLeadHeld = true
         playback.beginLead(gesture)
