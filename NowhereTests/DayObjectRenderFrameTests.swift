@@ -80,7 +80,7 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         XCTAssertLessThan(falling.positions[actor.id]?.y ?? 0, 0)
 
-        _ = physics.update(
+        let firstBounce = physics.update(
             actors: [actor], gravity: SIMD2(0, -1), elapsed: 4,
             playbackIsActive: true
         )
@@ -89,7 +89,9 @@ final class DayObjectRenderFrameTests: XCTestCase {
             playbackIsActive: true
         )
         XCTAssertGreaterThanOrEqual(bounced.positions[actor.id]?.y ?? -2, -0.9)
-        XCTAssertTrue(bounced.impacts.contains { $0.actorID == actor.id && $0.wall == .bottom })
+        XCTAssertTrue((firstBounce.impacts + bounced.impacts).contains {
+            $0.actorID == actor.id && $0.wall == .bottom
+        })
     }
 
     func testLunarPhysicsDoesNotResolveObjectToObjectCollisions() {
@@ -118,6 +120,77 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
         XCTAssertGreaterThan(result.positions[first.id]?.x ?? -1, 0)
         XCTAssertLessThan(result.positions[second.id]?.x ?? 1, 0)
+    }
+
+    func testLunarPhysicsStartsWithVisibleTravelAndFreeSpinWhenDeviceIsFlat() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "flat-device-drift", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.14, 0.1)
+        )
+
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0,
+            playbackIsActive: true
+        )
+        let result = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 1,
+            playbackIsActive: true
+        )
+
+        XCTAssertGreaterThan(try XCTUnwrap(result.positions[actor.id]).x, 0.12)
+        XCTAssertGreaterThan(abs(try XCTUnwrap(result.directions[actor.id]).y), 0.18)
+    }
+
+    func testVelocityAlignedActorFacesItsTravelDirectionAfterWallBounce() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "directional-blur-heading", memberIndex: 0),
+            position: SIMD2(0.34, 0),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.1, 0.08),
+            orientation: .followsVelocity(bodyAngleOffset: 0)
+        )
+
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 1, playbackIsActive: true
+        )
+
+        XCTAssertTrue(result.impacts.contains { $0.actorID == actor.id && $0.wall == .right })
+        XCTAssertLessThanOrEqual(try XCTUnwrap(result.positions[actor.id]).x, 0.4)
+        XCTAssertLessThan(try XCTUnwrap(result.directions[actor.id]).x, -0.95)
+    }
+
+    func testFragmentBlurReportsBodyAngleThatKeepsItsFocusedEdgeForward() throws {
+        let material = DayObjectEditorialMaterialV1(
+            family: .gradient,
+            mechanism: .smoothRadial,
+            colors: [SIMD3(0.66, 0.43, 0.72), SIMD3(0.98, 0.8, 0.48)],
+            fields: [],
+            baseOpacity: 0.98,
+            edgeSoftness: 0,
+            contourWidth: 0,
+            contourCount: 0,
+            counterformRadius: nil,
+            counterformSoftness: 0,
+            structuralParameters: SIMD4(4, 0.4, 0.75, 0.5)
+        )
+
+        let offset = try XCTUnwrap(
+            material.gpuAppearance.fragmentBlurBodyAngleOffset(
+                shape: 0,
+                silhouetteVariant: 0
+            )
+        )
+
+        XCTAssertEqual(offset, 0.4 - .pi, accuracy: 0.0001)
     }
 
     func testLunarPhysicsReturnsExactlyToCurrentCompositionAfterStop() {
@@ -310,8 +383,10 @@ final class DayObjectRenderFrameTests: XCTestCase {
             direction: SIMD2(1, 0),
             halfSize: SIMD2(0.18, 0.12)
         )
-        var centeredPhysics = DayObjectLunarPhysicsEngine()
-        var offCenterPhysics = DayObjectLunarPhysicsEngine()
+        var configuration = DayObjectLunarPhysicsEngine.Configuration()
+        configuration.initialAngularSpeed = 0...0
+        var centeredPhysics = DayObjectLunarPhysicsEngine(configuration: configuration)
+        var offCenterPhysics = DayObjectLunarPhysicsEngine(configuration: configuration)
         _ = centeredPhysics.update(
             actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
         )

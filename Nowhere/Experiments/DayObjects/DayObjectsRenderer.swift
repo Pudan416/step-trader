@@ -1439,11 +1439,21 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             : SIMD2<Float>(1, 1 / max(canvasAspect, 0.001))
         let canvasHalfSpan = canvasSpan * 0.5
         let physicsActors = frame.actors.map {
-            DayObjectLunarPhysicsActor(
+            let orientation: DayObjectLunarPhysicsOrientation
+            if let bodyAngleOffset = $0.gpuAppearance.fragmentBlurBodyAngleOffset(
+                shape: $0.gpuActor.shape,
+                silhouetteVariant: $0.gpuActor.silhouetteVariant
+            ) {
+                orientation = .followsVelocity(bodyAngleOffset: bodyAngleOffset)
+            } else {
+                orientation = .free
+            }
+            return DayObjectLunarPhysicsActor(
                 id: $0.actorID,
                 position: $0.gpuActor.position,
                 direction: $0.gpuActor.direction,
-                halfSize: $0.gpuActor.halfSize
+                halfSize: $0.gpuActor.halfSize,
+                orientation: orientation
             )
         }
         let physicsOutput = lunarPhysics.update(
@@ -1465,7 +1475,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                         id: actor.id,
                         position: physicsOutput.positions[actor.id] ?? actor.position,
                         direction: physicsOutput.directions[actor.id] ?? actor.direction,
-                        halfSize: actor.halfSize
+                        halfSize: actor.halfSize,
+                        orientation: actor.orientation
                     )
                 }
                 var accumulatedInfluences = [DayObjectActorID: DayObjectLunarPhysicsInfluence]()

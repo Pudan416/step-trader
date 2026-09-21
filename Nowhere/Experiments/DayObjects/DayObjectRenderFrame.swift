@@ -28,22 +28,30 @@ enum DayObjectWallImpactDelivery {
     }
 }
 
+enum DayObjectLunarPhysicsOrientation: Equatable {
+    case free
+    case followsVelocity(bodyAngleOffset: Float)
+}
+
 struct DayObjectLunarPhysicsActor: Equatable {
     let id: DayObjectActorID
     let position: SIMD2<Float>
     let direction: SIMD2<Float>
     let halfSize: SIMD2<Float>
+    let orientation: DayObjectLunarPhysicsOrientation
 
     init(
         id: DayObjectActorID,
         position: SIMD2<Float>,
         direction: SIMD2<Float> = SIMD2(1, 0),
-        halfSize: SIMD2<Float>
+        halfSize: SIMD2<Float>,
+        orientation: DayObjectLunarPhysicsOrientation = .free
     ) {
         self.id = id
         self.position = position
         self.direction = direction
         self.halfSize = halfSize
+        self.orientation = orientation
     }
 }
 
@@ -259,12 +267,15 @@ final class DayObjectLunarInteractionBus: @unchecked Sendable {
 struct DayObjectLunarPhysicsEngine {
     struct Configuration: Equatable {
         var acceleration: Float = 0.46
-        var linearDrag: Float = 0.12
-        var angularDrag: Float = 1.35
-        var angularImpulseScale: Float = 0.42
-        var wallAngularFriction: Float = 0.16
-        var maximumAngularSpeed: Float = 2.4
-        var restitution: Float = 0.7
+        var initialLinearSpeed: ClosedRange<Float> = 0.24...0.34
+        var initialAngularSpeed: ClosedRange<Float> = 0.45...0.78
+        var linearDrag: Float = 0.04
+        var angularDrag: Float = 0.14
+        var angularImpulseScale: Float = 0.9
+        var wallAngularFriction: Float = 0.20
+        var maximumLinearSpeed: Float = 0.9
+        var maximumAngularSpeed: Float = 3
+        var restitution: Float = 0.84
         var minimumImpactSpeed: Float = 0.15
         var impactCooldown: TimeInterval = 0.28
         var returnDuration: TimeInterval = 0.72
@@ -287,6 +298,7 @@ struct DayObjectLunarPhysicsEngine {
         var returnOrigin: SIMD2<Float>
         var returnOriginAngle: Float
         var lastImpactAt: TimeInterval
+        var orientation: DayObjectLunarPhysicsOrientation
     }
 
     private let configuration: Configuration
@@ -320,8 +332,11 @@ struct DayObjectLunarPhysicsEngine {
         guard phase == .active, impulse.x.isFinite, impulse.y.isFinite,
               applicationPoint.x.isFinite, applicationPoint.y.isFinite,
               var body = bodies[actorID] else { return }
-        body.velocity += impulse
-        if angularMotionIsEnabled {
+        body.velocity = Self.clampedVelocity(
+            body.velocity + impulse,
+            maximum: configuration.maximumLinearSpeed
+        )
+        if angularMotionIsEnabled, body.orientation == .free {
             let lever = applicationPoint - body.position
             let torque = lever.x * impulse.y - lever.y * impulse.x
             body.angularVelocity = Self.clampedAngularVelocity(
@@ -351,16 +366,7 @@ struct DayObjectLunarPhysicsEngine {
             if phase != .active {
                 phase = .active
                 bodies = Dictionary(uniqueKeysWithValues: actors.map { actor in
-                    (actor.id, Body(
-                        position: actor.position,
-                        velocity: .zero,
-                        angle: Self.angle(for: actor.direction),
-                        angularVelocity: 0,
-                        halfSize: Self.sanitizedHalfSize(actor.halfSize),
-                        returnOrigin: actor.position,
-                        returnOriginAngle: Self.angle(for: actor.direction),
-                        lastImpactAt: -.infinity
-                    ))
+                    (actor.id, makeBody(for: actor))
                 })
                 lastElapsed = elapsed
                 return .init(positions: positions, directions: directions, impacts: [])
@@ -439,21 +445,53 @@ struct DayObjectLunarPhysicsEngine {
         for actor in actors {
             let halfSize = Self.sanitizedHalfSize(actor.halfSize)
             if bodies[actor.id] == nil {
-                bodies[actor.id] = Body(
-                    position: actor.position, velocity: .zero,
-                    angle: Self.angle(for: actor.direction), angularVelocity: 0,
-                    halfSize: halfSize, returnOrigin: actor.position,
-                    returnOriginAngle: Self.angle(for: actor.direction),
-                    lastImpactAt: -.infinity
-                )
+                bodies[actor.id] = makeBody(for: actor)
             } else {
                 bodies[actor.id]?.halfSize = halfSize
+                bodies[actor.id]?.orientation = actor.orientation
                 if !angularMotionIsEnabled {
                     bodies[actor.id]?.angle = Self.angle(for: actor.direction)
                     bodies[actor.id]?.angularVelocity = 0
                 }
             }
         }
+    }
+
+    private func makeBody(for actor: DayObjectLunarPhysicsActor) -> Body {
+        let angle = Self.angle(for: actor.direction)
+        let speed = Self.deterministicValue(
+            in: configuration.initialLinearSpeed,
+            for: actor.id,
+            salt: 0xD1B5_4A32_D192_ED03
+        )
+        let velocityAngle: Float
+        switch actor.orientation {
+        case .free:
+            velocityAngle = angle
+        case let .followsVelocity(bodyAngleOffset):
+            velocityAngle = angle - bodyAngleOffset
+        }
+        let angularVelocity: Float
+        if angularMotionIsEnabled, actor.orientation == .free {
+            angularVelocity = Self.deterministicValue(
+                in: configuration.initialAngularSpeed,
+                for: actor.id,
+                salt: 0x94D0_49BB_1331_11EB
+            ) * DayObjectLunarInteractionField.spinSign(for: actor.id)
+        } else {
+            angularVelocity = 0
+        }
+        return Body(
+            position: actor.position,
+            velocity: SIMD2(cos(velocityAngle), sin(velocityAngle)) * speed,
+            angle: angle,
+            angularVelocity: angularVelocity,
+            halfSize: Self.sanitizedHalfSize(actor.halfSize),
+            returnOrigin: actor.position,
+            returnOriginAngle: angle,
+            lastImpactAt: -.infinity,
+            orientation: actor.orientation
+        )
     }
 
     private mutating func integrate(
@@ -474,11 +512,23 @@ struct DayObjectLunarPhysicsEngine {
                 guard var body = bodies[id] else { continue }
                 body.velocity += gravity * configuration.acceleration * step
                 body.velocity *= damping
-                body.angularVelocity *= angularDamping
-                body.angle += body.angularVelocity * step
-                body.angle.formTruncatingRemainder(dividingBy: 2 * .pi)
+                body.velocity = Self.clampedVelocity(
+                    body.velocity,
+                    maximum: configuration.maximumLinearSpeed
+                )
+                if angularMotionIsEnabled, body.orientation == .free {
+                    body.angularVelocity *= angularDamping
+                    body.angle += body.angularVelocity * step
+                    body.angle.formTruncatingRemainder(dividingBy: 2 * .pi)
+                }
                 body.position += body.velocity * step
                 resolveWalls(id: id, body: &body, elapsed: elapsed, impacts: &impacts)
+                if angularMotionIsEnabled,
+                   case let .followsVelocity(bodyAngleOffset) = body.orientation,
+                   simd_length_squared(body.velocity) > 0.000_001 {
+                    body.angle = atan2(body.velocity.y, body.velocity.x) + bodyAngleOffset
+                    body.angularVelocity = 0
+                }
                 bodies[id] = body
             }
         }
@@ -542,7 +592,7 @@ struct DayObjectLunarPhysicsEngine {
         to body: inout Body,
         extent: SIMD2<Float>
     ) {
-        guard angularMotionIsEnabled else { return }
+        guard angularMotionIsEnabled, body.orientation == .free else { return }
         let tangentHalfSize: Float
         let normalImpulse: SIMD2<Float>
         let wallLever: SIMD2<Float>
@@ -654,6 +704,39 @@ struct DayObjectLunarPhysicsEngine {
         guard value.isFinite else { return 0 }
         let limit = max(maximum, 0)
         return min(max(value, -limit), limit)
+    }
+
+    private static func clampedVelocity(
+        _ value: SIMD2<Float>,
+        maximum: Float
+    ) -> SIMD2<Float> {
+        guard value.x.isFinite, value.y.isFinite else { return .zero }
+        let magnitude = simd_length(value)
+        let limit = max(maximum, 0)
+        guard magnitude > limit, magnitude > 0 else { return value }
+        return value / magnitude * limit
+    }
+
+    private static func deterministicValue(
+        in range: ClosedRange<Float>,
+        for actorID: DayObjectActorID,
+        salt: UInt64
+    ) -> Float {
+        let lower = min(range.lowerBound, range.upperBound)
+        let upper = max(range.lowerBound, range.upperBound)
+        var hash = 1_469_598_103_934_665_603 ^ salt
+        for byte in actorID.eventID.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        hash ^= UInt64(bitPattern: Int64(actorID.memberIndex))
+        hash ^= hash >> 30
+        hash &*= 0xBF58_476D_1CE4_E5B9
+        hash ^= hash >> 27
+        hash &*= 0x94D0_49BB_1331_11EB
+        hash ^= hash >> 31
+        let unit = Float(hash >> 40) / Float(1 << 24)
+        return lower + (upper - lower) * unit
     }
 
     private static func rotatedExtent(
@@ -986,6 +1069,32 @@ struct DayObjectGPUAppearance: Equatable {
     // Source compatibility for older focused tests. This is computed and does
     // not participate in the Metal ABI.
     var membrane: SIMD4<Float> { .zero }
+
+    /// The fragment blur keeps its focused edge opposite the shader's blur
+    /// axis. This offset lets physics point that focused edge along velocity.
+    func fragmentBlurBodyAngleOffset(
+        shape: UInt32,
+        silhouetteVariant: UInt32
+    ) -> Float? {
+        guard (metadata.x == DayObjectMaterialFamily.gradient.rawValue
+                || metadata.x == DayObjectMaterialFamily.glass.rawValue),
+              UInt32(recipe1.x.rounded()) == 4 else { return nil }
+        var blurAngle = recipe1.y
+        if shape == 6 || (shape == 5 && silhouetteVariant > 0) {
+            let sides: Float = shape == 6
+                ? 4
+                : 3 + Float((min(silhouetteVariant, 64) - 1) % 4)
+            let sector = 2 * Float.pi / sides
+            let focusOffset = sides == 3 ? sector * 0.5 : 0
+            let focusNormal = ((Float.pi - blurAngle - focusOffset) / sector).rounded()
+                * sector + focusOffset
+            blurAngle = .pi - focusNormal
+        }
+        var offset = (blurAngle - .pi).truncatingRemainder(dividingBy: 2 * .pi)
+        if offset > .pi { offset -= 2 * .pi }
+        if offset < -.pi { offset += 2 * .pi }
+        return offset
+    }
 
     static let fallback = DayObjectGPUAppearance(
         color0: SIMD4(1, 1, 1, 1),
