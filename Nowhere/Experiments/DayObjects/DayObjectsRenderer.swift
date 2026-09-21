@@ -1014,6 +1014,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var soundPulseTimeline = DayObjectsSoundPulseTimeline()
     private var lunarPhysics = DayObjectLunarPhysicsEngine()
     private var lunarPhysicsIsActive = false
+    private var lunarAngularMotionIsEnabled = true
     private weak var motionInput: DayObjectMotionInputProvider?
     private weak var lunarInteractionBus: DayObjectLunarInteractionBus?
     private var lastLunarInteractionSequence: UInt64 = 0
@@ -1249,6 +1250,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         presentationMode: DayObjectsPresentationMode = .canvas,
         lunarPhysicsIsActive: Bool = false,
         lunarPhysicsReturnIsAnimated: Bool = true,
+        lunarAngularMotionIsEnabled: Bool = true,
         motionInput: DayObjectMotionInputProvider? = nil,
         lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
         wallImpactSink: DayObjectWallImpactSink? = nil,
@@ -1264,6 +1266,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             lunarPhysics.reset()
         }
         self.lunarPhysicsIsActive = lunarPhysicsIsActive
+        self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
         self.motionInput = motionInput
         self.lunarInteractionBus = lunarInteractionBus
         self.wallImpactSink = wallImpactSink
@@ -1439,6 +1442,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             DayObjectLunarPhysicsActor(
                 id: $0.actorID,
                 position: $0.gpuActor.position,
+                direction: $0.gpuActor.direction,
                 halfSize: $0.gpuActor.halfSize
             )
         }
@@ -1447,7 +1451,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             gravity: motionInput?.projectedGravity ?? SIMD2(0, -0.35),
             canvasHalfSpan: canvasHalfSpan,
             elapsed: elapsedTime,
-            playbackIsActive: lunarPhysicsIsActive
+            playbackIsActive: lunarPhysicsIsActive,
+            angularMotionIsEnabled: lunarAngularMotionIsEnabled
         )
         if let lunarInteractionBus {
             let events = lunarInteractionBus.events(after: lastLunarInteractionSequence)
@@ -1459,12 +1464,13 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                     DayObjectLunarPhysicsActor(
                         id: actor.id,
                         position: physicsOutput.positions[actor.id] ?? actor.position,
+                        direction: physicsOutput.directions[actor.id] ?? actor.direction,
                         halfSize: actor.halfSize
                     )
                 }
-                var accumulatedImpulses = [DayObjectActorID: SIMD2<Float>]()
+                var accumulatedInfluences = [DayObjectActorID: DayObjectLunarPhysicsInfluence]()
                 for event in events {
-                    for (actorID, impulse) in DayObjectLunarInteractionField.impulses(
+                    for (actorID, influence) in DayObjectLunarInteractionField.influences(
                         from: event.startPoint * canvasHalfSpan,
                         to: event.endPoint * canvasHalfSpan,
                         gestureImpulse: DayObjectLunarInteractionField.canvasVector(
@@ -1473,15 +1479,20 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                         ),
                         actors: interactiveActors
                     ) {
-                        accumulatedImpulses[actorID, default: .zero] += impulse
+                        let accumulatedImpulse = accumulatedInfluences[actorID]?.impulse ?? .zero
+                        accumulatedInfluences[actorID] = .init(
+                            impulse: accumulatedImpulse + influence.impulse,
+                            applicationPoint: influence.applicationPoint
+                        )
                     }
                 }
-                for (actorID, impulse) in accumulatedImpulses {
+                for (actorID, influence) in accumulatedInfluences {
                     lunarPhysics.applyImpulse(
                         DayObjectLunarInteractionField.bounded(
-                            impulse,
+                            influence.impulse,
                             maximumMagnitude: 0.42
                         ),
+                        at: influence.applicationPoint,
                         to: actorID
                     )
                 }
@@ -1502,7 +1513,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 lunarPhysicsReturnSink?.send()
             }
         }
-        return frame.applyingLunarPositions(physicsOutput.positions)
+        return frame.applyingLunarPhysics(physicsOutput)
     }
 
     private func encodeFrame(

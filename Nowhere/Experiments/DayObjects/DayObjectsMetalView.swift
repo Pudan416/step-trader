@@ -75,6 +75,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     let soundPulseBus: DayObjectsSoundPulseBus?
     var presentationMode: DayObjectsPresentationMode = .canvas
     var lunarPhysicsIsActive = false
+    var lunarAngularMotionIsEnabled = true
     var lunarInteractionBus: DayObjectLunarInteractionBus?
     var onWallImpact: @MainActor (DayObjectWallImpact) -> Void = { _ in }
     var onLunarPhysicsReturnCompleted: @MainActor () -> Void = {}
@@ -87,6 +88,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             soundPulseBus: soundPulseBus,
             presentationMode: presentationMode,
             lunarPhysicsIsActive: lunarPhysicsIsActive,
+            lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
             lunarInteractionBus: lunarInteractionBus,
             onWallImpact: onWallImpact,
             onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
@@ -130,6 +132,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: presentationMode,
             isAnimating: isAnimating,
             lunarPhysicsIsActive: lunarPhysicsIsActive,
+            lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
             lunarInteractionBus: lunarInteractionBus,
             onWallImpact: onWallImpact,
             onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
@@ -159,6 +162,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
         private var isAnimating = false
         let motionInput = DayObjectMotionInputProvider()
         private var lunarPhysicsIsActive: Bool
+        private var lunarAngularMotionIsEnabled: Bool
         private var lunarInteractionBus: DayObjectLunarInteractionBus?
         let wallImpactSink: DayObjectWallImpactSink
         let lunarPhysicsReturnSink: DayObjectLunarPhysicsReturnSink
@@ -170,6 +174,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             soundPulseBus: DayObjectsSoundPulseBus?,
             presentationMode: DayObjectsPresentationMode = .canvas,
             lunarPhysicsIsActive: Bool = false,
+            lunarAngularMotionIsEnabled: Bool = true,
             lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
             onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
             onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {}
@@ -180,6 +185,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             self.soundPulseBus = soundPulseBus
             self.presentationMode = presentationMode
             self.lunarPhysicsIsActive = lunarPhysicsIsActive
+            self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
             self.lunarInteractionBus = lunarInteractionBus
             wallImpactSink = DayObjectWallImpactSink(handler: onWallImpact)
             lunarPhysicsReturnSink = DayObjectLunarPhysicsReturnSink(
@@ -213,6 +219,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: DayObjectsPresentationMode,
             isAnimating: Bool,
             lunarPhysicsIsActive: Bool = false,
+            lunarAngularMotionIsEnabled: Bool = true,
             lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
             onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
             onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {}
@@ -225,6 +232,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             self.presentationMode = presentationMode
             self.isAnimating = isAnimating
             self.lunarPhysicsIsActive = lunarPhysicsIsActive
+            self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
             self.lunarInteractionBus = lunarInteractionBus
             wallImpactSink.handler = onWallImpact
             lunarPhysicsReturnSink.handler = onLunarPhysicsReturnCompleted
@@ -263,6 +271,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
                             soundPulseBus: soundPulseBus, presentationMode: presentationMode,
                             lunarPhysicsIsActive: lunarPhysicsIsActive,
                             lunarPhysicsReturnIsAnimated: isAnimating && !lunarPhysicsIsActive,
+                            lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
                             motionInput: motionInput,
                             lunarInteractionBus: lunarInteractionBus,
                             wallImpactSink: wallImpactSink,

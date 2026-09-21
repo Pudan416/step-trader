@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DayObjectsView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let sceneInput: DayObjectSceneInput
     let digitalImpact: DayObjectDigitalImpact
@@ -60,6 +61,7 @@ struct DayObjectsView: View {
                 soundPulseBus: soundPulseBus,
                 presentationMode: presentationMode,
                 lunarPhysicsIsActive: lunarPhysicsIsActive,
+                lunarAngularMotionIsEnabled: !reduceMotion,
                 lunarInteractionBus: lunarInteractionBus,
                 onWallImpact: onWallImpact,
                 onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted

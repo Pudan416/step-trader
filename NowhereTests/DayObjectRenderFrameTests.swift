@@ -302,6 +302,163 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThanOrEqual(result.positions[actor.id]?.x ?? 1, 0.4)
         XCTAssertTrue(result.impacts.contains { $0.wall == .right })
     }
+
+    func testOffCenterSmudgeImpulseRotatesActorWhileCenteredImpulseDoesNot() throws {
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "spin", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        var centeredPhysics = DayObjectLunarPhysicsEngine()
+        var offCenterPhysics = DayObjectLunarPhysicsEngine()
+        _ = centeredPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+        _ = offCenterPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+
+        centeredPhysics.applyImpulse(SIMD2(0.36, 0), at: .zero, to: actor.id)
+        offCenterPhysics.applyImpulse(SIMD2(0.36, 0), at: SIMD2(0, 0.1), to: actor.id)
+        let centered = centeredPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.25, playbackIsActive: true
+        )
+        let offCenter = offCenterPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.25, playbackIsActive: true
+        )
+
+        let centeredDirection = try XCTUnwrap(centered.directions[actor.id])
+        let offCenterDirection = try XCTUnwrap(offCenter.directions[actor.id])
+        XCTAssertEqual(centeredDirection.y, 0, accuracy: 0.0001)
+        XCTAssertLessThan(offCenterDirection.y, -0.04)
+    }
+
+    func testSmudgeInfluenceKeepsTheOffCenterContactPoint() throws {
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "contact", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+
+        let influences = DayObjectLunarInteractionField.influences(
+            from: SIMD2(-0.3, 0.1),
+            to: SIMD2(0.3, 0.1),
+            gestureImpulse: SIMD2(0.3, 0),
+            actors: [actor]
+        )
+
+        let influence = try XCTUnwrap(influences[actor.id])
+        XCTAssertEqual(influence.applicationPoint.y, 0.1, accuracy: 0.0001)
+        XCTAssertEqual(influence.impulse, SIMD2(0.3, 0))
+    }
+
+    func testRotatedActorUsesItsRotatedExtentAtCanvasWall() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let angle = Float.pi / 4
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "rotated-bounds", memberIndex: 0),
+            position: SIMD2(0.22, 0),
+            direction: SIMD2(cos(angle), sin(angle)),
+            halfSize: SIMD2(0.3, 0.1)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.1, 0), to: actor.id)
+
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.01, playbackIsActive: true
+        )
+
+        let expectedRightLimit: Float = 0.5 - 0.4 / sqrt(Float(2))
+        let position = try XCTUnwrap(result.positions[actor.id])
+        XCTAssertLessThanOrEqual(position.x, expectedRightLimit + 0.0001)
+    }
+
+    func testLunarPhysicsReturnsRotationTowardCurrentCompositionAfterStop() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let id = DayObjectActorID(eventID: "rotation-return", memberIndex: 0)
+        let actor = DayObjectLunarPhysicsActor(
+            id: id, position: .zero, direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.36, 0), at: SIMD2(0, 0.1), to: id)
+        let spun = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.3, playbackIsActive: true
+        )
+        let spunDirection = try XCTUnwrap(spun.directions[id])
+
+        let updatedComposition = DayObjectLunarPhysicsActor(
+            id: id, position: .zero, direction: SIMD2(0, 1),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        _ = physics.update(
+            actors: [updatedComposition], gravity: .zero, elapsed: 0.31,
+            playbackIsActive: false
+        )
+        let returning = physics.update(
+            actors: [updatedComposition], gravity: .zero, elapsed: 0.67,
+            playbackIsActive: false
+        )
+        let returningDirection = try XCTUnwrap(returning.directions[id])
+
+        XCTAssertGreaterThan(returningDirection.y, spunDirection.y)
+        XCTAssertGreaterThan(returningDirection.y, 0)
+    }
+
+    func testGlancingWallImpactTransfersTangentialMotionIntoRotation() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "wall-spin", memberIndex: 0),
+            position: SIMD2(0.35, 0),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.1, 0.08)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.5, 0.35), to: actor.id)
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.3, playbackIsActive: true
+        )
+        let afterImpact = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.4, playbackIsActive: true
+        )
+
+        XCTAssertLessThan(try XCTUnwrap(afterImpact.directions[actor.id]).y, -0.005)
+    }
+
+    func testReducedMotionKeepsAngularPoseStatic() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "reduced-spin", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0,
+            playbackIsActive: true, angularMotionIsEnabled: false
+        )
+        physics.applyImpulse(SIMD2(0.36, 0), at: SIMD2(0, 0.1), to: actor.id)
+        let result = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.4,
+            playbackIsActive: true, angularMotionIsEnabled: false
+        )
+
+        XCTAssertEqual(try XCTUnwrap(result.directions[actor.id]), SIMD2(1, 0))
+    }
+
     func testOutlineFollowsEntireSilhouetteBoundary() throws {
         let harness = try ActorRenderHarness(width: 200, height: 200)
         func appearance(_ family: DayObjectMaterialFamily) -> DayObjectGPUAppearance {

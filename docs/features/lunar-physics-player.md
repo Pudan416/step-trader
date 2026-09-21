@@ -23,11 +23,16 @@ The physical result is never persisted.
   motion reads as low-gravity movement rather than ordinary falling.
 - Figures collide with the four screen walls only. They can overlap and pass through one
   another; object-to-object collision would create visual and musical clutter.
-- Each figure is bounded using its rendered half-size, so its visible body stays inside
-  the canvas.
+- Off-center Smudge contact adds bounded angular velocity. A gesture through the center
+  remains primarily translational, while catching an edge produces a visible turn.
+- Glancing wall contacts transfer a small amount of tangential motion into rotation.
+  Angular drag and a speed cap keep the motion calm rather than toy-like.
+- Each figure is bounded using the axis-aligned extent of its rotated rendered half-size,
+  so its visible body stays inside the canvas while turning.
 - Large delayed frames are capped and integrated in small steps. Non-finite motion input
   becomes zero gravity.
 - Weak resting contacts are silent, and per-object cooldowns prevent edge chatter.
+- Reduce Motion keeps physical translation but holds the saved angular pose.
 
 The pure simulation is `DayObjectLunarPhysicsEngine`. It works in the Metal renderer's
 aspect-aware short-side canvas coordinates, so it does not force SwiftUI state changes every frame.
@@ -124,7 +129,8 @@ physical-device verification is still required for tilt behavior.
 - Full screen has no separate mute action; the close button is the single way to stop and leave.
 - The question-mark control opens and closes the English music note without stopping playback.
 - Rotation does not enter a landscape Canvas mode.
-- Stop returns figures to the current composition and does not save physical positions.
+- Stop returns figures to the current composition position and orientation and does not save
+  physical poses.
 
 ## Verification
 
