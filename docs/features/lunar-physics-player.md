@@ -76,8 +76,9 @@ The Canvas remains portrait-only. Landscape is not a separate clean-view mode.
 
 When Play is requested, full-screen controls remain visible while audio starts. Once sound
 is actually on, a 2.5-second idle timer fades the dock, its scrim and system chrome. A small persistent
-30-point folded-corner affordance remains flush with the physical lower-right corner. Its visible
-curl has no icon, but it retains a 56 by 56 point hit area. Pressing it restores the playback/remix
+40-point two-layer folded-corner affordance remains flush with the physical lower-right corner.
+Its dark underside keeps the light curl visible across changing artwork without adding an icon;
+it retains a 56 by 56 point hit area. Pressing it restores the playback/remix
 dock and starts the idle timer again.
 
 The revealed interface has one Stop action: the close button stops sound, returns the figures and

@@ -2390,14 +2390,21 @@ struct GalleryView: View {
         } label: {
             ZStack(alignment: .bottomTrailing) {
                 CanvasPlaybackRevealCornerShape()
+                    .fill(.black.opacity(0.42))
+                    .shadow(color: .black.opacity(0.18), radius: 3, x: -1, y: -1)
+                    .frame(width: 40, height: 40)
+
+                CanvasPlaybackRevealCornerShape()
                     .fill(.ultraThinMaterial)
                     .overlay {
                         CanvasPlaybackRevealCornerShape()
-                            .stroke(.white.opacity(0.28), lineWidth: 0.75)
+                            .fill(.white.opacity(0.18))
                     }
-                    .shadow(color: .black.opacity(0.08), radius: 5, x: -2, y: -2)
-                    .frame(width: 30, height: 30)
-                    .opacity(0.72)
+                    .overlay {
+                        CanvasPlaybackRevealCornerShape()
+                            .stroke(.white.opacity(0.58), lineWidth: 0.75)
+                    }
+                    .frame(width: 34, height: 34)
             }
             .frame(width: 56, height: 56)
             .contentShape(Rectangle())
