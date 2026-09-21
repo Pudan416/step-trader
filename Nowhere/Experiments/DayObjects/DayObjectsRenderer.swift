@@ -1432,7 +1432,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private func frameApplyingLunarPhysics(
         _ frame: DayObjectRenderFrame,
         elapsedTime: TimeInterval,
-        canvasAspect: Float
+        canvasAspect: Float,
+        orientationByEventID: [String: DayObjectLunarPhysicsOrientation] = [:],
+        collisionGeometry: DayObjectLunarCollisionGeometry = .box
     ) -> DayObjectRenderFrame {
         let canvasSpan = canvasAspect >= 1
             ? SIMD2<Float>(canvasAspect, 1)
@@ -1440,7 +1442,9 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         let canvasHalfSpan = canvasSpan * 0.5
         let physicsActors = frame.actors.map {
             let orientation: DayObjectLunarPhysicsOrientation
-            if let bodyAngleOffset = $0.gpuAppearance.fragmentBlurBodyAngleOffset(
+            if let nativeOrientation = orientationByEventID[$0.eventID] {
+                orientation = nativeOrientation
+            } else if let bodyAngleOffset = $0.gpuAppearance.fragmentBlurBodyAngleOffset(
                 shape: $0.gpuActor.shape,
                 silhouetteVariant: $0.gpuActor.silhouetteVariant
             ) {
@@ -1453,7 +1457,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 position: $0.gpuActor.position,
                 direction: $0.gpuActor.direction,
                 halfSize: $0.gpuActor.halfSize,
-                orientation: orientation
+                orientation: orientation,
+                collisionGeometry: collisionGeometry
             )
         }
         let physicsOutput = lunarPhysics.update(
@@ -1476,7 +1481,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                         position: physicsOutput.positions[actor.id] ?? actor.position,
                         direction: physicsOutput.directions[actor.id] ?? actor.direction,
                         halfSize: actor.halfSize,
-                        orientation: actor.orientation
+                        orientation: actor.orientation,
+                        collisionGeometry: actor.collisionGeometry
                     )
                 }
                 var accumulatedInfluences = [DayObjectActorID: DayObjectLunarPhysicsInfluence]()
@@ -1578,10 +1584,15 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             }
             var nativeFrame = renderer.adapt(frame, recipe: recipe, aspect: Float(drawableSize.width / max(drawableSize.height, 1)), elapsed: elapsedTime, soundPulses: soundPulseTimeline.timestamps, isPalette: isPalette)
             if !isPalette {
+                let orientationByEventID = Dictionary(uniqueKeysWithValues: recipe.actors.map {
+                    ($0.eventID, $0.lunarPhysicsOrientation)
+                })
                 nativeFrame = frameApplyingLunarPhysics(
                     nativeFrame,
                     elapsedTime: elapsedTime,
-                    canvasAspect: Float(drawableSize.width / max(drawableSize.height, 1))
+                    canvasAspect: Float(drawableSize.width / max(drawableSize.height, 1)),
+                    orientationByEventID: orientationByEventID,
+                    collisionGeometry: .radial
                 )
             }
             currentFrame = nativeFrame

@@ -168,6 +168,73 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThan(try XCTUnwrap(result.directions[actor.id]).x, -0.95)
     }
 
+    func testNativeAtlasRenderRotationFollowsThePhysicsDirection() {
+        let bodyAngle: Float = 0.72
+        let direction = SIMD2<Float>(cos(bodyAngle), sin(bodyAngle))
+
+        XCTAssertEqual(
+            NativeAtlasMetalRenderer.renderRotation(for: direction),
+            -bodyAngle,
+            accuracy: 0.0001
+        )
+    }
+
+    func testNativeDirectionalBlurReportsItsFocusedEdgeAsTheVelocityHeading() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first {
+            $0.id == "legacy.soft-square"
+        })
+        let material = MetalShapeGenomeFrame.make(
+            preset: preset,
+            material: .directionalBlur,
+            seed: 42
+        ).material
+
+        XCTAssertEqual(
+            try XCTUnwrap(material.directionalBlurBodyAngleOffset),
+            0,
+            accuracy: 0.0001
+        )
+    }
+
+    func testUserStartedPlaybackKeepsPhysicalRotationEnabledWithReducedMotion() {
+        XCTAssertTrue(DayObjectLunarMotionPolicy.angularMotionIsEnabled(
+            playbackIsActive: true,
+            reduceMotion: true
+        ))
+        XCTAssertFalse(DayObjectLunarMotionPolicy.angularMotionIsEnabled(
+            playbackIsActive: false,
+            reduceMotion: true
+        ))
+    }
+
+    func testRadialCollisionShapeReachesTheWallWithoutARotatedBoxGap() throws {
+        var configuration = DayObjectLunarPhysicsEngine.Configuration()
+        configuration.initialLinearSpeed = 0...0
+        configuration.initialAngularSpeed = 0...0
+        var physics = DayObjectLunarPhysicsEngine(configuration: configuration)
+        let angle = Float.pi / 4
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "native-radial-wall", memberIndex: 0),
+            position: SIMD2(0.28, 0),
+            direction: SIMD2(cos(angle), sin(angle)),
+            halfSize: SIMD2(repeating: 0.2),
+            collisionGeometry: .radial
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.1, 0), to: actor.id)
+
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.1, playbackIsActive: true
+        )
+
+        XCTAssertTrue(result.impacts.isEmpty)
+        XCTAssertGreaterThan(try XCTUnwrap(result.positions[actor.id]).x, 0.28)
+    }
+
     func testFragmentBlurReportsBodyAngleThatKeepsItsFocusedEdgeForward() throws {
         let material = DayObjectEditorialMaterialV1(
             family: .gradient,

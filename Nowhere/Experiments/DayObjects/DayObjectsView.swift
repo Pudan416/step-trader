@@ -1,5 +1,14 @@
 import SwiftUI
 
+enum DayObjectLunarMotionPolicy {
+    static func angularMotionIsEnabled(
+        playbackIsActive: Bool,
+        reduceMotion: Bool
+    ) -> Bool {
+        playbackIsActive || !reduceMotion
+    }
+}
+
 struct DayObjectsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -61,7 +70,10 @@ struct DayObjectsView: View {
                 soundPulseBus: soundPulseBus,
                 presentationMode: presentationMode,
                 lunarPhysicsIsActive: lunarPhysicsIsActive,
-                lunarAngularMotionIsEnabled: !reduceMotion,
+                lunarAngularMotionIsEnabled: DayObjectLunarMotionPolicy.angularMotionIsEnabled(
+                    playbackIsActive: lunarPhysicsIsActive,
+                    reduceMotion: reduceMotion
+                ),
                 lunarInteractionBus: lunarInteractionBus,
                 onWallImpact: onWallImpact,
                 onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted

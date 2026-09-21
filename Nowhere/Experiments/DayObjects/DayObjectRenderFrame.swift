@@ -33,25 +33,33 @@ enum DayObjectLunarPhysicsOrientation: Equatable {
     case followsVelocity(bodyAngleOffset: Float)
 }
 
+enum DayObjectLunarCollisionGeometry: Equatable {
+    case box
+    case radial
+}
+
 struct DayObjectLunarPhysicsActor: Equatable {
     let id: DayObjectActorID
     let position: SIMD2<Float>
     let direction: SIMD2<Float>
     let halfSize: SIMD2<Float>
     let orientation: DayObjectLunarPhysicsOrientation
+    let collisionGeometry: DayObjectLunarCollisionGeometry
 
     init(
         id: DayObjectActorID,
         position: SIMD2<Float>,
         direction: SIMD2<Float> = SIMD2(1, 0),
         halfSize: SIMD2<Float>,
-        orientation: DayObjectLunarPhysicsOrientation = .free
+        orientation: DayObjectLunarPhysicsOrientation = .free,
+        collisionGeometry: DayObjectLunarCollisionGeometry = .box
     ) {
         self.id = id
         self.position = position
         self.direction = direction
         self.halfSize = halfSize
         self.orientation = orientation
+        self.collisionGeometry = collisionGeometry
     }
 }
 
@@ -268,13 +276,13 @@ struct DayObjectLunarPhysicsEngine {
     struct Configuration: Equatable {
         var acceleration: Float = 0.46
         var initialLinearSpeed: ClosedRange<Float> = 0.24...0.34
-        var initialAngularSpeed: ClosedRange<Float> = 0.45...0.78
+        var initialAngularSpeed: ClosedRange<Float> = 0.72...1.16
         var linearDrag: Float = 0.04
-        var angularDrag: Float = 0.14
-        var angularImpulseScale: Float = 0.9
+        var angularDrag: Float = 0.08
+        var angularImpulseScale: Float = 1.2
         var wallAngularFriction: Float = 0.20
         var maximumLinearSpeed: Float = 0.9
-        var maximumAngularSpeed: Float = 3
+        var maximumAngularSpeed: Float = 4.2
         var restitution: Float = 0.84
         var minimumImpactSpeed: Float = 0.15
         var impactCooldown: TimeInterval = 0.28
@@ -299,6 +307,7 @@ struct DayObjectLunarPhysicsEngine {
         var returnOriginAngle: Float
         var lastImpactAt: TimeInterval
         var orientation: DayObjectLunarPhysicsOrientation
+        var collisionGeometry: DayObjectLunarCollisionGeometry
     }
 
     private let configuration: Configuration
@@ -449,6 +458,7 @@ struct DayObjectLunarPhysicsEngine {
             } else {
                 bodies[actor.id]?.halfSize = halfSize
                 bodies[actor.id]?.orientation = actor.orientation
+                bodies[actor.id]?.collisionGeometry = actor.collisionGeometry
                 if !angularMotionIsEnabled {
                     bodies[actor.id]?.angle = Self.angle(for: actor.direction)
                     bodies[actor.id]?.angularVelocity = 0
@@ -490,7 +500,8 @@ struct DayObjectLunarPhysicsEngine {
             returnOrigin: actor.position,
             returnOriginAngle: angle,
             lastImpactAt: -.infinity,
-            orientation: actor.orientation
+            orientation: actor.orientation,
+            collisionGeometry: actor.collisionGeometry
         )
     }
 
@@ -541,7 +552,13 @@ struct DayObjectLunarPhysicsEngine {
         elapsed: TimeInterval,
         impacts: inout [DayObjectWallImpact]
     ) {
-        let extent = Self.rotatedExtent(halfSize: body.halfSize, angle: body.angle)
+        let extent: SIMD2<Float>
+        switch body.collisionGeometry {
+        case .box:
+            extent = Self.rotatedExtent(halfSize: body.halfSize, angle: body.angle)
+        case .radial:
+            extent = SIMD2(repeating: max(body.halfSize.x, body.halfSize.y))
+        }
         let available = simd_max(canvasHalfSpan - extent, .zero)
         let minX = -available.x
         let maxX = available.x

@@ -30,6 +30,12 @@ final class NativeAtlasMetalRenderer {
         self.gradient = gradient; self.finish = finish
     }
 
+    static func renderRotation(for direction: SIMD2<Float>) -> Float {
+        guard direction.x.isFinite, direction.y.isFinite,
+              simd_length_squared(direction) > 0.000_001 else { return 0 }
+        return atan2(-direction.y, direction.x)
+    }
+
     func adapt(_ frame: DayObjectRenderFrame, recipe: NativeAtlasRecipe, aspect: Float, elapsed: Double = 0, soundPulses: [String: Double] = [:], isPalette: Bool = false) -> DayObjectRenderFrame {
         for actor in recipe.actors { descriptors[actor.eventID] = actor }
         let activeIDs = Set(frame.actors.map(\.eventID))
@@ -98,8 +104,9 @@ final class NativeAtlasMetalRenderer {
             let aspect = Float(w) / Float(h), pose = actor.gpuActor
             let center = SIMD2(0.5 + pose.position.x / max(aspect, 1), 0.5 - pose.position.y / max(1 / aspect, 1))
             let saturation: Float = scene.meshGradientStyle.isNoir == true ? 0 : pose.presentationSaturation
+            let renderRotation = Self.renderRotation(for: pose.direction)
             let placement: [SIMD4<Float>] = [
-                SIMD4(center.x, center.y, pose.halfSize.x * 2.72, spec.rotation),
+                SIMD4(center.x, center.y, pose.halfSize.x * 2.72, renderRotation),
                 SIMD4(Float(w), Float(h), pose.opacity, eligible.contains(material.materialIndex) ? 1 : 0),
                 SIMD4(Float(recipe.intersectionType), recipe.intersectionStrength, saturation, pose.removalEmphasis),
                 SIMD4(pose.paletteMorph, isPalette ? 1 : 0, 0, 0)
