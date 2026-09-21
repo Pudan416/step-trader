@@ -334,6 +334,32 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertLessThan(offCenterDirection.y, -0.04)
     }
 
+    func testCenteredSmudgeStillGivesAnIrregularFigureVisibleRotation() throws {
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "centered-touch-spin", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        let influence = try XCTUnwrap(DayObjectLunarInteractionField.influences(
+            from: SIMD2(-0.3, 0),
+            to: SIMD2(0.3, 0),
+            gestureImpulse: SIMD2(0.36, 0),
+            actors: [actor]
+        )[actor.id])
+        var physics = DayObjectLunarPhysicsEngine()
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+
+        physics.applyImpulse(influence.impulse, at: influence.applicationPoint, to: actor.id)
+        let result = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.3, playbackIsActive: true
+        )
+
+        XCTAssertGreaterThan(abs(try XCTUnwrap(result.directions[actor.id]).y), 0.08)
+    }
+
     func testSmudgeInfluenceKeepsTheOffCenterContactPoint() throws {
         let actor = DayObjectLunarPhysicsActor(
             id: .init(eventID: "contact", memberIndex: 0),
@@ -436,6 +462,30 @@ final class DayObjectRenderFrameTests: XCTestCase {
         )
 
         XCTAssertLessThan(try XCTUnwrap(afterImpact.directions[actor.id]).y, -0.005)
+    }
+
+    func testStraightWallImpactGivesAnIrregularFigureBoundedSpin() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "straight-wall-spin", memberIndex: 0),
+            position: SIMD2(0, -0.36),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.14, 0.1)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 0.5),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0, -0.5), to: actor.id)
+
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 0.5),
+            elapsed: 0.3, playbackIsActive: true
+        )
+        let direction = try XCTUnwrap(result.directions[actor.id])
+
+        XCTAssertGreaterThan(abs(direction.y), 0.02)
+        XCTAssertLessThan(abs(atan2(direction.y, direction.x)), 0.75)
     }
 
     func testReducedMotionKeepsAngularPoseStatic() throws {

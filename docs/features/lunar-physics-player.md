@@ -23,10 +23,12 @@ The physical result is never persisted.
   motion reads as low-gravity movement rather than ordinary falling.
 - Figures collide with the four screen walls only. They can overlap and pass through one
   another; object-to-object collision would create visual and musical clutter.
-- Off-center Smudge contact adds bounded angular velocity. A gesture through the center
-  remains primarily translational, while catching an edge produces a visible turn.
-- Glancing wall contacts transfer a small amount of tangential motion into rotation.
-  Angular drag and a speed cap keep the motion calm rather than toy-like.
+- Smudge contact adds bounded angular velocity. Edge contact produces the strongest turn;
+  a centered push retains a small, stable eccentricity so irregular figures still show
+  rotational inertia instead of appearing locked to one orientation.
+- Wall contacts combine tangential friction with a small stable contact eccentricity, so
+  both glancing and straight impacts can start a visible turn. Angular drag and a speed cap
+  keep the motion calm rather than toy-like.
 - Each figure is bounded using the axis-aligned extent of its rotated rendered half-size,
   so its visible body stays inside the canvas while turning.
 - Large delayed frames are capped and integrated in small steps. Non-finite motion input
@@ -69,7 +71,8 @@ voices. Regular one-shots are not rescheduled by collisions.
 Smudge keeps immediate full-canvas input and continues to drive Lead exactly as before.
 While Play is active, the same gesture is also published to a small interaction field. A
 figure crossed by the gesture receives a bounded impulse in the gesture direction. Distant
-figures are untouched. This physical response must never delay or gate Lead audio.
+figures are untouched. A small per-figure contact bias keeps centered pushes from looking
+mechanically rotation-free. This physical response must never delay or gate Lead audio.
 
 The prototype does not retune or replace the next autonomous one-shot. A later listening
 iteration may let the next one-shot answer the Lead harmonically, but that requires its own
@@ -85,6 +88,9 @@ is actually on, a 2.5-second idle timer fades the dock, its scrim and system chr
 Its dark underside keeps the light curl visible across changing artwork without adding an icon;
 it retains a 56 by 56 point hit area. Pressing it restores the playback/remix
 dock and starts the idle timer again.
+
+The upper question-mark control and lower dock animate independently. The question mark enters
+and leaves through the top edge; the dock enters and leaves through the bottom edge.
 
 The revealed interface has one Stop action: the close button stops sound, returns the figures and
 leaves full screen. There is no duplicate mute control. A question-mark button in the upper-right

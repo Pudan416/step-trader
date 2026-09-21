@@ -1061,10 +1061,18 @@ struct GalleryView: View {
         .overlay {
             dataPanelOverlay
         }
-        .overlay {
+        .overlay(alignment: .topTrailing) {
             if CanvasFullScreenRemixPresentation.isVisible(in: presentation),
                playbackChrome.visibility == .controls {
-                wideCanvasOverlay
+                wideCanvasInfoControl
+                    .ignoresSafeArea()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if CanvasFullScreenRemixPresentation.isVisible(in: presentation),
+               playbackChrome.visibility == .controls {
+                wideCanvasDock
                     .ignoresSafeArea()
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -2322,35 +2330,36 @@ struct GalleryView: View {
     // MARK: - Wide Canvas Overlay (edit button)
     // ═══════════════════════════════════════════════════════════
 
-    private var wideCanvasOverlay: some View {
-        VStack {
-            HStack {
-                Spacer(minLength: 0)
-                Button(action: presentMusicInfo) {
-                    Image(systemName: "questionmark")
-                        .font(.geist(size: 18, weight: .semibold))
-                        .foregroundStyle(buttonColor)
-                        .frame(width: 48, height: 48)
-                        .canvasChromeSurface(in: Circle())
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "About the music"))
-                .accessibilityHint(String(localized: "Explains how your day shapes the music"))
-                .accessibilityIdentifier("canvas_music_info_button")
+    private var wideCanvasInfoControl: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button(action: presentMusicInfo) {
+                Image(systemName: "questionmark")
+                    .font(.geist(size: 18, weight: .semibold))
+                    .foregroundStyle(buttonColor)
+                    .frame(width: 48, height: 48)
+                    .canvasChromeSurface(in: Circle())
+                    .contentShape(Circle())
             }
-            .padding(.horizontal, 16)
-            .padding(.top, deviceTopSafeAreaInset + 8)
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "About the music"))
+            .accessibilityHint(String(localized: "Explains how your day shapes the music"))
+            .accessibilityIdentifier("canvas_music_info_button")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, deviceTopSafeAreaInset + 8)
+    }
 
-            Spacer()
+    private var wideCanvasDock: some View {
+        VStack(spacing: 0) {
             if let remixFeedback {
                 Text(remixFeedback)
-                .font(.geist(.caption))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.bottom, 10)
+                    .font(.geist(.caption))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.bottom, 10)
             }
             CanvasFullScreenDock(
                 onClose: {

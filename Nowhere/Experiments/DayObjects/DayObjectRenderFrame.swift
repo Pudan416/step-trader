@@ -114,15 +114,26 @@ struct DayObjectLunarInteractionField {
         let magnitude = simd_length(rawImpulse)
         guard magnitude > 0 else { return [:] }
         let impulse = bounded(rawImpulse)
+        let impulseMagnitude = simd_length(impulse)
         var result = [DayObjectActorID: DayObjectLunarPhysicsInfluence]()
         for actor in actors {
-            let applicationPoint = closestPoint(
+            var applicationPoint = closestPoint(
                 to: actor.position,
                 onSegmentFrom: startPoint,
                 to: endPoint
             )
             let reach = max(actor.halfSize.x, actor.halfSize.y) + 0.12
             guard simd_distance(actor.position, applicationPoint) <= reach else { continue }
+            let impulseDirection = impulse / impulseMagnitude
+            let perpendicular = SIMD2(-impulseDirection.y, impulseDirection.x)
+            let lever = applicationPoint - actor.position
+            let currentOffset = simd_dot(lever, perpendicular)
+            let minimumOffset = max(actor.halfSize.x, actor.halfSize.y) * 0.32
+            if abs(currentOffset) < minimumOffset {
+                applicationPoint += perpendicular * (
+                    spinSign(for: actor.id) * minimumOffset - currentOffset
+                )
+            }
             result[actor.id] = .init(
                 impulse: impulse,
                 applicationPoint: applicationPoint
@@ -171,6 +182,16 @@ struct DayObjectLunarInteractionField {
         guard lengthSquared > 0.000_001 else { return end }
         let progress = min(max(simd_dot(point - start, segment) / lengthSquared, 0), 1)
         return start + segment * progress
+    }
+
+    static func spinSign(for actorID: DayObjectActorID) -> Float {
+        var hash: UInt64 = 1_469_598_103_934_665_603
+        for byte in actorID.eventID.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        hash ^= UInt64(bitPattern: Int64(actorID.memberIndex))
+        return hash.isMultiple(of: 2) ? -1 : 1
     }
 }
 
@@ -481,13 +502,17 @@ struct DayObjectLunarPhysicsEngine {
             let speed = abs(body.velocity.x)
             body.position.x = minX
             body.velocity.x = speed * configuration.restitution
-            applyWallAngularFriction(.left, normalSpeed: speed, to: &body, extent: extent)
+            applyWallAngularFriction(
+                .left, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
             recordImpact(.left, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
         } else if body.position.x > maxX {
             let speed = abs(body.velocity.x)
             body.position.x = maxX
             body.velocity.x = -speed * configuration.restitution
-            applyWallAngularFriction(.right, normalSpeed: speed, to: &body, extent: extent)
+            applyWallAngularFriction(
+                .right, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
             recordImpact(.right, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
         }
 
@@ -495,46 +520,76 @@ struct DayObjectLunarPhysicsEngine {
             let speed = abs(body.velocity.y)
             body.position.y = minY
             body.velocity.y = speed * configuration.restitution
-            applyWallAngularFriction(.bottom, normalSpeed: speed, to: &body, extent: extent)
+            applyWallAngularFriction(
+                .bottom, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
             recordImpact(.bottom, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
         } else if body.position.y > maxY {
             let speed = abs(body.velocity.y)
             body.position.y = maxY
             body.velocity.y = -speed * configuration.restitution
-            applyWallAngularFriction(.top, normalSpeed: speed, to: &body, extent: extent)
+            applyWallAngularFriction(
+                .top, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
             recordImpact(.top, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
         }
     }
 
     private func applyWallAngularFriction(
         _ wall: DayObjectCanvasWall,
+        actorID: DayObjectActorID,
         normalSpeed: Float,
         to body: inout Body,
         extent: SIMD2<Float>
     ) {
         guard angularMotionIsEnabled else { return }
-        let lever: SIMD2<Float>
+        let tangentHalfSize: Float
+        let normalImpulse: SIMD2<Float>
+        let wallLever: SIMD2<Float>
         let tangent: SIMD2<Float>
         switch wall {
         case .left:
-            lever = SIMD2(-extent.x, 0)
+            tangentHalfSize = body.halfSize.y
+            normalImpulse = SIMD2(normalSpeed * (1 + configuration.restitution), 0)
+            wallLever = SIMD2(-extent.x, 0)
             tangent = SIMD2(0, body.velocity.y)
         case .right:
-            lever = SIMD2(extent.x, 0)
+            tangentHalfSize = body.halfSize.y
+            normalImpulse = SIMD2(-normalSpeed * (1 + configuration.restitution), 0)
+            wallLever = SIMD2(extent.x, 0)
             tangent = SIMD2(0, body.velocity.y)
         case .bottom:
-            lever = SIMD2(0, -extent.y)
+            tangentHalfSize = body.halfSize.x
+            normalImpulse = SIMD2(0, normalSpeed * (1 + configuration.restitution))
+            wallLever = SIMD2(0, -extent.y)
             tangent = SIMD2(body.velocity.x, 0)
         case .top:
-            lever = SIMD2(0, extent.y)
+            tangentHalfSize = body.halfSize.x
+            normalImpulse = SIMD2(0, -normalSpeed * (1 + configuration.restitution))
+            wallLever = SIMD2(0, extent.y)
             tangent = SIMD2(body.velocity.x, 0)
         }
+
+        var torque: Float = 0
+        if normalSpeed >= configuration.minimumImpactSpeed {
+            var contactLever = wallLever
+            let eccentricity = tangentHalfSize * 0.08
+                * DayObjectLunarInteractionField.spinSign(for: actorID)
+            if wall == .left || wall == .right {
+                contactLever.y = eccentricity
+            } else {
+                contactLever.x = eccentricity
+            }
+            torque += contactLever.x * normalImpulse.y - contactLever.y * normalImpulse.x
+        }
+
         let tangentSpeed = simd_length(tangent)
-        guard tangentSpeed > 0 else { return }
-        let frictionMagnitude = min(tangentSpeed, normalSpeed * (1 + configuration.restitution))
-            * configuration.wallAngularFriction
-        let frictionImpulse = -tangent / tangentSpeed * frictionMagnitude
-        let torque = lever.x * frictionImpulse.y - lever.y * frictionImpulse.x
+        if tangentSpeed > 0 {
+            let frictionMagnitude = min(tangentSpeed, normalSpeed * (1 + configuration.restitution))
+                * configuration.wallAngularFriction
+            let frictionImpulse = -tangent / tangentSpeed * frictionMagnitude
+            torque += wallLever.x * frictionImpulse.y - wallLever.y * frictionImpulse.x
+        }
         body.angularVelocity = Self.clampedAngularVelocity(
             body.angularVelocity + torque / Self.momentOfInertia(for: body.halfSize),
             maximum: configuration.maximumAngularSpeed
