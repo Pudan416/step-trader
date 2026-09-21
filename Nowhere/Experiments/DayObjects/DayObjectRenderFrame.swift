@@ -281,6 +281,8 @@ struct DayObjectLunarPhysicsEngine {
         var angularDrag: Float = 0.08
         var angularImpulseScale: Float = 1.2
         var wallAngularFriction: Float = 0.20
+        var headingAlignmentStiffness: Float = 20
+        var headingAlignmentDamping: Float = 8
         var maximumLinearSpeed: Float = 0.9
         var maximumAngularSpeed: Float = 4.2
         var restitution: Float = 0.84
@@ -537,8 +539,22 @@ struct DayObjectLunarPhysicsEngine {
                 if angularMotionIsEnabled,
                    case let .followsVelocity(bodyAngleOffset) = body.orientation,
                    simd_length_squared(body.velocity) > 0.000_001 {
-                    body.angle = atan2(body.velocity.y, body.velocity.x) + bodyAngleOffset
-                    body.angularVelocity = 0
+                    let targetAngle = atan2(body.velocity.y, body.velocity.x) + bodyAngleOffset
+                    var angleDelta = Self.signedAngleDelta(from: body.angle, to: targetAngle)
+                    if abs(abs(angleDelta) - .pi) < 0.001 {
+                        let turnSign: Float = abs(body.angularVelocity) > 0.001
+                            ? (body.angularVelocity < 0 ? -1 : 1)
+                            : DayObjectLunarInteractionField.spinSign(for: id)
+                        angleDelta = .pi * turnSign
+                    }
+                    let angularAcceleration = angleDelta * configuration.headingAlignmentStiffness
+                        - body.angularVelocity * configuration.headingAlignmentDamping
+                    body.angularVelocity = Self.clampedAngularVelocity(
+                        body.angularVelocity + angularAcceleration * step,
+                        maximum: configuration.maximumAngularSpeed
+                    )
+                    body.angle += body.angularVelocity * step
+                    body.angle.formTruncatingRemainder(dividingBy: 2 * .pi)
                 }
                 bodies[id] = body
             }
@@ -773,11 +789,15 @@ struct DayObjectLunarPhysicsEngine {
         to end: Float,
         progress: Float
     ) -> Float {
+        start + signedAngleDelta(from: start, to: end) * progress
+    }
+
+    private static func signedAngleDelta(from start: Float, to end: Float) -> Float {
         let fullTurn = 2 * Float.pi
         var delta = (end - start).truncatingRemainder(dividingBy: fullTurn)
         if delta > .pi { delta -= fullTurn }
         if delta < -.pi { delta += fullTurn }
-        return start + delta * progress
+        return delta
     }
 }
 

@@ -29,12 +29,15 @@ The physical result is never persisted.
 - Wall contacts combine tangential friction with a small stable contact eccentricity, so
   both glancing and straight impacts can start a visible turn. Angular drag and a speed cap
   keep the motion calm rather than toy-like.
-- Each figure is bounded using the axis-aligned extent of its rotated rendered half-size,
-  so its visible body stays inside the canvas while turning.
+- Directionally blurred figures turn toward their new course with damped angular inertia;
+  their focused edge gradually returns to the front instead of flipping after a bounce.
+- Native atlas figures use a rotation-independent radial wall footprint, so their visible
+  body reaches the screen edge without an artificial inset wall.
 - Large delayed frames are capped and integrated in small steps. Non-finite motion input
   becomes zero gravity.
 - Weak resting contacts are silent, and per-object cooldowns prevent edge chatter.
-- Reduce Motion keeps physical translation but holds the saved angular pose.
+- Explicit Play keeps the physical rotation requested by the user. Outside playback,
+  Reduce Motion still holds the saved angular pose.
 
 The pure simulation is `DayObjectLunarPhysicsEngine`. It works in the Metal renderer's
 aspect-aware short-side canvas coordinates, so it does not force SwiftUI state changes every frame.

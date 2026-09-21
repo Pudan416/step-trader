@@ -144,11 +144,13 @@ final class DayObjectRenderFrameTests: XCTestCase {
         XCTAssertGreaterThan(abs(try XCTUnwrap(result.directions[actor.id]).y), 0.18)
     }
 
-    func testVelocityAlignedActorFacesItsTravelDirectionAfterWallBounce() throws {
-        var physics = DayObjectLunarPhysicsEngine()
+    func testVelocityAlignedActorTurnsSmoothlyTowardTravelDirectionAfterWallBounce() throws {
+        var configuration = DayObjectLunarPhysicsEngine.Configuration()
+        configuration.initialLinearSpeed = 0.3...0.3
+        var physics = DayObjectLunarPhysicsEngine(configuration: configuration)
         let actor = DayObjectLunarPhysicsActor(
             id: .init(eventID: "directional-blur-heading", memberIndex: 0),
-            position: SIMD2(0.34, 0),
+            position: SIMD2(0.399, 0),
             direction: SIMD2(1, 0),
             halfSize: SIMD2(0.1, 0.08),
             orientation: .followsVelocity(bodyAngleOffset: 0)
@@ -158,14 +160,24 @@ final class DayObjectRenderFrameTests: XCTestCase {
             actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
             elapsed: 0, playbackIsActive: true
         )
-        let result = physics.update(
+        let firstFrame = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 1.0 / 60.0, playbackIsActive: true
+        )
+
+        XCTAssertTrue(firstFrame.impacts.contains { $0.actorID == actor.id && $0.wall == .right })
+        XCTAssertLessThanOrEqual(try XCTUnwrap(firstFrame.positions[actor.id]).x, 0.4)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(firstFrame.directions[actor.id]).x,
+            0.9,
+            "A blurred figure must visibly turn after a bounce instead of flipping in one frame"
+        )
+
+        let settled = physics.update(
             actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
             elapsed: 1, playbackIsActive: true
         )
-
-        XCTAssertTrue(result.impacts.contains { $0.actorID == actor.id && $0.wall == .right })
-        XCTAssertLessThanOrEqual(try XCTUnwrap(result.positions[actor.id]).x, 0.4)
-        XCTAssertLessThan(try XCTUnwrap(result.directions[actor.id]).x, -0.95)
+        XCTAssertLessThan(try XCTUnwrap(settled.directions[actor.id]).x, -0.9)
     }
 
     func testNativeAtlasRenderRotationFollowsThePhysicsDirection() {
