@@ -47,7 +47,7 @@ jobs:
         run: ./Scripts/check-secrets-config.sh
 
       - name: Verify Screen Time callback contract
-        run: python3 Scripts/test_usage_budget_contract.py
+        run: python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 
       - name: Run NowhereTests
         timeout-minutes: 80

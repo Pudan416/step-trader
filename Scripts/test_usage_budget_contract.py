@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class UsageBudgetCallbackContractTests(unittest.TestCase):
     def test_expired_and_stale_callbacks_reconcile_the_saved_window(self):
         shared = (ROOT / "Shared/ShieldRebuildHelper.swift").read_text()
-        session = shared[shared.index("struct UsageBudgetSession:"):
+        session = shared[shared.index("enum UsageBudgetThresholdResult:"):
                          shared.index("// MARK: - Shield Rebuild")]
         shared = shared[shared.index("    private static func coercedDate"):
                         shared.index("    static func usageSelectionMatches")]

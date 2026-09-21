@@ -129,7 +129,7 @@ final class UnspentUsageBudgetTests: XCTestCase {
         XCTAssertEqual(budget.remainingMinutes, 9)
     }
 
-    func testInstantThresholdBurstIsRejectedEvenLongAfterPurchase() {
+    func testDelayedCumulativeThresholdsDoNotLoseMeasuredUsage() {
         var budget = session()
         let firstThresholdAt = now.addingTimeInterval(20 * 60)
 
@@ -139,9 +139,27 @@ final class UnspentUsageBudgetTests: XCTestCase {
         )
         XCTAssertEqual(
             budget.record(event: budget.eventName(minute: 10), at: firstThresholdAt.addingTimeInterval(1)),
-            .implausible
+            .recorded
         )
-        XCTAssertEqual(budget.consumedMinutes, 1)
+        XCTAssertEqual(budget.consumedMinutes, 10)
+        XCTAssertEqual(budget.remainingMinutes, 0)
+    }
+
+    func testDelayedFirstCallbackDoesNotInvalidateOnTimeSecondMinute() {
+        var budget = session()
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 1),
+                                     at: now.addingTimeInterval(90)), .recorded)
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 2),
+                                     at: now.addingTimeInterval(120)), .recorded)
+        XCTAssertEqual(budget.remainingMinutes, 8)
+    }
+
+    func testEarlyToleranceCannotAccumulateAcrossThresholds() {
+        var budget = session()
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 1),
+                                     at: now.addingTimeInterval(50)), .recorded)
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 2),
+                                     at: now.addingTimeInterval(100)), .implausible)
         XCTAssertEqual(budget.remainingMinutes, 9)
     }
 
