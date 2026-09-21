@@ -95,29 +95,115 @@ final class UnspentUsageBudgetTests: XCTestCase {
 
     func testOnlyCumulativeUsageEventsSpendMinutesAndReplaysCannotSpendTwice() {
         var budget = session()
-        XCTAssertTrue(budget.record(event: budget.eventName(minute: 3)))
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 3), at: now.addingTimeInterval(3 * 60)), .recorded)
         budget.save(to: defaults, groupId: groupId)
         XCTAssertEqual(remaining(at: now.addingTimeInterval(3600)), 7)
-        XCTAssertFalse(budget.record(event: budget.eventName(minute: 3)))
-        XCTAssertFalse(budget.record(event: budget.eventName(minute: 2)))
-        XCTAssertFalse(budget.record(event: budget.eventName(minute: 11)))
-        XCTAssertFalse(budget.record(event: session().eventName(minute: 10)))
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 3), at: now.addingTimeInterval(3 * 60)), .ignored)
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 2), at: now.addingTimeInterval(3 * 60)), .ignored)
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 11), at: now.addingTimeInterval(11 * 60)), .ignored)
+        XCTAssertEqual(budget.record(event: session().eventName(minute: 10), at: now.addingTimeInterval(10 * 60)), .ignored)
         XCTAssertEqual(budget.remainingMinutes, 7)
-        XCTAssertTrue(budget.record(event: budget.eventName(minute: 10)))
+        XCTAssertEqual(budget.record(event: budget.eventName(minute: 10), at: now.addingTimeInterval(10 * 60)), .recorded)
         budget.save(to: defaults, groupId: groupId)
         XCTAssertEqual(remaining(at: now.addingTimeInterval(3600)), 0)
+    }
+
+    func testImpossibleThresholdJumpDoesNotSpendPaidMinutes() {
+        var budget = UsageBudgetSession(minutes: 30, startedAt: now,
+                                        expiresAt: now.addingTimeInterval(12 * 3600))
+
+        XCTAssertEqual(
+            budget.record(event: budget.eventName(minute: 23), at: now.addingTimeInterval(13)),
+            .implausible
+        )
+        XCTAssertEqual(budget.consumedMinutes, 0)
+        XCTAssertEqual(budget.remainingMinutes, 30)
+    }
+
+    func testThresholdIsAcceptedAfterEnoughRealTimeCouldHaveElapsed() {
+        var budget = session()
+        XCTAssertEqual(
+            budget.record(event: budget.eventName(minute: 1), at: now.addingTimeInterval(60)),
+            .recorded
+        )
+        XCTAssertEqual(budget.remainingMinutes, 9)
+    }
+
+    func testInstantThresholdBurstIsRejectedEvenLongAfterPurchase() {
+        var budget = session()
+        let firstThresholdAt = now.addingTimeInterval(20 * 60)
+
+        XCTAssertEqual(
+            budget.record(event: budget.eventName(minute: 1), at: firstThresholdAt),
+            .recorded
+        )
+        XCTAssertEqual(
+            budget.record(event: budget.eventName(minute: 10), at: firstThresholdAt.addingTimeInterval(1)),
+            .implausible
+        )
+        XCTAssertEqual(budget.consumedMinutes, 1)
+        XCTAssertEqual(budget.remainingMinutes, 9)
+    }
+
+    func testReplacementMonitorGetsNewActivityIdentity() {
+        let original = session()
+        let replacement = session()
+
+        XCTAssertNotEqual(original.activityName(groupId: groupId), replacement.activityName(groupId: groupId))
+        XCTAssertEqual(original.legacyActivityName(groupId: groupId), "usageBudget_\(groupId)")
+    }
+
+    func testOnlyCurrentOrLegacyActivityIdentityResolvesToGroup() throws {
+        _ = try installSelectionFixture()
+        let current = session()
+        let stale = session()
+        current.save(to: defaults, groupId: groupId)
+
+        XCTAssertEqual(
+            ShieldRebuildHelper.groupIdForUsageActivity(
+                defaults: defaults,
+                activityName: current.activityName(groupId: groupId)
+            ),
+            groupId
+        )
+        XCTAssertEqual(
+            ShieldRebuildHelper.groupIdForUsageActivity(
+                defaults: defaults,
+                activityName: current.legacyActivityName(groupId: groupId)
+            ),
+            groupId
+        )
+        XCTAssertNil(
+            ShieldRebuildHelper.groupIdForUsageActivity(
+                defaults: defaults,
+                activityName: stale.activityName(groupId: groupId)
+            )
+        )
+    }
+
+    func testSessionFromPreviousBuildDecodesWithoutSequenceTimestamp() throws {
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(session())) as? [String: Any]
+        )
+        object.removeValue(forKey: "lastRecordedAt")
+        defaults.set(try JSONSerialization.data(withJSONObject: object),
+                     forKey: UsageBudgetSession.key(groupId))
+
+        let restored = try XCTUnwrap(UsageBudgetSession.load(from: defaults, groupId: groupId))
+        XCTAssertNil(restored.lastRecordedAt)
+        XCTAssertEqual(restored.remainingMinutes, 10)
     }
 
     func testTopUpKeepsCurrentGenerationAndWaitsForItsUsageToFinish() {
         var budget = session()
         let generation = budget.generation
-        _ = budget.record(event: budget.eventName(minute: 3))
+        _ = budget.record(event: budget.eventName(minute: 3), at: now.addingTimeInterval(3 * 60))
         budget.queuedMinutes += 10
         XCTAssertEqual(budget.generation, generation)
         XCTAssertEqual(budget.initialMinutes, 10)
         XCTAssertEqual(budget.remainingMinutes, 17)
         XCTAssertFalse(budget.needsNextSegment)
-        _ = budget.record(event: budget.eventName(minute: 10))
+        _ = budget.record(event: budget.eventName(minute: 10), at: now.addingTimeInterval(10 * 60))
         XCTAssertEqual(budget.remainingMinutes, 10)
         XCTAssertTrue(budget.needsNextSegment)
         budget.save(to: defaults, groupId: groupId)
