@@ -348,6 +348,22 @@ final class CanvasSimplificationUITests: XCTestCase {
         add(attachment)
     }
 
+    func testFullScreenControlsKeepTheTabBarBaseline() {
+        let app = launchCanvas()
+        let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5))
+        let tabBarCenterY = tabBar.frame.midY
+
+        app.buttons["canvas_sound_button"].tap()
+
+        let close = app.buttons["canvas_close_fullscreen_button"]
+        let remix = app.buttons["canvas_remix_button"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(remix.exists)
+        XCTAssertEqual(close.frame.midY, tabBarCenterY, accuracy: 2)
+        XCTAssertEqual(remix.frame.midY, tabBarCenterY, accuracy: 2)
+    }
+
     func testAddReplacesTheTabBarWithTheHappeningDock() {
         let app = launchCanvas()
         let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]

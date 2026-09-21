@@ -1069,12 +1069,15 @@ struct GalleryView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .overlay(alignment: .bottom) {
+        .overlay {
             if CanvasFullScreenRemixPresentation.isVisible(in: presentation),
                playbackChrome.visibility == .controls {
-                wideCanvasDock
-                    .ignoresSafeArea()
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    wideCanvasDock
+                }
+                .ignoresSafeArea()
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .overlay {
@@ -2369,7 +2372,12 @@ struct GalleryView: View {
                 share: { shareButton }
             )
             .padding(.horizontal, 8)
-            .padding(.bottom, max(safeAreaBottom, 34) + 16)
+            .padding(.bottom, CanvasBottomControlsLayout.padding(
+                canvasBottomY: canvasGlobalMaxY + deviceBottomSafeAreaInset,
+                tabBarCenterY: tabBarCenterY,
+                controlHeight: 56,
+                fallbackSafeAreaBottom: deviceBottomSafeAreaInset
+            ))
             .simultaneousGesture(TapGesture().onEnded {
                 schedulePlaybackChromeHide()
             })
