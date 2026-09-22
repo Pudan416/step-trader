@@ -114,6 +114,7 @@ struct SettingsDeveloperPage: View {
                 defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
                 defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
                 defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
+                defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
             }
             #if canImport(DeviceActivity)
             let center = DeviceActivityCenter()

@@ -230,8 +230,17 @@ extension AppModel {
         for activity in center.activities {
             let raw = activity.rawValue
             guard raw.hasPrefix(prefix) else { continue }
-            let groupId = String(raw.dropFirst(prefix.count))
-            if defaults.integer(forKey: SharedKeys.usageBudgetKey(groupId)) <= 0 {
+            guard let groupId = ShieldRebuildHelper.groupIdForUsageActivity(
+                defaults: defaults,
+                activityName: raw
+            ) else {
+                toStop.append(activity)
+                continue
+            }
+            if ShieldRebuildHelper.remainingUsageBudget(
+                defaults: defaults,
+                groupId: groupId
+            ) <= 0 {
                 toStop.append(activity)
             }
         }
@@ -257,10 +266,12 @@ extension AppModel {
                 clearUsageBudgetPrefsForGroup(gid)
                 continue
             }
-            let name = DeviceActivityName("usageBudget_\(gid)")
-            if let current = center.schedule(for: name),
+            let session = UsageBudgetSession.load(from: defaults, groupId: gid)
+            let name = session.map { DeviceActivityName($0.activityName(groupId: gid)) }
+            if let name,
+               let current = center.schedule(for: name),
                !current.repeats, current.intervalEnd == desired.intervalEnd,
-               let session = UsageBudgetSession.load(from: defaults, groupId: gid),
+               let session,
                !session.needsNextSegment, !session.monitoringFailed,
                ShieldRebuildHelper.usageSelectionMatches(defaults: defaults, groupId: gid, session: session),
                center.events(for: name)[DeviceActivityEvent.Name(session.eventName(minute: session.initialMinutes))] != nil {
@@ -281,9 +292,15 @@ extension AppModel {
         defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(groupId))
         defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(groupId))
         defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(groupId))
+        let session = UsageBudgetSession.load(from: defaults, groupId: groupId)
         defaults.removeObject(forKey: UsageBudgetSession.key(groupId))
         #if canImport(DeviceActivity)
-        DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(groupId)")])
+        let prefix = "usageBudget_\(groupId)"
+        let names = DeviceActivityCenter().activities.filter {
+            $0.rawValue == prefix || $0.rawValue.hasPrefix(prefix + "_")
+                || $0.rawValue == session?.activityName(groupId: groupId)
+        }
+        DeviceActivityCenter().stopMonitoring(names)
         #endif
     }
 

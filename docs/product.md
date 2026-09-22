@@ -29,6 +29,23 @@ Onboarding introduces these surfaces in context. Its implementation lives in
 `Nowhere/Views/Onboarding/`; check the current coordinator and tour transitions
 when changing the sequence rather than using an old slide specification.
 
+## Screen Time accounting and recovery
+
+Purchased minutes are spent by cumulative Screen Time usage thresholds, not by
+elapsed idle time. Duplicate and previous-generation events cannot spend a balance
+twice. Delayed callbacks are checked against the total time since that monitoring
+session started; arrival spacing is not treated as measured usage.
+
+An impossible threshold pauses access and preserves the confirmed unused balance.
+The rejected generation cannot spend further minutes. Recovery runs when the app
+returns to the foreground or the user retries through the widget/Feeds, without
+charging again, within the existing custom-day expiry. Healthy monitors are retained
+on top-up so Apple's partial-minute usage is not reset.
+
+Screen Time is the source of usage measurements. Local checks can reject impossible
+early values, but cannot distinguish a plausible incorrect OS measurement from a
+valid delayed callback. Real-device testing remains necessary after iOS updates.
+
 ## Music and artwork
 
 The production Canvas uses native Metal artwork with versioned deterministic recipes.

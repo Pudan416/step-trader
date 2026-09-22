@@ -349,7 +349,11 @@ final class AppModel: ObservableObject {
             defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
 
             #if canImport(DeviceActivity)
-            DeviceActivityCenter().stopMonitoring([DeviceActivityName("usageBudget_\(group.id)")])
+            let activityPrefix = "usageBudget_\(group.id)"
+            let activities = DeviceActivityCenter().activities.filter {
+                $0.rawValue == activityPrefix || $0.rawValue.hasPrefix(activityPrefix + "_")
+            }
+            DeviceActivityCenter().stopMonitoring(activities)
             #endif
 
             AppLogger.shield.debug("🧹 Cleared usage budget for group \(group.id) (\(reason))")
