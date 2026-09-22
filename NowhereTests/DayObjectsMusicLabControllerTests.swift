@@ -5,6 +5,64 @@ import SwiftUI
 
 @MainActor
 final class DayObjectsMusicLabControllerTests: XCTestCase {
+    func testWallImpactsUseShortMalletFamiliesForEachSoundWorld() throws {
+        let actor = DayObjectActorID(eventID: "", memberIndex: 0)
+
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .feltAndWood, actorID: actor)?.rawValue,
+            9
+        )
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .livingField, actorID: actor)?.rawValue,
+            10
+        )
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .metalAndCurrent, actorID: actor)?.rawValue,
+            8
+        )
+        XCTAssertEqual(
+            DayObjectMaterialResonance.recipeID(for: .electricDream, actorID: actor)?.rawValue,
+            11
+        )
+    }
+
+    func testWallImpactUsesMaterialResonanceInsteadOfManualAudition() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+
+        await controller.playMaterialResonance(.init(
+            actorID: .init(eventID: "impact", memberIndex: 0),
+            eventID: "impact",
+            wall: .bottom,
+            speed: 0.7,
+            normalizedX: 0
+        ))
+
+        XCTAssertEqual(playback.materialResonanceRecipeIDs.count, 1)
+        XCTAssertTrue(playback.auditionedRecipeIDs.isEmpty)
+    }
+
+    func testEveryWallImpactIsForwardedWithoutAGlobalThrottle() async {
+        let playback = RecordingLabPlayback()
+        let controller = DayObjectsMusicLabController(playback: playback)
+        await controller.toggleSound()
+
+        for index in 0..<3 {
+            await controller.playMaterialResonance(.init(
+                actorID: .init(eventID: "impact-\(index)", memberIndex: 0),
+                eventID: "impact-\(index)",
+                wall: .bottom,
+                speed: 0.7,
+                normalizedX: 0.5
+            ))
+        }
+
+        XCTAssertEqual(playback.materialResonanceRecipeIDs.count, 3)
+        XCTAssertEqual(Set(playback.materialResonanceDegreeOffsets).count, 3)
+        XCTAssertTrue(playback.materialResonanceDegreeOffsets.allSatisfy { (0..<3).contains($0) })
+    }
+
     func testCanvasLeadReceivesCompleteGestureBeforeSmudgeIsPrepared() async throws {
         let playback = RecordingLabPlayback()
         let controller = DayObjectsMusicLabController(playback: playback)
@@ -1039,6 +1097,8 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     var endLeadCount = 0
     var activeHappeningIDs: Set<String> = []
     var auditionedRecipeIDs: [HappeningSoundRecipeID] = []
+    var materialResonanceRecipeIDs: [HappeningSoundRecipeID] = []
+    var materialResonanceDegreeOffsets: [Int] = []
     var auditionError: Error?
     var suspendStop = false
     var stopContinuation: CheckedContinuation<Void, Never>?
@@ -1104,6 +1164,14 @@ private final class RecordingLabPlayback: DayObjectsMusicPlaybackProtocol {
     func endLead() { endLeadCount += 1 }
     func auditionHappening(_ recipeID: HappeningSoundRecipeID) async throws {
         auditionedRecipeIDs.append(recipeID)
+        if let auditionError { throw auditionError }
+    }
+    func playMaterialResonance(
+        _ recipeID: HappeningSoundRecipeID,
+        degreeOffset: Int
+    ) async throws {
+        materialResonanceRecipeIDs.append(recipeID)
+        materialResonanceDegreeOffsets.append(degreeOffset)
         if let auditionError { throw auditionError }
     }
     func applyDiagnosticAudition(_ mode: DayObjectsAuditionMode, plan: DayMusicPlan) {

@@ -35,6 +35,8 @@ The production Canvas uses native Metal artwork with versioned deterministic rec
 Four sound worlds and their moods are selected from the bundled catalogs. Planners
 build music from the day's inputs; the playback engine owns audio execution.
 The same saved day must not change because a catalog was casually reordered.
+During playback, [lunar physics](features/lunar-physics-player.md) turns current figures into
+a tilt-responsive, wall-bouncing ecosystem without changing the saved composition.
 See [Canvas ownership](architecture/canvas-components.md) and [audio](audio.md).
 
 ## Widget and wallpaper suggestions

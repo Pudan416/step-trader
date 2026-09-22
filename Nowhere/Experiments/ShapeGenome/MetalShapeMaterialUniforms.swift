@@ -17,6 +17,15 @@ struct MetalShapeMaterialUniforms: Codable, Equatable, Sendable {
     var materialIndex: UInt32 { metadata.x }
     var direction: SIMD2<Float> { SIMD2(params1.x, params1.y) }
 
+    var directionalBlurBodyAngleOffset: Float? {
+        guard let index = MetalShapeMaterial.allCases.firstIndex(of: .directionalBlur),
+              materialIndex == UInt32(index) else { return nil }
+        let length = simd_length(direction)
+        guard length > 0.000_001 else { return nil }
+        let focusedEdge = -direction / length
+        return atan2(focusedEdge.y, focusedEdge.x)
+    }
+
     /// Replace retired Canvas fills at render time, keeping saved parameters
     /// readable and retaining the figure's frozen colors and geometry.
     var primaryCanvasMaterial: Self {

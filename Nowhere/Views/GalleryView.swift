@@ -117,9 +117,6 @@ struct GalleryView: View {
     @State private var canvasSafeInsets = EdgeInsets()
     @Environment(\.dynamicTypeSize) private var paletteDynamicTypeSize
     @State private var canvasViewportSize: CGSize = .zero
-    private var isCleanLandscape: Bool {
-        presentation == .fullScreen && canvasViewportSize.width > canvasViewportSize.height
-    }
     @State private var spawnPresentation = CanvasSpawnPresentationState()
     @State private var remixHistory = CanvasRemixHistory()
     @State private var remixFeedback: String?
@@ -162,6 +159,11 @@ struct GalleryView: View {
     @State private var dataPanelHostGlobalY: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
+    @State private var playbackChrome = CanvasPlaybackChromeState()
+    @State private var playbackChromeHideTask: Task<Void, Never>?
+    @State private var showsMusicInfo = false
+    @State private var lunarPhysicsPlayback = CanvasLunarPhysicsPlaybackState()
+    @State private var lunarInteractionBus = DayObjectLunarInteractionBus()
     private let usesTask7UITestFixture = ProcessInfo.processInfo.arguments.contains("ui-testing-task7")
     private let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
@@ -303,14 +305,13 @@ struct GalleryView: View {
     private func handleCanvasSoundControl() {
         switch CanvasSoundExpansionAction.forPresentation(presentation) {
         case .turnSoundOnAndEnterFullScreen:
+            playbackChrome.handle(.playRequested)
             startCanvasSoundIfNeeded()
             send(.enterFullScreen)
             lightHapticTick &+= 1
 
         case .turnSoundOffAndExitFullScreen:
-            send(.exitFullScreen)
-            lightHapticTick &+= 1
-            Task { await musicController.turnSoundOff() }
+            stopCanvasSoundAndExitAfterReturn()
         }
     }
 
@@ -322,17 +323,54 @@ struct GalleryView: View {
         Task { await musicController.completeSoundButtonIntent(intent) }
     }
 
-    private func handleFullScreenSoundControl() {
-        switch CanvasFullScreenSoundAction.resolve(appearance: canvasSoundAppearance) {
-        case .retryInPlace:
-            startCanvasSoundIfNeeded()
-            lightHapticTick &+= 1
-        case .turnOffAndExit:
-            send(.exitFullScreen)
-            lightHapticTick &+= 1
-            Task { await musicController.turnSoundOff() }
-        case .none:
-            break
+    private func stopCanvasSoundAndExitAfterReturn() {
+        let action = lunarPhysicsPlayback.handle(.stopAndExitRequested)
+        if action.shouldExitFullScreen { send(.exitFullScreen) }
+        lightHapticTick &+= 1
+        Task { await musicController.turnSoundOff() }
+    }
+
+    private func completeLunarPhysicsReturn() {
+        let action = lunarPhysicsPlayback.handle(.returnCompleted)
+        if action.shouldExitFullScreen { send(.exitFullScreen) }
+    }
+
+    private func updatePlaybackExperience(for soundState: DayObjectsSoundState) {
+        switch soundState {
+        case .on:
+            lunarPhysicsPlayback.handle(.soundStarted)
+            playbackChrome.handle(.soundStarted)
+            schedulePlaybackChromeHide()
+        case .off, .error:
+            playbackChromeHideTask?.cancel()
+            playbackChrome.handle(.soundStopped)
+            guard isCanvasSelected else {
+                lunarPhysicsPlayback = CanvasLunarPhysicsPlaybackState()
+                return
+            }
+            let action = lunarPhysicsPlayback.handle(.soundStopped(
+                exitFullScreen: presentation.isWideCanvas
+            ))
+            if action.shouldExitFullScreen { send(.exitFullScreen) }
+            if lunarPhysicsPlayback.phase == .returning,
+               dayCanvas.resolvedVisualStyle != .editorial {
+                completeLunarPhysicsReturn()
+            }
+        case .starting:
+            playbackChromeHideTask?.cancel()
+            playbackChrome.handle(.playRequested)
+        }
+    }
+
+    private func schedulePlaybackChromeHide() {
+        playbackChromeHideTask?.cancel()
+        guard playbackChrome.shouldScheduleHide else { return }
+        playbackChromeHideTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                playbackChrome.handle(.hideDelayElapsed)
+            }
         }
     }
 
@@ -895,8 +933,17 @@ struct GalleryView: View {
                     style: dayCanvas.resolvedVisualStyle,
                     editorial: displayedEditorialRenderInput,
                     isAnimating: isCanvasSelected && !showHappeningPalette,
+                    animatesContinuously: lunarPhysicsPlayback.keepsCanvasAnimating,
                     soundPulseBus: canvasSoundPulseBus,
-                    presentationMode: .canvas
+                    presentationMode: .canvas,
+                    lunarPhysicsIsActive: musicController.soundState == .on,
+                    lunarInteractionBus: lunarInteractionBus,
+                    onWallImpact: { impact in
+                        Task { await musicController.playMaterialResonance(impact) }
+                    },
+                    onLunarPhysicsReturnCompleted: {
+                        completeLunarPhysicsReturn()
+                    }
                 ) {
                     legacyCanvasLayers
                         .background {
@@ -995,7 +1042,10 @@ struct GalleryView: View {
                 lightHapticTick &+= 1
             }
         .overlay {
-            canvasChromeScrim
+            if presentation != .fullScreen || playbackChrome.visibility == .controls {
+                canvasChromeScrim
+                    .transition(.opacity)
+            }
         }
         // Controls in overlays — completely decoupled from the canvas/texture
         // ZStack so texture changes never trigger a controls re-layout.
@@ -1011,10 +1061,38 @@ struct GalleryView: View {
         .overlay {
             dataPanelOverlay
         }
-        .overlay {
-            if CanvasFullScreenRemixPresentation.isVisible(in: presentation), !isCleanLandscape {
-                wideCanvasOverlay
+        .overlay(alignment: .topTrailing) {
+            if CanvasFullScreenRemixPresentation.isVisible(in: presentation),
+               playbackChrome.visibility == .controls {
+                wideCanvasInfoControl
                     .ignoresSafeArea()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .overlay {
+            if CanvasFullScreenRemixPresentation.isVisible(in: presentation),
+               playbackChrome.visibility == .controls {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    wideCanvasDock
+                }
+                .ignoresSafeArea()
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .overlay {
+            if presentation == .fullScreen,
+               playbackChrome.visibility == .revealHandle {
+                playbackRevealOverlay
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
+        }
+        .overlay {
+            if showsMusicInfo {
+                CanvasMusicInfoOverlay(onDismiss: dismissMusicInfo)
+                    .ignoresSafeArea()
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .overlay {
@@ -1063,8 +1141,14 @@ struct GalleryView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .statusBarHidden(isCleanLandscape)
-        .persistentSystemOverlays(isCleanLandscape ? .hidden : .automatic)
+        .statusBarHidden(
+            presentation == .fullScreen && playbackChrome.visibility == .revealHandle
+        )
+        .persistentSystemOverlays(
+            presentation == .fullScreen && playbackChrome.visibility == .revealHandle
+                ? .hidden
+                : .automatic
+        )
         .background(
             GeometryReader { geo in
                 Color.clear
@@ -1177,6 +1261,7 @@ struct GalleryView: View {
                 consumePaletteOpenRequestIfReady()
             }
             if !selected {
+                lunarPhysicsPlayback = CanvasLunarPhysicsPlaybackState()
                 send(.leftCanvasTab)
                 Task { await musicController.turnSoundOff() }
             }
@@ -1185,8 +1270,10 @@ struct GalleryView: View {
             guard newKey != activeDayKey else { return }
             rollOverCanvas(to: newKey)
         }
+        .onChange(of: musicController.soundState, initial: true) { _, soundState in
+            updatePlaybackExperience(for: soundState)
+        }
         .onChange(of: presentation, initial: true) { old, new in
-            AppDelegate.allowCanvasRotation(new == .fullScreen)
             if new.showsDataPanel && !old.showsDataPanel {
                 CanvasTour.shared.send(.dataPanelExpanded)
             }
@@ -1230,6 +1317,7 @@ struct GalleryView: View {
 
             if !new.isWideCanvas {
                 isManuallyExpanded = false
+                showsMusicInfo = false
             } else {
                 userCollapsedWide = false
                 isManuallyExpanded = true
@@ -1342,7 +1430,8 @@ struct GalleryView: View {
             if !isPresented { toolbar.shareImage = nil }
         }
         .onDisappear {
-            AppDelegate.allowCanvasRotation(false)
+            playbackChromeHideTask?.cancel()
+            lunarPhysicsPlayback = CanvasLunarPhysicsPlaybackState()
             if presentation.isEditing && dayCanvas.artworkRecipe != nil { saveCanvasLocally() }
             cancelPaletteInteraction()
             let intent = musicController.acceptLifecycleEvent(.viewDisappeared)
@@ -1596,6 +1685,10 @@ struct GalleryView: View {
     }
 
     private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {
+        lunarInteractionBus.begin(
+            normalizedX: sample.normalizedX,
+            normalizedY: sample.normalizedY
+        )
         musicController.beginLead(
             LeadGestureSample(
                 normalizedX: sample.normalizedX,
@@ -1608,6 +1701,11 @@ struct GalleryView: View {
     }
 
     private func handleCanvasLeadUpdated(_ sample: CanvasTouchGestureSample) {
+        lunarInteractionBus.move(
+            normalizedX: sample.normalizedX,
+            normalizedY: sample.normalizedY,
+            speed: sample.speed
+        )
         musicController.updateLead(
             LeadGestureSample(
                 normalizedX: sample.normalizedX,
@@ -1618,6 +1716,7 @@ struct GalleryView: View {
     }
 
     private func handleCanvasLeadEnded() {
+        lunarInteractionBus.end()
         musicController.endLead()
     }
 
@@ -2234,32 +2333,104 @@ struct GalleryView: View {
     // MARK: - Wide Canvas Overlay (edit button)
     // ═══════════════════════════════════════════════════════════
 
-    private var wideCanvasOverlay: some View {
-        VStack {
-            Spacer()
+    private var wideCanvasInfoControl: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button(action: presentMusicInfo) {
+                Image(systemName: "questionmark")
+                    .font(.geist(size: 18, weight: .semibold))
+                    .foregroundStyle(buttonColor)
+                    .frame(width: 48, height: 48)
+                    .canvasChromeSurface(in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "About the music"))
+            .accessibilityHint(String(localized: "Explains how your day shapes the music"))
+            .accessibilityIdentifier("canvas_music_info_button")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, deviceTopSafeAreaInset + 8)
+    }
+
+    private var wideCanvasDock: some View {
+        VStack(spacing: 0) {
             if let remixFeedback {
                 Text(remixFeedback)
-                .font(.geist(.caption))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.bottom, 10)
+                    .font(.geist(.caption))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.bottom, 10)
             }
             CanvasFullScreenDock(
-                soundAppearance: canvasSoundAppearance,
-                onSound: handleFullScreenSoundControl,
                 onClose: {
-                    send(.exitFullScreen)
-                    lightHapticTick &+= 1
-                    Task { await musicController.turnSoundOff() }
+                    stopCanvasSoundAndExitAfterReturn()
                 },
                 onRemix: remixCanvas,
                 share: { shareButton }
             )
             .padding(.horizontal, 8)
-            .padding(.bottom, max(safeAreaBottom, 34) + 16)
+            .padding(.bottom, CanvasBottomControlsLayout.padding(
+                canvasBottomY: canvasGlobalMaxY + deviceBottomSafeAreaInset,
+                tabBarCenterY: tabBarCenterY,
+                controlHeight: 56,
+                fallbackSafeAreaBottom: deviceBottomSafeAreaInset
+            ))
+            .simultaneousGesture(TapGesture().onEnded {
+                schedulePlaybackChromeHide()
+            })
         }
+    }
+
+    private func presentMusicInfo() {
+        playbackChromeHideTask?.cancel()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showsMusicInfo = true
+        }
+        lightHapticTick &+= 1
+    }
+
+    private func dismissMusicInfo() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showsMusicInfo = false
+        }
+        schedulePlaybackChromeHide()
+    }
+
+    private var playbackRevealOverlay: some View {
+        Button {
+            playbackChrome.handle(.revealControls)
+            schedulePlaybackChromeHide()
+            lightHapticTick &+= 1
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                CanvasPlaybackRevealCornerShape()
+                    .fill(.black.opacity(0.42))
+                    .shadow(color: .black.opacity(0.18), radius: 3, x: -1, y: -1)
+                    .frame(width: 40, height: 40)
+
+                CanvasPlaybackRevealCornerShape()
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        CanvasPlaybackRevealCornerShape()
+                            .fill(.white.opacity(0.18))
+                    }
+                    .overlay {
+                        CanvasPlaybackRevealCornerShape()
+                            .stroke(.white.opacity(0.58), lineWidth: 0.75)
+                    }
+                    .frame(width: 34, height: 34)
+            }
+            .frame(width: 56, height: 56)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "Show controls"))
+        .accessibilityHint(String(localized: "Shows playback and remix controls"))
+        .accessibilityIdentifier("canvas_reveal_controls_button")
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2624,6 +2795,25 @@ struct SuggestionBannerHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+/// A small page-curl/petal anchored to the physical bottom-right corner. It
+/// hints that chrome can be brought back without resembling the home indicator
+/// or covering the central Smudge gesture surface.
+private struct CanvasPlaybackRevealCornerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY + 5))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + 5, y: rect.maxY))
+        path.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + 5),
+            control1: CGPoint(x: rect.midX + 2, y: rect.maxY - 2),
+            control2: CGPoint(x: rect.maxX - 2, y: rect.midY)
+        )
+        path.closeSubpath()
+        return path
     }
 }
 

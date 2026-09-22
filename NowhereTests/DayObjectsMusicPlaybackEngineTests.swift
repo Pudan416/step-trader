@@ -122,6 +122,76 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(runtime.activeHappeningAttackHistoryForTesting, schedulerHistory)
     }
 
+    func testMobileRuntimeMaterialResonanceUsesLowestVoicePriority() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 0xC011_1DE, happeningIDs: [])
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 9))
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+
+        try runtime.playMaterialResonance(
+            recipeID,
+            harmony: .currentHarmony,
+            degreeOffset: 0
+        )
+        let first = try XCTUnwrap(runtime.auditionRecordsForTesting.last)
+        try runtime.playMaterialResonance(
+            recipeID,
+            harmony: .currentHarmony,
+            degreeOffset: 1
+        )
+        let second = try XCTUnwrap(runtime.auditionRecordsForTesting.last)
+
+        XCTAssertEqual(second.priority, .materialResonance)
+        XCTAssertNotEqual(first.resolvedSound.targetMIDI, second.resolvedSound.targetMIDI)
+        XCTAssertEqual(second.attackSeconds, 0.004)
+        XCTAssertEqual(second.releaseSeconds, 0.42)
+        XCTAssertLessThanOrEqual(second.effects.reverbSend, 0.22)
+    }
+
+    func testMobileRuntimeBoundsDiagnosticHistoryDuringSustainedWallImpacts() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 0xC011_1DE, happeningIDs: [])
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 9))
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        defer { runtime.releaseAuditions() }
+
+        for index in 0..<300 {
+            try runtime.playMaterialResonance(
+                recipeID,
+                harmony: .currentHarmony,
+                degreeOffset: index % 3
+            )
+            runtime.releaseAuditions()
+        }
+
+        XCTAssertFalse(runtime.auditionRecordsForTesting.isEmpty)
+        XCTAssertLessThanOrEqual(runtime.auditionRecordsForTesting.count, 128)
+        XCTAssertEqual(runtime.auditionHandleCountForTesting, 0)
+        XCTAssertEqual(runtime.auditionReleaseTaskCountForTesting, 0)
+    }
+
+    func testMobileRuntimePreparesEveryWallImpactMalletForSoundWorldRemixes() throws {
+        let runtime = DayObjectsMobilePlaybackRuntime(bundle: Bundle(for: type(of: self)))
+        let plan = makePlaybackEnginePlan(seed: 0xA11E7, happeningIDs: [])
+        try runtime.prepare(plan: plan)
+        try runtime.startPreparedWorldForTesting()
+        let malletIDs = Set([8, 9, 10, 11].compactMap(HappeningSoundRecipeID.init(rawValue:)))
+
+        XCTAssertTrue(malletIDs.isSubset(of: runtime.preparedHappeningRecipeIDsForTesting))
+
+        for rawID in [8, 9, 10, 11] {
+            try runtime.playMaterialResonance(
+                XCTUnwrap(HappeningSoundRecipeID(rawValue: rawID)),
+                harmony: .currentHarmony,
+                degreeOffset: rawID % 3
+            )
+        }
+
+        XCTAssertEqual(runtime.auditionRecordsForTesting.map(\.resolvedSound.recipeID.rawValue), [8, 9, 10, 11])
+    }
+
     func testRunningAuditionUsesCurrentHarmonyWithoutRestartingMusic() async throws {
         let log = PlaybackEngineCallLog()
         let session = RecordingDayObjectsAudioSession(log: log)
@@ -135,6 +205,25 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
 
         XCTAssertEqual(runtime.auditionRequests, ["7:currentHarmony"])
         XCTAssertEqual(log.values, ["runtime.audition:7:currentHarmony"])
+        XCTAssertEqual(engine.state, .on)
+        XCTAssertEqual(engine.metrics.engineStartCount, 1)
+        XCTAssertEqual(session.activationCount, 1)
+    }
+
+    func testMaterialResonanceUsesDedicatedLowPriorityRuntimePath() async throws {
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = RecordingDayObjectsPlaybackRuntime(log: log)
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let recipeID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 31))
+        try await engine.start(plan: makePlaybackEnginePlan(seed: 0xC011_1DE))
+        log.values.removeAll()
+
+        try await engine.playMaterialResonance(recipeID, degreeOffset: 2)
+
+        XCTAssertEqual(runtime.materialResonanceRequests, ["31:currentHarmony:2"])
+        XCTAssertTrue(runtime.auditionRequests.isEmpty)
+        XCTAssertEqual(log.values, ["runtime.material-resonance:31:currentHarmony:2"])
         XCTAssertEqual(engine.state, .on)
         XCTAssertEqual(engine.metrics.engineStartCount, 1)
         XCTAssertEqual(session.activationCount, 1)
@@ -1220,6 +1309,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(
             runtime.preparedHappeningRecipeIDsForTesting,
             Set(plan.happenings.map(\.recipeID))
+                .union(DayObjectMaterialResonance.allRecipeIDs)
         )
     }
 
@@ -2450,7 +2540,7 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty)
     }
 
-    func testLiveRuntimeUsesFourSamplePlayersPerPreparedWorldAndOneSharedEngineStart() async throws {
+    func testLiveRuntimeUsesFourMusicalAndFourMaterialPlayersWithOneSharedEngineStart() async throws {
         try requireLiveAudioOutput()
         let log = PlaybackEngineCallLog()
         let session = RecordingDayObjectsAudioSession(log: log)
@@ -2460,8 +2550,8 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         try await engine.start(plan: makePlaybackEnginePlan(seed: 0x404, happeningIDs: []))
 
         let metrics = runtime.playbackPairMetricsForTesting
-        XCTAssertEqual(Set(metrics.happeningFixedPlayerIdentities).count, 4)
-        XCTAssertEqual(metrics.happeningFixedPlayerIdentities.count, 4)
+        XCTAssertEqual(Set(metrics.happeningFixedPlayerIdentities).count, 8)
+        XCTAssertEqual(metrics.happeningFixedPlayerIdentities.count, 8)
         XCTAssertEqual(Set(metrics.happeningDecodedBufferIdentities).count, 114)
         XCTAssertEqual(metrics.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(metrics.happeningDecodedByteCount, 48 * 1_024 * 1_024)
@@ -2568,6 +2658,18 @@ private final class FaultInjectingRealPlaybackRuntime: DayObjectsPlaybackRuntime
         try base.auditionHappening(recipeID, harmony: harmony)
     }
 
+    func playMaterialResonance(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony,
+        degreeOffset: Int
+    ) throws {
+        try base.playMaterialResonance(
+            recipeID,
+            harmony: harmony,
+            degreeOffset: degreeOffset
+        )
+    }
+
     func releaseAuditions() { base.releaseAuditions() }
     func rollbackFullStartToSampleOnly() { base.rollbackFullStartToSampleOnly() }
     func stopScheduling() { base.stopScheduling() }
@@ -2656,6 +2758,7 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
     private(set) var samplePreparationAttempts = 0
     private(set) var samplePreparationWasCancelled = false
     private(set) var auditionRequests: [String] = []
+    private(set) var materialResonanceRequests: [String] = []
     private(set) var activeAuditionRequests: [String] = []
     private(set) var releaseAuditionCount = 0
     private(set) var audioStartCount = 0
@@ -2766,6 +2869,15 @@ private final class RecordingDayObjectsPlaybackRuntime: DayObjectsPlaybackRuntim
         auditionRequests.append(value)
         activeAuditionRequests.append(value)
         log.values.append("runtime.audition:\(value)")
+    }
+    func playMaterialResonance(
+        _ recipeID: HappeningSoundRecipeID,
+        harmony: DayObjectsHappeningAuditionHarmony,
+        degreeOffset: Int
+    ) throws {
+        let value = "\(recipeID.rawValue):\(harmony):\(degreeOffset)"
+        materialResonanceRequests.append(value)
+        log.values.append("runtime.material-resonance:\(value)")
     }
     func releaseAuditions() {
         releaseAuditionCount += 1

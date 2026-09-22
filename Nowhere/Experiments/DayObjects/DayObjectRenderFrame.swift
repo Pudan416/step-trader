@@ -1,6 +1,807 @@
 import Foundation
 import simd
 
+enum DayObjectCanvasWall: Equatable, Sendable {
+    case left
+    case right
+    case top
+    case bottom
+}
+
+struct DayObjectWallImpact: Equatable, Sendable {
+    let actorID: DayObjectActorID
+    let eventID: String
+    let wall: DayObjectCanvasWall
+    let speed: Float
+    let normalizedX: Float
+}
+
+@MainActor
+enum DayObjectWallImpactDelivery {
+    static func send(
+        _ impacts: [DayObjectWallImpact],
+        to sink: DayObjectWallImpactSink
+    ) {
+        for impact in impacts {
+            sink.send(impact)
+        }
+    }
+}
+
+enum DayObjectLunarPhysicsOrientation: Equatable {
+    case free
+    case followsVelocity(bodyAngleOffset: Float)
+}
+
+enum DayObjectLunarCollisionGeometry: Equatable {
+    case box
+    case radial
+}
+
+struct DayObjectLunarPhysicsActor: Equatable {
+    let id: DayObjectActorID
+    let position: SIMD2<Float>
+    let direction: SIMD2<Float>
+    let halfSize: SIMD2<Float>
+    let orientation: DayObjectLunarPhysicsOrientation
+    let collisionGeometry: DayObjectLunarCollisionGeometry
+
+    init(
+        id: DayObjectActorID,
+        position: SIMD2<Float>,
+        direction: SIMD2<Float> = SIMD2(1, 0),
+        halfSize: SIMD2<Float>,
+        orientation: DayObjectLunarPhysicsOrientation = .free,
+        collisionGeometry: DayObjectLunarCollisionGeometry = .box
+    ) {
+        self.id = id
+        self.position = position
+        self.direction = direction
+        self.halfSize = halfSize
+        self.orientation = orientation
+        self.collisionGeometry = collisionGeometry
+    }
+}
+
+struct DayObjectLunarPhysicsInfluence: Equatable {
+    let impulse: SIMD2<Float>
+    let applicationPoint: SIMD2<Float>
+}
+
+struct DayObjectLunarPhysicsOutput: Equatable {
+    let positions: [DayObjectActorID: SIMD2<Float>]
+    let directions: [DayObjectActorID: SIMD2<Float>]
+    let impacts: [DayObjectWallImpact]
+    let returnDidComplete: Bool
+
+    init(
+        positions: [DayObjectActorID: SIMD2<Float>],
+        directions: [DayObjectActorID: SIMD2<Float>] = [:],
+        impacts: [DayObjectWallImpact],
+        returnDidComplete: Bool = false
+    ) {
+        self.positions = positions
+        self.directions = directions
+        self.impacts = impacts
+        self.returnDidComplete = returnDidComplete
+    }
+}
+
+/// Bridges SwiftUI's requested playback state and the renderer's frame-based
+/// simulation. A Stop must be acknowledged even when it arrives before the
+/// first active physics frame, while a restarted playback cancels the old
+/// acknowledgement.
+struct DayObjectLunarPhysicsReturnHandshake {
+    private var playbackWasActive = false
+    private var returnIsPending = false
+
+    mutating func update(playbackIsActive: Bool) {
+        if playbackIsActive {
+            returnIsPending = false
+        } else if playbackWasActive {
+            // A suspended renderer resets the physics without drawing its return.
+            // Keep the acknowledgement until a frame can deliver it, including
+            // when the scene becomes inactive halfway through an animated return.
+            returnIsPending = true
+        }
+        playbackWasActive = playbackIsActive
+    }
+
+    mutating func consumeCompletionIfReady(
+        physicsIsDisplacingActors: Bool,
+        returnDidComplete: Bool
+    ) -> Bool {
+        guard returnIsPending,
+              returnDidComplete || !physicsIsDisplacingActors else { return false }
+        returnIsPending = false
+        return true
+    }
+}
+
+struct DayObjectLunarInteractionField {
+    static func influences(
+        from startPoint: SIMD2<Float>,
+        to endPoint: SIMD2<Float>,
+        gestureImpulse rawImpulse: SIMD2<Float>,
+        actors: [DayObjectLunarPhysicsActor]
+    ) -> [DayObjectActorID: DayObjectLunarPhysicsInfluence] {
+        guard startPoint.x.isFinite, startPoint.y.isFinite,
+              endPoint.x.isFinite, endPoint.y.isFinite,
+              rawImpulse.x.isFinite, rawImpulse.y.isFinite else { return [:] }
+        let magnitude = simd_length(rawImpulse)
+        guard magnitude > 0 else { return [:] }
+        let impulse = bounded(rawImpulse)
+        let impulseMagnitude = simd_length(impulse)
+        var result = [DayObjectActorID: DayObjectLunarPhysicsInfluence]()
+        for actor in actors {
+            var applicationPoint = closestPoint(
+                to: actor.position,
+                onSegmentFrom: startPoint,
+                to: endPoint
+            )
+            let reach = max(actor.halfSize.x, actor.halfSize.y) + 0.12
+            guard simd_distance(actor.position, applicationPoint) <= reach else { continue }
+            let impulseDirection = impulse / impulseMagnitude
+            let perpendicular = SIMD2(-impulseDirection.y, impulseDirection.x)
+            let lever = applicationPoint - actor.position
+            let currentOffset = simd_dot(lever, perpendicular)
+            let minimumOffset = max(actor.halfSize.x, actor.halfSize.y) * 0.32
+            if abs(currentOffset) < minimumOffset {
+                applicationPoint += perpendicular * (
+                    spinSign(for: actor.id) * minimumOffset - currentOffset
+                )
+            }
+            result[actor.id] = .init(
+                impulse: impulse,
+                applicationPoint: applicationPoint
+            )
+        }
+        return result
+    }
+
+    static func impulses(
+        from startPoint: SIMD2<Float>,
+        to endPoint: SIMD2<Float>,
+        gestureImpulse rawImpulse: SIMD2<Float>,
+        actors: [DayObjectLunarPhysicsActor]
+    ) -> [DayObjectActorID: SIMD2<Float>] {
+        influences(
+            from: startPoint,
+            to: endPoint,
+            gestureImpulse: rawImpulse,
+            actors: actors
+        ).mapValues(\.impulse)
+    }
+
+    static func canvasVector(
+        _ normalizedVector: SIMD2<Float>,
+        halfSpan: SIMD2<Float>
+    ) -> SIMD2<Float> {
+        normalizedVector * halfSpan
+    }
+
+    static func bounded(
+        _ impulse: SIMD2<Float>,
+        maximumMagnitude: Float = 0.48
+    ) -> SIMD2<Float> {
+        let magnitude = simd_length(impulse)
+        guard magnitude.isFinite, magnitude > 0 else { return .zero }
+        return impulse / magnitude * min(magnitude, max(maximumMagnitude, 0))
+    }
+
+    private static func closestPoint(
+        to point: SIMD2<Float>,
+        onSegmentFrom start: SIMD2<Float>,
+        to end: SIMD2<Float>
+    ) -> SIMD2<Float> {
+        let segment = end - start
+        let lengthSquared = simd_length_squared(segment)
+        guard lengthSquared > 0.000_001 else { return end }
+        let progress = min(max(simd_dot(point - start, segment) / lengthSquared, 0), 1)
+        return start + segment * progress
+    }
+
+    static func spinSign(for actorID: DayObjectActorID) -> Float {
+        var hash: UInt64 = 1_469_598_103_934_665_603
+        for byte in actorID.eventID.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        hash ^= UInt64(bitPattern: Int64(actorID.memberIndex))
+        return hash.isMultiple(of: 2) ? -1 : 1
+    }
+}
+
+struct DayObjectLunarInteractionEvent: Sendable {
+    let sequence: UInt64
+    let startPoint: SIMD2<Float>
+    let endPoint: SIMD2<Float>
+    let impulse: SIMD2<Float>
+}
+
+final class DayObjectLunarInteractionBus: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sequence: UInt64 = 0
+    private var previousPoint: SIMD2<Float>?
+    private var events = [DayObjectLunarInteractionEvent]()
+
+    func begin(normalizedX: Double, normalizedY: Double) {
+        lock.lock()
+        previousPoint = Self.canvasPoint(x: normalizedX, y: normalizedY)
+        lock.unlock()
+    }
+
+    func move(normalizedX: Double, normalizedY: Double, speed: Double) {
+        let point = Self.canvasPoint(x: normalizedX, y: normalizedY)
+        lock.lock()
+        defer { lock.unlock() }
+        guard let previousPoint else {
+            self.previousPoint = point
+            return
+        }
+        let delta = point - previousPoint
+        self.previousPoint = point
+        let directionMagnitude = simd_length(delta)
+        guard directionMagnitude > 0.0001 else { return }
+        let normalizedSpeed = Float(min(max(speed.isFinite ? speed : 0, 0) / 2.2, 1))
+        sequence &+= 1
+        events.append(.init(
+            sequence: sequence,
+            startPoint: previousPoint,
+            endPoint: point,
+            impulse: delta / directionMagnitude * (0.12 + 0.36 * normalizedSpeed)
+        ))
+        if events.count > 16 { events.removeFirst(events.count - 16) }
+    }
+
+    func end() {
+        lock.lock()
+        previousPoint = nil
+        lock.unlock()
+    }
+
+    func events(after consumedSequence: UInt64) -> [DayObjectLunarInteractionEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events.filter { $0.sequence > consumedSequence }
+    }
+
+    private static func canvasPoint(x: Double, y: Double) -> SIMD2<Float> {
+        SIMD2(Float(min(max(x, 0), 1) * 2 - 1), Float(1 - min(max(y, 0), 1) * 2))
+    }
+}
+
+/// A small deterministic simulation in the renderer's short-side canvas space.
+/// Actors collide only with walls; overlap between actors is intentional.
+struct DayObjectLunarPhysicsEngine {
+    struct Configuration: Equatable {
+        var acceleration: Float = 0.46
+        var initialLinearSpeed: ClosedRange<Float> = 0.24...0.34
+        var initialAngularSpeed: ClosedRange<Float> = 0.72...1.16
+        var linearDrag: Float = 0.04
+        var angularDrag: Float = 0.08
+        var angularImpulseScale: Float = 1.2
+        var wallAngularFriction: Float = 0.20
+        var headingAlignmentStiffness: Float = 20
+        var headingAlignmentDamping: Float = 8
+        var maximumLinearSpeed: Float = 0.9
+        var maximumAngularSpeed: Float = 4.2
+        var restitution: Float = 0.84
+        var minimumImpactSpeed: Float = 0.15
+        var impactCooldown: TimeInterval = 0.28
+        var returnDuration: TimeInterval = 0.72
+        var maximumFrameDelta: TimeInterval = 1
+        var integrationStep: TimeInterval = 1.0 / 60.0
+    }
+
+    private enum Phase: Equatable {
+        case inactive
+        case active
+        case returning(startedAt: TimeInterval)
+    }
+
+    private struct Body: Equatable {
+        var position: SIMD2<Float>
+        var velocity: SIMD2<Float>
+        var angle: Float
+        var angularVelocity: Float
+        var halfSize: SIMD2<Float>
+        var returnOrigin: SIMD2<Float>
+        var returnOriginAngle: Float
+        var lastImpactAt: TimeInterval
+        var orientation: DayObjectLunarPhysicsOrientation
+        var collisionGeometry: DayObjectLunarCollisionGeometry
+    }
+
+    private let configuration: Configuration
+    private var phase: Phase = .inactive
+    private var bodies: [DayObjectActorID: Body] = [:]
+    private var lastElapsed: TimeInterval?
+    private var canvasHalfSpan = SIMD2<Float>(repeating: 1)
+    private var angularMotionIsEnabled = true
+
+    init(configuration: Configuration = .init()) {
+        self.configuration = configuration
+    }
+
+    var isDisplacingActors: Bool { phase != .inactive }
+
+    mutating func reset() {
+        phase = .inactive
+        bodies.removeAll(keepingCapacity: true)
+        lastElapsed = nil
+    }
+
+    mutating func applyImpulse(_ impulse: SIMD2<Float>, to actorID: DayObjectActorID) {
+        applyImpulse(impulse, at: bodies[actorID]?.position ?? .zero, to: actorID)
+    }
+
+    mutating func applyImpulse(
+        _ impulse: SIMD2<Float>,
+        at applicationPoint: SIMD2<Float>,
+        to actorID: DayObjectActorID
+    ) {
+        guard phase == .active, impulse.x.isFinite, impulse.y.isFinite,
+              applicationPoint.x.isFinite, applicationPoint.y.isFinite,
+              var body = bodies[actorID] else { return }
+        body.velocity = Self.clampedVelocity(
+            body.velocity + impulse,
+            maximum: configuration.maximumLinearSpeed
+        )
+        if angularMotionIsEnabled, body.orientation == .free {
+            let lever = applicationPoint - body.position
+            let torque = lever.x * impulse.y - lever.y * impulse.x
+            body.angularVelocity = Self.clampedAngularVelocity(
+                body.angularVelocity
+                    + torque / Self.momentOfInertia(for: body.halfSize)
+                    * configuration.angularImpulseScale,
+                maximum: configuration.maximumAngularSpeed
+            )
+        }
+        bodies[actorID] = body
+    }
+
+    mutating func update(
+        actors: [DayObjectLunarPhysicsActor],
+        gravity rawGravity: SIMD2<Float>,
+        canvasHalfSpan rawCanvasHalfSpan: SIMD2<Float> = SIMD2(repeating: 1),
+        elapsed rawElapsed: TimeInterval,
+        playbackIsActive: Bool,
+        angularMotionIsEnabled: Bool = true
+    ) -> DayObjectLunarPhysicsOutput {
+        let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : (lastElapsed ?? 0)
+        let gravity = Self.sanitizedGravity(rawGravity)
+        canvasHalfSpan = Self.sanitizedCanvasHalfSpan(rawCanvasHalfSpan)
+        self.angularMotionIsEnabled = angularMotionIsEnabled
+
+        if playbackIsActive {
+            if phase != .active {
+                phase = .active
+                bodies = Dictionary(uniqueKeysWithValues: actors.map { actor in
+                    (actor.id, makeBody(for: actor))
+                })
+                lastElapsed = elapsed
+                return .init(positions: positions, directions: directions, impacts: [])
+            }
+
+            synchronizeBodies(with: actors)
+            let rawDelta = elapsed - (lastElapsed ?? elapsed)
+            let delta = min(max(rawDelta.isFinite ? rawDelta : 0, 0), configuration.maximumFrameDelta)
+            lastElapsed = elapsed
+            let impacts = integrate(delta: delta, gravity: gravity, elapsed: elapsed)
+            return .init(positions: positions, directions: directions, impacts: impacts)
+        }
+
+        switch phase {
+        case .inactive:
+            lastElapsed = elapsed
+            return .init(positions: [:], impacts: [])
+        case .active:
+            for id in bodies.keys {
+                guard var body = bodies[id] else { continue }
+                body.returnOrigin = body.position
+                body.returnOriginAngle = body.angle
+                body.angularVelocity = 0
+                bodies[id] = body
+            }
+            phase = .returning(startedAt: elapsed)
+        case .returning:
+            break
+        }
+
+        synchronizeBodies(with: actors)
+        guard case let .returning(startedAt) = phase else {
+            return .init(positions: [:], impacts: [])
+        }
+        let progress = configuration.returnDuration > 0
+            ? min(max((elapsed - startedAt) / configuration.returnDuration, 0), 1)
+            : 1
+        if progress >= 1 {
+            bodies.removeAll(keepingCapacity: true)
+            phase = .inactive
+            lastElapsed = elapsed
+            return .init(positions: [:], impacts: [], returnDidComplete: true)
+        }
+        let eased = Float(progress * progress * (3 - 2 * progress))
+        let bases = Dictionary(uniqueKeysWithValues: actors.map { ($0.id, $0.position) })
+        let baseAngles = Dictionary(uniqueKeysWithValues: actors.map {
+            ($0.id, Self.angle(for: $0.direction))
+        })
+        var returned = [DayObjectActorID: SIMD2<Float>]()
+        var returnedDirections = [DayObjectActorID: SIMD2<Float>]()
+        for (id, body) in bodies {
+            guard let base = bases[id], let baseAngle = baseAngles[id] else { continue }
+            returned[id] = simd_mix(body.returnOrigin, base, SIMD2(repeating: eased))
+            let angle = Self.interpolateAngle(
+                from: body.returnOriginAngle,
+                to: baseAngle,
+                progress: eased
+            )
+            returnedDirections[id] = SIMD2(cos(angle), sin(angle))
+        }
+        lastElapsed = elapsed
+        return .init(positions: returned, directions: returnedDirections, impacts: [])
+    }
+
+    private var positions: [DayObjectActorID: SIMD2<Float>] {
+        bodies.mapValues(\.position)
+    }
+
+    private var directions: [DayObjectActorID: SIMD2<Float>] {
+        bodies.mapValues { SIMD2(cos($0.angle), sin($0.angle)) }
+    }
+
+    private mutating func synchronizeBodies(with actors: [DayObjectLunarPhysicsActor]) {
+        let actorIDs = Set(actors.map(\.id))
+        bodies = bodies.filter { actorIDs.contains($0.key) }
+        for actor in actors {
+            let halfSize = Self.sanitizedHalfSize(actor.halfSize)
+            if bodies[actor.id] == nil {
+                bodies[actor.id] = makeBody(for: actor)
+            } else {
+                bodies[actor.id]?.halfSize = halfSize
+                bodies[actor.id]?.orientation = actor.orientation
+                bodies[actor.id]?.collisionGeometry = actor.collisionGeometry
+                if !angularMotionIsEnabled {
+                    bodies[actor.id]?.angle = Self.angle(for: actor.direction)
+                    bodies[actor.id]?.angularVelocity = 0
+                }
+            }
+        }
+    }
+
+    private func makeBody(for actor: DayObjectLunarPhysicsActor) -> Body {
+        let angle = Self.angle(for: actor.direction)
+        let speed = Self.deterministicValue(
+            in: configuration.initialLinearSpeed,
+            for: actor.id,
+            salt: 0xD1B5_4A32_D192_ED03
+        )
+        let velocityAngle: Float
+        switch actor.orientation {
+        case .free:
+            velocityAngle = angle
+        case let .followsVelocity(bodyAngleOffset):
+            velocityAngle = angle - bodyAngleOffset
+        }
+        let angularVelocity: Float
+        if angularMotionIsEnabled, actor.orientation == .free {
+            angularVelocity = Self.deterministicValue(
+                in: configuration.initialAngularSpeed,
+                for: actor.id,
+                salt: 0x94D0_49BB_1331_11EB
+            ) * DayObjectLunarInteractionField.spinSign(for: actor.id)
+        } else {
+            angularVelocity = 0
+        }
+        return Body(
+            position: actor.position,
+            velocity: SIMD2(cos(velocityAngle), sin(velocityAngle)) * speed,
+            angle: angle,
+            angularVelocity: angularVelocity,
+            halfSize: Self.sanitizedHalfSize(actor.halfSize),
+            returnOrigin: actor.position,
+            returnOriginAngle: angle,
+            lastImpactAt: -.infinity,
+            orientation: actor.orientation,
+            collisionGeometry: actor.collisionGeometry
+        )
+    }
+
+    private mutating func integrate(
+        delta: TimeInterval,
+        gravity: SIMD2<Float>,
+        elapsed: TimeInterval
+    ) -> [DayObjectWallImpact] {
+        guard delta > 0 else { return [] }
+        let stepCount = max(1, Int(ceil(delta / configuration.integrationStep)))
+        let step = Float(delta / Double(stepCount))
+        let damping = exp(-configuration.linearDrag * step)
+        let angularDamping = exp(-configuration.angularDrag * step)
+        var impacts = [DayObjectWallImpact]()
+
+        let sortedIDs = bodies.keys.sorted()
+        for _ in 0..<stepCount {
+            for id in sortedIDs {
+                guard var body = bodies[id] else { continue }
+                body.velocity += gravity * configuration.acceleration * step
+                body.velocity *= damping
+                body.velocity = Self.clampedVelocity(
+                    body.velocity,
+                    maximum: configuration.maximumLinearSpeed
+                )
+                if angularMotionIsEnabled, body.orientation == .free {
+                    body.angularVelocity *= angularDamping
+                    body.angle += body.angularVelocity * step
+                    body.angle.formTruncatingRemainder(dividingBy: 2 * .pi)
+                }
+                body.position += body.velocity * step
+                resolveWalls(id: id, body: &body, elapsed: elapsed, impacts: &impacts)
+                if angularMotionIsEnabled,
+                   case let .followsVelocity(bodyAngleOffset) = body.orientation,
+                   simd_length_squared(body.velocity) > 0.000_001 {
+                    let targetAngle = atan2(body.velocity.y, body.velocity.x) + bodyAngleOffset
+                    var angleDelta = Self.signedAngleDelta(from: body.angle, to: targetAngle)
+                    if abs(abs(angleDelta) - .pi) < 0.001 {
+                        let turnSign: Float = abs(body.angularVelocity) > 0.001
+                            ? (body.angularVelocity < 0 ? -1 : 1)
+                            : DayObjectLunarInteractionField.spinSign(for: id)
+                        angleDelta = .pi * turnSign
+                    }
+                    let angularAcceleration = angleDelta * configuration.headingAlignmentStiffness
+                        - body.angularVelocity * configuration.headingAlignmentDamping
+                    body.angularVelocity = Self.clampedAngularVelocity(
+                        body.angularVelocity + angularAcceleration * step,
+                        maximum: configuration.maximumAngularSpeed
+                    )
+                    body.angle += body.angularVelocity * step
+                    body.angle.formTruncatingRemainder(dividingBy: 2 * .pi)
+                }
+                bodies[id] = body
+            }
+        }
+        return impacts
+    }
+
+    private func resolveWalls(
+        id: DayObjectActorID,
+        body: inout Body,
+        elapsed: TimeInterval,
+        impacts: inout [DayObjectWallImpact]
+    ) {
+        let extent: SIMD2<Float>
+        switch body.collisionGeometry {
+        case .box:
+            extent = Self.rotatedExtent(halfSize: body.halfSize, angle: body.angle)
+        case .radial:
+            extent = SIMD2(repeating: max(body.halfSize.x, body.halfSize.y))
+        }
+        let available = simd_max(canvasHalfSpan - extent, .zero)
+        let minX = -available.x
+        let maxX = available.x
+        let minY = -available.y
+        let maxY = available.y
+
+        if body.position.x < minX {
+            let speed = abs(body.velocity.x)
+            body.position.x = minX
+            body.velocity.x = speed * configuration.restitution
+            applyWallAngularFriction(
+                .left, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
+            recordImpact(.left, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        } else if body.position.x > maxX {
+            let speed = abs(body.velocity.x)
+            body.position.x = maxX
+            body.velocity.x = -speed * configuration.restitution
+            applyWallAngularFriction(
+                .right, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
+            recordImpact(.right, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        }
+
+        if body.position.y < minY {
+            let speed = abs(body.velocity.y)
+            body.position.y = minY
+            body.velocity.y = speed * configuration.restitution
+            applyWallAngularFriction(
+                .bottom, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
+            recordImpact(.bottom, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        } else if body.position.y > maxY {
+            let speed = abs(body.velocity.y)
+            body.position.y = maxY
+            body.velocity.y = -speed * configuration.restitution
+            applyWallAngularFriction(
+                .top, actorID: id, normalSpeed: speed, to: &body, extent: extent
+            )
+            recordImpact(.top, id: id, speed: speed, body: &body, elapsed: elapsed, impacts: &impacts)
+        }
+    }
+
+    private func applyWallAngularFriction(
+        _ wall: DayObjectCanvasWall,
+        actorID: DayObjectActorID,
+        normalSpeed: Float,
+        to body: inout Body,
+        extent: SIMD2<Float>
+    ) {
+        guard angularMotionIsEnabled, body.orientation == .free else { return }
+        let tangentHalfSize: Float
+        let normalImpulse: SIMD2<Float>
+        let wallLever: SIMD2<Float>
+        let tangent: SIMD2<Float>
+        switch wall {
+        case .left:
+            tangentHalfSize = body.halfSize.y
+            normalImpulse = SIMD2(normalSpeed * (1 + configuration.restitution), 0)
+            wallLever = SIMD2(-extent.x, 0)
+            tangent = SIMD2(0, body.velocity.y)
+        case .right:
+            tangentHalfSize = body.halfSize.y
+            normalImpulse = SIMD2(-normalSpeed * (1 + configuration.restitution), 0)
+            wallLever = SIMD2(extent.x, 0)
+            tangent = SIMD2(0, body.velocity.y)
+        case .bottom:
+            tangentHalfSize = body.halfSize.x
+            normalImpulse = SIMD2(0, normalSpeed * (1 + configuration.restitution))
+            wallLever = SIMD2(0, -extent.y)
+            tangent = SIMD2(body.velocity.x, 0)
+        case .top:
+            tangentHalfSize = body.halfSize.x
+            normalImpulse = SIMD2(0, -normalSpeed * (1 + configuration.restitution))
+            wallLever = SIMD2(0, extent.y)
+            tangent = SIMD2(body.velocity.x, 0)
+        }
+
+        var torque: Float = 0
+        if normalSpeed >= configuration.minimumImpactSpeed {
+            var contactLever = wallLever
+            let eccentricity = tangentHalfSize * 0.08
+                * DayObjectLunarInteractionField.spinSign(for: actorID)
+            if wall == .left || wall == .right {
+                contactLever.y = eccentricity
+            } else {
+                contactLever.x = eccentricity
+            }
+            torque += contactLever.x * normalImpulse.y - contactLever.y * normalImpulse.x
+        }
+
+        let tangentSpeed = simd_length(tangent)
+        if tangentSpeed > 0 {
+            let frictionMagnitude = min(tangentSpeed, normalSpeed * (1 + configuration.restitution))
+                * configuration.wallAngularFriction
+            let frictionImpulse = -tangent / tangentSpeed * frictionMagnitude
+            torque += wallLever.x * frictionImpulse.y - wallLever.y * frictionImpulse.x
+        }
+        body.angularVelocity = Self.clampedAngularVelocity(
+            body.angularVelocity + torque / Self.momentOfInertia(for: body.halfSize),
+            maximum: configuration.maximumAngularSpeed
+        )
+    }
+
+    private func recordImpact(
+        _ wall: DayObjectCanvasWall,
+        id: DayObjectActorID,
+        speed: Float,
+        body: inout Body,
+        elapsed: TimeInterval,
+        impacts: inout [DayObjectWallImpact]
+    ) {
+        guard speed >= configuration.minimumImpactSpeed,
+              elapsed - body.lastImpactAt >= configuration.impactCooldown else { return }
+        body.lastImpactAt = elapsed
+        impacts.append(.init(
+            actorID: id,
+            eventID: id.eventID,
+            wall: wall,
+            speed: speed,
+            normalizedX: min(max(
+                (body.position.x + canvasHalfSpan.x) / max(canvasHalfSpan.x * 2, 0.001),
+                0
+            ), 1)
+        ))
+    }
+
+    private static func sanitizedGravity(_ gravity: SIMD2<Float>) -> SIMD2<Float> {
+        guard gravity.x.isFinite, gravity.y.isFinite else { return .zero }
+        let magnitude = simd_length(gravity)
+        guard magnitude > 0.045 else { return .zero }
+        return magnitude > 1 ? gravity / magnitude : gravity
+    }
+
+    private static func sanitizedHalfSize(_ halfSize: SIMD2<Float>) -> SIMD2<Float> {
+        SIMD2(
+            min(max(halfSize.x.isFinite ? halfSize.x : 0, 0.01), 0.95),
+            min(max(halfSize.y.isFinite ? halfSize.y : 0, 0.01), 0.95)
+        )
+    }
+
+    private static func sanitizedCanvasHalfSpan(_ span: SIMD2<Float>) -> SIMD2<Float> {
+        SIMD2(
+            span.x.isFinite ? max(span.x, 0.05) : 1,
+            span.y.isFinite ? max(span.y, 0.05) : 1
+        )
+    }
+
+    private static func angle(for direction: SIMD2<Float>) -> Float {
+        guard direction.x.isFinite, direction.y.isFinite,
+              simd_length_squared(direction) > 0.000_001 else { return 0 }
+        return atan2(direction.y, direction.x)
+    }
+
+    private static func momentOfInertia(for halfSize: SIMD2<Float>) -> Float {
+        max((halfSize.x * halfSize.x + halfSize.y * halfSize.y) / 3, 0.0025)
+    }
+
+    private static func clampedAngularVelocity(_ value: Float, maximum: Float) -> Float {
+        guard value.isFinite else { return 0 }
+        let limit = max(maximum, 0)
+        return min(max(value, -limit), limit)
+    }
+
+    private static func clampedVelocity(
+        _ value: SIMD2<Float>,
+        maximum: Float
+    ) -> SIMD2<Float> {
+        guard value.x.isFinite, value.y.isFinite else { return .zero }
+        let magnitude = simd_length(value)
+        let limit = max(maximum, 0)
+        guard magnitude > limit, magnitude > 0 else { return value }
+        return value / magnitude * limit
+    }
+
+    private static func deterministicValue(
+        in range: ClosedRange<Float>,
+        for actorID: DayObjectActorID,
+        salt: UInt64
+    ) -> Float {
+        let lower = min(range.lowerBound, range.upperBound)
+        let upper = max(range.lowerBound, range.upperBound)
+        var hash = 1_469_598_103_934_665_603 ^ salt
+        for byte in actorID.eventID.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        hash ^= UInt64(bitPattern: Int64(actorID.memberIndex))
+        hash ^= hash >> 30
+        hash &*= 0xBF58_476D_1CE4_E5B9
+        hash ^= hash >> 27
+        hash &*= 0x94D0_49BB_1331_11EB
+        hash ^= hash >> 31
+        let unit = Float(hash >> 40) / Float(1 << 24)
+        return lower + (upper - lower) * unit
+    }
+
+    private static func rotatedExtent(
+        halfSize: SIMD2<Float>,
+        angle: Float
+    ) -> SIMD2<Float> {
+        let cosine = abs(cos(angle))
+        let sine = abs(sin(angle))
+        return SIMD2(
+            cosine * halfSize.x + sine * halfSize.y,
+            sine * halfSize.x + cosine * halfSize.y
+        )
+    }
+
+    private static func interpolateAngle(
+        from start: Float,
+        to end: Float,
+        progress: Float
+    ) -> Float {
+        start + signedAngleDelta(from: start, to: end) * progress
+    }
+
+    private static func signedAngleDelta(from start: Float, to end: Float) -> Float {
+        let fullTurn = 2 * Float.pi
+        var delta = (end - start).truncatingRemainder(dividingBy: fullTurn)
+        if delta > .pi { delta -= fullTurn }
+        if delta < -.pi { delta += fullTurn }
+        return delta
+    }
+}
+
 struct DayObjectsSoundPulseEvent: Equatable, Sendable {
     let sequence: UInt64
     let eventID: String
@@ -306,6 +1107,32 @@ struct DayObjectGPUAppearance: Equatable {
     // Source compatibility for older focused tests. This is computed and does
     // not participate in the Metal ABI.
     var membrane: SIMD4<Float> { .zero }
+
+    /// The fragment blur keeps its focused edge opposite the shader's blur
+    /// axis. This offset lets physics point that focused edge along velocity.
+    func fragmentBlurBodyAngleOffset(
+        shape: UInt32,
+        silhouetteVariant: UInt32
+    ) -> Float? {
+        guard (metadata.x == DayObjectMaterialFamily.gradient.rawValue
+                || metadata.x == DayObjectMaterialFamily.glass.rawValue),
+              UInt32(recipe1.x.rounded()) == 4 else { return nil }
+        var blurAngle = recipe1.y
+        if shape == 6 || (shape == 5 && silhouetteVariant > 0) {
+            let sides: Float = shape == 6
+                ? 4
+                : 3 + Float((min(silhouetteVariant, 64) - 1) % 4)
+            let sector = 2 * Float.pi / sides
+            let focusOffset = sides == 3 ? sector * 0.5 : 0
+            let focusNormal = ((Float.pi - blurAngle - focusOffset) / sector).rounded()
+                * sector + focusOffset
+            blurAngle = .pi - focusNormal
+        }
+        var offset = (blurAngle - .pi).truncatingRemainder(dividingBy: 2 * .pi)
+        if offset > .pi { offset -= 2 * .pi }
+        if offset < -.pi { offset += 2 * .pi }
+        return offset
+    }
 
     static let fallback = DayObjectGPUAppearance(
         color0: SIMD4(1, 1, 1, 1),
@@ -911,5 +1738,63 @@ struct DayObjectRenderFrame: Equatable {
         value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
         value ^= value >> 31
         return Double(value >> 11) / Double(UInt64(1) << 53)
+    }
+}
+
+extension DayObjectGPUActor {
+    func replacingPose(
+        position: SIMD2<Float>,
+        direction: SIMD2<Float>
+    ) -> Self {
+        Self(
+            position: position,
+            direction: direction,
+            halfSize: halfSize,
+            opacity: opacity,
+            trailLength: trailLength,
+            shape: shape,
+            appearanceIndex: appearanceIndex,
+            depth: depth,
+            materialPhase: materialPhase,
+            localDepthSoftness: localDepthSoftness,
+            paletteMorph: paletteMorph,
+            presentationSaturation: presentationSaturation,
+            removalEmphasis: removalEmphasis,
+            silhouetteVariant: silhouetteVariant
+        )
+    }
+
+    func replacingPosition(_ position: SIMD2<Float>) -> Self {
+        replacingPose(position: position, direction: direction)
+    }
+}
+
+extension DayObjectRenderFrame {
+    func applyingLunarPhysics(_ output: DayObjectLunarPhysicsOutput) -> Self {
+        guard !output.positions.isEmpty || !output.directions.isEmpty else { return self }
+        return Self(
+            choreographyTime: choreographyTime,
+            actors: actors.map { actor in
+                let position = output.positions[actor.actorID] ?? actor.gpuActor.position
+                let direction = output.directions[actor.actorID] ?? actor.gpuActor.direction
+                guard position != actor.gpuActor.position
+                        || direction != actor.gpuActor.direction else { return actor }
+                return DayObjectRenderActor(
+                    actorID: actor.actorID,
+                    eventID: actor.eventID,
+                    gpuActor: actor.gpuActor.replacingPose(
+                        position: position,
+                        direction: direction
+                    ),
+                    gpuAppearance: actor.gpuAppearance
+                )
+            },
+            postProcess: postProcess
+        )
+    }
+
+
+    func applyingLunarPositions(_ positions: [DayObjectActorID: SIMD2<Float>]) -> Self {
+        applyingLunarPhysics(.init(positions: positions, impacts: []))
     }
 }

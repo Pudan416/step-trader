@@ -38,3 +38,12 @@ struct NativeAtlasRecipe: Codable, Equatable {
         schemaVersion == 1 && generatorVersion == "atlas-1" && catalogVersion == "2026-09-09"
     }
 }
+
+extension NativeAtlasRecipe.Actor {
+    var lunarPhysicsOrientation: DayObjectLunarPhysicsOrientation {
+        guard materialID == .directionalBlur,
+              let offset = material.primaryCanvasMaterial.directionalBlurBodyAngleOffset
+        else { return .free }
+        return .followsVelocity(bodyAngleOffset: offset)
+    }
+}

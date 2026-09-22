@@ -3,8 +3,6 @@ import SwiftUI
 /// Full-screen viewing actions. Closing is independent of the audio engine state.
 struct CanvasFullScreenDock<Share: View>: View {
     @Environment(\.canvasChromePalette) private var palette
-    let soundAppearance: CanvasSoundButtonAppearance
-    let onSound: () -> Void
     let onClose: () -> Void
     let onRemix: () -> Void
     @ViewBuilder let share: () -> Share
@@ -27,7 +25,6 @@ struct CanvasFullScreenDock<Share: View>: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 4) {
-                soundControl
                 share()
                     .accessibilityIdentifier("canvas_fullscreen_share_button")
                 Button(action: onRemix) {
@@ -48,24 +45,6 @@ struct CanvasFullScreenDock<Share: View>: View {
         }
         .frame(maxWidth: 360)
     }
-
-    private var soundControl: some View {
-        let presentation = CanvasFullScreenSoundControlPresentation(
-            appearance: soundAppearance
-        )
-        return Button(action: onSound) {
-            Image(systemName: presentation.systemImage)
-                .font(.geist(size: 18, weight: .semibold))
-                .foregroundStyle(palette.accentColor)
-                .frame(width: 44, height: 56)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!presentation.isEnabled)
-        .accessibilityLabel(presentation.title)
-        .accessibilityValue(soundAppearance.accessibilityValue)
-        .accessibilityIdentifier("canvas_fullscreen_sound_button")
-    }
 }
 
 enum CanvasFullScreenRemixPresentation {
@@ -74,41 +53,62 @@ enum CanvasFullScreenRemixPresentation {
     }
 }
 
-struct CanvasFullScreenSoundControlPresentation: Equatable {
-    let title: String
-    let systemImage: String
-    let isEnabled: Bool
+struct CanvasMusicInfoOverlay: View {
+    @Environment(\.canvasChromePalette) private var palette
+    let onDismiss: () -> Void
 
-    init(appearance: CanvasSoundButtonAppearance) {
-        switch appearance {
-        case .readyToPlay:
-            self.init(title: "Play", systemImage: "play.fill", isEnabled: true)
-        case .starting:
-            self.init(title: "Starting sound", systemImage: "hourglass", isEnabled: false)
-        case .playing:
-            self.init(title: "Sound off", systemImage: "speaker.slash.fill", isEnabled: true)
-        case .retry:
-            self.init(title: "Retry sound", systemImage: "arrow.clockwise", isEnabled: true)
-        }
-    }
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.22)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onDismiss)
 
-    init(title: String, systemImage: String, isEnabled: Bool) {
-        self.title = title
-        self.systemImage = systemImage
-        self.isEnabled = isEnabled
-    }
-}
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .center) {
+                    Text(String(localized: "About the music"))
+                        .font(.geist(size: 22, weight: .semibold))
+                        .foregroundStyle(palette.textColor)
 
-enum CanvasFullScreenSoundAction: Equatable {
-    case retryInPlace
-    case turnOffAndExit
-    case none
+                    Spacer(minLength: 16)
 
-    static func resolve(appearance: CanvasSoundButtonAppearance) -> Self {
-        switch appearance {
-        case .readyToPlay, .retry: .retryInPlace
-        case .playing: .turnOffAndExit
-        case .starting: .none
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.geist(size: 15, weight: .semibold))
+                            .foregroundStyle(palette.textColor.opacity(0.78))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Close"))
+                    .accessibilityIdentifier("canvas_music_info_close_button")
+                }
+
+                Text(String(localized: "I love music, though I never became a musician. So I made this little instrument. I often play it while I work or think."))
+                    .font(.geist(.body))
+                    .foregroundStyle(palette.textColor.opacity(0.86))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(String(localized: "Sleep shapes the harmony. Activity shapes the rhythm. Happenings add bright, unexpected moments."))
+                    .font(.geist(.body).weight(.medium))
+                    .foregroundStyle(palette.textColor)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("— Kosta")
+                    .font(.geist(.subheadline))
+                    .foregroundStyle(palette.textColor.opacity(0.68))
+            }
+            .padding(24)
+            .frame(maxWidth: 340)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(.white.opacity(0.2), lineWidth: 0.75)
+            }
+            .shadow(color: .black.opacity(0.16), radius: 24, y: 12)
+            .padding(24)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("canvas_music_info_card")
         }
     }
 }

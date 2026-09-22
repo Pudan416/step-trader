@@ -310,11 +310,11 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         XCTAssertEqual(harness.voices[replacement.voiceID].updateCalls.count, count)
     }
 
-    func testAllocatesExactlyFourPlayersAndNeverCreatesAFifthOnPlay() throws {
+    func testAllocatesFourMusicalPlayersAndFourReservedMaterialPlayers() throws {
         let harness = try makeHarness(recipes: [makeRecipe(id: 1, resources: ["one.wav"])])
 
-        XCTAssertEqual(harness.pool.metrics.allocatedPlayerCount, 4)
-        XCTAssertEqual(harness.voices.count, 4)
+        XCTAssertEqual(harness.pool.metrics.allocatedPlayerCount, 8)
+        XCTAssertEqual(harness.voices.count, 8)
         let identities = harness.pool.metrics.fixedPlayerIdentities
 
         try harness.pool.prepare(recipeIDs: [id(1)])
@@ -323,7 +323,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
             harness.pool.stop(voiceID)
         }
 
-        XCTAssertEqual(harness.voices.count, 4)
+        XCTAssertEqual(harness.voices.count, 8)
         XCTAssertEqual(harness.pool.metrics.fixedPlayerIdentities, identities)
     }
 
@@ -384,6 +384,89 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         )) {
             XCTAssertEqual($0 as? HappeningSamplePoolError, .noEligibleVoice)
         }
+        XCTAssertEqual(harness.pool.metrics.stealCount, 0)
+    }
+
+    func testMaterialResonanceAlwaysUsesItsReservedVoiceWhenRegularVoicesAreFull() throws {
+        let harness = try preparedHarness()
+        for recipeID in 1...4 {
+            _ = try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.7,
+                priority: .recurrence
+            )
+        }
+
+        let resonance = try harness.pool.play(
+            sound(id: 5, resource: "5.wav"),
+            gain: 0.4,
+            priority: .materialResonance
+        )
+
+        XCTAssertEqual(resonance.voiceID, 4)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 5)
+        XCTAssertEqual(harness.pool.metrics.stealCount, 0)
+    }
+
+    func testRegularHappeningNeverUsesTheReservedMaterialVoice() throws {
+        let harness = try preparedHarness()
+        let resonance = try harness.pool.play(
+            sound(id: 1, resource: "1.wav"),
+            gain: 0.4,
+            priority: .materialResonance
+        )
+        for recipeID in 2...5 {
+            _ = try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.7,
+                priority: .recurrence
+            )
+        }
+
+        XCTAssertThrowsError(try harness.pool.play(
+            sound(id: 6, resource: "6.wav"),
+            gain: 0.7,
+            priority: .recurrence
+        )) {
+            XCTAssertEqual($0 as? HappeningSamplePoolError, .noEligibleVoice)
+        }
+
+        XCTAssertEqual(resonance.voiceID, 4)
+        XCTAssertEqual(harness.pool.metrics.stealCount, 0)
+    }
+
+    func testFifthMaterialResonanceReplacesOnlyTheOldestMaterialResonance() throws {
+        let harness = try preparedHarness()
+        let firstFour = try (1...4).map { recipeID in
+            try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.4,
+                priority: .materialResonance
+            )
+        }
+        let fifth = try harness.pool.play(
+            sound(id: 5, resource: "5.wav"), gain: 0.4, priority: .materialResonance
+        )
+
+        XCTAssertEqual(firstFour.map(\.voiceID), [4, 5, 6, 7])
+        XCTAssertEqual(fifth.voiceID, 4)
+        XCTAssertNotEqual(firstFour[0].generation, fifth.generation)
+        XCTAssertEqual(harness.pool.metrics.activeVoiceCount, 4)
+        XCTAssertEqual(harness.pool.metrics.stealCount, 1)
+    }
+
+    func testFourSimultaneousWallImpactsUseDistinctReservedVoices() throws {
+        let harness = try preparedHarness()
+
+        let handles = try (1...4).map { recipeID in
+            try harness.pool.play(
+                sound(id: recipeID, resource: "\(recipeID).wav"),
+                gain: 0.4,
+                priority: .materialResonance
+            )
+        }
+
+        XCTAssertEqual(Set(handles.map(\.voiceID)).count, 4)
         XCTAssertEqual(harness.pool.metrics.stealCount, 0)
     }
 
@@ -643,7 +726,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
         ))
         XCTAssertEqual(harness.pool.metrics.lastEffectRampSeconds, 2)
         XCTAssertEqual(harness.pool.metrics.fixedPlayerIdentities, identities)
-        XCTAssertEqual(harness.voices.count, 4)
+        XCTAssertEqual(harness.voices.count, 8)
     }
 
     func testBackendReceivesPreparedBufferRateGainAndEnvelope() throws {
@@ -756,7 +839,7 @@ final class DayObjectsHappeningSamplePoolTests: XCTestCase {
 
         try pool.prepare(recipeIDs: Set(HappeningSoundCatalog.recipes.map(\.id)))
 
-        XCTAssertEqual(pool.metrics.allocatedPlayerCount, 4)
+        XCTAssertEqual(pool.metrics.allocatedPlayerCount, 8)
         XCTAssertEqual(pool.metrics.availableRecipeIDs.count, 42)
         XCTAssertEqual(pool.metrics.unavailableRecipeIDs, [])
         XCTAssertEqual(pool.metrics.decodedBufferCount, 114)

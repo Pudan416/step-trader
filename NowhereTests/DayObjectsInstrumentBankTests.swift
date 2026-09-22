@@ -589,7 +589,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertFalse(pair.metrics.sharedEngineIsRunning)
     }
 
-    func testPlaybackWorldReplacesTheTonalHappeningPoolWithFourSamplePlayers() throws {
+    func testPlaybackWorldUsesFourMusicalPlayersAndOneMaterialResonancePlayer() throws {
         let configuration = PlaybackWorldBankConfiguration.playbackWorld
 
         XCTAssertEqual(configuration.tonalPools.map(\.capacity).reduce(0, +), 9)
@@ -601,8 +601,8 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         let bank = DayObjectsInstrumentBank(bundle: Bundle(for: type(of: self)))
         try bank.prepare(configuration: configuration)
 
-        XCTAssertEqual(bank.happenings.metrics.allocatedPlayerCount, 4)
-        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 4)
+        XCTAssertEqual(bank.happenings.metrics.allocatedPlayerCount, 8)
+        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 8)
         XCTAssertLessThanOrEqual(bank.metrics.happeningMetrics.decodedByteCount, 48 * 1_024 * 1_024)
     }
 
@@ -634,7 +634,7 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(bank.preparationLevel, .fullMusic(.playbackWorld))
         XCTAssertEqual(bank.metrics.engineInstanceCount, 1)
         XCTAssertEqual(bank.metrics.engineStartCount, 1)
-        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 4)
+        XCTAssertEqual(bank.metrics.happeningMetrics.allocatedPlayerCount, 8)
         await bank.stop()
     }
 
@@ -1060,10 +1060,10 @@ final class DayObjectsInstrumentBankTests: XCTestCase {
         XCTAssertEqual(baseline.sharedAudioEngineCount, 1)
         XCTAssertEqual(baseline.finalPeakLimiterCount, 1)
         XCTAssertTrue(pair.bankA.happenings === pair.bankB.happenings)
-        XCTAssertEqual(pair.bankA.happenings.metrics.allocatedPlayerCount, 4)
+        XCTAssertEqual(pair.bankA.happenings.metrics.allocatedPlayerCount, 8)
         XCTAssertEqual(pair.bankA.happenings.metrics.decodedBufferCount, 114)
-        XCTAssertEqual(Set(baseline.happeningFixedPlayerIdentities).count, 4)
-        XCTAssertEqual(baseline.happeningFixedPlayerIdentities.count, 4)
+        XCTAssertEqual(Set(baseline.happeningFixedPlayerIdentities).count, 8)
+        XCTAssertEqual(baseline.happeningFixedPlayerIdentities.count, 8)
         XCTAssertEqual(Set(baseline.happeningDecodedBufferIdentities).count, 114)
         XCTAssertEqual(baseline.happeningDecodedBufferIdentities.count, 114)
         XCTAssertLessThanOrEqual(baseline.happeningDecodedByteCount, 48 * 1_024 * 1_024)

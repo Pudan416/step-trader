@@ -3,7 +3,7 @@ import XCTest
 /// The Canvas screen's four states and the paths between them. These assert
 /// structure, not looks: which controls exist, and where a tap lands you.
 final class CanvasSimplificationUITests: XCTestCase {
-    func testViewingDockClosesAndLandscapeHidesAllControls() {
+    func testPlaybackAutoHidesDockAndRevealHandleRestoresItInPortrait() {
         XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }
         let app = launchCanvas()
@@ -15,29 +15,46 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["canvas_undo_remix_button"].exists)
         let portraitCapture = XCTAttachment(screenshot: app.screenshot())
         portraitCapture.name = "compact-viewing-dock"; portraitCapture.lifetime = .keepAlways; add(portraitCapture)
+
+        let reveal = app.buttons["canvas_reveal_controls_button"]
+        XCTAssertTrue(reveal.waitForExistence(timeout: 8))
+        XCTAssertGreaterThan(reveal.frame.midX, app.frame.midX)
+        XCTAssertEqual(reveal.frame.width, 56, accuracy: 2)
+        XCTAssertEqual(reveal.frame.height, 56, accuracy: 2)
+        XCTAssertEqual(reveal.frame.maxX, app.frame.maxX, accuracy: 2)
+        XCTAssertEqual(reveal.frame.maxY, app.frame.maxY, accuracy: 2)
+        XCTAssertFalse(close.exists)
+        XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
+        reveal.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 3))
+
         XCUIDevice.shared.orientation = .landscapeLeft
         let landscape = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            app.frame.width > app.frame.height && !close.exists
+            app.frame.width > app.frame.height
         }, object: nil)
-        let rotationResult = XCTWaiter.wait(for: [landscape], timeout: 8)
+        landscape.isInverted = true
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [landscape], timeout: 2),
+            .completed,
+            "Playback must remain portrait after a landscape rotation request"
+        )
+        let portrait = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            app.frame.height > app.frame.width
+        }, object: nil)
+        let rotationResult = XCTWaiter.wait(for: [portrait], timeout: 3)
         let rotationCapture = XCTAttachment(screenshot: app.screenshot())
         rotationCapture.name = "rotation-diagnostic"; rotationCapture.lifetime = .keepAlways; add(rotationCapture)
-        XCTAssertEqual(rotationResult, .completed, "frame=\(app.frame), close=\(close.exists)\n\(app.debugDescription)")
-        XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
-        XCTAssertFalse(app.buttons["tab_canvas"].exists)
+        XCTAssertEqual(rotationResult, .completed, "frame=\(app.frame)\n\(app.debugDescription)")
         let artwork = app.otherElements["dayObjects.canvas"]
         XCTAssertEqual(artwork.frame.width, app.frame.width, accuracy: 2)
         XCTAssertEqual(artwork.frame.height, app.frame.height, accuracy: 2)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "clean-landscape-canvas"; screenshot.lifetime = .keepAlways; add(screenshot)
-        XCUIDevice.shared.orientation = .landscapeRight
-        XCTAssertFalse(close.exists)
-        XCUIDevice.shared.orientation = .portrait
-        XCTAssertTrue(close.waitForExistence(timeout: 8))
+        screenshot.name = "portrait-playback-canvas"; screenshot.lifetime = .keepAlways; add(screenshot)
+
+        if reveal.waitForExistence(timeout: 4) { reveal.tap() }
+        XCTAssertTrue(close.waitForExistence(timeout: 3))
         close.tap()
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
-        XCUIDevice.shared.orientation = .landscapeLeft
-        XCTAssertLessThan(app.frame.width, app.frame.height)
     }
 
     override func setUpWithError() throws {
@@ -282,21 +299,26 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["tab_canvas"].exists)
     }
 
-    func testFullScreenReportsWhetherDayMusicStarted() {
+    func testFullScreenExplainsMusicWithoutDuplicateSoundControl() {
         let app = launchCanvas()
         app.buttons["canvas_sound_button"].tap()
 
-        let sound = app.buttons["canvas_fullscreen_sound_button"]
-        XCTAssertTrue(sound.waitForExistence(timeout: 5))
-        let started = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == 'on'"),
-            object: sound
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [started], timeout: 20),
-            .completed,
-            "Full-screen Canvas must report a successful audio start: \(sound.value)"
-        )
+        let info = app.buttons["canvas_music_info_button"]
+        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["canvas_fullscreen_sound_button"].exists)
+
+        info.tap()
+        let note = app.otherElements["canvas_music_info_card"]
+        XCTAssertTrue(note.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["About the music"].exists)
+        XCTAssertTrue(app.staticTexts["Sleep shapes the harmony. Activity shapes the rhythm. Happenings add bright, unexpected moments."].exists)
+        let noteCapture = XCTAttachment(screenshot: app.screenshot())
+        noteCapture.name = "music-info-note"
+        noteCapture.lifetime = .keepAlways
+        add(noteCapture)
+
+        app.buttons["canvas_music_info_close_button"].tap()
+        XCTAssertTrue(note.waitForNonExistence(timeout: 3))
     }
 
     func testCloseReturnsToCanvasWithoutWaitingForAudioStartup() {
@@ -324,6 +346,22 @@ final class CanvasSimplificationUITests: XCTestCase {
         attachment.name = "Compact viewing dock"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    func testFullScreenControlsKeepTheTabBarBaseline() {
+        let app = launchCanvas()
+        let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5))
+        let tabBarCenterY = tabBar.frame.midY
+
+        app.buttons["canvas_sound_button"].tap()
+
+        let close = app.buttons["canvas_close_fullscreen_button"]
+        let remix = app.buttons["canvas_remix_button"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(remix.exists)
+        XCTAssertEqual(close.frame.midY, tabBarCenterY, accuracy: 2)
+        XCTAssertEqual(remix.frame.midY, tabBarCenterY, accuracy: 2)
     }
 
     func testAddReplacesTheTabBarWithTheHappeningDock() {

@@ -1,6 +1,25 @@
 import Combine
 import Foundation
 
+enum DayObjectMaterialResonance {
+    static let allRecipeIDs = Set(
+        [8, 9, 10, 11].compactMap(HappeningSoundRecipeID.init(rawValue:))
+    )
+
+    static func recipeID(
+        for world: DayObjectsSoundWorld,
+        actorID _: DayObjectActorID
+    ) -> HappeningSoundRecipeID? {
+        let rawValue: Int = switch world {
+        case .feltAndWood: 9
+        case .livingField: 10
+        case .metalAndCurrent: 8
+        case .electricDream: 11
+        }
+        return HappeningSoundRecipeID(rawValue: rawValue)
+    }
+}
+
 enum HappeningPadAuditionStatus: Equatable, Sendable {
     case ready
     case loading
@@ -106,6 +125,7 @@ final class DayObjectsMusicLabController: ObservableObject {
     private var diagnosticActionGeneration: UInt64 = 0
     private var diagnosticActionTask: Task<Void, Never>?
     private var configuredHappeningIDs: [String]
+    private var materialResonanceSequence = 0
     private var musicVariantHistory: [MusicVariant] = []
     @Published private var acceptedSoundButtonIntent: DayObjectsSoundButtonIntent?
 
@@ -166,6 +186,17 @@ final class DayObjectsMusicLabController: ObservableObject {
     var canUndoMusicRemix: Bool { !musicVariantHistory.isEmpty }
     var canToggleSound: Bool {
         !isExportingAuditions && acceptedSoundButtonIntent == nil && soundState != .starting
+    }
+
+    func playMaterialResonance(_ impact: DayObjectWallImpact) async {
+        guard soundState == .on,
+              let recipeID = DayObjectMaterialResonance.recipeID(
+                  for: currentPlan.soundWorld,
+                  actorID: impact.actorID
+              ) else { return }
+        let degreeOffset = materialResonanceSequence % 3
+        materialResonanceSequence = (materialResonanceSequence + 1) % 3
+        try? await playback.playMaterialResonance(recipeID, degreeOffset: degreeOffset)
     }
 
     var worldSummary: String {

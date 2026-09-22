@@ -10,6 +10,659 @@ import simd
 @testable import Nowhere
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    @MainActor
+    func testWallImpactDeliverySendsEverySimultaneousContactToTheSink() {
+        let impacts = (0..<4).map { index in
+            DayObjectWallImpact(
+                actorID: .init(eventID: "impact-\(index)", memberIndex: 0),
+                eventID: "impact-\(index)",
+                wall: .bottom,
+                speed: 0.5,
+                normalizedX: Float(index) / 3
+            )
+        }
+        var delivered: [DayObjectWallImpact] = []
+        let sink = DayObjectWallImpactSink { delivered.append($0) }
+
+        DayObjectWallImpactDelivery.send(impacts, to: sink)
+
+        XCTAssertEqual(delivered, impacts)
+    }
+
+    func testReturnHandshakeAcknowledgesStopBeforeFirstPhysicsFrame() {
+        var handshake = DayObjectLunarPhysicsReturnHandshake()
+
+        handshake.update(playbackIsActive: true)
+        handshake.update(playbackIsActive: false)
+
+        XCTAssertTrue(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: false,
+            returnDidComplete: false
+        ))
+        XCTAssertFalse(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: false,
+            returnDidComplete: false
+        ))
+    }
+
+    func testReturnHandshakeWaitsForDisplacedActorsAndRestartCancelsPendingReturn() {
+        var handshake = DayObjectLunarPhysicsReturnHandshake()
+        handshake.update(playbackIsActive: true)
+        handshake.update(playbackIsActive: false)
+
+        XCTAssertFalse(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: true,
+            returnDidComplete: false
+        ))
+
+        handshake.update(playbackIsActive: true)
+        XCTAssertFalse(handshake.consumeCompletionIfReady(
+            physicsIsDisplacingActors: false,
+            returnDidComplete: true
+        ))
+    }
+    func testLunarPhysicsFallsAndBouncesInsideCanvasWalls() {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "moon", memberIndex: 0),
+            position: SIMD2(0, 0),
+            halfSize: SIMD2(0.1, 0.1)
+        )
+
+        _ = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 0,
+            playbackIsActive: true
+        )
+        let falling = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 1,
+            playbackIsActive: true
+        )
+
+        XCTAssertLessThan(falling.positions[actor.id]?.y ?? 0, 0)
+
+        let firstBounce = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 4,
+            playbackIsActive: true
+        )
+        let bounced = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 5,
+            playbackIsActive: true
+        )
+        XCTAssertGreaterThanOrEqual(bounced.positions[actor.id]?.y ?? -2, -0.9)
+        XCTAssertTrue((firstBounce.impacts + bounced.impacts).contains {
+            $0.actorID == actor.id && $0.wall == .bottom
+        })
+    }
+
+    func testLunarPhysicsDoesNotResolveObjectToObjectCollisions() {
+        var physics = DayObjectLunarPhysicsEngine()
+        let first = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "first", memberIndex: 0),
+            position: SIMD2(-0.4, 0),
+            halfSize: SIMD2(0.1, 0.1)
+        )
+        let second = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "second", memberIndex: 0),
+            position: SIMD2(0.4, 0),
+            halfSize: SIMD2(0.1, 0.1)
+        )
+
+        _ = physics.update(
+            actors: [first, second], gravity: .zero, elapsed: 0,
+            playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(1.2, 0), to: first.id)
+        physics.applyImpulse(SIMD2(-1.2, 0), to: second.id)
+        let result = physics.update(
+            actors: [first, second], gravity: .zero, elapsed: 0.5,
+            playbackIsActive: true
+        )
+
+        XCTAssertGreaterThan(result.positions[first.id]?.x ?? -1, 0)
+        XCTAssertLessThan(result.positions[second.id]?.x ?? 1, 0)
+    }
+
+    func testLunarPhysicsStartsWithVisibleTravelAndFreeSpinWhenDeviceIsFlat() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "flat-device-drift", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.14, 0.1)
+        )
+
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0,
+            playbackIsActive: true
+        )
+        let result = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 1,
+            playbackIsActive: true
+        )
+
+        XCTAssertGreaterThan(try XCTUnwrap(result.positions[actor.id]).x, 0.12)
+        XCTAssertGreaterThan(abs(try XCTUnwrap(result.directions[actor.id]).y), 0.18)
+    }
+
+    func testVelocityAlignedActorTurnsSmoothlyTowardTravelDirectionAfterWallBounce() throws {
+        var configuration = DayObjectLunarPhysicsEngine.Configuration()
+        configuration.initialLinearSpeed = 0.3...0.3
+        var physics = DayObjectLunarPhysicsEngine(configuration: configuration)
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "directional-blur-heading", memberIndex: 0),
+            position: SIMD2(0.399, 0),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.1, 0.08),
+            orientation: .followsVelocity(bodyAngleOffset: 0)
+        )
+
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        let firstFrame = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 1.0 / 60.0, playbackIsActive: true
+        )
+
+        XCTAssertTrue(firstFrame.impacts.contains { $0.actorID == actor.id && $0.wall == .right })
+        XCTAssertLessThanOrEqual(try XCTUnwrap(firstFrame.positions[actor.id]).x, 0.4)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(firstFrame.directions[actor.id]).x,
+            0.9,
+            "A blurred figure must visibly turn after a bounce instead of flipping in one frame"
+        )
+
+        let settled = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 1, playbackIsActive: true
+        )
+        XCTAssertLessThan(try XCTUnwrap(settled.directions[actor.id]).x, -0.9)
+    }
+
+    func testNativeAtlasRenderRotationFollowsThePhysicsDirection() {
+        let bodyAngle: Float = 0.72
+        let direction = SIMD2<Float>(cos(bodyAngle), sin(bodyAngle))
+
+        XCTAssertEqual(
+            NativeAtlasMetalRenderer.renderRotation(for: direction),
+            -bodyAngle,
+            accuracy: 0.0001
+        )
+    }
+
+    func testNativeDirectionalBlurReportsItsFocusedEdgeAsTheVelocityHeading() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first {
+            $0.id == "legacy.soft-square"
+        })
+        let material = MetalShapeGenomeFrame.make(
+            preset: preset,
+            material: .directionalBlur,
+            seed: 42
+        ).material
+
+        XCTAssertEqual(
+            try XCTUnwrap(material.directionalBlurBodyAngleOffset),
+            0,
+            accuracy: 0.0001
+        )
+    }
+
+    func testUserStartedPlaybackKeepsPhysicalRotationEnabledWithReducedMotion() {
+        XCTAssertTrue(DayObjectLunarMotionPolicy.angularMotionIsEnabled(
+            playbackIsActive: true,
+            reduceMotion: true
+        ))
+        XCTAssertFalse(DayObjectLunarMotionPolicy.angularMotionIsEnabled(
+            playbackIsActive: false,
+            reduceMotion: true
+        ))
+    }
+
+    func testRadialCollisionShapeReachesTheWallWithoutARotatedBoxGap() throws {
+        var configuration = DayObjectLunarPhysicsEngine.Configuration()
+        configuration.initialLinearSpeed = 0...0
+        configuration.initialAngularSpeed = 0...0
+        var physics = DayObjectLunarPhysicsEngine(configuration: configuration)
+        let angle = Float.pi / 4
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "native-radial-wall", memberIndex: 0),
+            position: SIMD2(0.28, 0),
+            direction: SIMD2(cos(angle), sin(angle)),
+            halfSize: SIMD2(repeating: 0.2),
+            collisionGeometry: .radial
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.1, 0), to: actor.id)
+
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.1, playbackIsActive: true
+        )
+
+        XCTAssertTrue(result.impacts.isEmpty)
+        XCTAssertGreaterThan(try XCTUnwrap(result.positions[actor.id]).x, 0.28)
+    }
+
+    func testFragmentBlurReportsBodyAngleThatKeepsItsFocusedEdgeForward() throws {
+        let material = DayObjectEditorialMaterialV1(
+            family: .gradient,
+            mechanism: .smoothRadial,
+            colors: [SIMD3(0.66, 0.43, 0.72), SIMD3(0.98, 0.8, 0.48)],
+            fields: [],
+            baseOpacity: 0.98,
+            edgeSoftness: 0,
+            contourWidth: 0,
+            contourCount: 0,
+            counterformRadius: nil,
+            counterformSoftness: 0,
+            structuralParameters: SIMD4(4, 0.4, 0.75, 0.5)
+        )
+
+        let offset = try XCTUnwrap(
+            material.gpuAppearance.fragmentBlurBodyAngleOffset(
+                shape: 0,
+                silhouetteVariant: 0
+            )
+        )
+
+        XCTAssertEqual(offset, 0.4 - .pi, accuracy: 0.0001)
+    }
+
+    func testLunarPhysicsReturnsExactlyToCurrentCompositionAfterStop() {
+        var physics = DayObjectLunarPhysicsEngine()
+        let id = DayObjectActorID(eventID: "return", memberIndex: 0)
+        let start = DayObjectLunarPhysicsActor(
+            id: id, position: SIMD2(0, 0.3), halfSize: SIMD2(0.08, 0.08)
+        )
+        _ = physics.update(
+            actors: [start], gravity: SIMD2(0, -1), elapsed: 0,
+            playbackIsActive: true
+        )
+        _ = physics.update(
+            actors: [start], gravity: SIMD2(0, -1), elapsed: 1,
+            playbackIsActive: true
+        )
+
+        let updatedBase = DayObjectLunarPhysicsActor(
+            id: id, position: SIMD2(0.2, 0.4), halfSize: SIMD2(0.08, 0.08)
+        )
+        _ = physics.update(
+            actors: [updatedBase], gravity: .zero, elapsed: 1.1,
+            playbackIsActive: false
+        )
+        let returning = physics.update(
+            actors: [updatedBase], gravity: .zero, elapsed: 1.4,
+            playbackIsActive: false
+        )
+        let returned = physics.update(
+            actors: [updatedBase], gravity: .zero, elapsed: 2,
+            playbackIsActive: false
+        )
+
+        XCTAssertFalse(returning.returnDidComplete)
+        XCTAssertFalse(returning.positions.isEmpty)
+        XCTAssertTrue(returned.returnDidComplete)
+        XCTAssertEqual(returned.positions, [:])
+        XCTAssertFalse(physics.isDisplacingActors)
+    }
+
+    func testLunarPhysicsFiltersRestingContactsAndCapsFrameTime() {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "rest", memberIndex: 0),
+            position: SIMD2(0, -0.85),
+            halfSize: SIMD2(0.1, 0.1)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 0,
+            playbackIsActive: true
+        )
+        let first = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 1,
+            playbackIsActive: true
+        )
+        let immediate = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 1.01,
+            playbackIsActive: true
+        )
+
+        XCTAssertLessThanOrEqual(first.positions[actor.id]?.y ?? 2, 0.9)
+        XCTAssertTrue(immediate.impacts.isEmpty)
+    }
+
+    func testSmudgeFieldPushesOnlyActorsCrossedByTheGesture() {
+        let near = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "near", memberIndex: 0),
+            position: SIMD2(0.05, 0),
+            halfSize: SIMD2(0.08, 0.08)
+        )
+        let far = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "far", memberIndex: 0),
+            position: SIMD2(0.75, 0.75),
+            halfSize: SIMD2(0.08, 0.08)
+        )
+
+        let impulses = DayObjectLunarInteractionField.impulses(
+            from: SIMD2(-0.1, 0),
+            to: SIMD2(0.1, 0),
+            gestureImpulse: SIMD2(4, 0),
+            actors: [near, far]
+        )
+
+        XCTAssertNotNil(impulses[near.id])
+        XCTAssertNil(impulses[far.id])
+        XCTAssertLessThanOrEqual(simd_length(impulses[near.id] ?? .zero), 0.48)
+    }
+
+    func testSmudgeSegmentCannotSkipAnActorBetweenSamples() {
+        let crossed = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "crossed", memberIndex: 0),
+            position: .zero,
+            halfSize: SIMD2(repeating: 0.04)
+        )
+
+        let impulses = DayObjectLunarInteractionField.impulses(
+            from: SIMD2(-0.8, 0),
+            to: SIMD2(0.8, 0),
+            gestureImpulse: SIMD2(0.4, 0),
+            actors: [crossed]
+        )
+
+        XCTAssertNotNil(impulses[crossed.id])
+    }
+
+    func testSmudgeVectorUsesTheSamePortraitSpanAsItsTouchPoints() {
+        XCTAssertEqual(
+            DayObjectLunarInteractionField.canvasVector(
+                SIMD2(0.4, 0.4),
+                halfSpan: SIMD2(0.5, 1)
+            ),
+            SIMD2(0.2, 0.4)
+        )
+    }
+
+    func testSmudgeFrameImpulseRemainsBoundedAcrossManySamples() {
+        XCTAssertEqual(
+            simd_length(DayObjectLunarInteractionField.bounded(
+                SIMD2(3, 4),
+                maximumMagnitude: 0.42
+            )),
+            0.42,
+            accuracy: 0.0001
+        )
+    }
+
+    func testSmudgeBusUsesNormalizedGestureSpeedForImpulseStrength() throws {
+        let slow = DayObjectLunarInteractionBus()
+        slow.begin(normalizedX: 0.2, normalizedY: 0.5)
+        slow.move(normalizedX: 0.8, normalizedY: 0.5, speed: 0)
+
+        let fast = DayObjectLunarInteractionBus()
+        fast.begin(normalizedX: 0.2, normalizedY: 0.5)
+        fast.move(normalizedX: 0.8, normalizedY: 0.5, speed: 2.2)
+
+        let slowImpulse = try XCTUnwrap(slow.events(after: 0).first?.impulse)
+        let fastImpulse = try XCTUnwrap(fast.events(after: 0).first?.impulse)
+        XCTAssertGreaterThan(simd_length(fastImpulse), simd_length(slowImpulse) * 2)
+        XCTAssertEqual(simd_length(fastImpulse), 0.48, accuracy: 0.0001)
+    }
+
+    func testLunarPhysicsCanResetImmediatelyWhenCanvasLeavesTheScreen() {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "hidden", memberIndex: 0),
+            position: .zero,
+            halfSize: SIMD2(repeating: 0.1)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: SIMD2(0, -1), elapsed: 0,
+            playbackIsActive: true
+        )
+        physics.reset()
+
+        XCTAssertFalse(physics.isDisplacingActors)
+        XCTAssertEqual(
+            physics.update(
+                actors: [actor], gravity: .zero, elapsed: 1,
+                playbackIsActive: false
+            ).positions,
+            [:]
+        )
+    }
+
+    func testLunarPhysicsUsesPortraitCanvasSpanForWallBounds() {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "portrait", memberIndex: 0),
+            position: .zero,
+            halfSize: SIMD2(repeating: 0.1)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1.08),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(1, 0), to: actor.id)
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1.08),
+            elapsed: 1, playbackIsActive: true
+        )
+
+        XCTAssertLessThanOrEqual(result.positions[actor.id]?.x ?? 1, 0.4)
+        XCTAssertTrue(result.impacts.contains { $0.wall == .right })
+    }
+
+    func testOffCenterSmudgeImpulseRotatesActorWhileCenteredImpulseDoesNot() throws {
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "spin", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        var configuration = DayObjectLunarPhysicsEngine.Configuration()
+        configuration.initialAngularSpeed = 0...0
+        var centeredPhysics = DayObjectLunarPhysicsEngine(configuration: configuration)
+        var offCenterPhysics = DayObjectLunarPhysicsEngine(configuration: configuration)
+        _ = centeredPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+        _ = offCenterPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+
+        centeredPhysics.applyImpulse(SIMD2(0.36, 0), at: .zero, to: actor.id)
+        offCenterPhysics.applyImpulse(SIMD2(0.36, 0), at: SIMD2(0, 0.1), to: actor.id)
+        let centered = centeredPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.25, playbackIsActive: true
+        )
+        let offCenter = offCenterPhysics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.25, playbackIsActive: true
+        )
+
+        let centeredDirection = try XCTUnwrap(centered.directions[actor.id])
+        let offCenterDirection = try XCTUnwrap(offCenter.directions[actor.id])
+        XCTAssertEqual(centeredDirection.y, 0, accuracy: 0.0001)
+        XCTAssertLessThan(offCenterDirection.y, -0.04)
+    }
+
+    func testCenteredSmudgeStillGivesAnIrregularFigureVisibleRotation() throws {
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "centered-touch-spin", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        let influence = try XCTUnwrap(DayObjectLunarInteractionField.influences(
+            from: SIMD2(-0.3, 0),
+            to: SIMD2(0.3, 0),
+            gestureImpulse: SIMD2(0.36, 0),
+            actors: [actor]
+        )[actor.id])
+        var physics = DayObjectLunarPhysicsEngine()
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+
+        physics.applyImpulse(influence.impulse, at: influence.applicationPoint, to: actor.id)
+        let result = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.3, playbackIsActive: true
+        )
+
+        XCTAssertGreaterThan(abs(try XCTUnwrap(result.directions[actor.id]).y), 0.08)
+    }
+
+    func testSmudgeInfluenceKeepsTheOffCenterContactPoint() throws {
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "contact", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+
+        let influences = DayObjectLunarInteractionField.influences(
+            from: SIMD2(-0.3, 0.1),
+            to: SIMD2(0.3, 0.1),
+            gestureImpulse: SIMD2(0.3, 0),
+            actors: [actor]
+        )
+
+        let influence = try XCTUnwrap(influences[actor.id])
+        XCTAssertEqual(influence.applicationPoint.y, 0.1, accuracy: 0.0001)
+        XCTAssertEqual(influence.impulse, SIMD2(0.3, 0))
+    }
+
+    func testRotatedActorUsesItsRotatedExtentAtCanvasWall() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let angle = Float.pi / 4
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "rotated-bounds", memberIndex: 0),
+            position: SIMD2(0.22, 0),
+            direction: SIMD2(cos(angle), sin(angle)),
+            halfSize: SIMD2(0.3, 0.1)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.1, 0), to: actor.id)
+
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.01, playbackIsActive: true
+        )
+
+        let expectedRightLimit: Float = 0.5 - 0.4 / sqrt(Float(2))
+        let position = try XCTUnwrap(result.positions[actor.id])
+        XCTAssertLessThanOrEqual(position.x, expectedRightLimit + 0.0001)
+    }
+
+    func testLunarPhysicsReturnsRotationTowardCurrentCompositionAfterStop() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let id = DayObjectActorID(eventID: "rotation-return", memberIndex: 0)
+        let actor = DayObjectLunarPhysicsActor(
+            id: id, position: .zero, direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.36, 0), at: SIMD2(0, 0.1), to: id)
+        let spun = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.3, playbackIsActive: true
+        )
+        let spunDirection = try XCTUnwrap(spun.directions[id])
+
+        let updatedComposition = DayObjectLunarPhysicsActor(
+            id: id, position: .zero, direction: SIMD2(0, 1),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        _ = physics.update(
+            actors: [updatedComposition], gravity: .zero, elapsed: 0.31,
+            playbackIsActive: false
+        )
+        let returning = physics.update(
+            actors: [updatedComposition], gravity: .zero, elapsed: 0.67,
+            playbackIsActive: false
+        )
+        let returningDirection = try XCTUnwrap(returning.directions[id])
+
+        XCTAssertGreaterThan(returningDirection.y, spunDirection.y)
+        XCTAssertGreaterThan(returningDirection.y, 0)
+    }
+
+    func testGlancingWallImpactTransfersTangentialMotionIntoRotation() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "wall-spin", memberIndex: 0),
+            position: SIMD2(0.35, 0),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.1, 0.08)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0.5, 0.35), to: actor.id)
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.3, playbackIsActive: true
+        )
+        let afterImpact = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 1),
+            elapsed: 0.4, playbackIsActive: true
+        )
+
+        XCTAssertLessThan(try XCTUnwrap(afterImpact.directions[actor.id]).y, -0.005)
+    }
+
+    func testStraightWallImpactGivesAnIrregularFigureBoundedSpin() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "straight-wall-spin", memberIndex: 0),
+            position: SIMD2(0, -0.36),
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.14, 0.1)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 0.5),
+            elapsed: 0, playbackIsActive: true
+        )
+        physics.applyImpulse(SIMD2(0, -0.5), to: actor.id)
+
+        let result = physics.update(
+            actors: [actor], gravity: .zero, canvasHalfSpan: SIMD2(0.5, 0.5),
+            elapsed: 0.3, playbackIsActive: true
+        )
+        let direction = try XCTUnwrap(result.directions[actor.id])
+
+        XCTAssertGreaterThan(abs(direction.y), 0.02)
+        XCTAssertLessThan(abs(atan2(direction.y, direction.x)), 0.75)
+    }
+
+    func testReducedMotionKeepsAngularPoseStatic() throws {
+        var physics = DayObjectLunarPhysicsEngine()
+        let actor = DayObjectLunarPhysicsActor(
+            id: .init(eventID: "reduced-spin", memberIndex: 0),
+            position: .zero,
+            direction: SIMD2(1, 0),
+            halfSize: SIMD2(0.18, 0.12)
+        )
+        _ = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0,
+            playbackIsActive: true, angularMotionIsEnabled: false
+        )
+        physics.applyImpulse(SIMD2(0.36, 0), at: SIMD2(0, 0.1), to: actor.id)
+        let result = physics.update(
+            actors: [actor], gravity: .zero, elapsed: 0.4,
+            playbackIsActive: true, angularMotionIsEnabled: false
+        )
+
+        XCTAssertEqual(try XCTUnwrap(result.directions[actor.id]), SIMD2(1, 0))
+    }
+
     func testOutlineFollowsEntireSilhouetteBoundary() throws {
         let harness = try ActorRenderHarness(width: 200, height: 200)
         func appearance(_ family: DayObjectMaterialFamily) -> DayObjectGPUAppearance {
@@ -6070,5 +6723,152 @@ private struct PostLuminanceField {
             }
         }
         return PostLuminanceField(width: width, height: height, values: blurred)
+    }
+}
+
+extension DayObjectRenderFrameTests {
+    @MainActor
+    func testSilentCanvasAnimatesAdditionAndRemovalThenPauses() async throws {
+        var now: TimeInterval = 0
+        let clock = DayObjectsClock(now: { now })
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+        let initial = fixtureScene(ids: ["a"])
+        let expanded = fixtureScene(ids: ["a", "b"])
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: initial, environment: environment, clock: clock
+        ))
+        let view = MTKView(frame: .zero, device: renderer.device)
+        renderer.setAnimating(true, continuously: false)
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused, "Silent artwork must not render continuously")
+
+        renderer.update(scene: expanded, environment: environment)
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused, "A new actor must wake the display link")
+        let first = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertEqual(first.actors.first { $0.eventID == "b" }?.gpuActor.opacity, 0)
+        now = 2
+        let appeared = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertGreaterThan(try XCTUnwrap(appeared.actors.first { $0.eventID == "b" }).gpuActor.opacity, 0.1)
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused, "The display link must stop after the transition")
+
+        renderer.update(scene: initial, environment: environment)
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused, "Removal must also wake the display link")
+        let removing = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertTrue(removing.actors.contains { $0.eventID == "b" })
+        now = 4
+        let removed = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertFalse(removed.actors.contains { $0.eventID == "b" })
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused)
+    }
+
+    @MainActor
+    func testSilentCanvasTransitionPausesWhileSceneIsInactive() async throws {
+        var now: TimeInterval = 0
+        let clock = DayObjectsClock(now: { now })
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: fixtureScene(ids: ["a"]), environment: environment, clock: clock
+        ))
+        let view = MTKView(frame: .zero, device: renderer.device)
+        renderer.setAnimating(true, continuously: false)
+        renderer.update(scene: fixtureScene(ids: ["a", "b"]), environment: environment)
+        renderer.configureAnimation(view)
+        _ = try await renderTransitionFrame(renderer, clock: clock)
+        renderer.setAnimating(false, continuously: false)
+        renderer.configureAnimation(view)
+        now = 100
+        XCTAssertTrue(view.isPaused)
+        XCTAssertEqual(clock.elapsedTime, 0)
+        renderer.setAnimating(true, continuously: false)
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused)
+        now = 102
+        let appeared = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertGreaterThan(try XCTUnwrap(appeared.actors.first { $0.eventID == "b" }).gpuActor.opacity, 0.1)
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused)
+    }
+
+    @MainActor
+    func testStoppedPhysicsAcknowledgesReturnAfterSceneSuspension() async throws {
+        for stopInBackground in [true, false] {
+            var now: TimeInterval = 0
+            let clock = DayObjectsClock(now: { now })
+            let scene = fixtureScene(ids: ["a"])
+            let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+            let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+                scene: scene, environment: environment, clock: clock
+            ))
+            var state = CanvasLunarPhysicsPlaybackState()
+            state.handle(.soundStarted)
+            let completed = expectation(description: "Stopped physics acknowledged after suspension")
+            completed.assertForOverFulfill = true
+            var shouldExit = false
+            let sink = DayObjectLunarPhysicsReturnSink {
+                shouldExit = state.handle(.returnCompleted).shouldExitFullScreen
+                completed.fulfill()
+            }
+            func update(active: Bool, animatesReturn: Bool) {
+                renderer.update(scene: scene, environment: environment,
+                    lunarPhysicsIsActive: active, lunarPhysicsReturnIsAnimated: animatesReturn,
+                    lunarPhysicsReturnSink: sink)
+            }
+            update(active: true, animatesReturn: false)
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+            now = 0.2
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+            state.handle(.soundStopped(exitFullScreen: true))
+            if !stopInBackground {
+                update(active: false, animatesReturn: true)
+                _ = try await renderTransitionFrame(renderer, clock: clock)
+            }
+            // The background update immediately resets physics; it must retain
+            // the pending acknowledgement until a frame can be drawn again.
+            update(active: false, animatesReturn: false)
+            renderer.setAnimating(false)
+            update(active: false, animatesReturn: true)
+            renderer.setAnimating(true)
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+            await fulfillment(of: [completed], timeout: 1)
+            XCTAssertTrue(shouldExit)
+            XCTAssertEqual(state.phase, .inactive)
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+        }
+    }
+
+    @MainActor
+    func testStopBeforeRendererPreparationAcknowledgesReturnWhileInactive() async throws {
+        let scene = fixtureScene(ids: ["a"])
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+        let completed = expectation(description: "Stop before the first renderer")
+        let coordinator = DayObjectsMetalView.Coordinator(
+            scene: scene, environment: environment, digitalImpact: .none,
+            soundPulseBus: nil, lunarPhysicsIsActive: true
+        )
+        XCTAssertNil(coordinator.renderer)
+        let view = MTKView(frame: .zero)
+        coordinator.update(view, scene: scene, environment: environment,
+            digitalImpact: .none, soundPulseBus: nil, presentationMode: .canvas,
+            isAnimating: false, lunarPhysicsIsActive: false,
+            onLunarPhysicsReturnCompleted: { completed.fulfill() })
+        defer { DayObjectsMetalView.dismantleUIView(view, coordinator: coordinator) }
+        await fulfillment(of: [completed], timeout: 1)
+    }
+
+    @MainActor
+    private func renderTransitionFrame(
+        _ renderer: DayObjectsRenderer, clock: DayObjectsClock
+    ) async throws -> DayObjectRenderFrame {
+        let frame: DayObjectRenderFrame? = await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: CGSize(width: 96, height: 144), pointScale: 1,
+                                     elapsedTime: clock.elapsedTime) { _, frame in
+                continuation.resume(returning: frame)
+            }
+        }
+        return try XCTUnwrap(frame)
     }
 }

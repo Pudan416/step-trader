@@ -1,5 +1,70 @@
+import CoreMotion
 import MetalKit
 import SwiftUI
+
+/// Supplies the projection of real gravity into portrait canvas coordinates.
+/// The renderer reads the latest sample without waiting for SwiftUI updates.
+final class DayObjectMotionInputProvider: @unchecked Sendable {
+    private let manager = CMMotionManager()
+    private let queue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "nowhere.day-objects.motion"
+        queue.qualityOfService = .userInteractive
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }()
+    private let lock = NSLock()
+    private var storedGravity = SIMD2<Float>(0, -0.35)
+
+    var projectedGravity: SIMD2<Float> {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedGravity
+    }
+
+    func start() {
+        guard manager.isDeviceMotionAvailable, !manager.isDeviceMotionActive else { return }
+        manager.deviceMotionUpdateInterval = 1.0 / 60.0
+        manager.startDeviceMotionUpdates(to: queue) { [weak self] motion, _ in
+            guard let self, let gravity = motion?.gravity else { return }
+            let projected = SIMD2(Float(gravity.x), Float(gravity.y))
+            guard projected.x.isFinite, projected.y.isFinite else { return }
+            self.lock.lock()
+            self.storedGravity = projected
+            self.lock.unlock()
+        }
+    }
+
+    func stop() {
+        manager.stopDeviceMotionUpdates()
+    }
+}
+
+@MainActor
+final class DayObjectWallImpactSink {
+    var handler: @MainActor (DayObjectWallImpact) -> Void
+
+    init(handler: @escaping @MainActor (DayObjectWallImpact) -> Void) {
+        self.handler = handler
+    }
+
+    func send(_ impact: DayObjectWallImpact) {
+        handler(impact)
+    }
+}
+
+@MainActor
+final class DayObjectLunarPhysicsReturnSink {
+    var handler: @MainActor () -> Void
+
+    init(handler: @escaping @MainActor () -> Void) {
+        self.handler = handler
+    }
+
+    func send() {
+        handler()
+    }
+}
 
 struct DayObjectsMetalView: UIViewRepresentable {
     @Environment(\.isTodayCanvasSource) private var isTodayCanvasSource
@@ -7,8 +72,14 @@ struct DayObjectsMetalView: UIViewRepresentable {
     let environment: DayObjectEnvironment
     let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
+    var animatesContinuously = true
     let soundPulseBus: DayObjectsSoundPulseBus?
     var presentationMode: DayObjectsPresentationMode = .canvas
+    var lunarPhysicsIsActive = false
+    var lunarAngularMotionIsEnabled = true
+    var lunarInteractionBus: DayObjectLunarInteractionBus?
+    var onWallImpact: @MainActor (DayObjectWallImpact) -> Void = { _ in }
+    var onLunarPhysicsReturnCompleted: @MainActor () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -16,7 +87,12 @@ struct DayObjectsMetalView: UIViewRepresentable {
             environment: environment,
             digitalImpact: digitalImpact,
             soundPulseBus: soundPulseBus,
-            presentationMode: presentationMode
+            presentationMode: presentationMode,
+            lunarPhysicsIsActive: lunarPhysicsIsActive,
+            lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
+            lunarInteractionBus: lunarInteractionBus,
+            onWallImpact: onWallImpact,
+            onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
         )
     }
 
@@ -55,13 +131,20 @@ struct DayObjectsMetalView: UIViewRepresentable {
             digitalImpact: digitalImpact,
             soundPulseBus: soundPulseBus,
             presentationMode: presentationMode,
-            isAnimating: isAnimating
+            isAnimating: isAnimating,
+            animatesContinuously: animatesContinuously,
+            lunarPhysicsIsActive: lunarPhysicsIsActive,
+            lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
+            lunarInteractionBus: lunarInteractionBus,
+            onWallImpact: onWallImpact,
+            onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
         )
     }
 
     static func dismantleUIView(_ uiView: MTKView, coordinator: Coordinator) {
         TodayCanvasBackdropStore.shared.unregisterSource(uiView)
         coordinator.cancelPreparation()
+        coordinator.motionInput.stop()
         coordinator.renderer?.setAnimating(false)
         uiView.isPaused = true
         uiView.delegate = nil
@@ -79,19 +162,38 @@ struct DayObjectsMetalView: UIViewRepresentable {
         private var soundPulseBus: DayObjectsSoundPulseBus?
         private var presentationMode: DayObjectsPresentationMode
         private var isAnimating = false
+        private var animatesContinuously = true
+        let motionInput = DayObjectMotionInputProvider()
+        private var lunarPhysicsIsActive: Bool
+        private var lunarAngularMotionIsEnabled: Bool
+        private var lunarInteractionBus: DayObjectLunarInteractionBus?
+        let wallImpactSink: DayObjectWallImpactSink
+        let lunarPhysicsReturnSink: DayObjectLunarPhysicsReturnSink
 
         init(
             scene: DayObjectScene,
             environment: DayObjectEnvironment,
             digitalImpact: DayObjectDigitalImpact,
             soundPulseBus: DayObjectsSoundPulseBus?,
-            presentationMode: DayObjectsPresentationMode = .canvas
+            presentationMode: DayObjectsPresentationMode = .canvas,
+            lunarPhysicsIsActive: Bool = false,
+            lunarAngularMotionIsEnabled: Bool = true,
+            lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
+            onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
+            onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {}
         ) {
             self.scene = scene
             self.environment = environment
             self.digitalImpact = digitalImpact
             self.soundPulseBus = soundPulseBus
             self.presentationMode = presentationMode
+            self.lunarPhysicsIsActive = lunarPhysicsIsActive
+            self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
+            self.lunarInteractionBus = lunarInteractionBus
+            wallImpactSink = DayObjectWallImpactSink(handler: onWallImpact)
+            lunarPhysicsReturnSink = DayObjectLunarPhysicsReturnSink(
+                handler: onLunarPhysicsReturnCompleted
+            )
         }
 
         func prepareRenderer() async {
@@ -118,17 +220,35 @@ struct DayObjectsMetalView: UIViewRepresentable {
             digitalImpact: DayObjectDigitalImpact,
             soundPulseBus: DayObjectsSoundPulseBus?,
             presentationMode: DayObjectsPresentationMode,
-            isAnimating: Bool
+            isAnimating: Bool,
+            animatesContinuously: Bool = true,
+            lunarPhysicsIsActive: Bool = false,
+            lunarAngularMotionIsEnabled: Bool = true,
+            lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
+            onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
+            onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {}
         ) {
+            let playbackWasActive = self.lunarPhysicsIsActive
             self.scene = scene
             self.environment = environment
             self.digitalImpact = digitalImpact
             self.soundPulseBus = soundPulseBus
             self.presentationMode = presentationMode
             self.isAnimating = isAnimating
+            self.animatesContinuously = animatesContinuously
+            self.lunarPhysicsIsActive = lunarPhysicsIsActive
+            self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
+            self.lunarInteractionBus = lunarInteractionBus
+            wallImpactSink.handler = onWallImpact
+            lunarPhysicsReturnSink.handler = onLunarPhysicsReturnCompleted
             mtkView = view
             guard renderer != nil else {
                 view.isPaused = true
+                if playbackWasActive && !lunarPhysicsIsActive {
+                    Task { @MainActor [weak lunarPhysicsReturnSink] in
+                        lunarPhysicsReturnSink?.send()
+                    }
+                }
                 if preparation == nil {
                     preparation = Task { @MainActor [weak self] in
                         guard let self else { return }
@@ -153,8 +273,17 @@ struct DayObjectsMetalView: UIViewRepresentable {
                 TodayCanvasBackdropStore.shared.unregisterSource(view)
             }
             renderer.update(scene: scene, environment: environment, digitalImpact: digitalImpact,
-                            soundPulseBus: soundPulseBus, presentationMode: presentationMode)
-            renderer.setAnimating(isAnimating)
+                            soundPulseBus: soundPulseBus, presentationMode: presentationMode,
+                            lunarPhysicsIsActive: lunarPhysicsIsActive,
+                            lunarPhysicsReturnIsAnimated: isAnimating && !lunarPhysicsIsActive,
+                            lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
+                            motionInput: motionInput,
+                            lunarInteractionBus: lunarInteractionBus,
+                            wallImpactSink: wallImpactSink,
+                            lunarPhysicsReturnSink: lunarPhysicsReturnSink)
+            // Background audio can stay on while the canvas display link is paused.
+            if lunarPhysicsIsActive && isAnimating { motionInput.start() } else { motionInput.stop() }
+            renderer.setAnimating(isAnimating, continuously: animatesContinuously)
             renderer.configureAnimation(view)
         }
     }

@@ -5,9 +5,10 @@ import Foundation
 import SoundpipeAudioKit
 
 enum HappeningPlaybackPriority: Int, Comparable, Sendable {
-    case recurrence = 0
-    case birth = 1
-    case manualAudition = 2
+    case materialResonance = 0
+    case recurrence = 1
+    case birth = 2
+    case manualAudition = 3
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 }
@@ -220,7 +221,12 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
     typealias BufferLoader = (URL) throws -> DayObjectsHappeningDecodedBuffer
     typealias VoiceFactory = (Int) -> DayObjectsHappeningSampleVoiceBackend
 
-    static let voiceCount = 4
+    /// Four voices belong to the musical happening scheduler. Four more are
+    /// reserved for short wall-impact mallets so simultaneous contacts stay
+    /// audible without stealing the autonomous musical voices.
+    static let musicalVoiceCount = 4
+    static let materialVoiceCount = 4
+    static let voiceCount = musicalVoiceCount + materialVoiceCount
     static let maximumDecodedByteCount = 48 * 1_024 * 1_024
 
     let output: Mixer
@@ -552,13 +558,28 @@ final class DayObjectsHappeningSamplePool: DayObjectsHappeningSamplePoolProtocol
 
     private func selectSlot(for priority: HappeningPlaybackPriority) throws -> Int {
         refreshReleasedSlots()
-        if let released = slots.indices
+        if priority == .materialResonance {
+            let materialIndices = Self.musicalVoiceCount..<Self.voiceCount
+            if let available = materialIndices
+                .filter({ !slots[$0].state.isActive })
+                .min(by: { slots[$0].state.releaseOrdering < slots[$1].state.releaseOrdering }) {
+                return available
+            }
+            // Only a fifth overlapping impact can replace the oldest impact;
+            // material sounds never take a musical voice.
+            return materialIndices.min(by: {
+                slots[$0].state.activeOrdering < slots[$1].state.activeOrdering
+            }) ?? Self.musicalVoiceCount
+        }
+
+        let musicalIndices = 0..<Self.musicalVoiceCount
+        if let released = musicalIndices
             .filter({ !slots[$0].state.isActive })
             .min(by: { slots[$0].state.releaseOrdering < slots[$1].state.releaseOrdering }) {
             return released
         }
 
-        let eligible = slots.indices.filter {
+        let eligible = musicalIndices.filter {
             guard case let .active(_, existingPriority, _, _, _, _) = slots[$0].state else { return false }
             return existingPriority < priority
         }
