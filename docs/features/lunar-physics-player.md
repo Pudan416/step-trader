@@ -14,6 +14,10 @@ the audio controller reaches `on`; loading or failed playback must not move the 
 Stopping sound disables gravity and returns every figure to the current saved composition.
 The physical result is never persisted.
 
+Adding or removing a Happening still runs its short appearance/disappearance transition
+with sound off. The renderer pauses again as soon as those transitions finish, and scene
+inactivity pauses both continuous playback rendering and these short transitions.
+
 ## Motion model
 
 - `CMDeviceMotion.gravity` supplies real gravity projected into portrait canvas space.
@@ -114,6 +118,10 @@ restores the ordinary visible interface.
 - Return-to-composition runs for roughly 0.72 seconds. The Metal renderer signals actual
   completion; only then may the Canvas leave full screen and pause. No independent UI timer
   is allowed to truncate the return.
+- If the scene is inactive, physics resets immediately and keeps its completion pending
+  until a frame can deliver it. An interruption while locked, or suspension during the
+  return animation, must not leave the close button waiting indefinitely. Stopping before
+  the renderer is ready also acknowledges completion without waiting for a physics frame.
 - Adding/removing actors during playback synchronizes bodies by stable actor ID.
 - Palette rendering never runs lunar physics.
 - Frames without wall impacts do not schedule audio-delivery tasks. Physics sorts

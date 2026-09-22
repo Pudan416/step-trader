@@ -932,8 +932,8 @@ struct GalleryView: View {
                 DayCanvasArtworkView(
                     style: dayCanvas.resolvedVisualStyle,
                     editorial: displayedEditorialRenderInput,
-                    isAnimating: isCanvasSelected && !showHappeningPalette
-                        && lunarPhysicsPlayback.keepsCanvasAnimating,
+                    isAnimating: isCanvasSelected && !showHappeningPalette,
+                    animatesContinuously: lunarPhysicsPlayback.keepsCanvasAnimating,
                     soundPulseBus: canvasSoundPulseBus,
                     presentationMode: .canvas,
                     lunarPhysicsIsActive: musicController.soundState == .on,

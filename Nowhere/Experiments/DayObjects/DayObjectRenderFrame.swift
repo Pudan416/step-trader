@@ -95,13 +95,14 @@ struct DayObjectLunarPhysicsReturnHandshake {
     private var playbackWasActive = false
     private var returnIsPending = false
 
-    mutating func update(playbackIsActive: Bool, returnIsAnimated: Bool) {
+    mutating func update(playbackIsActive: Bool) {
         if playbackIsActive {
             returnIsPending = false
-        } else if playbackWasActive && returnIsAnimated {
+        } else if playbackWasActive {
+            // A suspended renderer resets the physics without drawing its return.
+            // Keep the acknowledgement until a frame can deliver it, including
+            // when the scene becomes inactive halfway through an animated return.
             returnIsPending = true
-        } else if !returnIsAnimated {
-            returnIsPending = false
         }
         playbackWasActive = playbackIsActive
     }

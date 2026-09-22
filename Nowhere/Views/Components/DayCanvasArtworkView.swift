@@ -39,6 +39,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
     let style: CanvasVisualStyle
     let editorial: EditorialCanvasRenderInput
     let isAnimating: Bool
+    let animatesContinuously: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
     let presentationMode: DayObjectsPresentationMode
     let lunarPhysicsIsActive: Bool
@@ -51,6 +52,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
         style: CanvasVisualStyle,
         editorial: EditorialCanvasRenderInput,
         isAnimating: Bool,
+        animatesContinuously: Bool = true,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
         presentationMode: DayObjectsPresentationMode = .canvas,
         lunarPhysicsIsActive: Bool = false,
@@ -62,6 +64,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
         self.style = style
         self.editorial = editorial
         self.isAnimating = isAnimating
+        self.animatesContinuously = animatesContinuously
         self.soundPulseBus = soundPulseBus
         self.presentationMode = presentationMode
         self.lunarPhysicsIsActive = lunarPhysicsIsActive
@@ -79,6 +82,7 @@ struct DayCanvasArtworkView<LegacyArtwork: View>: View {
                 sceneInput: editorial.sceneInput,
                 digitalImpact: editorial.digitalImpact,
                 isAnimating: isAnimating,
+                animatesContinuously: animatesContinuously,
                 soundPulseBus: soundPulseBus,
                 presentationMode: presentationMode,
                 lunarPhysicsIsActive: lunarPhysicsIsActive,

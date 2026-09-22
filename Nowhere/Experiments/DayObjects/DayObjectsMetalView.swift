@@ -72,6 +72,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     let environment: DayObjectEnvironment
     let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
+    var animatesContinuously = true
     let soundPulseBus: DayObjectsSoundPulseBus?
     var presentationMode: DayObjectsPresentationMode = .canvas
     var lunarPhysicsIsActive = false
@@ -131,6 +132,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             soundPulseBus: soundPulseBus,
             presentationMode: presentationMode,
             isAnimating: isAnimating,
+            animatesContinuously: animatesContinuously,
             lunarPhysicsIsActive: lunarPhysicsIsActive,
             lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
             lunarInteractionBus: lunarInteractionBus,
@@ -160,6 +162,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
         private var soundPulseBus: DayObjectsSoundPulseBus?
         private var presentationMode: DayObjectsPresentationMode
         private var isAnimating = false
+        private var animatesContinuously = true
         let motionInput = DayObjectMotionInputProvider()
         private var lunarPhysicsIsActive: Bool
         private var lunarAngularMotionIsEnabled: Bool
@@ -218,6 +221,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             soundPulseBus: DayObjectsSoundPulseBus?,
             presentationMode: DayObjectsPresentationMode,
             isAnimating: Bool,
+            animatesContinuously: Bool = true,
             lunarPhysicsIsActive: Bool = false,
             lunarAngularMotionIsEnabled: Bool = true,
             lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
@@ -231,6 +235,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             self.soundPulseBus = soundPulseBus
             self.presentationMode = presentationMode
             self.isAnimating = isAnimating
+            self.animatesContinuously = animatesContinuously
             self.lunarPhysicsIsActive = lunarPhysicsIsActive
             self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
             self.lunarInteractionBus = lunarInteractionBus
@@ -239,7 +244,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             mtkView = view
             guard renderer != nil else {
                 view.isPaused = true
-                if playbackWasActive && !lunarPhysicsIsActive && isAnimating {
+                if playbackWasActive && !lunarPhysicsIsActive {
                     Task { @MainActor [weak lunarPhysicsReturnSink] in
                         lunarPhysicsReturnSink?.send()
                     }
@@ -278,7 +283,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
                             lunarPhysicsReturnSink: lunarPhysicsReturnSink)
             // Background audio can stay on while the canvas display link is paused.
             if lunarPhysicsIsActive && isAnimating { motionInput.start() } else { motionInput.stop() }
-            renderer.setAnimating(isAnimating)
+            renderer.setAnimating(isAnimating, continuously: animatesContinuously)
             renderer.configureAnimation(view)
         }
     }

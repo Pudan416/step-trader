@@ -32,8 +32,8 @@ final class DayObjectRenderFrameTests: XCTestCase {
     func testReturnHandshakeAcknowledgesStopBeforeFirstPhysicsFrame() {
         var handshake = DayObjectLunarPhysicsReturnHandshake()
 
-        handshake.update(playbackIsActive: true, returnIsAnimated: true)
-        handshake.update(playbackIsActive: false, returnIsAnimated: true)
+        handshake.update(playbackIsActive: true)
+        handshake.update(playbackIsActive: false)
 
         XCTAssertTrue(handshake.consumeCompletionIfReady(
             physicsIsDisplacingActors: false,
@@ -47,15 +47,15 @@ final class DayObjectRenderFrameTests: XCTestCase {
 
     func testReturnHandshakeWaitsForDisplacedActorsAndRestartCancelsPendingReturn() {
         var handshake = DayObjectLunarPhysicsReturnHandshake()
-        handshake.update(playbackIsActive: true, returnIsAnimated: true)
-        handshake.update(playbackIsActive: false, returnIsAnimated: true)
+        handshake.update(playbackIsActive: true)
+        handshake.update(playbackIsActive: false)
 
         XCTAssertFalse(handshake.consumeCompletionIfReady(
             physicsIsDisplacingActors: true,
             returnDidComplete: false
         ))
 
-        handshake.update(playbackIsActive: true, returnIsAnimated: true)
+        handshake.update(playbackIsActive: true)
         XCTAssertFalse(handshake.consumeCompletionIfReady(
             physicsIsDisplacingActors: false,
             returnDidComplete: true
@@ -6723,5 +6723,152 @@ private struct PostLuminanceField {
             }
         }
         return PostLuminanceField(width: width, height: height, values: blurred)
+    }
+}
+
+extension DayObjectRenderFrameTests {
+    @MainActor
+    func testSilentCanvasAnimatesAdditionAndRemovalThenPauses() async throws {
+        var now: TimeInterval = 0
+        let clock = DayObjectsClock(now: { now })
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+        let initial = fixtureScene(ids: ["a"])
+        let expanded = fixtureScene(ids: ["a", "b"])
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: initial, environment: environment, clock: clock
+        ))
+        let view = MTKView(frame: .zero, device: renderer.device)
+        renderer.setAnimating(true, continuously: false)
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused, "Silent artwork must not render continuously")
+
+        renderer.update(scene: expanded, environment: environment)
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused, "A new actor must wake the display link")
+        let first = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertEqual(first.actors.first { $0.eventID == "b" }?.gpuActor.opacity, 0)
+        now = 2
+        let appeared = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertGreaterThan(try XCTUnwrap(appeared.actors.first { $0.eventID == "b" }).gpuActor.opacity, 0.1)
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused, "The display link must stop after the transition")
+
+        renderer.update(scene: initial, environment: environment)
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused, "Removal must also wake the display link")
+        let removing = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertTrue(removing.actors.contains { $0.eventID == "b" })
+        now = 4
+        let removed = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertFalse(removed.actors.contains { $0.eventID == "b" })
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused)
+    }
+
+    @MainActor
+    func testSilentCanvasTransitionPausesWhileSceneIsInactive() async throws {
+        var now: TimeInterval = 0
+        let clock = DayObjectsClock(now: { now })
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+            scene: fixtureScene(ids: ["a"]), environment: environment, clock: clock
+        ))
+        let view = MTKView(frame: .zero, device: renderer.device)
+        renderer.setAnimating(true, continuously: false)
+        renderer.update(scene: fixtureScene(ids: ["a", "b"]), environment: environment)
+        renderer.configureAnimation(view)
+        _ = try await renderTransitionFrame(renderer, clock: clock)
+        renderer.setAnimating(false, continuously: false)
+        renderer.configureAnimation(view)
+        now = 100
+        XCTAssertTrue(view.isPaused)
+        XCTAssertEqual(clock.elapsedTime, 0)
+        renderer.setAnimating(true, continuously: false)
+        renderer.configureAnimation(view)
+        XCTAssertFalse(view.isPaused)
+        now = 102
+        let appeared = try await renderTransitionFrame(renderer, clock: clock)
+        XCTAssertGreaterThan(try XCTUnwrap(appeared.actors.first { $0.eventID == "b" }).gpuActor.opacity, 0.1)
+        renderer.configureAnimation(view)
+        XCTAssertTrue(view.isPaused)
+    }
+
+    @MainActor
+    func testStoppedPhysicsAcknowledgesReturnAfterSceneSuspension() async throws {
+        for stopInBackground in [true, false] {
+            var now: TimeInterval = 0
+            let clock = DayObjectsClock(now: { now })
+            let scene = fixtureScene(ids: ["a"])
+            let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+            let renderer = try XCTUnwrap(DayObjectsRenderer.create(
+                scene: scene, environment: environment, clock: clock
+            ))
+            var state = CanvasLunarPhysicsPlaybackState()
+            state.handle(.soundStarted)
+            let completed = expectation(description: "Stopped physics acknowledged after suspension")
+            completed.assertForOverFulfill = true
+            var shouldExit = false
+            let sink = DayObjectLunarPhysicsReturnSink {
+                shouldExit = state.handle(.returnCompleted).shouldExitFullScreen
+                completed.fulfill()
+            }
+            func update(active: Bool, animatesReturn: Bool) {
+                renderer.update(scene: scene, environment: environment,
+                    lunarPhysicsIsActive: active, lunarPhysicsReturnIsAnimated: animatesReturn,
+                    lunarPhysicsReturnSink: sink)
+            }
+            update(active: true, animatesReturn: false)
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+            now = 0.2
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+            state.handle(.soundStopped(exitFullScreen: true))
+            if !stopInBackground {
+                update(active: false, animatesReturn: true)
+                _ = try await renderTransitionFrame(renderer, clock: clock)
+            }
+            // The background update immediately resets physics; it must retain
+            // the pending acknowledgement until a frame can be drawn again.
+            update(active: false, animatesReturn: false)
+            renderer.setAnimating(false)
+            update(active: false, animatesReturn: true)
+            renderer.setAnimating(true)
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+            await fulfillment(of: [completed], timeout: 1)
+            XCTAssertTrue(shouldExit)
+            XCTAssertEqual(state.phase, .inactive)
+            _ = try await renderTransitionFrame(renderer, clock: clock)
+        }
+    }
+
+    @MainActor
+    func testStopBeforeRendererPreparationAcknowledgesReturnWhileInactive() async throws {
+        let scene = fixtureScene(ids: ["a"])
+        let environment = DayObjectEnvironment(motionEnergy: 0.55, visualClarity: 1)
+        let completed = expectation(description: "Stop before the first renderer")
+        let coordinator = DayObjectsMetalView.Coordinator(
+            scene: scene, environment: environment, digitalImpact: .none,
+            soundPulseBus: nil, lunarPhysicsIsActive: true
+        )
+        XCTAssertNil(coordinator.renderer)
+        let view = MTKView(frame: .zero)
+        coordinator.update(view, scene: scene, environment: environment,
+            digitalImpact: .none, soundPulseBus: nil, presentationMode: .canvas,
+            isAnimating: false, lunarPhysicsIsActive: false,
+            onLunarPhysicsReturnCompleted: { completed.fulfill() })
+        defer { DayObjectsMetalView.dismantleUIView(view, coordinator: coordinator) }
+        await fulfillment(of: [completed], timeout: 1)
+    }
+
+    @MainActor
+    private func renderTransitionFrame(
+        _ renderer: DayObjectsRenderer, clock: DayObjectsClock
+    ) async throws -> DayObjectRenderFrame {
+        let frame: DayObjectRenderFrame? = await withCheckedContinuation { continuation in
+            renderer.renderOffscreen(size: CGSize(width: 96, height: 144), pointScale: 1,
+                                     elapsedTime: clock.elapsedTime) { _, frame in
+                continuation.resume(returning: frame)
+            }
+        }
+        return try XCTUnwrap(frame)
     }
 }

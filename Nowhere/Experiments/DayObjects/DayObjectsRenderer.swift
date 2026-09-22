@@ -802,6 +802,14 @@ struct DayObjectInsertionTimeline: Equatable {
         admittedActorsByID = Dictionary(uniqueKeysWithValues: scene.actors.map { ($0.id, $0) })
     }
 
+    func hasActiveTransitions(at elapsed: TimeInterval) -> Bool {
+        if !pendingActorIDs.isEmpty || !departingActorsByID.isEmpty { return true }
+        return actorTimestamps.contains { id, startedAt in
+            guard let actor = admittedActorsByID[id] else { return false }
+            return elapsed - startedAt < DayObjectRenderFrame.transitionDuration(for: actor)
+        }
+    }
+
     mutating func update(scene: DayObjectScene, elapsed rawElapsed: TimeInterval) {
         guard scene.rootSeed == rootSeed else {
             reset(to: scene)
@@ -1028,6 +1036,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var paletteTimeline = HappeningPaletteTransitionTimeline()
     private var backgroundRenderPolicy = DayObjectsBackgroundRenderPolicy()
     private var isAnimationAllowed = true
+    private var animatesContinuously = true
     private var attemptedTargetPlan: DayObjectsRenderTargetPlan?
     private var renderTargets: RenderTargets?
     private var performanceProbe: DayObjectsRendererPerformanceProbe?
@@ -1259,8 +1268,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
         self.presentationMode = presentationMode
         lunarPhysicsReturnHandshake.update(
-            playbackIsActive: lunarPhysicsIsActive,
-            returnIsAnimated: lunarPhysicsReturnIsAnimated
+            playbackIsActive: lunarPhysicsIsActive
         )
         if !lunarPhysicsIsActive && !lunarPhysicsReturnIsAnimated {
             lunarPhysics.reset()
@@ -1293,8 +1301,11 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
     }
 
-    func setAnimating(_ isAnimating: Bool) {
+    /// Visibility gates all frames. Silent Canvas still gets enough frames to
+    /// finish actor insertions/removals, then goes back to an idle display link.
+    func setAnimating(_ isAnimating: Bool, continuously: Bool = true) {
         isAnimationAllowed = isAnimating
+        animatesContinuously = continuously
         clock.setPaused(!isAnimating)
     }
 
@@ -1305,7 +1316,11 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     ) {
         let prefersSixtyFPS = presentationMode.prefersSixtyFPS
             || paletteTimeline.hasActiveTransitions(at: elapsedTime ?? clock.elapsedTime)
-        let runsContinuously = isAnimationAllowed && (presentationMode == .canvas || prefersSixtyFPS)
+        let canvasNeedsFrames = presentationMode == .canvas && (
+            animatesContinuously
+                || insertionTimeline.hasActiveTransitions(at: elapsedTime ?? clock.elapsedTime)
+        )
+        let runsContinuously = isAnimationAllowed && (canvasNeedsFrames || prefersSixtyFPS)
         DayObjectsMetalView.configureAnimationFrameRate(view, prefersSixtyFPS: prefersSixtyFPS)
         clock.setPaused(!runsContinuously)
         if view.enableSetNeedsDisplay != !runsContinuously {

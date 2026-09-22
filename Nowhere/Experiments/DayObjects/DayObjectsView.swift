@@ -16,6 +16,7 @@ struct DayObjectsView: View {
     let sceneInput: DayObjectSceneInput
     let digitalImpact: DayObjectDigitalImpact
     let isAnimating: Bool
+    let animatesContinuously: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
     let presentationMode: DayObjectsPresentationMode
     let lunarPhysicsIsActive: Bool
@@ -30,6 +31,7 @@ struct DayObjectsView: View {
         sceneInput: DayObjectSceneInput,
         digitalImpact: DayObjectDigitalImpact = .none,
         isAnimating: Bool = true,
+        animatesContinuously: Bool = true,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
         presentationMode: DayObjectsPresentationMode = .canvas,
         lunarPhysicsIsActive: Bool = false,
@@ -40,6 +42,7 @@ struct DayObjectsView: View {
         self.sceneInput = sceneInput
         self.digitalImpact = digitalImpact
         self.isAnimating = isAnimating
+        self.animatesContinuously = animatesContinuously
         self.soundPulseBus = soundPulseBus
         self.presentationMode = presentationMode
         self.lunarPhysicsIsActive = lunarPhysicsIsActive
@@ -67,6 +70,7 @@ struct DayObjectsView: View {
                 environment: environment,
                 digitalImpact: digitalImpact,
                 isAnimating: isAnimating && scenePhase == .active,
+                animatesContinuously: animatesContinuously,
                 soundPulseBus: soundPulseBus,
                 presentationMode: presentationMode,
                 lunarPhysicsIsActive: lunarPhysicsIsActive,
