@@ -1708,8 +1708,12 @@ final class HappeningScrollableFieldTests: XCTestCase {
         }
         let scroll = try XCTUnwrap(findScroll(host.view))
         XCTAssertTrue(artwork.isDescendant(of: scroll), "The renderer must be inside the same scrolling content as the labels")
-        XCTAssertEqual(scroll.contentOffset.x, (scroll.contentSize.width - scroll.bounds.width) / 2, accuracy: 1)
-        XCTAssertEqual(scroll.contentOffset.y, (scroll.contentSize.height - scroll.bounds.height) / 2, accuracy: 1)
+        // Center the unobscured viewport. The test host can acquire a top safe
+        // area after another window becomes key, so raw contentOffset is not
+        // the visible center when UIKit adjusts the scroll view's insets.
+        let visibleContent = scroll.bounds.inset(by: scroll.adjustedContentInset)
+        XCTAssertEqual(visibleContent.midX, scroll.contentSize.width / 2, accuracy: 1)
+        XCTAssertEqual(visibleContent.midY, scroll.contentSize.height / 2, accuracy: 1)
         let before = artwork.convert(artwork.bounds, to: window)
         let offset = scroll.contentOffset
         scroll.setContentOffset(CGPoint(x: offset.x + 80, y: offset.y + 60), animated: false)
