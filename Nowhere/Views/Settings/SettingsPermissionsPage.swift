@@ -17,6 +17,7 @@ struct SettingsPermissionsPage: View {
     @AppStorage(SharedKeys.notifyDayResetWarning, store: UserDefaults.nowhere()) private var dayResetWarning = true
 
     @State private var permissionFailure: SettingsPermissionFailurePresentation?
+    @State private var showHealthAccessGuide = false
 
     private var isHealthKitAvailable: Bool {
         HKHealthStore.isHealthDataAvailable()
@@ -66,15 +67,14 @@ struct SettingsPermissionsPage: View {
         if CanvasTour.shared.isActive {
             return SettingsPermissionPresentation.health(
                 isAvailable: isHealthKitAvailable,
-                hasReturnedData: model.stepsToday > 0 || model.dailySleepHours > 0
+                hasVisibleData: model.stepsToday > 0 || model.dailySleepHours > 0
             )
         }
         return SettingsPermissionPresentation.health(
             isAvailable: isHealthKitAvailable,
-            hasReturnedData: !usesPermissionActionsFixture
-                && (usesSuccessfulZeroHealthFixture
-                || model.hasStepsData
-                || model.hasSleepData)
+            hasVisibleData: !usesPermissionActionsFixture
+                && !usesSuccessfulZeroHealthFixture
+                && (model.stepsToday > 0 || model.dailySleepHours > 0)
         )
     }
 
@@ -128,7 +128,7 @@ struct SettingsPermissionsPage: View {
                             title: String(localized: "Health", comment: "Permission row – HealthKit"),
                             subtitle: String(localized: "Health data brings activity, sleep and workouts to your Canvas."),
                             presentation: healthPresentation,
-                            actionTitle: healthPresentation.status == .connected ? String(localized: "Manage access") : String(localized: "Check access"),
+                            actionTitle: healthPresentation.status == .connected ? String(localized: "Manage access") : String(localized: "Connect Health"),
                             onFix: handleHealthAction
                         )
 
@@ -136,6 +136,23 @@ struct SettingsPermissionsPage: View {
                             DetailDivider()
                             permissionFailureRow(failure)
                         }
+
+                        DetailDivider()
+
+                        DisclosureGroup(String(localized: "Manage Health access"), isExpanded: $showHealthAccessGuide) {
+                            Text(String(localized: "Open the Health app → Summary → your profile picture → Privacy → Apps → Nowhere. Allow Nowhere to read Steps and Sleep."))
+                                .font(.geist(.caption))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 8)
+                                .accessibilityIdentifier("settings.permissions.health.guide.steps")
+                            Text(String(localized: "If Nowhere is not listed, tap Connect Health here first to request access."))
+                                .font(.geist(.caption))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 4)
+                        }
+                        .foregroundStyle(theme.adaptivePrimaryText)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 13)
 
                         DetailDivider()
 
@@ -173,13 +190,6 @@ struct SettingsPermissionsPage: View {
                     }
                     .padding(.horizontal, 16)
 
-                    DisclosureGroup(String(localized: "Manage Health access")) {
-                        Text(String(localized: "Settings → Apps → Health → Data Access & Devices → Nowhere"))
-                            .font(.geist(.caption)).fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 8)
-                    }
-                    .foregroundStyle(theme.adaptivePrimaryText)
-                    .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 80)
             }
@@ -345,6 +355,8 @@ struct SettingsPermissionsPage: View {
             String(localized: "Open Settings", comment: "Permission recovery action")
         case .checkAccess:
             String(localized: "Check access", comment: "Permission check action")
+        case .showHealthGuide:
+            nil
         case nil:
             nil
         }
@@ -368,8 +380,9 @@ struct SettingsPermissionsPage: View {
 
     private func handleHealthAction() {
         if healthPresentation.status == .connected {
-            openAppSettings()
+            showHealthAccessGuide = true
         } else {
+            showHealthAccessGuide = true
             requestHealthAuthorization()
         }
     }
@@ -380,7 +393,6 @@ struct SettingsPermissionsPage: View {
             do {
                 try await model.healthStore.requestAuthorization()
                 await model.refreshStepsIfAuthorized()
-                await model.refreshSleepIfAuthorized()
             } catch {
                 AppLogger.healthKit.error(
                     "Permission page auth failed: \(error.localizedDescription)"
@@ -410,6 +422,8 @@ struct SettingsPermissionsPage: View {
             requestNotificationAuthorization()
         case .openSystemSettings, .checkAccess:
             openAppSettings()
+        case .showHealthGuide:
+            break
         case nil:
             break
         }
@@ -457,6 +471,14 @@ struct SettingsPermissionsPage: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
                     .accessibilityIdentifier("\(permissionFailureIdentifier(for: failure.permission)).tryAgain")
+                }
+                if failure.actions.contains(.showHealthGuide) {
+                    Button(String(localized: "How to enable Health")) {
+                        showHealthAccessGuide = true
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("\(permissionFailureIdentifier(for: failure.permission)).healthGuide")
                 }
                 if failure.actions.contains(.openSettings) {
                     Button(String(localized: "Open Settings", comment: "Permission recovery action")) {

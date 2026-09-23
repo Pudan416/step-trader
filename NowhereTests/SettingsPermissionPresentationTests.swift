@@ -3,24 +3,24 @@ import XCTest
 @testable import Nowhere
 
 final class SettingsPermissionPresentationTests: XCTestCase {
-    func testHealthWithoutReturnedDataIsNeutralNotMissing() {
+    func testHealthWithoutVisibleDataIsNeutralNotMissing() {
         let state = SettingsPermissionPresentation.health(
             isAvailable: true,
-            hasReturnedData: false
+            hasVisibleData: false
         )
         XCTAssertEqual(state.status, .checkAccess)
         XCTAssertFalse(state.contributesToWarning)
         XCTAssertEqual(state.action, .checkAccess)
     }
 
-    func testSuccessfulZeroValueHealthQueryCountsAsConnected() {
+    func testVisibleHealthDataCountsAsConnected() {
         let state = SettingsPermissionPresentation.health(
             isAvailable: true,
-            hasReturnedData: true
+            hasVisibleData: true
         )
         XCTAssertEqual(state.status, .connected)
         XCTAssertFalse(state.contributesToWarning)
-        XCTAssertEqual(state.action, .openSystemSettings)
+        XCTAssertEqual(state.action, .showHealthGuide)
     }
 
     func testDeniedNotificationsAreKnownActionableIssue() {
@@ -82,7 +82,7 @@ final class SettingsPermissionPresentationTests: XCTestCase {
         let failure = SettingsPermissionFailurePresentation.health
 
         XCTAssertEqual(failure.message, "We couldn't check Health access.")
-        XCTAssertEqual(failure.actions, [.tryAgain, .openSettings])
+        XCTAssertEqual(failure.actions, [.tryAgain, .showHealthGuide])
     }
 
     func testNotificationFailureUsesStableCopyAndRecoveryActions() {

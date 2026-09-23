@@ -520,10 +520,10 @@ final class SettingsRedesignUITests: XCTestCase {
         )
     }
 
-    func testZeroHealthDataDoesNotProduceUrgentWarning() {
+    func testZeroHealthDataDoesNotClaimConnectionOrProduceUrgentWarning() {
         let app = launchSettings(extraArguments: ["ui-testing-health-zero-success"])
         app.buttons["settings.destination.permissions"].tap()
-        XCTAssertTrue(app.staticTexts["Connected"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Check access"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["Health not granted"].exists)
     }
 
@@ -596,7 +596,11 @@ final class SettingsRedesignUITests: XCTestCase {
         let tryAgain = app.buttons["settings.permissions.health.error.tryAgain"]
         XCTAssertTrue(tryAgain.waitForExistence(timeout: 3))
         assertMinimumHitTarget(tryAgain)
-        assertMinimumHitTarget(app.buttons["settings.permissions.health.error.openSettings"])
+        let guideAction = app.buttons["settings.permissions.health.error.healthGuide"]
+        assertMinimumHitTarget(guideAction)
+        reveal(guideAction, in: app)
+        guideAction.tap()
+        XCTAssertTrue(app.staticTexts["settings.permissions.health.guide.steps"].waitForExistence(timeout: 3))
     }
 
     func testNotificationFailureRecoveryActionsMeetMinimumTargets() {

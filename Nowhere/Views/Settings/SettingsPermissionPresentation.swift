@@ -34,6 +34,7 @@ enum SettingsPermissionAction: Equatable {
     case checkAccess
     case requestPermission
     case openSystemSettings
+    case showHealthGuide
 }
 
 enum SettingsPermissionKind: Equatable {
@@ -45,6 +46,7 @@ enum SettingsPermissionKind: Equatable {
 enum SettingsPermissionFailureAction: Equatable {
     case tryAgain
     case openSettings
+    case showHealthGuide
 }
 
 struct SettingsPermissionFailurePresentation: Equatable {
@@ -58,7 +60,7 @@ struct SettingsPermissionFailurePresentation: Equatable {
             localized: "We couldn't check Health access.",
             comment: "Health permission failure message"
         ),
-        actions: [.tryAgain, .openSettings]
+        actions: [.tryAgain, .showHealthGuide]
     )
 
     static let notifications = Self(
@@ -85,12 +87,12 @@ struct SettingsPermissionPresentation: Equatable {
     let action: SettingsPermissionAction?
     let contributesToWarning: Bool
 
-    static func health(isAvailable: Bool, hasReturnedData: Bool) -> Self {
+    static func health(isAvailable: Bool, hasVisibleData: Bool) -> Self {
         guard isAvailable else {
             return .init(status: .unavailable, action: nil, contributesToWarning: false)
         }
-        return hasReturnedData
-            ? .init(status: .connected, action: .openSystemSettings, contributesToWarning: false)
+        return hasVisibleData
+            ? .init(status: .connected, action: .showHealthGuide, contributesToWarning: false)
             : .init(status: .checkAccess, action: .checkAccess, contributesToWarning: false)
     }
 
