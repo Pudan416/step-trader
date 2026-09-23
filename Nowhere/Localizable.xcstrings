@@ -698,6 +698,11 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to add to Canvas" } }      }
     },
+    "Tap once to add. Tap twice to remove." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap once to add. Tap twice to remove." } }      }
+    },
     "On Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -742,6 +747,11 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview adding to Canvas" } }      }
+    },
+    "Activate to add to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to add to Canvas" } }      }
     },
     "Activate to preview removing from Canvas" : {
       "extractionState" : "manual",

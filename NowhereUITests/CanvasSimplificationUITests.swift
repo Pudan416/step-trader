@@ -662,13 +662,12 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["happening_mode_all"].tap()
         XCTAssertFalse(app.buttons["canvas_tour.exit.confirm"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.otherElements["canvas_tour.card.happening"].exists)
+        XCTAssertTrue(app.staticTexts["Tap once to add. Tap twice to remove."].exists)
         app.buttons["happening_mode_frequent"].tap()
         XCTAssertFalse(app.buttons["canvas_tour.exit.confirm"].waitForExistence(timeout: 1))
         guard let choice = choices.allElementsBoundByIndex.first(where: { $0.isEnabled && $0.isHittable }) else {
             XCTFail("No available actual happening"); return
         }
-        choice.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.happening"].exists)
         choice.tap()
         let next = app.buttons["canvas_tour.momentNext"]
         XCTAssertTrue(next.waitForExistence(timeout: 8))

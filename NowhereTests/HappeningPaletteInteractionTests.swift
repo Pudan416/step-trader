@@ -2,16 +2,16 @@ import XCTest
 @testable import Nowhere
 
 final class HappeningPaletteInteractionTests: XCTestCase {
-    func testAvailableNeedsTwoActivationsToAdd() {
+    func testAvailableAddsOnFirstActivation() {
         var state = HappeningPaletteInteractionState()
-        XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .armed(.add("walk")))
-        XCTAssertEqual(state.visualState(for: "walk", addedIDs: []), .additionPreview)
         XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .perform(.add("walk")))
+        XCTAssertEqual(state.pendingMutation, .add("walk"))
+        state.resolve(.add("walk"), succeeded: true)
+        XCTAssertEqual(state.visualState(for: "walk", addedIDs: ["walk"]), .added)
     }
 
     func testRapidTapsCannotSubmitPendingAdditionTwice() {
         var state = HappeningPaletteInteractionState()
-        _ = state.tap(id: "walk", addedIDs: [])
         XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .perform(.add("walk")))
         XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .ignored)
         XCTAssertEqual(state.tap(id: "read", addedIDs: []), .ignored)
@@ -21,13 +21,13 @@ final class HappeningPaletteInteractionTests: XCTestCase {
         XCTAssertEqual(state.tap(id: "walk", addedIDs: ["walk"]), .armed(.remove("walk")))
     }
 
-    func testReopeningRestoresAddedIDsButCancelsUnconfirmedSelection() {
+    func testReopeningRestoresAddedIDsAndCancelsRemovalPreview() {
         var state = HappeningPaletteInteractionState()
-        _ = state.tap(id: "read", addedIDs: ["walk"])
+        _ = state.tap(id: "walk", addedIDs: ["walk"])
         state.cancel()
         XCTAssertEqual(state.visualState(for: "walk", addedIDs: ["walk"]), .added)
         XCTAssertEqual(state.visualState(for: "read", addedIDs: ["walk"]), .available)
-        XCTAssertEqual(state.tap(id: "read", addedIDs: ["walk"]), .armed(.add("read")))
+        XCTAssertEqual(state.tap(id: "read", addedIDs: ["walk"]), .perform(.add("read")))
         state.cancel()
         // The new custom day supplies an empty set from its own Canvas.
         XCTAssertEqual(state.visualState(for: "walk", addedIDs: []), .available)
@@ -41,20 +41,20 @@ final class HappeningPaletteInteractionTests: XCTestCase {
         XCTAssertEqual(state.tap(id: "walk", addedIDs: added), .perform(.remove("walk")))
     }
 
-    func testSwitchingSlotReplacesArmedIntentWithoutMutating() {
+    func testChoosingAnotherAddedSlotReplacesRemovalPreviewWithoutMutating() {
         var state = HappeningPaletteInteractionState()
-        _ = state.tap(id: "walk", addedIDs: [])
-        XCTAssertEqual(state.tap(id: "read", addedIDs: []), .armed(.add("read")))
-        XCTAssertEqual(state.visualState(for: "walk", addedIDs: []), .available)
-        XCTAssertEqual(state.visualState(for: "read", addedIDs: []), .additionPreview)
+        let added: Set<String> = ["walk", "read"]
+        _ = state.tap(id: "walk", addedIDs: added)
+        XCTAssertEqual(state.tap(id: "read", addedIDs: added), .armed(.remove("read")))
+        XCTAssertEqual(state.visualState(for: "walk", addedIDs: added), .added)
+        XCTAssertEqual(state.visualState(for: "read", addedIDs: added), .removalPreview)
     }
 
-    func testFailedAdditionStaysArmedAndSuccessfulMutationConfirms() {
+    func testFailedAdditionCanRetryWithOneTapAndSuccessfulMutationConfirms() {
         var state = HappeningPaletteInteractionState()
-        _ = state.tap(id: "walk", addedIDs: [])
         XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .perform(.add("walk")))
         state.resolve(.add("walk"), succeeded: false)
-        XCTAssertEqual(state.armedMutation, .add("walk"))
+        XCTAssertNil(state.armedMutation)
         XCTAssertNil(state.pendingMutation)
         XCTAssertEqual(state.tap(id: "walk", addedIDs: []), .perform(.add("walk")))
         state.resolve(.add("walk"), succeeded: true)
@@ -75,7 +75,7 @@ final class HappeningPaletteInteractionTests: XCTestCase {
         XCTAssertEqual(state.visualState(for: "walk", addedIDs: added), .added)
     }
 
-    func testAccessibilityValuesDescribeAllFourPaletteStates() {
+    func testAccessibilityValuesDescribePaletteStates() {
         XCTAssertEqual(HappeningPaletteAccessibility.value(for: .available), "Available")
         XCTAssertEqual(
             HappeningPaletteAccessibility.value(for: .additionPreview),
@@ -110,7 +110,7 @@ final class HappeningPaletteInteractionTests: XCTestCase {
 
     func testCancelClearsArmedPendingAndConfirmation() {
         var state = HappeningPaletteInteractionState()
-        _ = state.tap(id: "walk", addedIDs: [])
+        _ = state.tap(id: "walk", addedIDs: ["walk"])
         state.cancel()
         XCTAssertEqual(state, HappeningPaletteInteractionState())
     }

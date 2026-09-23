@@ -420,7 +420,6 @@ final class HappeningFieldLayoutTests: XCTestCase {
         let original = state.layout(in: size, safeInsets: safeInsets)
         var interaction = HappeningPaletteInteractionState()
         _ = interaction.tap(id: configured[0].id, addedIDs: [])
-        _ = interaction.tap(id: configured[0].id, addedIDs: [])
         interaction.resolve(.add(configured[0].id), succeeded: true)
         state.receiveParent(configured)
         XCTAssertEqual(state.presentedHappenings.map(\.id), configured.map(\.id))

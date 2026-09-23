@@ -110,10 +110,8 @@ final class NowhereUITestsLaunchTests: XCTestCase {
             XCTAssertTrue(walk.waitForExistence(timeout: 5))
             attachScreenshot(named: "neutral-picker-\(appearance)")
             walk.tap()
-            XCTAssertEqual(walk.value as? String, "Previewing addition to Canvas")
-            attachScreenshot(named: "revealed-picker-\(appearance)")
-            walk.tap()
             XCTAssertEqual(walk.value as? String, "On Canvas")
+            attachScreenshot(named: "added-picker-\(appearance)")
             app.buttons["Close"].tap()
             XCTAssertTrue(app.buttons["tab_me"].waitForExistence(timeout: 5))
             app.buttons["tab_me"].tap()
@@ -617,48 +615,27 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         openPalette(in: app)
         scrollPaletteToStart(in: app)
         let walk = app.buttons["happening_choice_happening_walk"]
-        let workout = app.buttons["happening_choice_happening_workout"]
         XCTAssertEqual(walk.value as? String, "Available")
         attachScreenshot(named: "menu-1-available")
         walk.tap()
-        XCTAssertEqual(walk.value as? String, "Previewing addition to Canvas")
-        workout.tap()
-        XCTAssertEqual(walk.value as? String, "Available")
-        XCTAssertEqual(workout.value as? String, "Previewing addition to Canvas")
-        walk.tap()
-        Thread.sleep(forTimeInterval: 0.5)
-        attachScreenshot(named: "menu-2-preview")
-        Thread.sleep(forTimeInterval: 3) // Retain a visible pulse cycle for simulator capture.
-        walk.tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
-        for id in ["workout", "slept_well"] {
-            let item = app.buttons["happening_choice_happening_\(id)"]
-            item.tap(); item.tap()
-            XCTAssertEqual(item.value as? String, "On Canvas")
-        }
         Thread.sleep(forTimeInterval: 0.5)
-        attachScreenshot(named: "menu-3-added-color")
+        attachScreenshot(named: "menu-2-added")
         app.buttons["Close"].tap()
         openPalette(in: app)
         scrollPaletteToStart(in: app)
         XCTAssertEqual(walk.value as? String, "On Canvas")
-        XCTAssertEqual(workout.value as? String, "On Canvas")
         walk.tap()
         XCTAssertEqual(walk.value as? String, "Previewing removal from Canvas")
         XCTAssertTrue(walk.staticTexts["Delete"].exists)
         Thread.sleep(forTimeInterval: 0.5)
-        attachScreenshot(named: "menu-4-removal-preview")
-        Thread.sleep(forTimeInterval: 3)
+        attachScreenshot(named: "menu-3-removal-preview")
         app.buttons["Close"].tap()
         openPalette(in: app)
         scrollPaletteToStart(in: app)
         XCTAssertEqual(walk.value as? String, "On Canvas")
-        // Leave no additions for a subsequent hosted unit-test launch to recover.
-        for id in ["walk", "workout", "slept_well"] {
-            let item = app.buttons["happening_choice_happening_\(id)"]
-            item.tap(); item.tap()
-            XCTAssertEqual(item.value as? String, "Available")
-        }
+        walk.tap(); walk.tap()
+        XCTAssertEqual(walk.value as? String, "Available")
         app.buttons["Close"].tap()
     }
 
@@ -668,10 +645,6 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         scrollPaletteToStart(in: app)
         let walk = app.buttons["happening_choice_happening_walk"]
         XCTAssertTrue(walk.waitForExistence(timeout: 5))
-        walk.tap()
-        XCTAssertTrue(walk.staticTexts["Add"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.staticTexts["Tap again to add to Canvas"].exists)
-        XCTAssertEqual(walk.value as? String, "Previewing addition to Canvas")
         walk.tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
         XCTAssertFalse(app.staticTexts["On Canvas"].exists)
@@ -720,17 +693,12 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         app.buttons["happening_choice_happening_walk"]
             .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .tap()
-        XCTAssertEqual(app.buttons["Walk"].value as? String, "Previewing addition to Canvas")
+        XCTAssertEqual(app.buttons["Walk"].value as? String, "On Canvas")
         for title in task7BuiltInTitles.dropFirst() {
             XCTAssertEqual(app.buttons[title].value as? String, "Available")
         }
         Thread.sleep(forTimeInterval: 0.6)
-        attachScreenshot(named: "editorial-palette-shape-preview")
-
-        app.buttons["happening_choice_happening_walk"]
-            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .tap()
-        XCTAssertEqual(app.buttons["Walk"].value as? String, "On Canvas")
+        attachScreenshot(named: "editorial-palette-added-shape")
         XCTAssertEqual(
             app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'")
@@ -774,7 +742,6 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         let app = launchTask7App(resetEditor: true)
         openPalette(in: app, all: false)
         let walk = app.buttons["happening_choice_happening_walk"]
-        walk.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         walk.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
         app.buttons["Choose happenings"].tap()
@@ -938,7 +905,6 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         openPalette(in: app, all: false)
         let walk = app.buttons["happening_choice_happening_walk"]
         walk.tap()
-        walk.tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
         app.buttons["happening_mode_all"].tap()
         XCTAssertEqual(walk.value as? String, "On Canvas")
@@ -1058,8 +1024,6 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertTrue(choice.isHittable)
         attachScreenshot(named: "happenings-field-diagonal")
         choice.tap()
-        XCTAssertEqual(choice.value as? String, "Previewing addition to Canvas")
-        choice.tap()
         XCTAssertEqual(choice.value as? String, "On Canvas")
         Thread.sleep(forTimeInterval: 0.6)
         attachScreenshot(named: "happenings-field-added")
@@ -1094,7 +1058,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         }
         XCTAssertTrue(last.isHittable)
         last.tap()
-        XCTAssertEqual(last.value as? String, "Previewing addition to Canvas")
+        XCTAssertEqual(last.value as? String, "On Canvas")
         Thread.sleep(forTimeInterval: 0.5)
         attachScreenshot(named: "happenings-field-large-type")
         XCTAssertTrue(app.buttons["Close"].isHittable)
