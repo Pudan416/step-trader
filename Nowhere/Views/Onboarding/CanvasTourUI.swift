@@ -116,17 +116,15 @@ private struct CanvasTourHost: ViewModifier {
                     }
                     let navigationTop = ["tabs.canvas", "tabs.feeds", "tabs.me"].compactMap { anchors[$0].map { proxy[$0].minY } }.min()
                     if tour.overlayVisible {
-                        if let usable, ![.happening, .saveDays, .poster].contains(tour.step), cardFrame.height > 0 {
-                            CanvasTourPointer(card: cardFrame, target: usable)
-                                .stroke(coachInk, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-                                .allowsHitTesting(false).accessibilityHidden(true)
-                        }
                         CanvasTourMissedTapObserver(excludedRects: allowedTapRects(anchors: anchors, proxy: proxy) + [cardFrame]) {
                             tour.requestExit(reason: "outside tap")
                         }
                         .allowsHitTesting(false)
                         CanvasTourCardLayout(step: tour.step, target: usable, navigationTop: navigationTop) {
-                            card
+                            card(target: [.happening, .saveDays, .poster].contains(tour.step) ? nil : usable.map {
+                                let host = proxy.frame(in: .global)
+                                return $0.offsetBy(dx: host.minX, dy: host.minY)
+                            })
                                 .id(tour.step)
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
                                     let host = proxy.frame(in: .global)
@@ -213,7 +211,7 @@ private struct CanvasTourHost: ViewModifier {
     private var coachInk: Color {
         palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.surfaceColor : palette.textColor
     }
-    private var card: some View {
+    private func card(target: CGRect?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             ViewThatFits(in: .vertical) {
                 cardContent.fixedSize(horizontal: false, vertical: true)
@@ -237,7 +235,7 @@ private struct CanvasTourHost: ViewModifier {
         .padding(.horizontal, 20)
         .padding(.vertical, [.healthValue, .healthResult].contains(tour.step) ? 12 : 20)
         .frame(maxWidth: .infinity)
-        .background(coachSurface, in: RoundedRectangle(cornerRadius: 24))
+        .background { CanvasTourCardSurface(target: target, color: coachSurface) }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_tour.card.\(tour.step.rawValue)")
         .accessibilityHidden(tour.exitRequest != nil)
@@ -383,23 +381,30 @@ private struct CanvasTourHost: ViewModifier {
         }
     }
 }
-private struct CanvasTourPointer: Shape {
-    var card: CGRect
-    var target: CGRect
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        guard !card.intersects(target) else { return path }
-        let below = target.minY >= card.maxY
-        let direction: CGFloat = below ? 1 : -1
-        let distance = below ? target.minY - card.maxY : card.minY - target.maxY
-        guard distance >= 10 else { return path }
-        let x = min(card.maxX - 24, max(card.minX + 24, target.midX))
-        let start = CGPoint(x: x, y: (below ? card.maxY : card.minY) + direction * 2)
-        let end = CGPoint(x: x, y: start.y + direction * min(12, distance - 6))
-        path.move(to: start); path.addLine(to: end)
-        path.move(to: CGPoint(x: end.x - 3, y: end.y - direction * 3)); path.addLine(to: end)
-        path.addLine(to: CGPoint(x: end.x + 3, y: end.y - direction * 3))
-        return path
+/// Uses the same filled tail as the product hint, anchored to the measured control.
+/// The tail extends into the existing gap, without changing card or target layout.
+private struct CanvasTourCardSurface: View {
+    let target: CGRect?
+    let color: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let frame = proxy.frame(in: .global)
+            if let target,
+               target.minY - frame.maxY >= CanvasHintBubbleShape.tailHeight ||
+               frame.minY - target.maxY >= CanvasHintBubbleShape.tailHeight {
+                let pointsUp = target.maxY <= frame.minY
+                CanvasHintBubbleShape(tailX: target.midX - frame.minX,
+                                      cornerRadius: 24, pointsUp: pointsUp)
+                    .fill(color)
+                    .frame(height: proxy.size.height + CanvasHintBubbleShape.tailHeight)
+                    .offset(y: pointsUp ? -CanvasHintBubbleShape.tailHeight : 0)
+            } else {
+                RoundedRectangle(cornerRadius: 24).fill(color)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
