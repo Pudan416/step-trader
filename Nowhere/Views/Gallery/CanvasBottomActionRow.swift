@@ -277,12 +277,18 @@ struct CanvasAnchoredHint: View {
 struct CanvasHintBubbleShape: Shape {
     static let tailHeight: CGFloat = 8
     let tailX: CGFloat
+    var cornerRadius: CGFloat = 16
+    var pointsUp = false
 
     func path(in rect: CGRect) -> Path {
         let body = CGRect(x: rect.minX, y: rect.minY, width: rect.width,
                           height: max(0, rect.height - Self.tailHeight))
-        let radius = min(16, body.height / 2, body.width / 2)
-        let tipX = rect.minX + tailX
+        let radius = min(cornerRadius, body.height / 2, body.width / 2)
+        let tipX = min(rect.maxX, max(rect.minX, rect.minX + tailX))
+        // Keep the base off the rounded corners while the tip follows the control.
+        let halfBase = min(CGFloat(8), max(0, body.width / 2 - radius))
+        let baseX = min(body.maxX - radius - halfBase,
+                        max(body.minX + radius + halfBase, tipX))
         var path = Path()
         path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
         path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
@@ -291,9 +297,9 @@ struct CanvasHintBubbleShape: Shape {
         path.addLine(to: CGPoint(x: body.maxX, y: body.maxY - radius))
         path.addArc(center: CGPoint(x: body.maxX - radius, y: body.maxY - radius), radius: radius,
                     startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
-        path.addLine(to: CGPoint(x: tipX + 8, y: body.maxY))
+        path.addLine(to: CGPoint(x: baseX + halfBase, y: body.maxY))
         path.addLine(to: CGPoint(x: tipX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: tipX - 8, y: body.maxY))
+        path.addLine(to: CGPoint(x: baseX - halfBase, y: body.maxY))
         path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
         path.addArc(center: CGPoint(x: body.minX + radius, y: body.maxY - radius), radius: radius,
                     startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
@@ -301,6 +307,10 @@ struct CanvasHintBubbleShape: Shape {
         path.addArc(center: CGPoint(x: body.minX + radius, y: body.minY + radius), radius: radius,
                     startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
         path.closeSubpath()
+        if pointsUp {
+            return path.applying(CGAffineTransform(a: 1, b: 0, c: 0, d: -1,
+                                                  tx: 0, ty: rect.minY + rect.maxY))
+        }
         return path
     }
 }
