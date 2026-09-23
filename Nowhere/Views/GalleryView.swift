@@ -1875,9 +1875,11 @@ struct GalleryView: View {
 
             if isCanvasEmpty {
                 Text(String(localized: "Today is uncolored", comment: "Canvas empty state hint"))
-                    .font(.geist(.subheadline).weight(.medium))
-                    .foregroundStyle(labelColor.opacity(0.65))
-                    .contrastingOnGlass()
+                    .font(.geist(.subheadline).weight(.semibold))
+                    .foregroundStyle(AppColors.Night.textPrimary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(AppColors.Night.background, in: Capsule())
             }
         }
         .multilineTextAlignment(.center)
