@@ -64,6 +64,8 @@ enum ShieldRebuildHelper {
         let selectionData: Data? = Data([1])
     }
     static var afterUnlock: (() -> Void)?
+    static var rebuildCalls = 0
+    static func rebuild(startPendingBudgets: Bool = true) { rebuildCalls += 1 }
     static let locks = FileManager.default.temporaryDirectory
         .appendingPathComponent("recovery-locks-" + UUID().uuidString)
     static func usageBudgetLock(named name: String) throws -> UsageBudgetFileLock {
@@ -83,8 +85,9 @@ enum ShieldRebuildHelper {
     static func cachedSelection(for id: String, data: Data) -> FamilyActivitySelection? {
         FamilyActivitySelection()
     }
+    static var selectionMatches = true
     static func usageSelectionMatches(defaults: UserDefaults, groupId: String,
-                                      session: UsageBudgetSession) -> Bool { true }
+                                      session: UsageBudgetSession) -> Bool { selectionMatches }
     static func usageEvents(selection: FamilyActivitySelection,
                             session: UsageBudgetSession) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
         Dictionary(uniqueKeysWithValues: (1...session.initialMinutes).map {
@@ -159,6 +162,29 @@ case "old_events_after_pause":
     _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
         event: rejectedGeneration.eventName(minute: 10), now: t.addingTimeInterval(3600))
     expect(current().remainingMinutes == 10, "A rejected generation must never consume paid minutes later")
+case "recovery_without_overlapping_monitor":
+    try earlyThreshold()
+    DeviceActivityCenter.onStart = {
+        expect(DeviceActivityCenter.registrations[originalName] == nil,
+               "A new usage monitor must not start while the rejected monitor is still registered")
+    }
+    try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(14))
+    expect(current().remainingMinutes == 10 && !current().monitoringFailed,
+           "Replacing the rejected monitor must reopen the paid balance")
+case "failed_replacement_pauses_old_balance":
+    ShieldRebuildHelper.selectionMatches = false
+    DeviceActivityCenter.failStart = true
+    do {
+        try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10,
+                                                    now: t.addingTimeInterval(14))
+        expect(false, "Replacement failure must propagate")
+    } catch {}
+    expect(DeviceActivityCenter.registrations[originalName] == nil,
+           "The rejected baseline must not remain registered after replacement fails")
+    expect(current().remainingMinutes == 10 && current().monitoringFailed,
+           "Paid minutes without a live monitor must be shielded and recoverable")
+    expect(ShieldRebuildHelper.rebuildCalls == 1,
+           "Failed replacement must reapply the shield after stopping the old monitor")
 case "callback_during_registration":
     center.stopMonitoring([originalName])
     DeviceActivityCenter.onStart = {
