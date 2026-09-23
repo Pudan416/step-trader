@@ -239,6 +239,7 @@ extension AppModel {
     }
 
     private func persistTodayAdditions() {
+        defer { (notificationService as? NotificationManager)?.scheduleDailyCanvasReminder() }
         do {
             UserDefaults.nowhere().set(
                 try JSONEncoder().encode(todayAdditions),

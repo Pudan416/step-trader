@@ -25,6 +25,12 @@ and `energy*` storage names are compatibility identifiers, not a second currency
 - **Settings** — permissions, appearance, goals, widgets/wallpaper, account and app information.
   Developer controls have separate build guards.
 
+When the Canvas is empty, one evening reflection question appears from 20:00 until
+midnight in local time. It offers three happenings and the full picker; adding a
+moment or dismissing the question hides it for that evening. Existing activity
+suggestions take priority. The optional 20:00 notification is off by default and
+is cancelled for the evening when the Canvas is filled or the question is dismissed.
+
 Onboarding introduces these surfaces in context. Its implementation lives in
 `Nowhere/Views/Onboarding/`; check the current coordinator and tour transitions
 when changing the sequence rather than using an old slide specification.

@@ -592,6 +592,8 @@
 		CB0915000000000000000042 /* CanvasTourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000041 /* CanvasTourTests.swift */; };
 		CB0915000000000000000052 /* CanvasOnboardingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000051 /* CanvasOnboardingState.swift */; };
 		CB0915000000000000000062 /* CanvasOnboardingStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0915000000000000000061 /* CanvasOnboardingStateTests.swift */; };
+		EF2026091600000000000002 /* EveningReflection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2026091600000000000001 /* EveningReflection.swift */; };
+		EF2026091600000000000004 /* EveningReflectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF2026091600000000000003 /* EveningReflectionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1235,6 +1237,8 @@
 		CB0915000000000000000041 /* CanvasTourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasTourTests.swift; path = NowhereTests/CanvasTourTests.swift; sourceTree = SOURCE_ROOT; };
 		CB0915000000000000000051 /* CanvasOnboardingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasOnboardingState.swift; path = Nowhere/Views/Onboarding/CanvasOnboardingState.swift; sourceTree = SOURCE_ROOT; };
 		CB0915000000000000000061 /* CanvasOnboardingStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CanvasOnboardingStateTests.swift; path = NowhereTests/CanvasOnboardingStateTests.swift; sourceTree = SOURCE_ROOT; };
+		EF2026091600000000000001 /* EveningReflection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EveningReflection.swift; path = Nowhere/Models/EveningReflection.swift; sourceTree = SOURCE_ROOT; };
+		EF2026091600000000000003 /* EveningReflectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EveningReflectionTests.swift; path = NowhereTests/EveningReflectionTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -1616,6 +1620,7 @@
 				77E648AABF4FC13465DF42C1 /* PastDaySnapshot.swift */,
 				7A214D7EB007648A8206D56D /* EnergyDefaults.swift */,
 				49124F0393F299111D41A1B0 /* ActivitySuggestion.swift */,
+				EF2026091600000000000001 /* EveningReflection.swift */,
 				DB2D4682957CC0830F537534 /* ShapeHelpers.swift */,
 				5F4C4CBBA3ED654713693D34 /* BodyShapeGenerator.swift */,
 				B0C26997CA114B0385BFFC26 /* BlobShapeRenderer.swift */,
@@ -2109,6 +2114,7 @@
 				C5A510010906202600000001 /* CanvasVisualStyleTests.swift */,
 				C5A510020906202600000001 /* EditorialCanvasInputFactoryTests.swift */,
 				AA000003AAAA000300000002 /* HealthKitTests.swift */,
+				EF2026091600000000000003 /* EveningReflectionTests.swift */,
 				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
 				20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */,
 				20DIAG042F5000010018004E /* DiagnosticsManagerTests.swift */,
@@ -2955,6 +2961,7 @@
 				3B9C4E54AE20A00DECDAFDAF /* PastDaySnapshot.swift in Sources */,
 				8D1D4911B9ACA814299FD1AD /* EnergyDefaults.swift in Sources */,
 				852646119C9CEFF14D480477 /* ActivitySuggestion.swift in Sources */,
+				EF2026091600000000000002 /* EveningReflection.swift in Sources */,
 				CE04470BB0E9E29B1C90454C /* ShapeHelpers.swift in Sources */,
 				CDE54053BCC1957C69F91053 /* BodyShapeGenerator.swift in Sources */,
 				AEF40DC05AB94589A68AB8CD /* BlobShapeRenderer.swift in Sources */,
@@ -3059,6 +3066,7 @@
 				C5A510010906202600000002 /* CanvasVisualStyleTests.swift in Sources */,
 				C5A510020906202600000002 /* EditorialCanvasInputFactoryTests.swift in Sources */,
 				AA000003AAAA000300000001 /* HealthKitTests.swift in Sources */,
+				EF2026091600000000000004 /* EveningReflectionTests.swift in Sources */,
 				20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */,
 				20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */,
 				20DIAG032F5000010018004E /* DiagnosticsManagerTests.swift in Sources */,

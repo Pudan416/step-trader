@@ -264,33 +264,7 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
     }
 
     func scheduleDailyCanvasReminder() {
-        let defaults = UserDefaults.nowhere()
-        let enabled = defaults.object(forKey: SharedKeys.notifyCanvasReminder) as? Bool ?? false
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["dailyCanvasReminder"])
-        guard enabled else { return }
-
-        let hour = defaults.object(forKey: SharedKeys.canvasReminderHour) as? Int ?? 21
-        let minute = defaults.object(forKey: SharedKeys.canvasReminderMinute) as? Int ?? 0
-
-        let content = UNMutableNotificationContent()
-        content.title = String(localized: "Nowhere", comment: "Notification – app name used as title")
-        content.body = String(localized: "Add the things that colored up your day to the canvas.", comment: "Notification – daily canvas reminder body")
-        content.sound = .default
-
-        var comps = DateComponents()
-        comps.hour = hour
-        comps.minute = minute
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-        let request = UNNotificationRequest(identifier: "dailyCanvasReminder", content: content, trigger: trigger)
-        Task {
-            do {
-                try await center.add(request)
-                AppLogger.notifications.debug("📤 Scheduled daily canvas reminder at \(hour):\(String(format: "%02d", minute))")
-            } catch {
-                AppLogger.notifications.error("❌ Failed to schedule canvas reminder: \(error.localizedDescription)")
-            }
-        }
+        Task { @MainActor in EveningReflectionReminderScheduler.refresh() }
     }
 
     func scheduleDayResetWarning(dayEndHour: Int, dayEndMinute: Int) {
@@ -342,5 +316,81 @@ final class NotificationManager: NotificationServiceProtocol, Sendable {
                 return "Notifications were denied by the user"
             }
         }
+    }
+}
+
+
+/// Serial reconciliation prevents an older async scheduling call from restoring
+/// a reminder after an edit or opt-out has cancelled it.
+@MainActor
+private enum EveningReflectionReminderScheduler {
+    private static var pendingRefresh: Task<Void, Never>?
+
+    static func refresh() {
+        let previous = pendingRefresh
+        previous?.cancel()
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["dailyCanvasReminder"])
+        center.removeDeliveredNotifications(withIdentifiers: ["dailyCanvasReminder"])
+
+        let defaults = UserDefaults.nowhere()
+        let now = Date.now
+        // Do not wait on async authorization checks to cancel today's alert.
+        if !defaults.bool(forKey: SharedKeys.notifyCanvasReminder)
+            || !canvasIsEmpty(at: now, defaults: defaults)
+            || defaults.string(forKey: SharedKeys.eveningReflectionDismissedDay) == EveningReflection.dayKey(for: now) {
+            let id = EveningReflection.notificationPrefix + EveningReflection.dayKey(for: now)
+            center.removePendingNotificationRequests(withIdentifiers: [id])
+            center.removeDeliveredNotifications(withIdentifiers: [id])
+        }
+
+        pendingRefresh = Task {
+            await previous?.value
+            guard !Task.isCancelled else { return }
+            let pending = await center.pendingNotificationRequests()
+            let settings = await center.notificationSettings()
+            guard !Task.isCancelled else { return }
+            let oldIDs = pending.map(\.identifier).filter { $0.hasPrefix(EveningReflection.notificationPrefix) }
+            center.removePendingNotificationRequests(withIdentifiers: oldIDs)
+
+            let allowed = settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional
+                || settings.authorizationStatus == .ephemeral
+            let dates = EveningReflection.reminderDates(
+                after: .now,
+                enabled: allowed && defaults.bool(forKey: SharedKeys.notifyCanvasReminder),
+                dismissedDay: defaults.string(forKey: SharedKeys.eveningReflectionDismissedDay) ?? "",
+                isCanvasEmpty: { canvasIsEmpty(at: $0, defaults: defaults) }
+            )
+            for date in dates {
+                guard !Task.isCancelled else { return }
+                let day = EveningReflection.dayKey(for: date)
+                let content = UNMutableNotificationContent()
+                content.title = String(localized: "Nowhere")
+                content.body = String(localized: "What would you like to keep from today?")
+                content.sound = .default
+                content.userInfo = ["eveningReflectionDay": day]
+                // Floating local date components keep the 20:00 wall clock.
+                let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+                let request = UNNotificationRequest(
+                    identifier: EveningReflection.notificationPrefix + day,
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
+                )
+                do { try await center.add(request) }
+                catch { AppLogger.notifications.error("Evening reflection reminder failed: \(error.localizedDescription)") }
+            }
+        }
+    }
+
+    private static func canvasIsEmpty(at date: Date, defaults: UserDefaults) -> Bool {
+        let boundary = AppModel.storedDayEnd()
+        let key = DayBoundary.dayKey(for: date, dayEndHour: boundary.hour, dayEndMinute: boundary.minute)
+        if let canvas = CanvasStorageService.shared.loadCanvas(for: key),
+           !canvas.elements.isEmpty || canvas.needsRemoteHydration { return false }
+        guard let data = defaults.data(forKey: SharedKeys.todayAdditions) else { return true }
+        // Corrupt/unknown local data must not be advertised as an empty day.
+        guard let additions = try? JSONDecoder().decode([OptionEntry].self, from: data) else { return false }
+        return !additions.contains { $0.dayKey == key }
     }
 }

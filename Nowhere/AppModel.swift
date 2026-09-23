@@ -280,6 +280,13 @@ final class AppModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
 
+        NotificationCenter.default.publisher(for: .todayCanvasStorageDidChange)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                (self?.notificationService as? NotificationManager)?.scheduleDailyCanvasReminder()
+            }
+            .store(in: &cancellables)
+
         authService.postLoginSyncModel = self
     }
 
@@ -421,6 +428,7 @@ final class AppModel: ObservableObject {
     
     func handleAppWillEnterForeground() {
         AppLogger.app.debug("📱 App will enter foreground")
+        (notificationService as? NotificationManager)?.scheduleDailyCanvasReminder()
         if let service = familyControlsService as? FamilyControlsService {
             service.refreshAuthorizationStatus()
         }
@@ -457,6 +465,7 @@ final class AppModel: ObservableObject {
     }
 
     func handleAppDidEnterBackground() {
+        (notificationService as? NotificationManager)?.scheduleDailyCanvasReminder()
         writeWidgetSnapshot()
         WidgetCenter.shared.reloadAllTimelines()
     }
@@ -490,6 +499,9 @@ final class AppModel: ObservableObject {
             await AuthenticationService.shared.waitForInitialization()
         }
     ) async {
+        #if DEBUG
+        seedActivitySuggestionsForUITesting()
+        #endif
         AppLogger.app.debug("🚀 Bootstrapping AppModel...")
         isBootstrapping = true
         

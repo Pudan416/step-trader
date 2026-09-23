@@ -289,16 +289,15 @@ final class HealthActivitySuggestionTests: XCTestCase {
         })
     }
 
-    func testMorningSuggestionUsesTheSleepHappeningTitle() throws {
-        let suggestion = ActivitySuggestion.fromMorningResting()
-        let happening = try XCTUnwrap(HappeningDefaults.builtIns.first { $0.id == suggestion.optionId })
-        XCTAssertEqual(suggestion.optionId, "happening_slept_well")
-        XCTAssertEqual(suggestion.title, happening.localizedTitle())
+    func testEmptyDayDoesNotInventASleepOrRestEvent() async {
+        let model = makeModel()
+        await model.refreshActivitySuggestions()
+        XCTAssertFalse(model.pendingActivitySuggestions.contains { $0.id == "morning_resting" })
     }
 
     func testRefreshDoesNotSuggestRestingWhenSleepIsAlreadyOnCanvas() async {
         let model = makeModel()
-        model.todayAdditions = [todayEntry(optionId: "happening_slept_well")]
+        model.todayAdditions = [todayEntry(optionId: "happening_did_nothing")]
 
         await model.refreshActivitySuggestions()
 
@@ -321,10 +320,10 @@ final class HealthActivitySuggestionTests: XCTestCase {
 
     func testAddingMatchingHappeningRemovesAnAlreadyVisibleSuggestion() {
         let model = makeModel()
-        model.pendingActivitySuggestions = [.fromMorningResting()]
+        model.pendingActivitySuggestions = [.fromMindfulMinutes(12)]
 
         let result = model.addHappening(
-            id: "happening_slept_well",
+            id: "happening_did_nothing",
             colorHex: "#AABBCC"
         )
 
@@ -334,14 +333,14 @@ final class HealthActivitySuggestionTests: XCTestCase {
 
     func testSyncedMatchingHappeningHidesAnAlreadyVisibleSuggestion() {
         let model = makeModel()
-        model.pendingActivitySuggestions = [.fromMorningResting()]
+        model.pendingActivitySuggestions = [.fromMindfulMinutes(12)]
 
-        model.todayAdditions = [todayEntry(optionId: "happening_slept_well")]
+        model.todayAdditions = [todayEntry(optionId: "happening_did_nothing")]
 
         XCTAssertTrue(model.pendingActivitySuggestions.isEmpty)
     }
 
-    func testConcreteHealthActivityPrecedesGenericMorningSuggestion() async throws {
+    func testConcreteHealthActivityLeadsSuggestions() async throws {
         let healthKit = ConfigurableHealthKitMock()
         healthKit.workoutsToReturn = [
             DetectedWorkout(

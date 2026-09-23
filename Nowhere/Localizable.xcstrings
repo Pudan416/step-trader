@@ -3925,6 +3925,83 @@
             "value" : "Tap an existing group, or tap + to name a new group and choose its apps."
           }
         }      }
+    },
+    "What would you like to keep from today?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What would you like to keep from today?"
+          }
+        }
+      }
+    },
+    "Was there a moment just for you?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was there a moment just for you?"
+          }
+        }
+      }
+    },
+    "What made today feel different?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What made today feel different?"
+          }
+        }
+      }
+    },
+    "Choose something else" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose something else"
+          }
+        }
+      }
+    },
+    "Evening reflection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evening reflection"
+          }
+        }
+      }
+    },
+    "Remind me about my day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remind me about my day"
+          }
+        }
+      }
+    },
+    "At 20:00, only if your canvas is empty. Adding a moment or dismissing the question cancels tonight's reminder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At 20:00, only if your canvas is empty. Adding a moment or dismissing the question cancels tonight's reminder."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

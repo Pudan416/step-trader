@@ -22,6 +22,9 @@ extension AppModel {
 
     /// Main refresh: gathers signals from all sources and builds the unified suggestion list.
     func refreshActivitySuggestions() async {
+        #if DEBUG
+        if activitySuggestionUITestFixtures != nil { return }
+        #endif
         let alreadyAdded = Set(todayAdditions.map(\.optionId))
         let dismissed = dismissedSuggestionIds
 
@@ -47,26 +50,10 @@ extension AppModel {
             suggestions.append(.fromLowScreenTime())
         }
 
-        // 4. Generic morning resting stays behind concrete detected events in
-        // the visual stack, so a fresh HealthKit activity leads.
-        if !dismissed.contains("morning_resting") {
-            suggestions.append(.fromMorningResting())
-        }
-
         let satisfiedSuggestionIds = suggestions
             .filter { $0.isSatisfied(by: alreadyAdded) }
             .map(\.id)
         suggestions.removeAll { $0.isSatisfied(by: alreadyAdded) }
-
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("ui-testing-suggestion-stack") {
-            suggestions = [
-                .fromMindfulMinutes(12),
-                .fromMorningResting(),
-                .fromLowScreenTime()
-            ]
-        }
-        #endif
 
         let previousIds = Set(_pendingActivitySuggestions.map(\.id))
         let currentIds = Set(suggestions.map(\.id))
@@ -85,6 +72,28 @@ extension AppModel {
         pendingActivitySuggestions = suggestions
         _pendingWorkoutSuggestions = workouts.filter { $0.durationMinutes >= 5 }
     }
+
+    #if DEBUG
+    /// UI fixtures must be available before account/HealthKit startup finishes.
+    /// Production launches never enter this path.
+    func seedActivitySuggestionsForUITesting() {
+        if let fixtures = activitySuggestionUITestFixtures {
+            pendingActivitySuggestions = fixtures
+        }
+    }
+
+    private var activitySuggestionUITestFixtures: [ActivitySuggestion]? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("ui-testing") else { return nil }
+        if arguments.contains("ui-testing-suggestion-stack") {
+            return [.fromMindfulMinutes(12), .fromLowScreenTime()]
+        }
+        if arguments.contains("ui-testing-suggestion-single") {
+            return [.fromLowScreenTime()]
+        }
+        return nil
+    }
+    #endif
 
     // Keep old name working for bootstrap/foreground calls
     func refreshWorkoutSuggestions() async {
