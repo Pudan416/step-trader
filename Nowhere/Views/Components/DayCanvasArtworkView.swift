@@ -1,0 +1,97 @@
+import SwiftUI
+
+enum CanvasExportRoute: Equatable {
+    case legacySwiftUI
+    case editorialMetal
+
+    init(canvas: DayCanvas) {
+        self = canvas.resolvedVisualStyle == .editorial
+            ? .editorialMetal
+            : .legacySwiftUI
+    }
+}
+
+struct DayCanvasArtworkLayerPolicy: Equatable {
+    enum AnimationSnapshotSource: Equatable {
+        case legacySwiftUI
+        case editorialMetal
+    }
+
+    let usesEditorial: Bool
+    let usesLegacyBackground: Bool
+    let usesRasterTexture: Bool
+    let usesInteractiveAnimationOverlay: Bool
+    let animationSnapshotSource: AnimationSnapshotSource
+
+    init(style: CanvasVisualStyle) {
+        usesEditorial = style == .editorial
+        usesLegacyBackground = style == .legacy
+        usesRasterTexture = style == .legacy
+        usesInteractiveAnimationOverlay = true
+        animationSnapshotSource = .legacySwiftUI
+    }
+}
+
+/// Constructs exactly one renderer branch. Keeping Legacy in a lazy closure is
+/// important: its animated background, overlay, and raster texture must not be
+/// allocated underneath the Editorial Metal canvas.
+struct DayCanvasArtworkView<LegacyArtwork: View>: View {
+    let style: CanvasVisualStyle
+    let editorial: EditorialCanvasRenderInput
+    let isAnimating: Bool
+    let animatesContinuously: Bool
+    let soundPulseBus: DayObjectsSoundPulseBus?
+    let presentationMode: DayObjectsPresentationMode
+    let lunarPhysicsIsActive: Bool
+    let lunarInteractionBus: DayObjectLunarInteractionBus?
+    let onWallImpact: @MainActor (DayObjectWallImpact) -> Void
+    let onLunarPhysicsReturnCompleted: @MainActor () -> Void
+    private let legacyArtwork: () -> LegacyArtwork
+
+    init(
+        style: CanvasVisualStyle,
+        editorial: EditorialCanvasRenderInput,
+        isAnimating: Bool,
+        animatesContinuously: Bool = true,
+        soundPulseBus: DayObjectsSoundPulseBus? = nil,
+        presentationMode: DayObjectsPresentationMode = .canvas,
+        lunarPhysicsIsActive: Bool = false,
+        lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
+        onWallImpact: @escaping @MainActor (DayObjectWallImpact) -> Void = { _ in },
+        onLunarPhysicsReturnCompleted: @escaping @MainActor () -> Void = {},
+        @ViewBuilder legacyArtwork: @escaping () -> LegacyArtwork
+    ) {
+        self.style = style
+        self.editorial = editorial
+        self.isAnimating = isAnimating
+        self.animatesContinuously = animatesContinuously
+        self.soundPulseBus = soundPulseBus
+        self.presentationMode = presentationMode
+        self.lunarPhysicsIsActive = lunarPhysicsIsActive
+        self.lunarInteractionBus = lunarInteractionBus
+        self.onWallImpact = onWallImpact
+        self.onLunarPhysicsReturnCompleted = onLunarPhysicsReturnCompleted
+        self.legacyArtwork = legacyArtwork
+    }
+
+    @ViewBuilder
+    var body: some View {
+        switch style {
+        case .editorial:
+            DayObjectsView(
+                sceneInput: editorial.sceneInput,
+                digitalImpact: editorial.digitalImpact,
+                isAnimating: isAnimating,
+                animatesContinuously: animatesContinuously,
+                soundPulseBus: soundPulseBus,
+                presentationMode: presentationMode,
+                lunarPhysicsIsActive: lunarPhysicsIsActive,
+                lunarInteractionBus: lunarInteractionBus,
+                onWallImpact: onWallImpact,
+                onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
+            )
+        case .legacy:
+            legacyArtwork()
+        }
+    }
+}

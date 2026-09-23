@@ -1,0 +1,4008 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Health activities are always close at hand. You can replace another happening." : {
+      "comment": "Health activities pinned in Frequent happenings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health activities are always close at hand. You can replace another happening."
+          }
+        }      }
+    },
+    "Health happenings stay in Frequent" : {
+      "comment": "Health activities pinned in Frequent happenings",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health happenings stay in Frequent"
+          }
+        }      }
+    },
+    "Frequent" : {
+      "comment": "Happening chooser: automatic frequent set",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frequent"
+          }
+        }      }
+    },
+    "These happenings appear first in the field." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These happenings appear first in the field."
+          }
+        }
+      }
+    },
+    "option.title.happening_cooked" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cooked"
+          }
+        }
+      }
+    },
+    "option.title.happening_shared_meal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared a meal"
+          }
+        }
+      }
+    },
+    "option.title.happening_hugged" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hugged someone"
+          }
+        }
+      }
+    },
+    "option.title.happening_met_someone" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Met someone new"
+          }
+        }
+      }
+    },
+    "option.title.happening_helped" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helped someone"
+          }
+        }
+      }
+    },
+    "option.title.happening_played" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Played"
+          }
+        }
+      }
+    },
+    "option.title.happening_danced" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danced"
+          }
+        }
+      }
+    },
+    "option.title.happening_sang" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sang"
+          }
+        }
+      }
+    },
+    "option.title.happening_drew" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drew"
+          }
+        }
+      }
+    },
+    "option.title.happening_wrote" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrote"
+          }
+        }
+      }
+    },
+    "option.title.happening_photos" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Took photos"
+          }
+        }
+      }
+    },
+    "option.title.happening_swam" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swam"
+          }
+        }
+      }
+    },
+    "option.title.happening_bike" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rode a bike"
+          }
+        }
+      }
+    },
+    "option.title.happening_stretched" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stretched"
+          }
+        }
+      }
+    },
+    "option.title.happening_explored" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explored"
+          }
+        }
+      }
+    },
+    "option.title.happening_film" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watched a film"
+          }
+        }
+      }
+    },
+    "option.title.happening_plants" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tended plants"
+          }
+        }
+      }
+    },
+    "option.title.happening_daydreamed" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daydreamed"
+          }
+        }
+      }
+    },
+    "option.title.happening_asked_for_help" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asked for help"
+          }
+        }
+      }
+    },
+    "option.title.happening_listened" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listened"
+          }
+        }
+      }
+    },
+    "option.title.happening_said_no" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Said no"
+          }
+        }
+      }
+    },
+    "activity_assumed_message" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I think there was some activity in your day anyway. Here are 5 colors, on the house."
+          }
+        }      }
+    },
+    "activity · steps a day" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "activity · steps a day"
+          }
+        }      }
+    },
+    "Activity today:" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity today:"
+          }
+        }      }
+    },
+    "Step count" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step count"
+          }
+        }      }
+    },
+    "Activity currently uses steps from Apple Health. You can use Nowhere without connecting it." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity currently uses steps from Apple Health. You can use Nowhere without connecting it."
+          }
+        }      }
+    },
+    "For now, activity uses Apple Health steps. No data? You still get 5 colors." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For now, activity uses Apple Health steps. No data? You still get 5 colors."
+          }
+        }      }
+    },
+    "you can connect apple health." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you can connect apple health."
+          }
+        }      }
+    },
+    "Activity fills up to %lld of the day's %lld colors. For now, progress uses Apple Health steps. Without activity data, you get 5 colors." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity fills up to %1$lld of the day's %2$lld colors. For now, progress uses Apple Health steps. Without activity data, you get 5 colors."
+          }
+        }      }
+    },
+    "Daily activity goal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily activity goal"
+          }
+        }      }
+    },
+    "Activity goal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity goal"
+          }
+        }      }
+    },
+    "Enter exact activity goal" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter exact activity goal"
+          }
+        }      }
+    },
+    "Health data brings activity, sleep and workouts to your Canvas." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health data brings activity, sleep and workouts to your Canvas."
+          }
+        }      }
+    },
+    "Band shifts": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Band shifts"
+          }
+        }      }
+    },
+    "Color separation": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color separation"
+          }
+        }      }
+    },
+    "Pixel fragments": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pixel fragments"
+          }
+        }      }
+    },
+    "Wave": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wave"
+          }
+        }      }
+    },
+    "Repeated contours": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repeated contours"
+          }
+        }      }
+    },
+    "Transparent blending": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transparent blending"
+          }
+        }      }
+    },
+    "Luminous seam": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luminous seam"
+          }
+        }      }
+    },
+    "Overlay": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overlay"
+          }
+        }      }
+    },
+    "Use colors spent": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use colors spent"
+          }
+        }      }
+    },
+    "Digital trace": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digital trace"
+          }
+        }      }
+    },
+    "Based on colors spent": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Based on colors spent"
+          }
+        }      }
+    },
+    "Strength: %lld / 100": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength: %lld / 100"
+          }
+        }      }
+    },
+    "Trace strength": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trace strength"
+          }
+        }      }
+    },
+    "Intersections": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersections"
+          }
+        }      }
+    },
+    "Intersection strength": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intersection strength"
+          }
+        }      }
+    },
+    "Lock effects": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock effects"
+          }
+        }      }
+    },
+    "Lock artwork": {
+      "comment": "Native Canvas editing control",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock artwork"
+          }
+        }      }
+    },
+    "Hold a widget → Edit Widget → choose up to three groups." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold a widget → Edit Widget → choose up to three groups."
+          }
+        }      }
+    },
+    "For one widget: hold it → Edit Widget → Background." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For one widget: hold it → Edit Widget → Background."
+          }
+        }      }
+    },
+    "Default background" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default background"
+          }
+        }      }
+    },
+    "Tap to replace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap to replace" } }      }
+    },
+    "Replace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replace" } }      }
+    },
+    "New happening" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New happening" } }      }
+    },
+    "Search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } }      }
+    },
+    "Clear search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear search" } }      }
+    },
+    "Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Name" } }      }
+    },
+    "Already on Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Already on Canvas" } }      }
+    },
+    "No matches" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No matches" } }      }
+    },
+    "Replaces %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Replaces %@" } }      }
+    },
+    "System" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } }      }
+    },
+    "Light" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } }      }
+    },
+    "Dark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } }      }
+    },
+    "Couldn’t add happening. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t add happening. Try again." } }      }
+    },
+    "Enter a happening before adding it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a happening before adding it." } }      }
+    },
+    "Remove a happening from Canvas before adding another." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove a happening from Canvas before adding another." } }      }
+    },
+    "Remove this happening from Canvas before replacing it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove this happening from Canvas before replacing it." } }      }
+    },
+    "Tap again to add to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to add to Canvas" } }      }
+    },
+    "On Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "On Canvas" } }      }
+    },
+    "Previewing addition to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing addition to Canvas" } }      }
+    },
+    "Previewing removal from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previewing removal from Canvas" } }      }
+    },
+    "Selected, on Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected, on Canvas" } }      }
+    },
+    "Tap again to remove from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to remove from Canvas" } }      }
+    },
+    "Couldn’t update Canvas. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn’t update Canvas. Try again." } }      }
+    },
+    "Activate again to add to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to add to Canvas" } }      }
+    },
+    "Activate again to remove from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate again to remove from Canvas" } }      }
+    },
+    "Activate to preview adding to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview adding to Canvas" } }      }
+    },
+    "Activate to preview removing from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview removing from Canvas" } }      }
+    },
+    "Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Available" } }      }
+    },
+    "This happening is temporarily unavailable. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This happening is temporarily unavailable. Try again." } }      }
+    },
+    "Removed from Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Removed from Canvas" } }      }
+    },
+    "—" : {
+      "comment" : "Settings account unavailable email"
+    },
+    "," : {
+
+    },
+    ":" : {
+
+    },
+    "«Nowhere» is an iOS app" : {
+
+    },
+    "«Nowhere» is an iOS app by Kosta Pudan" : {
+
+    },
+    "(cleared)" : {
+      "comment" : "Cleared ShieldAction logs placeholder"
+    },
+    "(no logs yet)" : {
+      "comment" : "Empty ShieldAction logs placeholder"
+    },
+    "/%lld" : {
+
+    },
+    "%@ · seed %@" : {
+      "comment" : "A label displaying the name of the current scene palette, followed by the seed value. The argument is the string “%.4f”.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · seed %2$@"
+          }
+        }
+      }
+    },
+    "%@ for %lld colors. that's the deal." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ for %2$lld colors. that's the deal."
+          }
+        }
+      }
+    },
+    "%@ h" : {
+      "comment" : "Settings Your day – sleep target summary"
+    },
+    "%@ hours" : {
+      "comment" : "Sleep goal picker accessibility value"
+    },
+    "%@ hours of sleep and %@ steps will make your canvas fully balanced." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ hours of sleep and %2$@ steps will make your canvas fully balanced."
+          }
+        }
+      }
+    },
+    "%@ off in %lld min." : {
+      "comment" : "Notification – countdown minutes body\nNotification – pre-expiry warning body",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ off in %2$lld min."
+          }
+        }
+      }
+    },
+    "%@ off in %lld sec." : {
+      "comment" : "Notification – countdown seconds body\nNotification – pre-expiry seconds body",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ off in %2$lld sec."
+          }
+        }
+      }
+    },
+    "%@ steps" : {
+      "comment" : "Daily steps goal picker accessibility value"
+    },
+    "%@ steps, %@ sleep, %@ new day" : {
+      "comment" : "Settings Your day card accessibility summary",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ steps, %2$@ sleep, %3$@ new day"
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, %lld colors earned" : {
+      "comment" : "Me calendar – tile a11y, with data",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$lld colors earned"
+          }
+        }
+      }
+    },
+    "%@, %@, no data" : {
+      "comment" : "Me calendar – tile a11y, empty",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, no data"
+          }
+        }
+      }
+    },
+    "%@, %lld colors" : {
+      "comment" : "Feeds surface – window option VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld colors"
+          }
+        }
+      }
+    },
+    "%@, %lld minutes left" : {
+      "comment" : "Active feed row",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld minutes left"
+          }
+        }
+      }
+    },
+    "%@, %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld of %3$lld"
+          }
+        }
+      }
+    },
+    "%@, 20 colors" : {
+
+    },
+    "%@, locked" : {
+      "comment" : "Feeds tile – VoiceOver, window closed\nLocked feed row"
+    },
+    "%@, unlocked, %lld minutes left" : {
+      "comment" : "Feeds tile – VoiceOver, window open",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, unlocked, %2$lld minutes left"
+          }
+        }
+      }
+    },
+    "%@h" : {
+
+    },
+    "%lld" : {
+
+    },
+    "%lld colors" : {
+      "comment" : "MeView – per-app color spend"
+    },
+    "%lld days" : {
+      "comment" : "MeView – number of days a happening occurred this week"
+    },
+    "%lld days tracked" : {
+      "comment" : "Full calendar – tracked count"
+    },
+    "%lld FPS" : {
+      "comment" : "A label that shows the current frame rate of the app.",
+      "isCommentAutoGenerated" : true
+    },
+    "%lld hours" : {
+
+    },
+    "%lld min" : {
+      "comment" : "Compact feed duration in minutes"
+    },
+    "%lld min left" : {
+      "comment" : "Active feed row status"
+    },
+    "%lld min remaining" : {
+
+    },
+    "%lld of 3 not granted" : {
+      "comment" : "Permissions – missing count"
+    },
+    "%lld of 5 tapped, %lld colors" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of 5 tapped, %2$lld colors"
+          }
+        }
+      }
+    },
+    "%lld remaining" : {
+      "comment" : "A label that shows the number of items remaining in a grid layout. The argument is the number of items that remain in the layout.",
+      "isCommentAutoGenerated" : true
+    },
+    "%lld remaining of %lld earned today, out of %lld" : {
+      "comment" : "Canvas status pill – VoiceOver value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld remaining of %2$lld earned today, out of %3$lld"
+          }
+        }
+      }
+    },
+    "%lld steps" : {
+      "comment" : "QuickStatus – balance value"
+    },
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "+20" : {
+
+    },
+    "⏱️ %@" : {
+      "comment" : "Notification – timer title with app name"
+    },
+    "📊" : {
+
+    },
+    "🛡️" : {
+
+    },
+    "1 day" : {
+      "comment" : "MeView – happening occurred once this week"
+    },
+    "1 hour" : {
+
+    },
+    "1 minute before access ends" : {
+      "comment" : "Notification preference for access ending soon"
+    },
+    "5,000" : {
+      "comment" : "Onboarding – steps slider minimum"
+    },
+    "6h" : {
+      "comment" : "Onboarding – sleep slider minimum"
+    },
+    "10 min" : {
+
+    },
+    "10h" : {
+      "comment" : "Onboarding – sleep slider maximum"
+    },
+    "15,000" : {
+      "comment" : "Onboarding – steps slider maximum"
+    },
+    "30 min" : {
+
+    },
+    "100" : {
+
+    },
+    "A heads-up before your canvas resets for a new day." : {
+
+    },
+    "About" : {
+      "comment" : "Settings destination title\nSettings section title"
+    },
+    "About Colors" : {
+      "comment" : "Note topic"
+    },
+    "About Feeds" : {
+      "comment" : "Note topic"
+    },
+    "About Happenings" : {
+      "comment" : "Note topic"
+    },
+    "About Me" : {
+      "comment" : "Note topic"
+    },
+    "About Shapes" : {
+      "comment" : "Note topic"
+    },
+    "About Sleep" : {
+      "comment" : "Note topic"
+    },
+    "About Activity" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About Activity"
+          }
+        }      }
+    },
+    "About the Canvas" : {
+      "comment" : "Note topic"
+    },
+    "About Wallpaper" : {
+      "comment" : "Note topic"
+    },
+    "About Widgets" : {
+      "comment" : "Note topic"
+    },
+    "Access window" : {
+      "comment" : "Notification section header"
+    },
+    "Account" : {
+      "comment" : "Settings account page title"
+    },
+    "ACCOUNT" : {
+      "comment" : "Settings account section header"
+    },
+    "Action needed" : {
+      "comment" : "Permission status\nPermissions warning label"
+    },
+    "Activity suggestions" : {
+      "comment" : "A label for the activity suggestions banner.",
+      "isCommentAutoGenerated" : true
+    },
+    "Add" : {
+      "comment" : "ColorPalette – add button\nOptionEntry – save/add button"
+    },
+    "Add a feed" : {
+      "comment" : "Feeds dock – add button VoiceOver label"
+    },
+    "Add a happening" : {
+      "comment" : "Palette dock button"
+    },
+    "Add a widget" : {
+      "comment" : "Feature tip title — home screen widget"
+    },
+    "Add an app to unlock it with your colors" : {
+      "comment" : "A description of the action to add a feed.",
+      "isCommentAutoGenerated" : true
+    },
+    "Add event" : {
+      "comment" : "A button that adds an event to a generative scene.",
+      "isCommentAutoGenerated" : true
+    },
+    "Add happening" : {
+      "comment" : "Canvas add button"
+    },
+    "Add happenings to today's canvas first." : {
+      "comment" : "A description of the content unavailable view.",
+      "isCommentAutoGenerated" : true
+    },
+    "Add the things that colored up your day to the canvas." : {
+      "comment" : "Notification – daily canvas reminder body"
+    },
+    "Add to palette" : {
+      "comment" : "A button to add a new item to a list.",
+      "isCommentAutoGenerated" : true
+    },
+    "Adjust spent colors by %lld" : {
+      "comment" : "A button that adjusts the number of spent colors by a given amount.",
+      "isCommentAutoGenerated" : true
+    },
+    "all" : {
+      "comment" : "ManualsPage – filter showing all notes"
+    },
+    "All" : {
+      "comment" : "All modern palette categories"
+    },
+    "All added for today" : {
+      "comment" : "Palette completion state"
+    },
+    "All budgets cleared!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "all notes" : {
+      "comment" : "ManualsPage – accessibility label for all filter"
+    },
+    "All templates in use" : {
+      "comment" : "TemplatePicker – empty state when all used"
+    },
+    "Allow" : {
+
+    },
+    "Allow access" : {
+      "comment" : "Screen Time permission action"
+    },
+    "Allow notifications" : {
+      "comment" : "Notification permission action"
+    },
+    "Allowed" : {
+      "comment" : "Notification permission status"
+    },
+    "Already added" : {
+
+    },
+    "also, allow notifications." : {
+
+    },
+    "An app is closed. Open Nowhere to unlock it." : {
+      "comment" : "Notification – app blocked body"
+    },
+    "and who are you?" : {
+
+    },
+    "and your day ends at %@." : {
+
+    },
+    "Angular" : {
+
+    },
+    "App blocking & limits" : {
+      "comment" : "Permission row – Family Controls detail"
+    },
+    "App Default" : {
+
+    },
+    "App settings" : {
+      "comment" : "Settings destination group title"
+    },
+    "Appearance" : {
+      "comment" : "Settings destination title\nSettings section title"
+    },
+    "Appearance mode" : {
+      "comment" : "Appearance mode picker label"
+    },
+    "Apply" : {
+      "comment" : "GradientPreview – apply gradient button"
+    },
+    "Archive · %lld" : {
+      "comment" : "Me archive – compact saved-poster count"
+    },
+    "Archive, %lld posters" : {
+      "comment" : "Me archive – compact action accessibility label"
+    },
+    "at midnight, it resets." : {
+
+    },
+    "Aurora" : {
+
+    },
+    "Auto-wallpaper" : {
+
+    },
+    "Automatic" : {
+      "comment" : "Appearance mode option"
+    },
+    "Automatic sync" : {
+      "comment" : "Settings account sync status label"
+    },
+    "Automatic sync on" : {
+      "comment" : "Settings signed-in account card subtitle"
+    },
+    "Back" : {
+      "comment" : "SettingsComponents – back button label",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } }      }
+    },
+    "Background" : {
+      "comment" : "Appearance manual group heading\nWidget section header"
+    },
+    "Blob" : {
+      "comment" : "Canvas shape type"
+    },
+    "btw, my name is kosta." : {
+
+    },
+    "but what truly colors your canvas is what you do for your body, mind, and heart." : {
+
+    },
+    "by Kosta Pudan" : {
+
+    },
+    "Calendar" : {
+      "comment" : "Full calendar – title"
+    },
+    "Cancel" : {
+      "comment" : "AppSelection – dismiss button\nProfileEditor – dismiss button\nTemplatePicker – dismiss button",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } }      }
+    },
+    "Cancel opening %@" : {
+      "comment" : "Handoff – cancel button accessibility"
+    },
+    "Canvas" : {
+      "comment" : "Tab bar title"
+    },
+    "CANVAS FILLS" : {
+      "comment" : "Appearance section header"
+    },
+    "Canvas ingredients" : {
+      "comment" : "Appearance manual disclosure label"
+    },
+    "Canvas style" : {
+      "comment" : "Canvas renderer picker label"
+    },
+    "Canvas reminder" : {
+      "comment" : "Notification section header"
+    },
+    "Canvas reset warning" : {
+
+    },
+    "CANVAS SHAPES" : {
+      "comment" : "Appearance section header"
+    },
+    "Canvas tab bar" : {
+
+    },
+    "Canvas Wallpaper" : {
+
+    },
+    "Charged: %lld colors." : {
+      "comment" : "Notification – charged colors only body"
+    },
+    "Check access" : {
+      "comment" : "Health permission action\nPermission check action\nPermission status"
+    },
+    "Choose App → select Nowhere → pick \"Is Closed\"" : {
+
+    },
+    "Choose app for %@" : {
+      "comment" : "TimeAccessPicker – title with app name"
+    },
+    "Choose happenings" : {
+      "comment" : "Palette dock button"
+    },
+    "Choose how long to unlock" : {
+      "comment" : "A description of the duration of the unlock.",
+      "isCommentAutoGenerated" : true
+    },
+    "Choose one or more styles for Day Objects. All styles are enabled by default." : {
+      "comment" : "A description of the available styles for Day Objects.",
+      "isCommentAutoGenerated" : true
+    },
+    "Choose only %@ from the list" : {
+      "comment" : "AppSelection – single app hint"
+    },
+    "Choose time" : {
+      "comment" : "A label for the duration picker.",
+      "isCommentAutoGenerated" : true
+    },
+    "Choose your own apps" : {
+      "comment" : "TemplatePicker – custom apps subtitle"
+    },
+    "Circle" : {
+      "comment" : "Canvas shape type"
+    },
+    "Circles, snowflakes, rays, organic blobs. Four families. You decide which ones the canvas may use — in Settings, under Appearance.\n\nEvery happening takes a shape from the ones you left on, a color from the day, and a place on the canvas. If the place feels wrong, you can move it.\n\nNo fixed meanings. Just forms that felt true." : {
+      "comment" : "Note body: about_shapes"
+    },
+    "Clear" : {
+
+    },
+    "Close" : {
+      "comment" : "DayCanvasViewer – close VoiceOver\nFull calendar – close\nMetricOverlay – close button\nPalette close button\nPayGate – close button VoiceOver label\nQuickStatus – dismiss button\nSettings sheet close button"
+    },
+    "Close preview" : {
+      "comment" : "Gradient preview close button"
+    },
+    "Close quick status" : {
+      "comment" : "QuickStatus – close VoiceOver label"
+    },
+    "Closes the quick status view" : {
+      "comment" : "QuickStatus – close VoiceOver hint"
+    },
+    "Collapse canvas data" : {
+      "comment" : "Canvas – data panel VoiceOver action"
+    },
+    "Collapsed" : {
+      "comment" : "Canvas metric disclosure – VoiceOver value\nCanvas – data panel VoiceOver value"
+    },
+    "Color Palette" : {
+
+    },
+    "Color sources" : {
+
+    },
+    "colors" : {
+      "comment" : "Category overlay – unit"
+    },
+    "Colors are not quite a currency. They are a limited material the day gives you. Up to 100: some from sleep and activity, the rest from happenings you add yourself.\n\nYou can spend them to open a feed, and the canvas carries that choice too. You can't buy colors. That would undo the whole idea." : {
+      "comment": "Note body: about_colors"
+    },
+    "colors are the currency you earn for living a real life." : {
+
+    },
+    "colors available" : {
+      "comment" : "PayGate balance label"
+    },
+    "Colors left: %lld min." : {
+      "comment" : "Notification – budget warning body"
+    },
+    "Colors restored!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "Colors restored. %lld min." : {
+      "comment" : "Notification – budget restored body"
+    },
+    "COLORS SPENT THIS WEEK" : {
+      "comment" : "MeView – connected apps section header"
+    },
+    "Connected" : {
+      "comment" : "Permission status"
+    },
+    "Contact" : {
+      "comment" : "About section header"
+    },
+    "Copied to clipboard!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "Copy All" : {
+
+    },
+    "Copy Shield Diagnostics" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Cosmic" : {
+      "comment" : "Canvas animation picker – cosmic shader option"
+    },
+    "Couldn't initialise your account. Please check your connection and try again." : {
+      "comment" : "Auth – anonymous signup failure surfaced on cold launch"
+    },
+    "Couldn't start the timer" : {
+      "comment" : "PayGate failure – alert title"
+    },
+    "Couldn't start the timer. Your colors were refunded — please try again in a moment." : {
+      "comment" : "Unlock failure – generic monitoring failure, after refund"
+    },
+    "Create" : {
+      "comment" : "CategoryDetail – create custom card button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create"
+          }
+        }      }
+    },
+    "Current theme" : {
+      "comment" : "Automatic Appearance summary heading"
+    },
+    "Custom Apps" : {
+      "comment" : "TemplatePicker – custom apps option title"
+    },
+    "Daily canvas reminder" : {
+
+    },
+    "Daily energy" : {
+      "comment" : "Canvas status pill – VoiceOver label"
+    },
+    "DANGER ZONE" : {
+      "comment" : "Settings account section header"
+    },
+    "Day Objects" : {
+      "comment" : "The title of the view.",
+      "isCommentAutoGenerated" : true
+    },
+    "Day Objects canvas" : {
+      "comment" : "A label describing the day objects canvas.",
+      "isCommentAutoGenerated" : true
+    },
+    "Day Objects grid" : {
+      "comment" : "A label for the day objects grid.",
+      "isCommentAutoGenerated" : true
+    },
+    "Day reset" : {
+      "comment" : "Notification section header"
+    },
+    "Day Resets At" : {
+
+    },
+    "Day resets in %lld min" : {
+      "comment" : "PayGate reset warning"
+    },
+    "Day resets in less than a minute" : {
+      "comment" : "PayGate reset warning"
+    },
+    "Decrease daily steps goal by %@ steps" : {
+      "comment" : "Daily steps goal picker decrement button"
+    },
+    "Decrease new day hour" : {
+      "comment" : "Custom day boundary hour decrement button"
+    },
+    "Decrease new day minute" : {
+      "comment" : "Custom day boundary minute decrement button"
+    },
+    "Decrease sleep goal" : {
+      "comment" : "Sleep goal picker decrement button"
+    },
+    "Delete" : {
+      "comment" : "Feeds surface – corner menu"
+    },
+    "Delete %@?" : {
+      "comment" : "Feed settings delete confirmation title"
+    },
+    "Delete account" : {
+      "comment" : "Settings account delete button"
+    },
+    "Delete Account" : {
+      "comment" : "ProfileEditor – delete confirmation title"
+    },
+    "Delete Feed" : {
+      "comment" : "Feed settings destructive confirmation action"
+    },
+    "Delete this feed?" : {
+
+    },
+    "Deselect a happening before choosing another." : {
+
+    },
+    "Developer" : {
+      "comment" : "Settings developer destination\nSettings developer page title"
+    },
+    "Digital" : {
+      "comment" : "Texture picker – digital grain"
+    },
+    "Dismiss" : {
+      "comment" : "LoginView – dismiss button VoiceOver label"
+    },
+    "Dismiss suggestion" : {
+      "comment" : "ActivitySuggestionBanner – dismiss VoiceOver label"
+    },
+    "do you want me to show you around?" : {
+
+    },
+    "done" : {
+
+    },
+    "Done" : {
+      "comment" : "AppSelection – done button\nCanvas editing – finish editing\nManualsPage – dismiss button\nTimeAccessPicker – dismiss button",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } }      }
+    },
+    "Done editing" : {
+      "comment" : "Canvas editing – Done VoiceOver label"
+    },
+    "Double tap to add to the palette." : {
+      "comment" : "A hint for a button that adds a selected happening to the palette.",
+      "isCommentAutoGenerated" : true
+    },
+    "Double tap to choose unlock time" : {
+      "comment" : "A hint for the accessibility of a feed row.",
+      "isCommentAutoGenerated" : true
+    },
+    "Double tap to open feed settings" : {
+      "comment" : "A hint for a feed row that is not active.",
+      "isCommentAutoGenerated" : true
+    },
+    "Double tap to open the app" : {
+      "comment" : "A hint for a feed row that can open an app.",
+      "isCommentAutoGenerated" : true
+    },
+    "Double tap to remove from the palette." : {
+
+    },
+    "Double tap to switch to the app" : {
+      "comment" : "Feeds surface – open button VoiceOver hint"
+    },
+    "Double tap to unlock" : {
+      "comment" : "Feeds surface – window option VoiceOver hint"
+    },
+    "Double-tap or pull down to expand" : {
+      "comment" : "Canvas – data panel VoiceOver hint"
+    },
+    "Double-tap or pull up to collapse" : {
+      "comment" : "Canvas – data panel VoiceOver hint"
+    },
+    "Double-tap to hide how this part is formed" : {
+      "comment" : "Canvas metric disclosure – VoiceOver hint"
+    },
+    "Double-tap to learn how this part is formed" : {
+      "comment" : "Canvas metric disclosure – VoiceOver hint"
+    },
+    "Drag elements to move" : {
+      "comment" : "Canvas editing – one-time coach text"
+    },
+    "Drag to smudge the canvas." : {
+      "comment" : "Canvas animation picker – smudge subtitle"
+    },
+    "Drifting field — tap and drag to morph it." : {
+      "comment" : "Canvas animation picker – cosmic subtitle"
+    },
+    "Dusk" : {
+
+    },
+    "e.g. Gym Day" : {
+      "comment" : "Placeholder for routine name"
+    },
+    "e.g. Social, Games…" : {
+      "comment" : "Placeholder for feed name"
+    },
+    "each day can bring you a maximum of" : {
+
+    },
+    "each day forms a canvas." : {
+
+    },
+    "each day the canvas resets." : {
+
+    },
+    "earn" : {
+
+    },
+    "Edit" : {
+      "comment" : "Full screen dock – enter editing"
+    },
+    "Edit Apps" : {
+
+    },
+    "Edit profile" : {
+      "comment" : "Settings account edit profile button"
+    },
+    "Edit Profile" : {
+      "comment" : "ProfileEditor – navigation title"
+    },
+    "Edit settings" : {
+
+    },
+    "Editorial" : {
+      "comment" : "Canvas renderer option"
+    },
+    "Email" : {
+      "comment" : "ProfileEditor – email label"
+    },
+    "Email is managed by Apple ID" : {
+      "comment" : "ProfileEditor – email hint"
+    },
+    "Entries left today: %@" : {
+
+    },
+    "Entry balance:" : {
+      "comment" : "QuickStatus – balance label"
+    },
+    "Error" : {
+      "comment" : "ProfileEditor – error alert title"
+    },
+    "Every day leaves a different trace. The canvas is not a score, and it isn't proof that you lived enough. It holds what Nowhere could notice: sleep, activity, and the happenings you chose to name. Some things will always be missing. At the end of your day, the live canvas makes room for another. The trace can stay." : {
+      "comment": "Note body: about_canvas"
+    },
+    "Exit full screen" : {
+      "comment" : "Full screen dock – collapse action"
+    },
+    "Expand canvas" : {
+      "comment" : "Canvas – full screen button VoiceOver label"
+    },
+    "Expand canvas data" : {
+      "comment" : "Canvas – data panel VoiceOver action"
+    },
+    "Expanded" : {
+      "comment" : "Canvas metric disclosure – VoiceOver value\nCanvas – data panel VoiceOver value"
+    },
+    "Export Canvas Wallpaper" : {
+
+    },
+    "Failed to render the canvas image." : {
+
+    },
+    "far %lld  ·  mid %lld  ·  near %lld" : {
+      "comment" : "The blur radius for far, mid, and near.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "far %1$lld  ·  mid %2$lld  ·  near %3$lld"
+          }
+        }
+      }
+    },
+    "Feature tip flags cleared!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "Feed" : {
+
+    },
+    "Feed options" : {
+      "comment" : "Feeds surface – corner menu VoiceOver label"
+    },
+    "Feedback" : {
+
+    },
+    "Feeds" : {
+      "comment" : "Tab bar title"
+    },
+    "Feeds are not evil. They're just expensive. When you choose to open one, you spend some of the colors the day gave you. The balance falls. The canvas changes.\n\nThe choice stays yours. Nowhere only makes the trade visible." : {
+      "comment" : "Note body: about_feeds"
+    },
+    "first you need to add any one app" : {
+
+    },
+    "Focus" : {
+      "comment" : "A label displayed in the UI.",
+      "isCommentAutoGenerated" : true
+    },
+    "for me it feels like being stuck in nowhere." : {
+
+    },
+    "Force Health Reset (New Day)" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Framed" : {
+      "comment" : "Poster style name"
+    },
+    "Full" : {
+      "comment" : "GradientPreview – preview mode showing all data"
+    },
+    "Full Bleed" : {
+      "comment" : "Poster style name"
+    },
+    "Gained" : {
+
+    },
+    "Get a nudge to fill your canvas with the things that colored up your day." : {
+
+    },
+    "Get Wallpaper Shortcut" : {
+
+    },
+    "Give this combination a name to reuse it later." : {
+
+    },
+    "Glass" : {
+      "comment" : "Texture picker – glass"
+    },
+    "Goals & schedule" : {
+      "comment" : "Settings Your day card action"
+    },
+    "Good afternoon" : {
+
+    },
+    "Good evening" : {
+
+    },
+    "Good morning" : {
+
+    },
+    "Good night" : {
+
+    },
+    "Gradient" : {
+      "comment" : "Canvas fill style"
+    },
+    "Gradient style" : {
+      "comment" : "Appearance current gradient style label\nAppearance gradient style heading"
+    },
+    "Gradient Style" : {
+
+    },
+    "Grid" : {
+
+    },
+    "Happenings" : {
+      "comment" : "Canvas data panel – happenings row\nDaily happenings metric\nPast-day breakdown row",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Happenings" } }      }
+    },
+    "Happenings fill up to %lld of the day's %lld colors — the largest share, because they are the part of the day you choose. Each happening counts once per day." : {
+      "comment" : "MetricOverlay – how happenings contribute",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Happenings fill up to %1$lld of the day's %2$lld colors — the largest share, because they are the part of the day you choose. Each happening counts once per day."
+          }
+        }
+      }
+    },
+    "Hatch" : {
+      "comment" : "Canvas fill style"
+    },
+    "Health" : {
+      "comment" : "Permission row – HealthKit"
+    },
+    "Health data refreshed!" : {
+      "comment" : "Developer diagnostic success"
+    },
+    "HERE" : {
+
+    },
+    "Hide canvas data" : {
+      "comment" : "Canvas – data panel VoiceOver label"
+    },
+    "Hide controls" : {
+      "comment" : "A button that hides the controls.",
+      "isCommentAutoGenerated" : true
+    },
+    "hours" : {
+      "comment" : "Onboarding – sleep unit label"
+    },
+    "hours slept" : {
+
+    },
+    "how many hours of sleep you need?" : {
+
+    },
+    "choose your daily activity goal." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "choose your daily activity goal."
+          }
+        }      }
+    },
+    "I am not my job title\nI am not a designer\nI am not a developer\nI am not a manager\nI am not good\nI am not happy\nI am not sad\nI am not what I post\nI am not who I was yesterday\nI am not who I'll be tomorrow\nI am not nowhere\nI am now here\n\nHey. Thank you for using Nowhere. If you're reading this, I hope you found something in it that matters.\nMy name is Kosta.\nI spent years working on creative projects for brands — winning awards, getting recognition. It made me feel successful, creative, whatever. But recently I realized I was living inside my work, hiding in it. I didn't really know myself anymore. Could I do something on my own? For myself? Was I capable of something else? The classic midlife corporate crisis. It felt like I was nowhere.\nSo I started building this — at first just for myself, to learn. Over time it became something personal. It's not perfect. Neither am I. I don't think it needs to be.\nI'm trying to accept myself and find meaning beyond work. And if you ever feel burned out, lost, or stuck in that same nowhere — you are here, now. That matters most.\nFeel free to text me. All the contacts are in the settings. Thank you." : {
+      "comment" : "Note body: about_me"
+    },
+    "i live mostly online. working. scrolling. staring at a screen." : {
+
+    },
+    "I made a shortcut that puts the canvas on the Lock Screen. Close Nowhere, and the wallpaper catches up with the day.\n\nYou still have to open Nowhere for it to change. That small inconvenience became part of the point: look at the day, then leave again." : {
+      "comment" : "Note body: about_wallpaper"
+    },
+    "I used to slice the day into three — body, mind, heart. Borrowed from Tibetan Buddhism, which I know almost nothing about. It felt right, and that was enough.\n\nIt wasn't. Nobody who just called their mother wants to decide whether that was mind or heart.\n\nNow there is one word. A happening is anything a day is made of, and each counts once a day." : {
+      "comment" : "Note body: about_happenings"
+    },
+    "i'll nudge you when colors are ready to spend." : {
+
+    },
+    "If a permission was denied, use its action button to open Settings where you can enable it." : {
+      "comment" : "Permissions – footer hint"
+    },
+    "Increase daily steps goal by %@ steps" : {
+      "comment" : "Daily steps goal picker increment button"
+    },
+    "Increase new day hour" : {
+      "comment" : "Custom day boundary hour increment button"
+    },
+    "Increase new day minute" : {
+      "comment" : "Custom day boundary minute increment button"
+    },
+    "Increase sleep goal" : {
+      "comment" : "Sleep goal picker increment button"
+    },
+    "Instagram is closed." : {
+
+    },
+    "Install the Nowhere wallpaper shortcut." : {
+      "comment" : "Wallpaper setup step"
+    },
+    "Intense" : {
+      "comment" : "Texture picker – intense grain"
+    },
+    "Isolated ticket settings fixture" : {
+      "comment" : "A view that appears in the background during UI tests.",
+      "isCommentAutoGenerated" : true
+    },
+    "keep it closed" : {
+      "comment" : "PayGate dismiss button"
+    },
+    "Keep today's energy canvas on your Home Screen. Long-press an empty area, tap +, search \"Nowhere\", and pick a widget size." : {
+      "comment" : "Feature tip body — widget setup steps"
+    },
+    "Large radial-gradient orbs in seeded choreography" : {
+      "comment" : "A description of the Day Objects lab.",
+      "isCommentAutoGenerated" : true
+    },
+    "LAST 7 CALENDAR DAYS" : {
+      "comment" : "MeView – recent calendar section header"
+    },
+    "Let's go" : {
+
+    },
+    "Legacy" : {
+      "comment" : "Canvas renderer option"
+    },
+    "Linear" : {
+
+    },
+    "Linear Reversed" : {
+
+    },
+    "Long-press the widget → Edit to choose which group to display." : {
+
+    },
+    "Manual" : {
+      "comment" : "Appearance mode option"
+    },
+    "Maybe later" : {
+      "comment" : "Feature tip dismiss button"
+    },
+    "Me" : {
+      "comment" : "Tab bar title"
+    },
+    "Medium" : {
+      "comment" : "Texture picker – medium grain"
+    },
+    "Mesh" : {
+
+    },
+    "Motion" : {
+      "comment" : "A label displayed above the slider for the motion energy.",
+      "isCommentAutoGenerated" : true
+    },
+    "Museum" : {
+      "comment" : "Poster style name"
+    },
+    "My Apps" : {
+
+    },
+    "My progress overview" : {
+      "comment" : "QuickStatus – subtitle"
+    },
+    "Name your feed" : {
+
+    },
+    "New day" : {
+      "comment" : "Settings Your day boundary metric label"
+    },
+    "New day hour" : {
+      "comment" : "Custom day boundary hour control"
+    },
+    "New day minute" : {
+      "comment" : "Custom day boundary minute control"
+    },
+    "New Feed" : {
+      "comment" : "TemplatePicker – navigation title"
+    },
+    "next" : {
+
+    },
+    "Next" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        }      }
+    },
+    "Next 15" : {
+      "comment" : "A button that shows the next 15 days.",
+      "isCommentAutoGenerated" : true
+    },
+    "Next day" : {
+      "comment" : "A button that moves to the next day.",
+      "isCommentAutoGenerated" : true
+    },
+    "Next month" : {
+      "comment" : "Full calendar – next month"
+    },
+    "Next suggestion: %@" : {
+      "comment" : "ActivitySuggestionBanner – queued suggestion VoiceOver label"
+    },
+    "Nickname" : {
+      "comment" : "ProfileEditor – nickname field"
+    },
+    "No canvas found for today. Open the app and add some activities first." : {
+
+    },
+    "No data" : {
+      "comment" : "GradientPreview – preview mode empty state"
+    },
+    "No data for this day." : {
+      "comment" : "DayCanvasViewer – empty state"
+    },
+    "No feeds yet" : {
+      "comment" : "A title for a view that shows when a user has no feeds.",
+      "isCommentAutoGenerated" : true
+    },
+    "No happenings yet" : {
+      "comment" : "Happenings overlay – empty hint"
+    },
+    "No overlay on the canvas." : {
+      "comment" : "Canvas animation picker – off subtitle"
+    },
+    "No saved poster" : {
+      "comment" : "Me poster – empty calendar day"
+    },
+    "no, thanks" : {
+
+    },
+    "Not enough colors" : {
+      "comment" : "Feeds surface – window option VoiceOver hint"
+    },
+    "Not requested" : {
+      "comment" : "Notification permission status"
+    },
+    "Not selected" : {
+      "comment" : "Settings selectable choice state"
+    },
+    "Notes from Kosta" : {
+      "comment" : "ManualsPage – page title\nSettings destination title"
+    },
+    "Notification access" : {
+      "comment" : "Notification authorization section header"
+    },
+    "Notifications" : {
+      "comment" : "Navigation title\nPermission row – Notifications\nSettings destination title"
+    },
+    "NOW" : {
+
+    },
+    "Nowhere" : {
+      "comment" : "Notification – app name used as title"
+    },
+    "NOWHERE" : {
+
+    },
+    "Ocean" : {
+
+    },
+    "Off" : {
+      "comment" : "Canvas animation picker – no overlay\nTexture picker – no texture"
+    },
+    "Off in System Settings" : {
+      "comment" : "Notification permission status"
+    },
+    "OK" : {
+      "comment" : "Generic alert dismiss button\nProfileEditor – alert dismiss button",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } }      }
+    },
+    "On" : {
+      "comment" : "Settings account sync status value"
+    },
+    "Open" : {
+      "comment" : "Unlock status label"
+    },
+    "Open %@" : {
+      "comment" : "Feeds surface – open the unlocked app\nHandoff – open button accessibility"
+    },
+    "Open for a little while" : {
+      "comment" : "Gentle prompt above a feed's inline duration choices"
+    },
+    "Open Settings" : {
+      "comment" : "Permission recovery action"
+    },
+    "Open Shortcuts → Automation → +" : {
+
+    },
+    "Open widget settings" : {
+      "comment" : "Feature tip primary button — widgets"
+    },
+    "Opens the app %@ after confirming access" : {
+      "comment" : "Handoff – open button accessibility hint"
+    },
+    "Opens the canvas without editing" : {
+      "comment" : "Canvas – full screen button VoiceOver hint"
+    },
+    "option.description.body_balance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finding equilibrium and coordination."
+          }
+        }
+      }
+    },
+    "option.description.body_breathing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returning to your physical rhythm."
+          }
+        }
+      }
+    },
+    "option.description.body_healing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taking care of your body through medical attention."
+          }
+        }
+      }
+    },
+    "option.description.body_physical_effort" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Using strength and resistance."
+          }
+        }
+      }
+    },
+    "option.description.body_repetition" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doing simple physical actions with presence."
+          }
+        }
+      }
+    },
+    "option.description.body_resting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowing the body to recover."
+          }
+        }
+      }
+    },
+    "option.description.body_stillness" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Being completely motionless for a moment."
+          }
+        }
+      }
+    },
+    "option.description.body_stretching" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opening and releasing tension."
+          }
+        }
+      }
+    },
+    "option.description.body_touch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling the world through contact."
+          }
+        }
+      }
+    },
+    "option.description.body_walking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moving forward with your body in the world."
+          }
+        }
+      }
+    },
+    "option.description.body_warming" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling heat and comfort in the body."
+          }
+        }
+      }
+    },
+    "option.description.heart_belonging" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling part of something."
+          }
+        }
+      }
+    },
+    "option.description.heart_calm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling settled and safe inside."
+          }
+        }
+      }
+    },
+    "option.description.heart_care" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giving attention and warmth."
+          }
+        }
+      }
+    },
+    "option.description.heart_connection" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling close to someone."
+          }
+        }
+      }
+    },
+    "option.description.heart_gratitude" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognising something as valuable."
+          }
+        }
+      }
+    },
+    "option.description.heart_joy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling lightness and warmth."
+          }
+        }
+      }
+    },
+    "option.description.heart_peace" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deep inner quiet."
+          }
+        }
+      }
+    },
+    "option.description.heart_trust" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowing openness without tension."
+          }
+        }
+      }
+    },
+    "option.description.heart_vulnerability" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowing yourself to feel honestly."
+          }
+        }
+      }
+    },
+    "option.description.heart_wonder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feeling awe or curiosity."
+          }
+        }
+      }
+    },
+    "option.description.mind_focusing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holding attention on one thing."
+          }
+        }
+      }
+    },
+    "option.description.mind_learning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taking something new into the mind."
+          }
+        }
+      }
+    },
+    "option.description.mind_observing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noticing without interfering."
+          }
+        }
+      }
+    },
+    "option.description.mind_ordering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating clarity and structure."
+          }
+        }
+      }
+    },
+    "option.description.mind_planning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organising what comes next."
+          }
+        }
+      }
+    },
+    "option.description.mind_questioning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Challenging assumptions."
+          }
+        }
+      }
+    },
+    "option.description.mind_remembering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Returning to a past moment consciously."
+          }
+        }
+      }
+    },
+    "option.description.mind_screen_detox" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A day with minimal screen time."
+          }
+        }
+      }
+    },
+    "option.description.mind_thinking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actively processing ideas or situations."
+          }
+        }
+      }
+    },
+    "option.description.mind_writing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turning thoughts into form."
+          }
+        }
+      }
+    },
+    "option.examples.body_balance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yoga, balance exercises, standing on one leg, tai chi"
+          }
+        }
+      }
+    },
+    "option.examples.body_breathing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "breathing pause, calming breath, mindful inhale"
+          }
+        }
+      }
+    },
+    "option.examples.body_healing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "visiting a doctor, taking medication, therapy, antidepressants"
+          }
+        }
+      }
+    },
+    "option.examples.body_physical_effort" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gym, home workout, manual work"
+          }
+        }
+      }
+    },
+    "option.examples.body_repetition" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cleaning, tidying, daily routines"
+          }
+        }
+      }
+    },
+    "option.examples.body_resting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "good sleep, lying down, intentional break, power nap"
+          }
+        }
+      }
+    },
+    "option.examples.body_stillness" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sitting quietly, body scan, silent pause"
+          }
+        }
+      }
+    },
+    "option.examples.body_stretching" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "stretching, yoga, mobility, slow warm-up"
+          }
+        }
+      }
+    },
+    "option.examples.body_touch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "water, grass, sunlight, physical grounding"
+          }
+        }
+      }
+    },
+    "option.examples.body_walking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "city walk, nature walk, walking without a goal"
+          }
+        }
+      }
+    },
+    "option.examples.body_warming" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hot shower, sun exposure, warm drink"
+          }
+        }
+      }
+    },
+    "option.examples.heart_belonging" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "community, shared identity, feeling at home"
+          }
+        }
+      }
+    },
+    "option.examples.heart_calm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "quiet time, relaxation, emotional ease"
+          }
+        }
+      }
+    },
+    "option.examples.heart_care" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "helping, supporting, caring for yourself"
+          }
+        }
+      }
+    },
+    "option.examples.heart_connection" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "meaningful talk, shared silence"
+          }
+        }
+      }
+    },
+    "option.examples.heart_gratitude" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "appreciating a moment, feeling thankful"
+          }
+        }
+      }
+    },
+    "option.examples.heart_joy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "laughter, playful moments, spontaneous happiness"
+          }
+        }
+      }
+    },
+    "option.examples.heart_peace" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "acceptance of self, emotional stillness"
+          }
+        }
+      }
+    },
+    "option.examples.heart_trust" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "relying on someone, emotional safety"
+          }
+        }
+      }
+    },
+    "option.examples.heart_vulnerability" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "emotional openness, sincere sharing, fill blue or green"
+          }
+        }
+      }
+    },
+    "option.examples.heart_wonder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "noticing beauty, surprise, inspiration"
+          }
+        }
+      }
+    },
+    "option.examples.mind_focusing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reading, deep work, careful listening"
+          }
+        }
+      }
+    },
+    "option.examples.mind_learning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "studying, educational content, skill practice"
+          }
+        }
+      }
+    },
+    "option.examples.mind_observing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "watching people, noticing patterns, awareness"
+          }
+        }
+      }
+    },
+    "option.examples.mind_ordering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "organising files, simplifying, arranging ideas"
+          }
+        }
+      }
+    },
+    "option.examples.mind_planning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "structuring tasks, setting priorities, looking for a job"
+          }
+        }
+      }
+    },
+    "option.examples.mind_questioning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "asking why, rethinking, curiosity moments"
+          }
+        }
+      }
+    },
+    "option.examples.mind_remembering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sitting on a bench, reviewing the day, recalling a memory"
+          }
+        }
+      }
+    },
+    "option.examples.mind_screen_detox" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "phone untouched, no scrolling, present in the moment"
+          }
+        }
+      }
+    },
+    "option.examples.mind_thinking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reflecting, problem-solving, mental exploration"
+          }
+        }
+      }
+    },
+    "option.examples.mind_writing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "journaling, notes, drafting ideas"
+          }
+        }
+      }
+    },
+    "option.title.body_balance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balance"
+          }
+        }
+      }
+    },
+    "option.title.body_breathing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breathing"
+          }
+        }
+      }
+    },
+    "option.title.body_healing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Healing"
+          }
+        }
+      }
+    },
+    "option.title.body_physical_effort" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Physical Effort"
+          }
+        }
+      }
+    },
+    "option.title.body_repetition" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repetition"
+          }
+        }
+      }
+    },
+    "option.title.body_resting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resting"
+          }
+        }
+      }
+    },
+    "option.title.body_stillness" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stillness"
+          }
+        }
+      }
+    },
+    "option.title.body_stretching" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stretching"
+          }
+        }
+      }
+    },
+    "option.title.body_touch" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch"
+          }
+        }
+      }
+    },
+    "option.title.body_walking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walking"
+          }
+        }
+      }
+    },
+    "option.title.body_warming" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warming"
+          }
+        }
+      }
+    },
+    "option.title.happening_called_someone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected"
+          }
+        }
+      }
+    },
+    "option.title.happening_did_nothing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rested"
+          }
+        }
+      }
+    },
+    "option.title.happening_drinks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time together"
+          }
+        }
+      }
+    },
+    "option.title.happening_laughed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laughed"
+          }
+        }
+      }
+    },
+    "option.title.happening_made_something" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made something"
+          }
+        }
+      }
+    },
+    "option.title.happening_outside" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time outside"
+          }
+        }
+      }
+    },
+    "option.title.happening_read" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read"
+          }
+        }
+      }
+    },
+    "option.title.happening_slept_well" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slept well"
+          }
+        }
+      }
+    },
+    "option.title.happening_walk" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk"
+          }
+        }
+      }
+    },
+    "option.title.happening_workout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workout"
+          }
+        }
+      }
+    },
+    "option.title.heart_belonging" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Belonging"
+          }
+        }
+      }
+    },
+    "option.title.heart_calm" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calm"
+          }
+        }
+      }
+    },
+    "option.title.heart_care" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Care"
+          }
+        }
+      }
+    },
+    "option.title.heart_connection" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection"
+          }
+        }
+      }
+    },
+    "option.title.heart_gratitude" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gratitude"
+          }
+        }
+      }
+    },
+    "option.title.heart_joy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joy"
+          }
+        }
+      }
+    },
+    "option.title.heart_peace" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peace"
+          }
+        }
+      }
+    },
+    "option.title.heart_trust" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trust"
+          }
+        }
+      }
+    },
+    "option.title.heart_vulnerability" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vulnerability"
+          }
+        }
+      }
+    },
+    "option.title.heart_wonder" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wonder"
+          }
+        }
+      }
+    },
+    "option.title.mind_focusing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Focusing"
+          }
+        }
+      }
+    },
+    "option.title.mind_learning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Learning"
+          }
+        }
+      }
+    },
+    "option.title.mind_observing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observing"
+          }
+        }
+      }
+    },
+    "option.title.mind_ordering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordering"
+          }
+        }
+      }
+    },
+    "option.title.mind_planning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning"
+          }
+        }
+      }
+    },
+    "option.title.mind_questioning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questioning"
+          }
+        }
+      }
+    },
+    "option.title.mind_remembering" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remembering"
+          }
+        }
+      }
+    },
+    "option.title.mind_screen_detox" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Detoxing"
+          }
+        }
+      }
+    },
+    "option.title.mind_thinking" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking"
+          }
+        }
+      }
+    },
+    "option.title.mind_writing" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing"
+          }
+        }
+      }
+    },
+    "Organic" : {
+      "comment" : "Canvas shape type"
+    },
+    "Outline" : {
+      "comment" : "Canvas fill style"
+    },
+    "Palette" : {
+      "comment" : "Appearance current palette label\nAppearance palette heading"
+    },
+    "Permissions" : {
+      "comment" : "Permissions page title\nSettings destination title"
+    },
+    "Photo Access" : {
+      "comment" : "ProfileEditor – photo permission alert title"
+    },
+    "pick a window to unlock it." : {
+
+    },
+    "pick the one app that drains you the most." : {
+
+    },
+    "Plastic" : {
+      "comment" : "Texture picker – plastic"
+    },
+    "Preview Coach Marks" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Preview Onboarding (Demo)" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Preview Wallpaper Tip" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Preview Widget Tip" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Previous month" : {
+      "comment" : "Full calendar – previous month"
+    },
+    "probably just like you." : {
+
+    },
+    "Profile, %@. Double tap to edit." : {
+      "comment" : "MeView – profile pill VoiceOver label"
+    },
+    "Progress" : {
+      "comment" : "Onboarding – progress bar VoiceOver label"
+    },
+    "Protection Screen" : {
+
+    },
+    "Pull down to show canvas data" : {
+      "comment" : "Canvas status pill – VoiceOver hint"
+    },
+    "Quick Status" : {
+      "comment" : "QuickStatus – title"
+    },
+    "Radial" : {
+
+    },
+    "Radial Reversed" : {
+
+    },
+    "Rays" : {
+      "comment" : "Canvas shape type"
+    },
+    "Re-roll today's theme" : {
+
+    },
+    "Read the research" : {
+      "comment" : "MetricOverlay – link to the source study"
+    },
+    "Remind at" : {
+      "comment" : "Canvas reminder time label"
+    },
+    "Reminders will not be delivered until notifications are allowed." : {
+      "comment" : "Notifications unavailable footer"
+    },
+    "Remix" : {
+      "comment" : "Canvas editing – restyle every element"
+    },
+    "Remove Photo" : {
+      "comment" : "ProfileEditor – remove avatar button"
+    },
+    "Remove this happening?" : {
+      "comment" : "Canvas editing – delete confirmation title"
+    },
+    "Renders today's energy canvas as a wallpaper image. Optionally override gradient style and color palette." : {
+
+    },
+    "Replay Onboarding (Live)" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "reset" : {
+
+    },
+    "Reset All Usage Budgets" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Reset Feature Tip Flags" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Restore Colors to Max" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "Rings" : {
+      "comment" : "Canvas fill style"
+    },
+    "Save" : {
+      "comment" : "ProfileEditor – save button",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }      }
+    },
+    "Save as Routine" : {
+
+    },
+    "Save Routine" : {
+
+    },
+    "Screen Time" : {
+      "comment" : "Permission row – Family Controls"
+    },
+    "Search happenings" : {
+      "comment" : "A search field for filtering the list of available",
+      "isCommentAutoGenerated" : true
+    },
+    "Select Apps" : {
+      "comment" : "AppSelection – navigation title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select Apps"
+          }
+        }      }
+    },
+    "Selected" : {
+      "comment" : "Canvas editing – selected element state\nSettings selectable choice state"
+    },
+    "Set it up" : {
+      "comment" : "Feature tip primary button — wallpaper"
+    },
+    "Set spent colors to %lld" : {
+      "comment" : "A button that sets the amount of spent colors to a given percentage.",
+      "isCommentAutoGenerated" : true
+    },
+    "Set the action to the wallpaper shortcut" : {
+
+    },
+    "Set this canvas as your wallpaper" : {
+      "comment" : "Wide canvas – wallpaper prompt"
+    },
+    "Set today's energy canvas as your Lock Screen wallpaper automatically each time you close the app." : {
+
+    },
+    "Set up the wallpaper shortcut first" : {
+
+    },
+    "Set your canvas as wallpaper" : {
+      "comment" : "Feature tip title — wallpaper"
+    },
+    "Settings" : {
+      "comment" : "Feeds surface – corner menu\nMeView – settings button VoiceOver label\nSettings page title"
+    },
+    "Settings and history sync automatically across your devices." : {
+      "comment" : "Settings account sync footer"
+    },
+    "Setup in Shortcuts" : {
+      "comment" : "Wallpaper setup disclosure title"
+    },
+    "Shake to change the shapes" : {
+      "comment" : "Palette shake hint"
+    },
+    "Shapes" : {
+      "comment" : "Canvas shapes multi-select row label"
+    },
+    "Share canvas" : {
+      "comment" : "DayCanvasViewer – share VoiceOver\nGalleryView – share button VoiceOver label"
+    },
+    "Share this day" : {
+      "comment" : "Me poster – share action"
+    },
+    "ShieldAction Logs" : {
+
+    },
+    "Show canvas data" : {
+      "comment" : "Canvas – data panel VoiceOver label"
+    },
+    "Show controls" : {
+      "comment" : "A button that shows the controls.",
+      "isCommentAutoGenerated" : true
+    },
+    "Sign in to keep your data safe and synced across devices" : {
+
+    },
+    "sign in to keep your data safe and synced across devices." : {
+
+    },
+    "Sign in with Apple" : {
+      "comment" : "Settings signed-out account card title"
+    },
+    "Sign out" : {
+      "comment" : "Settings account sign-out button"
+    },
+    "Signed in" : {
+      "comment" : "Onboarding – Apple sign-in success state"
+    },
+    "Single" : {
+      "comment" : "A button that shows a single day's view.",
+      "isCommentAutoGenerated" : true
+    },
+    "Skip" : {
+
+    },
+    "skip all" : {
+
+    },
+    "Skip onboarding" : {
+
+    },
+    "Sleep" : {
+      "comment" : "Canvas data panel – sleep row\nSettings Your day sleep metric label"
+    },
+    "sleep a night" : {
+      "comment" : "MeView – average sleep label"
+    },
+    "sleep deepens the dark." : {
+
+    },
+    "Sleep fills up to %lld of the day's %lld colors, in proportion to your sleep goal. A night without data is assumed rather than counted as zero." : {
+      "comment" : "MetricOverlay – how sleep contributes",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sleep fills up to %1$lld of the day's %2$lld colors, in proportion to your sleep goal. A night without data is assumed rather than counted as zero."
+          }
+        }
+      }
+    },
+    "Sleep Goal" : {
+
+    },
+    "Sleep hours" : {
+
+    },
+    "Sleep is the frame around every day. Everything else fits inside it. Sleep lays down the dark. As the night approaches the goal you set, it brings up to 20 colors.\n\nSleep comes from the Health app. Apple can be slow to finish the night, so the canvas may catch up later." : {
+      "comment" : "Note body: about_sleep"
+    },
+    "Sleep only" : {
+      "comment" : "GradientPreview – preview mode sleep data only"
+    },
+    "sleep_assumed_message" : {
+      "comment" : "Sleep overlay – warm message when no sleep data",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sleep data came through today. That's OK — you definitely slept. Here are 10 colors, on the house. Connect sleep tracking in Health for precise hours."
+          }
+        }
+      }
+    },
+    "Sleep: %lld colors" : {
+      "comment" : "Sleep overlay – assumed sleep header",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep: %lld colors"
+          }
+        }
+      }
+    },
+    "Slide %lld of %lld" : {
+      "comment" : "Onboarding – progress bar VoiceOver value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Slide %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Small" : {
+      "comment" : "Texture picker – small grain"
+    },
+    "Smudge" : {
+      "comment" : "Canvas animation picker – smudge option"
+    },
+    "Snowflake" : {
+      "comment" : "Canvas shape type"
+    },
+    "so i made this app." : {
+
+    },
+    "Solid" : {
+      "comment" : "Canvas fill style\nWidget background style"
+    },
+    "Some permissions are missing" : {
+      "comment" : "Permissions – missing banner title"
+    },
+    "someone" : {
+
+    },
+    "Something went wrong" : {
+
+    },
+    "Something went wrong. Please try again." : {
+      "comment" : "Generic account recovery message"
+    },
+    "spend" : {
+
+    },
+    "Spend colors on" : {
+      "comment" : "Unlock section header"
+    },
+    "spend what you lived" : {
+      "comment" : "PayGate title"
+    },
+    "Spent" : {
+
+    },
+    "Spent colors" : {
+      "comment" : "A label displayed above the slider that controls the",
+      "isCommentAutoGenerated" : true
+    },
+    "Spent colors %lld" : {
+      "comment" : "A value indicating the number of colors that have been spent.",
+      "isCommentAutoGenerated" : true
+    },
+    "Spirograph" : {
+      "comment" : "Canvas shape type"
+    },
+    "Stay present, control screen time" : {
+
+    },
+    "steps" : {
+      "comment" : "Onboarding – steps unit label"
+    },
+    "Activity" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity"
+          }
+        }      }
+    },
+    "Activity looks different for everyone. It can bring up to 20 colors and brighten the canvas. For now, Nowhere uses the step count shared by Apple Health. That can only tell part of your story. When no activity data comes through, you get 5 colors anyway. Your day still counts." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity looks different for everyone. It can bring up to 20 colors and brighten the canvas. For now, Nowhere uses the step count shared by Apple Health. That can only tell part of your story. When no activity data comes through, you get 5 colors anyway. Your day still counts."
+          }
+        }      }
+    },
+    "activity brightens it." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "activity brightens it."
+          }
+        }      }
+    },
+    "Activity only" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity only"
+          }
+        }      }
+    },
+    "steps today" : {
+
+    },
+    "Study" : {
+      "comment" : "A title for the settings screen.",
+      "isCommentAutoGenerated" : true
+    },
+    "Sunset" : {
+
+    },
+    "SYNC" : {
+      "comment" : "Settings account section header"
+    },
+    "Sync across devices" : {
+      "comment" : "Settings signed-out account card subtitle"
+    },
+    "Synced with wallpaper shortcut" : {
+
+    },
+    "System notifications" : {
+      "comment" : "Notification authorization row title"
+    },
+    "Tap to add to your daily total" : {
+
+    },
+    "Target: %@ steps" : {
+
+    },
+    "Target: %@h" : {
+
+    },
+    "Task 7 accessibility configuration" : {
+
+    },
+    "Telegram" : {
+
+    },
+    "Templates" : {
+      "comment" : "TemplatePicker – section header"
+    },
+    "Test notification." : {
+      "comment" : "Notification – test notification body"
+    },
+    "TEXTURE" : {
+      "comment" : "Appearance section header"
+    },
+    "The sense of being present" : {
+      "comment" : "App tagline"
+    },
+    "they're how i nudge you when your colors are ready." : {
+      "comment" : "Text describing how the app will nudge you when your colors are ready.",
+      "isCommentAutoGenerated" : true
+    },
+    "they're needed to unlock the apps." : {
+
+    },
+    "This feed has no single app to open" : {
+      "comment" : "Feeds surface – open button VoiceOver hint, no scheme"
+    },
+    "This name will be displayed instead of my real name" : {
+      "comment" : "ProfileEditor – nickname hint"
+    },
+    "This part grows with your sleep. As you move toward your sleep goal, it adds up to 20 colors to the canvas. When sleep data is missing, Nowhere leaves room for it instead of calling it zero." : {
+      "comment" : "Canvas data panel – inline sleep explanation"
+    },
+    "Activity brings up to 20 colors to the canvas. For now, Apple Health steps count toward your daily goal. When no activity data comes through, you get 5 colors anyway." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity brings up to 20 colors to the canvas. For now, Apple Health steps count toward your daily goal. When no activity data comes through, you get 5 colors anyway."
+          }
+        }      }
+    },
+    "This part is shaped by the things you chose to notice today. Each different happening adds color once, up to 60 colors." : {
+      "comment" : "Canvas data panel – inline happenings explanation"
+    },
+    "This removes the Feed and its access options. This action cannot be undone." : {
+      "comment" : "Feed settings delete confirmation message"
+    },
+    "this uses apple's screen time. you'll see a system prompt." : {
+
+    },
+    "THIS WEEK" : {
+      "comment" : "MeView – week summary section header"
+    },
+    "This will permanently delete your account, profile, and all data. This action cannot be undone." : {
+      "comment" : "ProfileEditor – delete confirmation message"
+    },
+    "This will replace one of the 10 shown happenings." : {
+      "comment" : "A hint that describes the purpose of the text field.",
+      "isCommentAutoGenerated" : true
+    },
+    "Time options" : {
+
+    },
+    "Timers, reminders, alerts" : {
+      "comment" : "Permission row – Notifications detail"
+    },
+    "Today" : {
+      "comment" : "Full calendar – jump to today"
+    },
+    "Today is uncolored" : {
+      "comment" : "Canvas empty state hint"
+    },
+    "Too many windows are open at once. Close one and try again — your colors were refunded." : {
+      "comment" : "Unlock failure – DeviceActivity activity cap reached"
+    },
+    "Track what matters" : {
+
+    },
+    "Tracked" : {
+      "comment" : "Full calendar – tracked day"
+    },
+    "Try Again" : {
+      "comment" : "Permission retry action"
+    },
+    "Turn activity into colors" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn activity into colors"
+          }
+        }      }
+    },
+    "Turn off \"Ask Before Running\"" : {
+
+    },
+    "Unavailable" : {
+      "comment" : "Permission unavailable status"
+    },
+    "Unlimited" : {
+
+    },
+    "Unlock for %@, costs %lld colors" : {
+      "comment" : "PaperTicket – unlock pill VoiceOver label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unlock for %1$@, costs %2$lld colors"
+          }
+        }
+      }
+    },
+    "Updates automatically each time the wallpaper shortcut runs." : {
+
+    },
+    "Used: %lld min · Charged: %lld colors." : {
+      "comment" : "Notification – usage summary body",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Used: %1$lld min · Charged: %2$lld colors."
+          }
+        }
+      }
+    },
+    "Used: %lld min." : {
+      "comment" : "Notification – usage minutes only body"
+    },
+    "User" : {
+      "comment" : "Settings account fallback name"
+    },
+    "v%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "v%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "Version" : {
+
+    },
+    "View ShieldAction Logs" : {
+      "comment" : "Developer diagnostic action"
+    },
+    "vs last week" : {
+      "comment" : "MeView – comparison period"
+    },
+    "Wallpaper" : {
+      "comment" : "Settings section title\nWidget background style"
+    },
+    "Warn before reset" : {
+
+    },
+    "We couldn't allow notifications." : {
+      "comment" : "Notification permission failure message"
+    },
+    "We couldn't allow Screen Time access." : {
+      "comment" : "Screen Time permission failure message"
+    },
+    "We couldn't check Health access." : {
+      "comment" : "Health permission failure message"
+    },
+    "We couldn't delete your account. Check your connection and try again." : {
+      "comment" : "Account deletion recovery message"
+    },
+    "We couldn't save your profile. Your previous details are still intact." : {
+      "comment" : "Profile save recovery message"
+    },
+    "we read steps, sleep, and workouts. nothing else." : {
+
+    },
+    "Website" : {
+
+    },
+    "welcome to" : {
+
+    },
+    "welcome to nowhere" : {
+
+    },
+    "What did you do today?" : {
+      "comment" : "Empty-canvas nudge, evening — retrospective"
+    },
+    "What happened?" : {
+      "comment" : "Palette free-text placeholder"
+    },
+    "What have you done so far?" : {
+      "comment" : "Empty-canvas nudge, morning — retrospective"
+    },
+    "When access ends" : {
+      "comment" : "Notification preference for access ending"
+    },
+    "when does your day end?" : {
+
+    },
+    "Why this matters" : {
+      "comment" : "Canvas metric disclosure – research link"
+    },
+    "Widget" : {
+      "comment" : "Settings section title"
+    },
+    "Widgets & wallpaper" : {
+      "comment" : "Settings destination title\nSettings row and combined page title"
+    },
+    "yes, please" : {
+
+    },
+    "You are not nowhere. You are now here." : {
+      "comment" : "App philosophy tagline"
+    },
+    "I wanted less reason to open Nowhere, not more. So the widgets carry the useful parts to the Home Screen: the day's colors, the feeds you closed, and the choice to open one.\n\nApple decides when widgets wake up. If one falls behind, the refresh button is there." : {
+      "comment" : "Note body: about_widgets"
+    },
+    "you can change this in settings anytime." : {
+
+    },
+    "you can change this later." : {
+
+    },
+    "You can change your daily goals in Settings." : {
+      "comment" : "MetricOverlay – where to adjust goals"
+    },
+    "you can control them in settings later." : {
+
+    },
+    "you can spend your colors on screen time." : {
+
+    },
+    "you can't buy them — only live them." : {
+
+    },
+    "You slept — add it to your canvas" : {
+      "comment" : "Morning resting suggestion – subtitle",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You slept — add it to your canvas"
+          }
+        }
+      }
+    },
+    "You're about to open %@" : {
+
+    },
+    "you're here." : {
+
+    },
+    "Your canvas and colors reset at this time each day." : {
+
+    },
+    "Your canvas resets in %lld hours." : {
+      "comment" : "Notification – canvas reset hours warning"
+    },
+    "Your canvas resets in 1 hour." : {
+      "comment" : "Notification – canvas reset 1 hour warning"
+    },
+    "Your clock and widgets will overlay this canvas" : {
+      "comment" : "Wide canvas – wallpaper prompt subtitle"
+    },
+    "Your daily canvas can live on your Lock Screen — refreshed automatically every time you close the app. Set it up once in a few taps." : {
+      "comment" : "Feature tip body — wallpaper setup"
+    },
+    "Your day" : {
+      "comment" : "Settings Your day card title\nSettings section title"
+    },
+    "New group": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New group"
+          }
+        }      }
+    },
+    "Edit group": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit group"
+          }
+        }      }
+    },
+    "Name your group" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name your group"
+          }
+        }      }
+    },
+    "e.g. X, Social, Games" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. X, Social, Games"
+          }
+        }      }
+    },
+    "This name appears on the card and in widgets." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This name appears on the card and in widgets."
+          }
+        }      }
+    },
+    "Tap +, enter a name and choose your apps, then tap Done. You can also skip this step." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap +, enter a name and choose your apps, then tap Done. You can also skip this step."
+          }
+        }      }
+    },
+    "Tap an existing group, or tap + to name a new group and choose its apps." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an existing group, or tap + to name a new group and choose its apps."
+          }
+        }      }
+    },
+    "What would you like to keep from today?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What would you like to keep from today?"
+          }
+        }
+      }
+    },
+    "Was there a moment just for you?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was there a moment just for you?"
+          }
+        }
+      }
+    },
+    "What made today feel different?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What made today feel different?"
+          }
+        }
+      }
+    },
+    "Choose something else" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose something else"
+          }
+        }
+      }
+    },
+    "Evening reflection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evening reflection"
+          }
+        }
+      }
+    },
+    "Remind me about my day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remind me about my day"
+          }
+        }
+      }
+    },
+    "At 20:00, only if your canvas is empty. Adding a moment or dismissing the question cancels tonight's reminder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At 20:00, only if your canvas is empty. Adding a moment or dismissing the question cancels tonight's reminder."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}

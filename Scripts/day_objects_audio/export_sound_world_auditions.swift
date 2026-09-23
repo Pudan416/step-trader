@@ -58,7 +58,7 @@ func main() throws {
         source = URL(fileURLWithPath: path)
     } else {
         let derived = temporary.appendingPathComponent("DerivedData")
-        try run(["build-for-testing", "-quiet", "-project", "Steps4.xcodeproj", "-scheme", "Steps4",
+        try run(["build-for-testing", "-quiet", "-project", "Nowhere.xcodeproj", "-scheme", "Nowhere",
                  "-destination", destination, "-derivedDataPath", derived.path], at: root)
         let products = derived.appendingPathComponent("Build/Products")
         guard let found = try FileManager.default.contentsOfDirectory(at: products, includingPropertiesForKeys: nil)
@@ -78,7 +78,7 @@ func main() throws {
             return value
         }
         dictionary = dictionary.mapValues(patch)
-        if dictionary["BlueprintName"] as? String == "Steps4Tests" {
+        if dictionary["BlueprintName"] as? String == "NowhereTests" {
             var environment = dictionary["EnvironmentVariables"] as? [String: String] ?? [:]
             environment["DAY_OBJECTS_AUDITION_PACK"] = "1"
             environment["DAY_OBJECTS_AUDITION_PACK_DIR"] = output.path
@@ -95,7 +95,7 @@ func main() throws {
     try PropertyListSerialization.data(fromPropertyList: modified, format: .xml, options: 0).write(to: testRun)
     try run(["test-without-building", "-quiet", "-xctestrun", testRun.path,
              "-destination", destination, "-parallel-testing-enabled", "NO",
-             "-only-testing:Steps4Tests/DayObjectsMixScenarioTests/testExportsTwelveAuditionsWhenExplicitlyRequested",
+             "-only-testing:NowhereTests/DayObjectsMixScenarioTests/testExportsTwelveAuditionsWhenExplicitlyRequested",
              "-resultBundlePath", temporary.appendingPathComponent("Export.xcresult").path], at: root)
     print("Audition pack: \(output.path)")
     print("Run evidence: \(temporary.path)")

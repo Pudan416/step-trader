@@ -53,19 +53,19 @@ REPOSITORY_ROOT = SCRIPT_DIR.parents[1]
 SOURCE_MAP_PATH = SCRIPT_DIR / "happening-source-map.json"
 DEFAULT_OUTPUT_ROOT = (
     REPOSITORY_ROOT
-    / "StepsTrader/Experiments/DayObjects/Sound/Resources/Happenings"
+    / "Nowhere/Experiments/DayObjects/Sound/Resources/Happenings"
 )
 MANIFEST_PATH = (
     REPOSITORY_ROOT
-    / "StepsTrader/Experiments/DayObjects/Sound/Resources/audio-assets-manifest.json"
+    / "Nowhere/Experiments/DayObjects/Sound/Resources/audio-assets-manifest.json"
 )
 SOURCES_PATH = (
     REPOSITORY_ROOT
-    / "StepsTrader/Experiments/DayObjects/Sound/Resources/AudioLicenses/SOURCES.json"
+    / "Nowhere/Experiments/DayObjects/Sound/Resources/AudioLicenses/SOURCES.json"
 )
 CATALOG_PATH = (
     REPOSITORY_ROOT
-    / "StepsTrader/Experiments/DayObjects/Sound/Domain/HappeningSoundCatalog.swift"
+    / "Nowhere/Experiments/DayObjects/Sound/Domain/HappeningSoundCatalog.swift"
 )
 
 

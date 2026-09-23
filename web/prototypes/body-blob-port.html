@@ -222,7 +222,7 @@
     const U64 = (n) => BigInt.asUintN(64, BigInt(n));
 
     /**
-     * SplitMix64 — bit-exact port of `StepsTrader/Utilities/SeededRNG.swift`.
+     * SplitMix64 — bit-exact port of `Nowhere/Utilities/SeededRNG.swift`.
      * Same UInt64 seed must produce the same UInt64 sequence as Swift.
      *
      * Reference: https://prng.di.unimi.it/splitmix64.c
@@ -404,7 +404,7 @@
 
     /**
      * Hex → RGB(A). Accepts #RGB / #RRGGBB / #AARRGGBB (alpha-first, matching
-     * `Color(hex:)` in `StepsTrader/Models/CanvasElement.swift`). CSS-style
+     * `Color(hex:)` in `Nowhere/Models/CanvasElement.swift`). CSS-style
      * RRGGBBAA is intentionally NOT supported here so the prototype matches
      * mainline Swift decoding exactly.
      *

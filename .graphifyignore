@@ -1,0 +1,18 @@
+# Keep the local graph scoped to all Nowhere Xcode source roots.
+/*
+!/Nowhere/
+!/Shared/
+!/DeviceActivityMonitor/
+!/ShieldAction/
+!/ShieldConfiguration/
+!/UnlockWidget/
+!/NowhereTests/
+!/NowhereUITests/
+!/OnboardingPreview/
+!/Tools/
+/Tools/*
+!/Tools/DayObjectsEditorialField/
+/Tools/DayObjectsEditorialField/*
+!/Tools/DayObjectsEditorialField/Sources/
+/Tools/DayObjectsEditorialField/Sources/*
+!/Tools/DayObjectsEditorialField/Sources/EditorialFieldCore/

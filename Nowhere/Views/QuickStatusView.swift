@@ -1,0 +1,77 @@
+import SwiftUI
+
+#if DEBUG
+struct QuickStatusView: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.green.opacity(0.1), .blue.opacity(0.2)], startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 30) {
+                VStack(spacing: 16) {
+                    Text("📊")
+                        .font(.geist(60))
+
+                    Text(String(localized: "Quick Status", comment: "QuickStatus – title"))
+                        .font(.geist(.largeTitle))
+                        .bold()
+
+                    Text(String(localized: "My progress overview", comment: "QuickStatus – subtitle"))
+                        .font(.geist(.title3))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                VStack(spacing: 20) {
+                    HStack {
+                        Text(String(localized: "Activity today:", comment: "QuickStatus – steps label"))
+                            .font(.geist(.title2))
+                        Spacer()
+                        Text(String(localized: "\(Int(model.stepsToday)) steps"))
+                            .font(.geist(.title))
+                            .bold()
+                            .foregroundStyle(.green)
+                    }
+                    .padding()
+                    .glassCard(cornerRadius: 16, style: .frosted)
+
+                    HStack {
+                        Text(String(localized: "Entry balance:", comment: "QuickStatus – balance label"))
+                            .font(.geist(.title2))
+                        Spacer()
+                        Text(String(localized: "\(model.userEconomyStore.totalStepsBalance) colors", comment: "QuickStatus – balance value"))
+                            .font(.geist(.title))
+                            .bold()
+                            .foregroundStyle(
+                                model.userEconomyStore.totalStepsBalance >= model.userEconomyStore.entryCostSteps ? .green : .red)
+                    }
+                    .padding()
+                    .glassCard(cornerRadius: 16, style: .frosted)
+                }
+                .padding(.horizontal, 20)
+
+                Button(String(localized: "Close", comment: "QuickStatus – dismiss button")) {
+                    model.showQuickStatusPage = false
+                }
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(Color.blue)
+                .foregroundStyle(.white)
+                .font(.geist(.headline))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 20)
+                .accessibilityLabel(String(localized: "Close quick status", comment: "QuickStatus – close VoiceOver label"))
+                .accessibilityHint(String(localized: "Closes the quick status view", comment: "QuickStatus – close VoiceOver hint"))
+            }
+        }
+    }
+}
+
+#Preview {
+    QuickStatusView(model: DIContainer.shared.makeAppModel())
+}
+#endif

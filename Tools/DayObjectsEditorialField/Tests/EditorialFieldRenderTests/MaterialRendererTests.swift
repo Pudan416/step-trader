@@ -721,10 +721,10 @@ struct MaterialRendererTests {
     func materialAtlasUsesFrozenRecipesInsteadOfLivePlanner() throws {
         let workspace = repositoryRoot()
         let approval = try Data(contentsOf: workspace.appendingPathComponent(
-            "artifacts/day-objects-editorial-field/composition/composition-approved.json"
+            "Tools/DayObjectsEditorialField/Fixtures/composition-approved.json"
         ))
         let recipeArchive = try Data(contentsOf: workspace.appendingPathComponent(
-            "artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json"
+            "Tools/DayObjectsEditorialField/Fixtures/composition-recipes-approved.json"
         ))
         #expect(recipeArchive.count < 100_000)
         let testRoot = workspace
@@ -3356,10 +3356,9 @@ struct MaterialRendererTests {
             guard lowerAlpha > 0, upperAlpha > 0, upperAlpha < 255 else { continue }
             let alpha = Double(lowerAlpha) / 255
             if (0..<3).contains(where: { channel in
-                abs(
-                    Double(projected[0].rgba[offset + channel]) / 255
-                        - Double(base.rgba[offset + channel]) / 255 * alpha
-                ) > 0.03
+                let projectedChannel = Double(projected[0].rgba[offset + channel]) / 255
+                let baseChannel = Double(base.rgba[offset + channel]) / 255
+                return abs(projectedChannel - baseChannel * alpha) > 0.03
             }) {
                 overlapPixel = pixelIndex
                 break
@@ -10820,10 +10819,10 @@ private func canonicalCompositionAuthority() throws -> (approval: Data, recipes:
     let workspace = repositoryRoot()
     return (
         approval: try Data(contentsOf: workspace.appendingPathComponent(
-            "artifacts/day-objects-editorial-field/composition/composition-approved.json"
+            "Tools/DayObjectsEditorialField/Fixtures/composition-approved.json"
         )),
         recipes: try Data(contentsOf: workspace.appendingPathComponent(
-            "artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json"
+            "Tools/DayObjectsEditorialField/Fixtures/composition-recipes-approved.json"
         ))
     )
 }

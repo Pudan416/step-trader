@@ -4,7 +4,7 @@ require 'tmpdir'
 require 'fileutils'
 
 root = File.expand_path('../..', __dir__)
-diagnostics = File.join(root, 'StepsTrader/Experiments/DayObjects/Sound/Diagnostics')
+diagnostics = File.join(root, 'Nowhere/Experiments/DayObjects/Sound/Diagnostics')
 Dir.mktmpdir('day-objects-cli-tests-') do |directory|
   main = File.join(directory, 'main.swift')
   source = File.read(File.join(__dir__, 'analyze_day_objects_mix.swift'))

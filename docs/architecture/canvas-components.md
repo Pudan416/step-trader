@@ -1,8 +1,8 @@
 # Canvas components
 
-This map describes the current native atlas path. This organization pass changes source boundaries, not artwork, audio behavior, saved data, or rendering architecture.
+This map describes ownership in the current native atlas path and compatibility rules for existing artwork.
 
-All paths below are relative to `StepsTrader/`.
+All paths below are relative to `Nowhere/`.
 
 ## Saved artwork and composition
 
@@ -43,6 +43,18 @@ Matching GPU geometry is in `Metal/ShapeAtlas/Geometry/`. `MetalShapeBasic.metal
 - Shared blur/final color entry points: `Metal/DayObjectsPostShader.metal`.
 
 Headers compile into their consuming shader translation units. This split does not introduce a render pass per material or per shape.
+
+Smudge uses a static color field in `Views/Components/SmudgeCanvasView.swift`,
+drawn by `EnergyGradientRenderer.drawColorField`. This input must retain color
+variation in Release: the screen-facing `EnergyGradientBackground` intentionally
+returns a neutral surface there and cannot serve as the effect's source.
+`SmudgePreparationTests` checks source pixels and a complete gesture-driven Metal
+frame in Release; the Release CI job retains those images. The effect keeps its
+existing independent color field rather than capturing a second live artwork renderer.
+Musical gesture begin/update/end callbacks run immediately, before GPU preparation.
+Only visual commands may wait for the renderer and source texture. The Release
+controller regression verifies that playing music receives a complete gesture
+before Metal is ready and does not replay it when preparation finishes.
 
 ## Rendering ownership
 

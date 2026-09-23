@@ -1,0 +1,210 @@
+import XCTest
+@testable import Nowhere
+
+/// The Canvas status pill answers two questions against one fixed ceiling: how
+/// much the day earned, and how much of that is still unspent. The ceiling is
+/// the product's daily maximum, so a full bar means a full day — not merely
+/// that nothing has been spent yet.
+final class CanvasEnergyStatusTests: XCTestCase {
+
+    private func status(balance: Int, earned: Int, max: Int = 100) -> CanvasEnergyStatus {
+        CanvasEnergyStatus(stepsBalance: balance, baseEnergyToday: earned, maximum: max)
+    }
+
+    func testShowsRemainingEarnedAndCeiling() {
+        let s = status(balance: 40, earned: 60)
+
+        XCTAssertEqual(s.remaining, 40)
+        XCTAssertEqual(s.earned, 60)
+        XCTAssertEqual(s.maximum, 100)
+    }
+
+    /// Both bars measure the ceiling, so a day that earned 60 of 100 reads as
+    /// 60% earned even when none of it has been spent.
+    func testBothProgressesMeasureTheCeiling() {
+        let s = status(balance: 60, earned: 60)
+
+        XCTAssertEqual(s.progress, 0.6, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0.6, accuracy: 0.0001)
+    }
+
+    func testSpendingMovesRemainingButNotEarned() {
+        let s = status(balance: 40, earned: 60)
+
+        XCTAssertEqual(s.progress, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0.6, accuracy: 0.0001)
+    }
+
+    func testNothingEarnedYet() {
+        let s = status(balance: 0, earned: 0)
+
+        XCTAssertEqual(s.remaining, 0)
+        XCTAssertEqual(s.earned, 0)
+        XCTAssertEqual(s.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0, accuracy: 0.0001)
+    }
+
+    func testFullDay() {
+        let s = status(balance: 100, earned: 100)
+
+        XCTAssertEqual(s.progress, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 1.0, accuracy: 0.0001)
+    }
+
+    /// A stale balance can outrun today's earnings between a recalculation and
+    /// a HealthKit refresh. Remaining still cannot exceed earned.
+    func testStaleBalanceClampsToEarned() {
+        let s = status(balance: 90, earned: 60)
+
+        XCTAssertEqual(s.remaining, 60)
+        XCTAssertEqual(s.progress, 0.6, accuracy: 0.0001)
+    }
+
+    /// Earnings cannot exceed the ceiling either — the formula caps
+    /// `baseEnergyToday` at 100, and the pill must not draw past its track if
+    /// that ever changes.
+    func testEarnedClampsToTheCeiling() {
+        let s = status(balance: 120, earned: 120)
+
+        XCTAssertEqual(s.earned, 100)
+        XCTAssertEqual(s.remaining, 100)
+        XCTAssertEqual(s.earnedProgress, 1.0, accuracy: 0.0001)
+    }
+
+    func testNegativeInputsFloorAtZero() {
+        let s = status(balance: -5, earned: -10)
+
+        XCTAssertEqual(s.remaining, 0)
+        XCTAssertEqual(s.earned, 0)
+        XCTAssertEqual(s.progress, 0, accuracy: 0.0001)
+    }
+
+    /// A zero or negative ceiling would divide by nothing. Both progresses
+    /// report empty rather than crashing or reporting a full bar.
+    func testNonPositiveCeilingReportsEmpty() {
+        let s = status(balance: 10, earned: 10, max: 0)
+
+        XCTAssertEqual(s.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(s.earnedProgress, 0, accuracy: 0.0001)
+    }
+
+    func testEqualInputsProduceEqualStatuses() {
+        XCTAssertEqual(status(balance: 12, earned: 30), status(balance: 12, earned: 30))
+    }
+}
+
+final class CanvasChromePaletteTests: XCTestCase {
+    func testFeedsTabBarRemainsDistinctFromCardsAndKeepsIconsReadable() {
+        let inputs = ModernPaletteCatalog.all.map { $0.hexes.map(DayObjectRGB.init(hex:)) }
+            + [[], [DayObjectRGB(hex: "#000000")], [DayObjectRGB(hex: "#FFFFFF")]]
+        for colors in inputs {
+            let palette = CanvasChromePalette.resolve(backgroundColors: colors)
+            XCTAssertGreaterThanOrEqual(
+                contrastRatio(palette.feedTabSurface.linearRGB, palette.surface.linearRGB),
+                4.5
+            )
+        }
+    }
+
+    func testAllCatalogPalettesHaveReadableTextButtonsAndProgress() {
+        let inputs = ModernPaletteCatalog.all.map { $0.hexes.map(DayObjectRGB.init(hex:)) }
+            + [[], [DayObjectRGB(hex: "#000000")], [DayObjectRGB(hex: "#FFFFFF")],
+               [DayObjectRGB(hex: "#808080")], [DayObjectRGB(hex: "#FF00FF"), DayObjectRGB(hex: "#00FF00")]]
+        for colors in inputs {
+            let p = CanvasChromePalette.resolve(backgroundColors: colors)
+            for text in [p.textPrimary, p.textSecondary, p.accent] {
+                XCTAssertGreaterThanOrEqual(contrastRatio(text.linearRGB, p.surface.linearRGB), 4.5)
+            }
+            XCTAssertGreaterThanOrEqual(contrastRatio(p.onAccent.linearRGB, p.accent.linearRGB), 4.5)
+            XCTAssertGreaterThanOrEqual(contrastRatio(p.accent.linearRGB, p.track.linearRGB), 3)
+        }
+    }
+
+    func testDifferentBackgroundsProduceDifferentAccentsWithoutRandomness() {
+        let green = [DayObjectRGB(hex: "#78966B")]
+        let blue = [DayObjectRGB(hex: "#6987A5")]
+        let first = CanvasChromePalette.resolve(backgroundColors: green)
+        XCTAssertEqual(first, CanvasChromePalette.resolve(backgroundColors: green))
+        XCTAssertNotEqual(first.accent, CanvasChromePalette.resolve(backgroundColors: blue).accent)
+        XCTAssertNotEqual(first.surface, CanvasChromePalette.resolve(backgroundColors: blue).surface)
+    }
+
+    func testPaletteOrderingDoesNotChangeTheInterfaceAndGrayHasNeutralFallback() {
+        let colors = ["#332A49", "#AA91C3", "#E2CDF4"].map(DayObjectRGB.init(hex:))
+        XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: colors),
+                       CanvasChromePalette.resolve(backgroundColors: colors.reversed()))
+        XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: []).family, .neutral)
+        XCTAssertEqual(CanvasChromePalette.resolve(backgroundColors: [DayObjectRGB(hex: "#808080")]).family, .neutral)
+    }
+}
+
+
+final class CanvasHintLayoutTests: XCTestCase {
+    func testHintPointsToMeasuredPlusInsteadOfScreenCenter() {
+        for width: CGFloat in [280, 353, 812] {
+            let targetX = width - 26
+            let layout = CanvasHintLayout(containerWidth: width, targetX: targetX)
+            XCTAssertEqual(layout.minX + layout.tailX, targetX, accuracy: 0.01)
+            XCTAssertGreaterThanOrEqual(layout.minX, 0)
+            XCTAssertLessThanOrEqual(layout.minX + layout.width, width)
+            XCTAssertGreaterThanOrEqual(layout.tailX, 22)
+            XCTAssertLessThanOrEqual(layout.tailX, layout.width - 22)
+        }
+    }
+
+    func testHintFollowsControlOnEitherSideAndInTheMiddle() {
+        for targetX: CGFloat in [26, 170, 327] {
+            let layout = CanvasHintLayout(containerWidth: 353, targetX: targetX)
+            XCTAssertEqual(layout.minX + layout.tailX, targetX, accuracy: 0.01)
+        }
+    }
+}
+
+final class NoirPaletteTests: XCTestCase {
+    func testRemovedSeasonalPreferencesKeepRemainingChoicesAndRecoverEmptySelection() {
+        XCTAssertEqual(ModernPaletteSelection.decode("pastel,spring,winter"), [.pastel])
+        XCTAssertEqual(ModernPaletteSelection.decode("spring,summer,fall,winter"), ModernPaletteSelection.all)
+        let oldAll = "pastel,vintage,retro,neon,warm,cold,spring,summer,fall,winter"
+        XCTAssertEqual(ModernPaletteSelection.decode(oldAll), ModernPaletteSelection.all)
+        XCTAssertEqual(ModernPaletteSelection.encode(Set(ModernPaletteCategory.legacyCases)), "")
+    }
+
+    func testNoirSelectionHasFourPalettesAndDoesNotExpandToAll() throws {
+        let noir = try XCTUnwrap(ModernPaletteCategory(rawValue: "noir"))
+        let selected = ModernPaletteSelection.decode("noir")
+        XCTAssertEqual(selected, [noir])
+        let palettes = ModernPaletteCatalog.palettes(matching: selected)
+        XCTAssertEqual(palettes.count, 4)
+        for palette in palettes {
+            for color in palette.hexes.map(DayObjectRGB.init(hex:)) {
+                let lab = color.perceptualOKLab
+                XCTAssertLessThan(sqrt(lab.y * lab.y + lab.z * lab.z), 0.035)
+            }
+        }
+    }
+
+    func testNoirBackgroundSurvivesSavingAndDoesNotLeakIntoArchivedRecipes() throws {
+        let noir = try XCTUnwrap(ModernPaletteCategory(rawValue: "noir"))
+        let recipe = NativeAtlasRecipe.make(dayKey: "2026-09-15", paletteCategories: [noir])
+        XCTAssertEqual(recipe.backgroundStyle?.isNoir, true)
+        let restored = try JSONDecoder().decode(NativeAtlasRecipe.self, from: JSONEncoder().encode(recipe))
+        XCTAssertEqual(restored, recipe)
+        var archived = recipe
+        archived.backgroundStyle = nil
+        let oldStyle = archived.resolvedBackgroundStyle(dayKey: "2026-09-15")
+        XCTAssertNil(oldStyle.isNoir)
+        let originalColors = ["5F8B4C", "FFDDAB", "FF9A9A", "945034"].map { DayObjectRGB(hex: $0).linearRGB }
+        XCTAssertTrue(oldStyle.colors.allSatisfy(originalColors.contains), "Historical fallback must retain the original daily palette")
+    }
+
+    func testGrayArtworkKeepsEveryInterfaceTokenAchromaticAndReadable() {
+        let chrome = CanvasChromePalette.resolve(backgroundColors:
+            ["111111", "505050", "BDBDBD", "F5F5F5"].map(DayObjectRGB.init(hex:)))
+        for color in [chrome.surface, chrome.textPrimary, chrome.textSecondary,
+                      chrome.accent, chrome.onAccent, chrome.track, chrome.earned] {
+            XCTAssertEqual(color.sRGB.x, color.sRGB.y, accuracy: 0.0001)
+            XCTAssertEqual(color.sRGB.y, color.sRGB.z, accuracy: 0.0001)
+        }
+        XCTAssertGreaterThanOrEqual(contrastRatio(chrome.accent.linearRGB, chrome.surface.linearRGB), 7)
+    }
+}

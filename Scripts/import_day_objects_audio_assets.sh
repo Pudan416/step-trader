@@ -17,7 +17,7 @@ readonly PIANO_FIXED_GAIN_DB="-6.0"
 
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly repo_root="$(cd "${script_dir}/.." && pwd -P)"
-readonly resource_root="${repo_root}/StepsTrader/Experiments/DayObjects/Sound/Resources"
+readonly resource_root="${repo_root}/Nowhere/Experiments/DayObjects/Sound/Resources"
 
 fail() {
     printf 'error: %s\n' "$*" >&2
@@ -29,7 +29,7 @@ for command_name in git jq shasum cmp mktemp afconvert afinfo swift cp mv find a
 done
 [[ "$(afconvert -h 2>&1)" == *"Version: 2.0"* ]] || fail "unsupported afconvert version"
 
-[[ -f "${repo_root}/Steps4.xcodeproj/project.pbxproj" ]] || fail "run this importer from the Steps project checkout"
+[[ -f "${repo_root}/Nowhere.xcodeproj/project.pbxproj" ]] || fail "run this importer from the Steps project checkout"
 [[ -d "${resource_root}" && ! -L "${resource_root}" ]] || fail "resource root must be a real directory: ${resource_root}"
 readonly canonical_resource_root="$(cd "${resource_root}" && pwd -P)"
 readonly license_root="${canonical_resource_root}/AudioLicenses"

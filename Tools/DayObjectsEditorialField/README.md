@@ -69,8 +69,8 @@ a dedicated outline/counterform sheet):
 ```bash
 swift run --package-path Tools/DayObjectsEditorialField editorial-field-render material \
   --manifest Tools/DayObjectsEditorialField/Manifests/visible-v1.json \
-  --composition-approval artifacts/day-objects-editorial-field/composition/composition-approved.json \
-  --composition-recipes artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json \
+  --composition-approval Tools/DayObjectsEditorialField/Fixtures/composition-approved.json \
+  --composition-recipes Tools/DayObjectsEditorialField/Fixtures/composition-recipes-approved.json \
   --output artifacts/day-objects-editorial-field/material/<infrastructure-round> \
   --source-commit <full-renderer-source-commit>
 ```
@@ -90,8 +90,8 @@ Verify both the sealed artifact set and the external frozen composition bytes:
 ```bash
 swift run --package-path Tools/DayObjectsEditorialField editorial-field-render verify-material \
   --package artifacts/day-objects-editorial-field/material/<infrastructure-round> \
-  --composition-approval artifacts/day-objects-editorial-field/composition/composition-approved.json \
-  --composition-recipes artifacts/day-objects-editorial-field/composition/composition-recipes-approved.json \
+  --composition-approval Tools/DayObjectsEditorialField/Fixtures/composition-approved.json \
+  --composition-recipes Tools/DayObjectsEditorialField/Fixtures/composition-recipes-approved.json \
   --expected-source-commit <full-renderer-source-commit>
 ```
 
@@ -124,3 +124,7 @@ The visible corpus fixes the specification commit
 condition tables, four capture phases, and SHA-256 seed derivation. The first
 eight digest bytes are interpreted as one unsigned big-endian `UInt64`; any
 collision is resolved by incrementing and recording the collision suffix.
+
+Frozen composition authority is kept in `Fixtures/`; generated images, metrics and
+review packages go to ignored `artifacts/`. Historical review bundles are available
+in Git history and are not runtime or test dependencies.
