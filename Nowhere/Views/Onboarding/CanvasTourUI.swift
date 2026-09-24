@@ -324,7 +324,7 @@ private struct CanvasTourHost: ViewModifier {
         switch tour.step {
         case .welcome: String(localized: "I made Nowhere to scroll less and notice more. Want a quick tour?")
         case .add: String(localized: "Tap + to add something from your day.")
-        case .happening: String(localized: "Tap once to preview. Tap again to add.")
+        case .happening: String(localized: "Tap once to add. Tap twice to remove.")
         case .momentResult: String(localized: "By adding happenings, you can get up to \(HappeningDefaults.happeningsMaxPoints) colors a day.")
         case .balance: String(localized: "To see where the other \(EnergyDefaults.activityMaxPoints + EnergyDefaults.sleepMaxPoints) colors can come from. You can also tap the handle.")
         case .healthValue:

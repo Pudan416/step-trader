@@ -500,7 +500,7 @@ extension AppModel {
             : EnergyDefaults.assumedSleepPoints
         let computedInkEarned = min(
             EnergyDefaults.maxBaseEnergy,
-            (stepsForInk > 0 ? pointsFromSteps(stepsForInk) : EnergyDefaults.assumedActivityPoints) +
+            max(EnergyDefaults.assumedActivityPoints, pointsFromSteps(stepsForInk)) +
             sleepPts +
             HappeningEconomy.points(forAdditionCount: savedHappeningIds.count)
         )
@@ -574,17 +574,14 @@ extension AppModel {
         stepsToday > 0 ? stepsToday : fallbackCachedSteps()
     }
 
-    /// A completed empty query qualifies, just like assumed sleep. HealthKit hides
-    /// read permission, so write authorization is not evidence of a connection.
-    /// Never mistake the initial loading state for a completed empty query.
+    /// The daily minimum fills the gap until measured activity earns five colors.
+    /// It is part of the 20-color activity allowance, not an extra grant.
     var isActivityAssumed: Bool {
-        stepsForActivityToday == 0 && hasStepsData
+        pointsFromSteps(stepsForActivityToday) < EnergyDefaults.assumedActivityPoints
     }
 
     var activityPointsToday: Int {
-        isActivityAssumed
-            ? EnergyDefaults.assumedActivityPoints
-            : pointsFromSteps(stepsForActivityToday)
+        max(EnergyDefaults.assumedActivityPoints, pointsFromSteps(stepsForActivityToday))
     }
 
     private var userSleepTarget: Double {

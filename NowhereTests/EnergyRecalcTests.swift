@@ -34,8 +34,8 @@ final class EnergyRecalcTests: XCTestCase {
 
         model.recalculateDailyEnergy()
 
-        XCTAssertEqual(model.baseEnergyToday, 0)
-        XCTAssertEqual(model.stepsBalance, 0)
+        XCTAssertEqual(model.baseEnergyToday, 5)
+        XCTAssertEqual(model.stepsBalance, 5)
     }
 
     func testRecalculate_maxTarget() {
@@ -172,15 +172,15 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(model.stepsBalance, 10, "Refreshing must not award the gift again")
     }
 
-    func testActivityGiftWaitsForHealthQuery() {
+    func testActivityMinimumIsAvailableBeforeHealthQuery() {
         let model = makeModel()
         model.stepsToday = 0
         model.healthStore.hasStepsData = false
-        XCTAssertEqual(model.activityPointsToday, 0)
-        XCTAssertFalse(model.isActivityAssumed)
+        XCTAssertEqual(model.activityPointsToday, 5)
+        XCTAssertTrue(model.isActivityAssumed)
     }
 
-    func testActivityGiftIsReplacedByRealData() {
+    func testActivityMinimumIsRaisedByRealData() {
         let model = makeModel()
         defaults.set(10_000.0, forKey: SharedKeys.userStepsTarget)
         model.healthStore.hasStepsData = true
@@ -190,8 +190,12 @@ final class EnergyRecalcTests: XCTestCase {
 
         model.stepsToday = 500
         model.recalculateDailyEnergy()
+        XCTAssertTrue(model.isActivityAssumed)
+        XCTAssertEqual(model.activityPointsToday, 5, "A few steps must not remove the daily minimum")
+        model.stepsToday = 3_000
+        model.recalculateDailyEnergy()
         XCTAssertFalse(model.isActivityAssumed)
-        XCTAssertEqual(model.activityPointsToday, 1, "Gift is a fallback, not a bonus on measured activity")
+        XCTAssertEqual(model.activityPointsToday, 6, "Measured activity takes over above the minimum")
         model.stepsToday = 20_000
         model.recalculateDailyEnergy()
         XCTAssertEqual(model.activityPointsToday, 20)
@@ -247,7 +251,7 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(archived.inkEarned, 15)
         XCTAssertEqual(archived.inkSpent, 5)
         XCTAssertEqual(archived.steps, 0, "A colors gift must never invent Health measurements")
-        XCTAssertFalse(model.isActivityAssumed, "A new day waits for its own query")
+        XCTAssertTrue(model.isActivityAssumed, "The new day begins with its own five colors")
 
         await model.refreshStepsIfAuthorized()
         XCTAssertEqual(model.activityPointsToday, 5)
@@ -279,7 +283,7 @@ final class EnergyRecalcTests: XCTestCase {
         }
     }
 
-    func testTransientHealthFailureDoesNotAssumeActivityBeforeAResult() async {
+    func testTransientHealthFailureKeepsDailyActivityMinimum() async {
         let health = ConfigurableHealthKitMock()
         health.stepsError = NSError(domain: HKErrorDomain, code: HKError.Code.errorDatabaseInaccessible.rawValue)
         let model = AppModel(
@@ -291,8 +295,8 @@ final class EnergyRecalcTests: XCTestCase {
         )
         model.isBootstrapping = true
         await model.refreshStepsBalance()
-        XCTAssertFalse(model.isActivityAssumed)
-        XCTAssertEqual(model.activityPointsToday, 0)
+        XCTAssertTrue(model.isActivityAssumed)
+        XCTAssertEqual(model.activityPointsToday, 5)
     }
 
     // MARK: - Sleep points: assumed vs real

@@ -370,11 +370,11 @@ final class HappeningFieldLayoutTests: XCTestCase {
         )
         for ink in [HappeningPaletteLabelInk.dark, .light] {
             for state in [
-                HappeningPaletteSlotVisualState.available, .additionPreview, .added, .removalPreview,
+                HappeningPaletteSlotVisualState.available, .added, .removalPreview,
             ] {
                 let added: Set<String> = state == .added || state == .removalPreview ? [happening.id] : []
                 var interaction = HappeningPaletteInteractionState()
-                if state == .additionPreview || state == .removalPreview {
+                if state == .removalPreview {
                     _ = interaction.tap(id: happening.id, addedIDs: added)
                 }
                 let renderer = ImageRenderer(content:
@@ -419,7 +419,6 @@ final class HappeningFieldLayoutTests: XCTestCase {
         var state = HappeningFieldPresentationState(happenings: configured)
         let original = state.layout(in: size, safeInsets: safeInsets)
         var interaction = HappeningPaletteInteractionState()
-        _ = interaction.tap(id: configured[0].id, addedIDs: [])
         _ = interaction.tap(id: configured[0].id, addedIDs: [])
         interaction.resolve(.add(configured[0].id), succeeded: true)
         state.receiveParent(configured)

@@ -67,7 +67,14 @@ struct HappeningPaletteInteractionState: Equatable {
 
         confirmation = nil
 
-        let intended: HappeningPaletteMutation = addedIDs.contains(id) ? .remove(id) : .add(id)
+        guard addedIDs.contains(id) else {
+            armedMutation = nil
+            let addition = HappeningPaletteMutation.add(id)
+            pendingMutation = addition
+            return .perform(addition)
+        }
+
+        let intended = HappeningPaletteMutation.remove(id)
         guard armedMutation == intended else {
             armedMutation = intended
             return .armed(intended)

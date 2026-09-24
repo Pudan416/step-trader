@@ -13,6 +13,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_remix_button"].exists)
         XCTAssertFalse(app.buttons["canvas_edit_button"].exists)
         XCTAssertFalse(app.buttons["canvas_undo_remix_button"].exists)
+        let dockCenterY = close.frame.midY
         let portraitCapture = XCTAttachment(screenshot: app.screenshot())
         portraitCapture.name = "compact-viewing-dock"; portraitCapture.lifetime = .keepAlways; add(portraitCapture)
 
@@ -21,10 +22,14 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertGreaterThan(reveal.frame.midX, app.frame.midX)
         XCTAssertEqual(reveal.frame.width, 56, accuracy: 2)
         XCTAssertEqual(reveal.frame.height, 56, accuracy: 2)
-        XCTAssertEqual(reveal.frame.maxX, app.frame.maxX, accuracy: 2)
-        XCTAssertEqual(reveal.frame.maxY, app.frame.maxY, accuracy: 2)
+        XCTAssertEqual(reveal.frame.maxX, app.frame.maxX - 16, accuracy: 2)
+        XCTAssertEqual(reveal.frame.midY, dockCenterY, accuracy: 2)
         XCTAssertFalse(close.exists)
         XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
+        let revealCapture = XCTAttachment(screenshot: app.screenshot())
+        revealCapture.name = "visible-reveal-controls-button"
+        revealCapture.lifetime = .keepAlways
+        add(revealCapture)
         reveal.tap()
         XCTAssertTrue(close.waitForExistence(timeout: 3))
 
@@ -662,13 +667,12 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["happening_mode_all"].tap()
         XCTAssertFalse(app.buttons["canvas_tour.exit.confirm"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.otherElements["canvas_tour.card.happening"].exists)
+        XCTAssertTrue(app.staticTexts["Tap once to add. Tap twice to remove."].exists)
         app.buttons["happening_mode_frequent"].tap()
         XCTAssertFalse(app.buttons["canvas_tour.exit.confirm"].waitForExistence(timeout: 1))
         guard let choice = choices.allElementsBoundByIndex.first(where: { $0.isEnabled && $0.isHittable }) else {
             XCTFail("No available actual happening"); return
         }
-        choice.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.happening"].exists)
         choice.tap()
         let next = app.buttons["canvas_tour.momentNext"]
         XCTAssertTrue(next.waitForExistence(timeout: 8))

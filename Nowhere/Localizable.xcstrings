@@ -282,7 +282,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "I think there was some activity in your day anyway. Here are 5 colors, on the house."
+            "value": "Your day starts with 5 activity colors. Steps can bring this up to 20."
           }
         }      }
     },
@@ -698,6 +698,11 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap again to add to Canvas" } }      }
     },
+    "Tap once to add. Tap twice to remove." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap once to add. Tap twice to remove." } }      }
+    },
     "On Canvas" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -742,6 +747,11 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to preview adding to Canvas" } }      }
+    },
+    "Activate to add to Canvas" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Activate to add to Canvas" } }      }
     },
     "Activate to preview removing from Canvas" : {
       "extractionState" : "manual",

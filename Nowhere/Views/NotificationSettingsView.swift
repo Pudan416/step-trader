@@ -254,7 +254,7 @@ struct NotificationSettingsView: View {
             String(localized: "Allow notifications", comment: "Notification permission action")
         case .openSystemSettings, .checkAccess:
             String(localized: "Open Settings", comment: "Permission recovery action")
-        case nil:
+        case .showHealthGuide, nil:
             nil
         }
     }
@@ -279,7 +279,7 @@ struct NotificationSettingsView: View {
             requestNotificationAuthorization()
         case .openSystemSettings, .checkAccess:
             openAppSettings()
-        case nil:
+        case .showHealthGuide, nil:
             break
         }
     }

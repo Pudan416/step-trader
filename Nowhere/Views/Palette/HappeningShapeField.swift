@@ -95,7 +95,7 @@ struct HappeningShapeField: View {
     private func hint(for state: HappeningPaletteSlotVisualState, locked: Bool) -> String {
         if locked { return String(localized: "This happening is temporarily unavailable. Try again.") }
         switch state {
-        case .available: return String(localized: "Activate to preview adding to Canvas")
+        case .available: return String(localized: "Activate to add to Canvas")
         case .additionPreview: return String(localized: "Activate again to add to Canvas")
         case .added: return String(localized: "Activate to preview removing from Canvas")
         case .removalPreview: return String(localized: "Activate again to remove from Canvas")

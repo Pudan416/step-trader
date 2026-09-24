@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// A compact queue above the Canvas controls, using the same readable pigment
-/// colors. Only the front card is actionable; the inset edge previews the queue.
+/// A compact queue above the Canvas controls. Its opaque surface keeps the copy
+/// legible over both pale and dark artwork. Only the front card is actionable.
 struct ActivitySuggestionBanner: View {
     let suggestions: [ActivitySuggestion]
     let onAccept: (ActivitySuggestion) -> Void
     let onDismiss: (ActivitySuggestion) -> Void
 
-    @Environment(\.canvasChromePalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -48,7 +47,7 @@ struct ActivitySuggestionBanner: View {
     private func depthCard(_ suggestion: ActivitySuggestion) -> some View {
         // Match the front card's measured height, including wrapped copy and
         // Dynamic Type, so the queue edge always stays just above its top.
-        cardShape.fill(palette.earnedColor)
+        cardShape.fill(AppColors.graphite)
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
@@ -82,7 +81,7 @@ struct ActivitySuggestionBanner: View {
         .padding(.trailing, 8)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, minHeight: 76)
-        .background(palette.surfaceColor, in: cardShape)
+        .background(AppColors.Night.background, in: cardShape)
         .contentShape(cardShape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("canvas_activity_suggestion_front")
@@ -90,18 +89,12 @@ struct ActivitySuggestionBanner: View {
 
     private func suggestionText(_ suggestion: ActivitySuggestion) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: suggestion.icon)
-                    .font(.geist(16, weight: .medium, relativeTo: .headline))
-                    .foregroundStyle(palette.accentColor)
-                    .accessibilityHidden(true)
-                Text(suggestion.title)
-                    .font(.geist(15, weight: .semibold, relativeTo: .headline))
-                    .foregroundStyle(palette.textColor)
-            }
+            Text(suggestion.title)
+                .font(.geist(16, weight: .semibold, relativeTo: .headline))
+                .foregroundStyle(AppColors.Night.textPrimary)
             Text(suggestion.subtitle)
-                .font(.geist(13, relativeTo: .subheadline))
-                .foregroundStyle(palette.secondaryColor)
+                .font(.geist(14, weight: .medium, relativeTo: .subheadline))
+                .foregroundStyle(AppColors.Night.textPrimary.opacity(0.82))
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -115,11 +108,11 @@ struct ActivitySuggestionBanner: View {
         } label: {
             Text(String(localized: "Add"))
                 .font(.geist(14, weight: .semibold, relativeTo: .body))
-                .foregroundStyle(palette.onAccentColor)
+                .foregroundStyle(AppColors.Night.background)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: 44)
-                .background(palette.accentColor, in: Capsule())
+                .background(AppColors.Night.textPrimary, in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -133,7 +126,7 @@ struct ActivitySuggestionBanner: View {
         } label: {
             Image(systemName: "xmark")
                 .font(.geist(14, weight: .medium, relativeTo: .body))
-                .foregroundStyle(palette.secondaryColor)
+                .foregroundStyle(AppColors.Night.textPrimary.opacity(0.82))
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
         }

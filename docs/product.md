@@ -7,9 +7,10 @@ For tone and product intent, read [PRODUCT.md](../PRODUCT.md).
 
 Sleep, activity and happenings create up to 100 colors per custom day:
 20 from sleep, 20 from activity and 60 from happenings. Activity currently uses
-HealthKit step counts. Missing activity data grants a 5-color fallback; real data
-replaces it. Sleep has a 10-color fallback after six hours from the day boundary.
-Refreshing does not accumulate extra fallback grants.
+HealthKit step counts. Every day starts with 5 activity colors; measured steps
+raise that amount up to 20, without adding a second grant. Sleep has a 10-color
+fallback after six hours from the day boundary. Refreshing does not accumulate
+extra fallback grants.
 
 The configured day boundary can differ from calendar midnight. Existing `steps*`
 and `energy*` storage names are compatibility identifiers, not a second currency.

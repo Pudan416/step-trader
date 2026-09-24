@@ -23,8 +23,8 @@ struct CanvasTourSetup: View {
     private var healthStatus: String {
         let presentation = SettingsPermissionPresentation.health(
             isAvailable: HKHealthStore.isHealthDataAvailable(),
-            // The existing has*Data flags also cover successful empty queries.
-            hasReturnedData: model.stepsToday > 0 || model.dailySleepHours > 0
+            // A zero query cannot prove read access; only visible samples do.
+            hasVisibleData: model.stepsToday > 0 || model.dailySleepHours > 0
         )
         switch presentation.status {
         case .connected: return String(localized: "Data available")
