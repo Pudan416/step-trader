@@ -161,6 +161,7 @@ struct GalleryView: View {
     @Environment(\.canvasBalanceBottomGlobalY) private var balanceBottomGlobalY
     @State private var dataPanelHostGlobalY: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @StateObject private var musicController = DayObjectsMusicLabController(allowsBackgroundPlayback: true)
     @State private var playbackChrome = CanvasPlaybackChromeState()
     @State private var playbackChromeHideTask: Task<Void, Never>?
@@ -2449,31 +2450,27 @@ struct GalleryView: View {
             schedulePlaybackChromeHide()
             lightHapticTick &+= 1
         } label: {
-            ZStack(alignment: .bottomTrailing) {
-                CanvasPlaybackRevealCornerShape()
-                    .fill(.black.opacity(0.42))
-                    .shadow(color: .black.opacity(0.18), radius: 3, x: -1, y: -1)
-                    .frame(width: 40, height: 40)
-
-                CanvasPlaybackRevealCornerShape()
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        CanvasPlaybackRevealCornerShape()
-                            .fill(.white.opacity(0.18))
-                    }
-                    .overlay {
-                        CanvasPlaybackRevealCornerShape()
-                            .stroke(.white.opacity(0.58), lineWidth: 0.75)
-                    }
-                    .frame(width: 34, height: 34)
-            }
-            .frame(width: 56, height: 56)
-            .contentShape(Rectangle())
+            Image(systemName: "chevron.up")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 50, height: 50)
+                .background(reduceTransparency ? Color.black : Color.black.opacity(0.62), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.72), lineWidth: 1))
+                .shadow(color: .black.opacity(0.28), radius: 7, y: 3)
+                .frame(width: 56, height: 56)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "Show controls"))
         .accessibilityHint(String(localized: "Shows playback and remix controls"))
         .accessibilityIdentifier("canvas_reveal_controls_button")
+        .padding(.trailing, 16)
+        .padding(.bottom, CanvasBottomControlsLayout.padding(
+            canvasBottomY: canvasGlobalMaxY + deviceBottomSafeAreaInset,
+            tabBarCenterY: tabBarCenterY,
+            controlHeight: 56,
+            fallbackSafeAreaBottom: deviceBottomSafeAreaInset
+        ))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     }
 
@@ -2842,26 +2839,6 @@ struct SuggestionBannerHeightKey: PreferenceKey {
         value = max(value, nextValue())
     }
 }
-
-/// A small page-curl/petal anchored to the physical bottom-right corner. It
-/// hints that chrome can be brought back without resembling the home indicator
-/// or covering the central Smudge gesture surface.
-private struct CanvasPlaybackRevealCornerShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.maxX, y: rect.minY + 5))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX + 5, y: rect.maxY))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY + 5),
-            control1: CGPoint(x: rect.midX + 2, y: rect.maxY - 2),
-            control2: CGPoint(x: rect.maxX - 2, y: rect.midY)
-        )
-        path.closeSubpath()
-        return path
-    }
-}
-
 
 /// Subtle backdrop blur below the picker, including live Metal canvas content.
 private struct HappeningCanvasBackdropBlur: UIViewRepresentable {

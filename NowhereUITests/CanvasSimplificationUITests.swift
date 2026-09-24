@@ -13,6 +13,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_remix_button"].exists)
         XCTAssertFalse(app.buttons["canvas_edit_button"].exists)
         XCTAssertFalse(app.buttons["canvas_undo_remix_button"].exists)
+        let dockCenterY = close.frame.midY
         let portraitCapture = XCTAttachment(screenshot: app.screenshot())
         portraitCapture.name = "compact-viewing-dock"; portraitCapture.lifetime = .keepAlways; add(portraitCapture)
 
@@ -21,10 +22,14 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertGreaterThan(reveal.frame.midX, app.frame.midX)
         XCTAssertEqual(reveal.frame.width, 56, accuracy: 2)
         XCTAssertEqual(reveal.frame.height, 56, accuracy: 2)
-        XCTAssertEqual(reveal.frame.maxX, app.frame.maxX, accuracy: 2)
-        XCTAssertEqual(reveal.frame.maxY, app.frame.maxY, accuracy: 2)
+        XCTAssertEqual(reveal.frame.maxX, app.frame.maxX - 16, accuracy: 2)
+        XCTAssertEqual(reveal.frame.midY, dockCenterY, accuracy: 2)
         XCTAssertFalse(close.exists)
         XCTAssertFalse(app.buttons["canvas_remix_button"].exists)
+        let revealCapture = XCTAttachment(screenshot: app.screenshot())
+        revealCapture.name = "visible-reveal-controls-button"
+        revealCapture.lifetime = .keepAlways
+        add(revealCapture)
         reveal.tap()
         XCTAssertTrue(close.waitForExistence(timeout: 3))
 
