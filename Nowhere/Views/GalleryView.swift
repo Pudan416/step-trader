@@ -2452,11 +2452,11 @@ struct GalleryView: View {
         } label: {
             Image(systemName: "chevron.up")
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.white.opacity(0.74))
                 .frame(width: 50, height: 50)
-                .background(reduceTransparency ? Color.black : Color.black.opacity(0.62), in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(0.72), lineWidth: 1))
-                .shadow(color: .black.opacity(0.28), radius: 7, y: 3)
+                .background(reduceTransparency ? Color.black : Color.black.opacity(0.30), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.26), lineWidth: 1))
+                .shadow(color: .black.opacity(0.08), radius: 5, y: 2)
                 .frame(width: 56, height: 56)
                 .contentShape(Circle())
         }
