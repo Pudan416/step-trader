@@ -407,6 +407,7 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         let rendered = expectation(description: "first render")
         var renderCount = 0
         var loadCount = 0
+        var chromeChanges = 0
         let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in
             loadCount += 1
             return nil
@@ -414,13 +415,14 @@ final class TodayCanvasBackgroundTests: XCTestCase {
             renderCount += 1
             rendered.fulfill()
             return UIImage()
-        })
+        }, onChromeChange: { _, _ in chromeChanges += 1 })
         store.refresh(appearance())
         await fulfillment(of: [rendered], timeout: 2)
         for _ in 0..<20 { store.refresh(appearance()) }
         try? await Task.sleep(for: .milliseconds(30))
         XCTAssertEqual(renderCount, 1)
         XCTAssertEqual(loadCount, 1)
+        XCTAssertEqual(chromeChanges, 1)
     }
 
     func testNewDayRejectsAnOlderInFlightRender() async {

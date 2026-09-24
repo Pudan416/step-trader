@@ -241,6 +241,7 @@ final class MePosterSnapshotCache: ObservableObject {
     private var recency: [String] = []
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
     private var requestedKeys: [String: String] = [:]
+    private var diskWrites: [String: (id: UUID, task: Task<Void, Never>)] = [:]
 
     init(
         directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -268,23 +269,60 @@ final class MePosterSnapshotCache: ObservableObject {
         return image
     }
 
+    /// Calendar cells read this from body without touching the filesystem.
+    /// Their .task loads missing images through image(for:categories:).
+    func cachedImageInMemory(for dayKey: String) -> UIImage? {
+        entries[dayKey]?.image
+    }
+
+    private func loadCachedImage(for dayKey: String) async {
+        guard entries[dayKey] == nil else { return }
+        let url = fileURL(dayKey)
+        let stored: DiskEntry? = await Task.detached(priority: .utility) {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? PropertyListDecoder().decode(DiskEntry.self, from: data)
+        }.value
+        guard entries[dayKey] == nil, let stored,
+              let image = UIImage(data: stored.png) else { return }
+        remember(Entry(key: stored.key, image: image), for: dayKey)
+        revision &+= 1
+    }
+
     func image(for canvas: DayCanvas, categories: Set<ModernPaletteCategory>) async -> UIImage? {
         guard let key = contentKey(canvas, categories: categories) else { return nil }
         let dayKey = canvas.dayKey
         requestedKeys[dayKey] = key
-        _ = cachedImage(for: dayKey)
+        await loadCachedImage(for: dayKey)
         if let entry = entries[dayKey], entry.key == key { return entry.image }
         if let active = inFlight[key] { return await active.value }
         let task = Task { @MainActor in
             let image = await self.render(canvas, categories)
             if let image, self.requestedKeys[dayKey] == key {
                 self.remember(Entry(key: key, image: image), for: dayKey)
-                if let png = image.pngData(),
-                   let data = try? PropertyListEncoder().encode(DiskEntry(key: key, png: png)) {
-                    try? FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
-                    try? data.write(to: self.fileURL(dayKey), options: .atomic)
-                }
                 self.revision &+= 1
+                // PNG compression and the atomic disk write can take multiple
+                // frames for a full-size poster. Keep both off the UI actor.
+                // Chain writes for the same day so an older export cannot
+                // replace a newer one if their encodes finish out of order.
+                let previousWrite = self.diskWrites[dayKey]?.task
+                let directory = self.directory
+                let destination = self.fileURL(dayKey)
+                let writeID = UUID()
+                let write = Task.detached(priority: .utility) {
+                    await previousWrite?.value
+                    guard let png = image.pngData(),
+                          let data = try? PropertyListEncoder().encode(DiskEntry(key: key, png: png))
+                    else { return }
+                    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    try? data.write(to: destination, options: .atomic)
+                }
+                self.diskWrites[dayKey] = (writeID, write)
+                // Keep image(for:) durable on return, including for callers
+                // that reopen the cache immediately after awaiting it.
+                await write.value
+                if self.diskWrites[dayKey]?.id == writeID {
+                    self.diskWrites.removeValue(forKey: dayKey)
+                }
             }
             self.inFlight.removeValue(forKey: key)
             return image
