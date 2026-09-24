@@ -370,11 +370,11 @@ final class HappeningFieldLayoutTests: XCTestCase {
         )
         for ink in [HappeningPaletteLabelInk.dark, .light] {
             for state in [
-                HappeningPaletteSlotVisualState.available, .additionPreview, .added, .removalPreview,
+                HappeningPaletteSlotVisualState.available, .added, .removalPreview,
             ] {
                 let added: Set<String> = state == .added || state == .removalPreview ? [happening.id] : []
                 var interaction = HappeningPaletteInteractionState()
-                if state == .additionPreview || state == .removalPreview {
+                if state == .removalPreview {
                     _ = interaction.tap(id: happening.id, addedIDs: added)
                 }
                 let renderer = ImageRenderer(content:
