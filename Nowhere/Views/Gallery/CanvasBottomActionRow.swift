@@ -107,8 +107,14 @@ struct CanvasBottomActionRow: View {
 
     private var soundControl: some View {
         Button(action: onSound) {
-            Image(systemName: soundAppearance.systemImage)
-                .font(.geist(size: 20, weight: .regular))
+            Group {
+                if soundAppearance == .readyToPlay {
+                    CanvasExperienceMark()
+                } else {
+                    Image(systemName: soundAppearance.systemImage)
+                        .font(.geist(size: 20, weight: .regular))
+                }
+            }
                 .foregroundStyle(palette.accentColor)
                 .frame(width: 48, height: 48)
                 .canvasChromeSurface(in: Circle())
@@ -124,6 +130,21 @@ struct CanvasBottomActionRow: View {
         .accessibilityValue(soundAppearance.accessibilityValue)
         .accessibilityIdentifier("canvas_sound_button")
         .canvasTourControl("canvas.sound")
+    }
+
+    /// A compact, tactile waveform that frames the first listen as an experience.
+    private struct CanvasExperienceMark: View {
+        private let heights: [CGFloat] = [8, 15, 23, 17, 9]
+
+        var body: some View {
+            HStack(alignment: .center, spacing: 2.5) {
+                ForEach(Array(heights.enumerated()), id: \.offset) { _, height in
+                    Capsule()
+                        .frame(width: 2.5, height: height)
+                }
+            }
+            .accessibilityHidden(true)
+        }
     }
 
     private var listControl: some View {
@@ -187,7 +208,7 @@ enum CanvasSoundButtonAppearance: Equatable {
 
     var systemImage: String {
         switch self {
-        case .readyToPlay: "play.fill"
+        case .readyToPlay: "waveform"
         case .starting: "hourglass"
         case .playing: "waveform"
         case .retry: "arrow.clockwise"
