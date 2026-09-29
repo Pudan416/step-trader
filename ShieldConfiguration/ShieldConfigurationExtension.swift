@@ -122,7 +122,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
                 title: title,
                 artwork: artwork,
                 subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), appName),
-                primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
+                primaryButtonText: NSLocalizedString("send again", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
             )
         }
@@ -131,7 +131,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             title: title,
             artwork: artwork,
             subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
-            primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
+            primaryButtonText: NSLocalizedString("send a push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
         )
     }
@@ -150,7 +150,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
                 title: title,
                 artwork: artwork,
                 subtitle: String(format: NSLocalizedString("\nNowhere sent you a push.\nTap it to unlock %@.", comment: "Shield subtitle after push sent"), domain),
-                primaryButtonText: NSLocalizedString("one more push", comment: "Shield primary button — resend push"),
+                primaryButtonText: NSLocalizedString("send again", comment: "Shield primary button — resend push"),
                 secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button")
             )
         }
@@ -159,7 +159,7 @@ class ShieldConfigurationExtension: ShieldConfigurationDataSource {
             title: title,
             artwork: artwork,
             subtitle: NSLocalizedString("\nSpend some colors\nto unlock it", comment: "Shield subtitle"),
-            primaryButtonText: NSLocalizedString("unlock with push", comment: "Shield primary button — request notification"),
+            primaryButtonText: NSLocalizedString("send a push", comment: "Shield primary button — request notification"),
             secondaryButtonText: NSLocalizedString("keep it closed", comment: "Shield secondary button — conscious opt-out")
         )
     }
