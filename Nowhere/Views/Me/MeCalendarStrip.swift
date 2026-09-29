@@ -305,7 +305,7 @@ struct DayHistoryTile: View {
 
     private var tileBody: some View {
         ZStack {
-            if let thumbnail = snapshots.cachedImage(for: dayKey) {
+            if let thumbnail = snapshots.cachedImageInMemory(for: dayKey) {
                 Image(uiImage: thumbnail)
                     .resizable()
                     .aspectRatio(contentMode: .fill)

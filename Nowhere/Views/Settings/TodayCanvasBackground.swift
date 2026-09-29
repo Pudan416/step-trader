@@ -284,6 +284,12 @@ final class TodayCanvasBackdropStore: ObservableObject {
     }
 
     func refresh(_ appearance: TodayCanvasAppearance, reload: Bool = false) {
+        // The minute timer and unrelated model updates often deliver an
+        // identical appearance. Skip palette and JSON work when its image is
+        // already current (or a worker is already preparing it). A failed
+        // export remains retryable because completed still differs.
+        if !reload, requested?.appearance == appearance,
+           (worker != nil || requested == completed) { return }
         if requested?.appearance != appearance { visibleFrame = nil }
         if dayKey != appearance.dayKey || reload {
             if dayKey != appearance.dayKey {
