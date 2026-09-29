@@ -526,7 +526,15 @@ enum ShieldRebuildHelper {
                     guard let prepared else { return }
                     // Never call the daemon under the state lock: it can deliver
                     // a callback before startMonitoring returns.
-                    try DeviceActivityCenter().startMonitoring(
+                    // End the previous measurement before starting the next one.
+                    // Overlapping monitors for the same selection let Screen Time
+                    // carry the old usage baseline into the replacement on device.
+                    let center = DeviceActivityCenter()
+                    let previousActivities = obsoleteActivityNames
+                        .filter { $0 != prepared.session.activityName(groupId: groupId) }
+                        .map { DeviceActivityName($0) }
+                    if !previousActivities.isEmpty { center.stopMonitoring(previousActivities) }
+                    try center.startMonitoring(
                         DeviceActivityName(prepared.session.activityName(groupId: groupId)),
                         during: prepared.schedule,
                         events: prepared.events
@@ -556,6 +564,15 @@ enum ShieldRebuildHelper {
                     for (key, value) in prepared.previousValues {
                         defaults.set(value, forKey: key)
                     }
+                    // The former monitor was stopped before registration. If
+                    // replacement fails, keep its paid balance recoverable but
+                    // shielded until another monitor is live.
+                    if var previous = UsageBudgetSession.load(from: defaults, groupId: groupId),
+                       previous.remainingMinutes > 0 {
+                        previous.monitoringFailed = true
+                        previous.invalidatedAt = previous.invalidatedAt ?? now
+                        previous.save(to: defaults, groupId: groupId)
+                    }
                     defaults.synchronize()
                 }
             )
@@ -567,14 +584,10 @@ enum ShieldRebuildHelper {
                     DeviceActivityName(attemptedSession.activityName(groupId: groupId))
                 ])
             }
+            rebuild(startPendingBudgets: false)
             throw error
         }
 
-        guard let attemptedSession else { return }
-        let obsolete = obsoleteActivityNames
-            .filter { $0 != attemptedSession.activityName(groupId: groupId) }
-            .map { DeviceActivityName($0) }
-        if !obsolete.isEmpty { DeviceActivityCenter().stopMonitoring(obsolete) }
     }
 
     static func purchaseUsageBudget(defaults: UserDefaults, groupId: String, minutes: Int, now: Date = Date()) throws {
