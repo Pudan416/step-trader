@@ -30,6 +30,7 @@ struct HappeningChooserView: View {
     let protectedIDs: Set<String>
     let healthIDs: Set<String>
     let onCreateNew: (String, String, [String]) -> HappeningPaletteCreationOutcome
+    let onRenameHealth: (String, String) -> Bool
     let onSave: ([String]) -> Void
     let onCancel: () -> Void
 
@@ -38,6 +39,7 @@ struct HappeningChooserView: View {
     @State private var query = ""
     @State private var isCreating = false
     @State private var name = ""
+    @State private var renamingHealthID: String?
     @State private var feedback: HappeningPaletteCreationFeedback?
     @State private var showsProtectedMessage = false
     @State private var protectedHealth = false
@@ -49,12 +51,14 @@ struct HappeningChooserView: View {
     init(
         catalog: [Happening], selected: [String], protectedIDs: Set<String> = [], healthIDs: Set<String> = [],
         onCreateNew: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
+        onRenameHealth: @escaping (String, String) -> Bool = { _, _ in false },
         onSave: @escaping ([String]) -> Void, onCancel: @escaping () -> Void
     ) {
         self.catalog = catalog
         self.protectedIDs = protectedIDs
         self.healthIDs = healthIDs
         self.onCreateNew = onCreateNew
+        self.onRenameHealth = onRenameHealth
         self.onSave = onSave
         self.onCancel = onCancel
         _draft = State(initialValue: HappeningPaletteSelectionDraft(
@@ -99,7 +103,9 @@ struct HappeningChooserView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if replacementID == nil || isCreating {
                     Button {
-                        if isCreating { create() } else { onSave(draft.ids) }
+                        if isCreating {
+                            if let renamingHealthID { renameHealth(renamingHealthID) } else { create() }
+                        } else { onSave(draft.ids) }
                     } label: {
                         Text("Done")
                             .font(.geist(.body).weight(.semibold))
@@ -118,7 +124,7 @@ struct HappeningChooserView: View {
                     .background(surface)
                 }
             }
-            .navigationTitle(isCreating ? String(localized: "New happening") : replacementID == nil ? String(localized: "Happenings") : String(localized: "Replace"))
+            .navigationTitle(isCreating ? String(localized: renamingHealthID == nil ? "New happening" : "Rename happening") : replacementID == nil ? String(localized: "Happenings") : String(localized: "Replace"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(surface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -129,6 +135,7 @@ struct HappeningChooserView: View {
                         feedback = nil
                         if isCreating {
                             isCreating = false
+                            renamingHealthID = nil
                             if !hasAlternatives { replacementID = nil }
                         } else if replacementID != nil {
                             replacementID = nil
@@ -170,20 +177,21 @@ struct HappeningChooserView: View {
 
             VStack(spacing: 0) {
                 ForEach(selected) { happening in
-                    Button {
-                        if protectedIDs.contains(happening.id) {
-                            protectedHealth = healthIDs.contains(happening.id)
-                            showsProtectedMessage = true
-                        } else {
-                            replacementID = happening.id
-                            query = ""
-                            name = ""
-                            // With no saved alternatives, go straight to naming the replacement.
-                            isCreating = !hasAlternatives
-                            nameFocused = isCreating
-                        }
-                    } label: {
-                        HStack(spacing: 16) {
+                    HStack(spacing: 8) {
+                        Button {
+                            if protectedIDs.contains(happening.id) {
+                                protectedHealth = healthIDs.contains(happening.id)
+                                showsProtectedMessage = true
+                            } else {
+                                replacementID = happening.id
+                                query = ""
+                                name = ""
+                                // With no saved alternatives, go straight to naming the replacement.
+                                isCreating = !hasAlternatives
+                                nameFocused = isCreating
+                            }
+                        } label: {
+                            HStack(spacing: 16) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(happening.localizedTitle())
                                 if protectedIDs.contains(happening.id) {
@@ -196,14 +204,31 @@ struct HappeningChooserView: View {
                             Image(systemName: healthIDs.contains(happening.id) ? "pin.fill" : protectedIDs.contains(happening.id) ? "checkmark" : "chevron.right")
                                 .font(.geist(.footnote).weight(.semibold))
                                 .foregroundStyle(ink.opacity(0.65))
+                            }
+                            .padding(.vertical, 14)
+                            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .multilineTextAlignment(.leading)
+                        .accessibilityIdentifier("happening_editor_row_\(happening.id)")
+                        if happening.id.hasPrefix("health_workout_") {
+                            Button {
+                                renamingHealthID = happening.id
+                                name = happening.title
+                                isCreating = true
+                                feedback = nil
+                                nameFocused = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Rename \(happening.localizedTitle())")
+                            .accessibilityIdentifier("happening_rename_\(happening.id)")
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .multilineTextAlignment(.leading)
-                    .accessibilityIdentifier("happening_editor_row_\(happening.id)")
                     if happening.id != draft.ids.last { Divider().overlay(ink.opacity(0.08)) }
                 }
             }
@@ -272,7 +297,7 @@ struct HappeningChooserView: View {
 
     private var creator: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Replaces \(targetTitle)")
+            Text(renamingHealthID == nil ? "Replaces \(targetTitle)" : "Rename this Health activity")
                 .font(.geist(.subheadline))
                 .foregroundStyle(ink.opacity(0.7))
             TextField("Name", text: limitedName, prompt: Text("Name").foregroundStyle(ink.opacity(0.65)))
@@ -316,6 +341,15 @@ struct HappeningChooserView: View {
         if let feedback {
             UIAccessibility.post(notification: .announcement, argument: feedback.message)
         }
+    }
+
+    private func renameHealth(_ id: String) {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            feedback = .invalidTitle
+            return
+        }
+        guard onRenameHealth(id, name) else { return }
+        onCancel()
     }
 }
 

@@ -547,6 +547,11 @@ struct GalleryView: View {
                 onCreateReplacement: { title, replacementID, selection in
                     handlePaletteCreation(title, replacingID: replacementID, selection: selection)
                 },
+                onRenameHealth: { id, title in
+                    let renamed = model.renameHealthHappening(id: id, title: title)
+                    if renamed { refreshHappeningPalette() }
+                    return renamed
+                },
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {

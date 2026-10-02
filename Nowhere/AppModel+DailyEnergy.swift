@@ -88,6 +88,14 @@ extension AppModel {
         happeningStore.create(title: title, at: date)
     }
 
+    @discardableResult
+    func renameHealthHappening(id: String, title: String) -> Bool {
+        guard happeningStore.renameExternalHappening(id: id, title: title) != nil else { return false }
+        objectWillChange.send()
+        Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+        return true
+    }
+
     /// Creates a catalog item and installs it into the configured ten without
     /// logging it to the current day. The user still has to tap its field zone.
     func createPaletteHappening(
@@ -160,9 +168,7 @@ extension AppModel {
         let detected = pendingActivitySuggestions.compactMap { suggestion -> String? in
             guard case .workout = suggestion.source else { return nil }
             let id = HappeningPaletteSelection.choiceID(suggestion.optionId)
-            if happeningStore.happening(id: id) == nil {
-                happeningStore.ensureExternalHappening(id: id, title: suggestion.title)
-            }
+            happeningStore.ensureExternalHappening(id: id, title: suggestion.title)
             return id
         }
         let knownHealth = happeningStore.all.filter { $0.id.hasPrefix("health_workout_") }.map(\.id)
