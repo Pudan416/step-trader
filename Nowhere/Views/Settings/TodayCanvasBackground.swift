@@ -2,17 +2,6 @@ import SwiftUI
 import Combine
 import MetalKit
 
-private struct TodayCanvasSourceKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var isTodayCanvasSource: Bool {
-        get { self[TodayCanvasSourceKey.self] }
-        set { self[TodayCanvasSourceKey.self] = newValue }
-    }
-}
-
 extension Notification.Name {
     static let todayCanvasStorageDidChange = Notification.Name("todayCanvasStorageDidChange")
 }
@@ -212,6 +201,9 @@ final class TodayCanvasBackdropStore: ObservableObject {
         let windowRect: CGRect
     }
     @Published private(set) var visibleFrame: VisibleFrame?
+    // Kept as an explicit opt-in capture hook for poster/backdrop clients and
+    // tests. The app's tab backgrounds do not register a live renderer, so
+    // normal navigation never triggers an extra Metal frame capture.
     private weak var sourceView: MTKView?
     private weak var sourceRenderer: DayObjectsRenderer?
 
@@ -240,9 +232,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
                 continuation.resume(returning: texture)
             }
         }
-        defer {
-            renderer.configureAnimation(view, requestsStaticFrame: false)
-        }
+        defer { renderer.configureAnimation(view, requestsStaticFrame: false) }
         guard !Task.isCancelled, sourceView === view, sourceRenderer === renderer,
               appearance == requested?.appearance, let texture,
               let image = DayObjectsImageRenderer.makeImage(texture: texture, scale: scale) else { return }

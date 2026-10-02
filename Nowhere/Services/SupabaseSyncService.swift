@@ -475,7 +475,7 @@ actor SupabaseSyncService {
                     // Telemetry: a permanently-failed sync is otherwise invisible
                     // (the user just silently stops syncing). Emit the endpoint
                     // path only (no query string) to avoid leaking identifiers.
-                    trackAnalyticsEvent(
+                    await trackAnalyticsEvent(
                         name: "sync_failed",
                         properties: [
                             "endpoint": url.path,

@@ -64,6 +64,16 @@ extension SupabaseSyncService {
         }
     }
 
+    /// Restores only the user's custom happening catalog. Existing installs
+    /// intentionally skip the destructive full restore on upgrade, but still
+    /// need current titles to resolve historical Canvas identifiers.
+    func restoreCustomHappeningsFromServer(model: AppModel) async {
+        guard let happenings = await loadCustomHappeningsFromServer(), !happenings.isEmpty else { return }
+        await MainActor.run {
+            model.mergeRestoredHappenings(happenings)
+        }
+    }
+
     
     /// Sync daily selections for a given day
     func syncDailySelections(dayKey: String, activityIds: [String], recoveryIds: [String], joysIds: [String]) {
