@@ -771,7 +771,7 @@ struct GalleryView: View {
         do {
             _ = try model.createPaletteHappening(
                 title: title,
-                protectedIDs: paletteAddedIDs.union(paletteHealthIDs),
+                protectedIDs: paletteAddedIDs,
                 selection: selection,
                 replacingID: replacingID
             )

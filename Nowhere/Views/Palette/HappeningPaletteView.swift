@@ -325,7 +325,7 @@ struct HappeningPaletteView: View {
             HappeningChooserView(
                 catalog: catalog,
                 selected: selectedIDs,
-                protectedIDs: addedIDs.union(fixedIDs),
+                protectedIDs: addedIDs,
                 healthIDs: fixedIDs,
                 onCreateNew: { title, replacementID, selection in
                     let outcome = onCreateReplacement(title, replacementID, selection)

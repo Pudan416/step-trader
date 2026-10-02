@@ -42,7 +42,6 @@ struct HappeningChooserView: View {
     @State private var renamingHealthID: String?
     @State private var feedback: HappeningPaletteCreationFeedback?
     @State private var showsProtectedMessage = false
-    @State private var protectedHealth = false
     @FocusState private var nameFocused: Bool
 
     private let surface = Color(hex: "F4F5EF")
@@ -156,10 +155,10 @@ struct HappeningChooserView: View {
         .tint(ink)
         .preferredColorScheme(.light)
         .interactiveDismissDisabled(draft.hasChanges || !name.isEmpty)
-        .alert(protectedHealth ? String(localized: "Health happenings stay in Frequent") : String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
+        .alert(String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(protectedHealth ? String(localized: "Health activities are always close at hand. You can replace another happening.") : String(localized: "Remove this happening from Canvas before replacing it."))
+            Text("Remove this happening from Canvas before replacing it.")
         }
     }
 
@@ -168,7 +167,7 @@ struct HappeningChooserView: View {
             Text("These happenings appear first in the field.")
                 .font(.geist(.footnote))
             HStack {
-                Text("Tap to replace")
+                Text("Tap to replace · use arrows to reorder")
                 Spacer()
                 Text(draft.ids.count, format: .number).monospacedDigit()
             }
@@ -180,7 +179,6 @@ struct HappeningChooserView: View {
                     HStack(spacing: 8) {
                         Button {
                             if protectedIDs.contains(happening.id) {
-                                protectedHealth = healthIDs.contains(happening.id)
                                 showsProtectedMessage = true
                             } else {
                                 replacementID = happening.id
@@ -212,6 +210,26 @@ struct HappeningChooserView: View {
                         .buttonStyle(.plain)
                         .multilineTextAlignment(.leading)
                         .accessibilityIdentifier("happening_editor_row_\(happening.id)")
+                        Button {
+                            _ = draft.move(id: happening.id, by: -1)
+                        } label: {
+                            Image(systemName: "arrow.up")
+                                .frame(width: 36, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(draft.ids.first == happening.id)
+                        .accessibilityLabel("Move \(happening.localizedTitle()) up")
+                        .accessibilityIdentifier("happening_move_up_\(happening.id)")
+                        Button {
+                            _ = draft.move(id: happening.id, by: 1)
+                        } label: {
+                            Image(systemName: "arrow.down")
+                                .frame(width: 36, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(draft.ids.last == happening.id)
+                        .accessibilityLabel("Move \(happening.localizedTitle()) down")
+                        .accessibilityIdentifier("happening_move_down_\(happening.id)")
                         if happening.id.hasPrefix("health_workout_") {
                             Button {
                                 renamingHealthID = happening.id
