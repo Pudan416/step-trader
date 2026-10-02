@@ -87,9 +87,8 @@ final class HappeningStore {
     }
 
     @discardableResult
-    func renameExternalHappening(id: String, title: String) -> Happening? {
-        guard id.hasPrefix("health_workout_"),
-              let index = all.firstIndex(where: { $0.id == id }) else { return nil }
+    func renameHappening(id: String, title: String) -> Happening? {
+        guard let index = all.firstIndex(where: { $0.id == id && !$0.isBuiltIn }) else { return nil }
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else { return nil }
         all[index].title = Happening.limitedTitle(normalizedTitle)

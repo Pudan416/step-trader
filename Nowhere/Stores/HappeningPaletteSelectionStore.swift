@@ -43,11 +43,12 @@ struct HappeningPaletteSelectionDraft {
     }
 
     @discardableResult
-    mutating func move(id: String, by offset: Int) -> Bool {
-        guard let index = ids.firstIndex(of: id) else { return false }
-        let destination = index + offset
-        guard ids.indices.contains(destination) else { return false }
-        ids.swapAt(index, destination)
+    mutating func move(id: String, to targetID: String) -> Bool {
+        guard let sourceIndex = ids.firstIndex(of: id),
+              let targetIndex = ids.firstIndex(of: targetID),
+              sourceIndex != targetIndex else { return false }
+        ids.remove(at: sourceIndex)
+        ids.insert(id, at: min(targetIndex, ids.count))
         return true
     }
 

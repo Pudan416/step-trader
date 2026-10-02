@@ -30,7 +30,7 @@ struct HappeningChooserView: View {
     let protectedIDs: Set<String>
     let healthIDs: Set<String>
     let onCreateNew: (String, String, [String]) -> HappeningPaletteCreationOutcome
-    let onRenameHealth: (String, String) -> Bool
+    let onRename: (String, String) -> Bool
     let onSave: ([String]) -> Void
     let onCancel: () -> Void
 
@@ -39,7 +39,7 @@ struct HappeningChooserView: View {
     @State private var query = ""
     @State private var isCreating = false
     @State private var name = ""
-    @State private var renamingHealthID: String?
+    @State private var renamingID: String?
     @State private var feedback: HappeningPaletteCreationFeedback?
     @State private var showsProtectedMessage = false
     @FocusState private var nameFocused: Bool
@@ -50,14 +50,14 @@ struct HappeningChooserView: View {
     init(
         catalog: [Happening], selected: [String], protectedIDs: Set<String> = [], healthIDs: Set<String> = [],
         onCreateNew: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
-        onRenameHealth: @escaping (String, String) -> Bool = { _, _ in false },
+        onRename: @escaping (String, String) -> Bool = { _, _ in false },
         onSave: @escaping ([String]) -> Void, onCancel: @escaping () -> Void
     ) {
         self.catalog = catalog
         self.protectedIDs = protectedIDs
         self.healthIDs = healthIDs
         self.onCreateNew = onCreateNew
-        self.onRenameHealth = onRenameHealth
+        self.onRename = onRename
         self.onSave = onSave
         self.onCancel = onCancel
         _draft = State(initialValue: HappeningPaletteSelectionDraft(
@@ -103,7 +103,7 @@ struct HappeningChooserView: View {
                 if replacementID == nil || isCreating {
                     Button {
                         if isCreating {
-                            if let renamingHealthID { renameHealth(renamingHealthID) } else { create() }
+                            if let renamingID { renameHappening(renamingID) } else { create() }
                         } else { onSave(draft.ids) }
                     } label: {
                         Text("Done")
@@ -123,7 +123,7 @@ struct HappeningChooserView: View {
                     .background(surface)
                 }
             }
-            .navigationTitle(isCreating ? String(localized: renamingHealthID == nil ? "New happening" : "Rename happening") : replacementID == nil ? String(localized: "Happenings") : String(localized: "Replace"))
+            .navigationTitle(isCreating ? String(localized: renamingID == nil ? "New happening" : "Rename happening") : replacementID == nil ? String(localized: "Happenings") : String(localized: "Replace"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(surface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -134,7 +134,7 @@ struct HappeningChooserView: View {
                         feedback = nil
                         if isCreating {
                             isCreating = false
-                            renamingHealthID = nil
+                            renamingID = nil
                             if !hasAlternatives { replacementID = nil }
                         } else if replacementID != nil {
                             replacementID = nil
@@ -158,7 +158,7 @@ struct HappeningChooserView: View {
         .alert(String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Remove this happening from Canvas before replacing it.")
+            Text("This happening is already on today's Canvas. Remove it there before replacing it.")
         }
     }
 
@@ -167,7 +167,12 @@ struct HappeningChooserView: View {
             Text("These happenings appear first in the field.")
                 .font(.geist(.footnote))
             HStack {
-                Text("Tap to replace · use arrows to reorder")
+                HStack(spacing: 5) {
+                    Text("Tap to replace · drag")
+                    Image(systemName: "line.3.horizontal")
+                        .accessibilityHidden(true)
+                    Text("to reorder")
+                }
                 Spacer()
                 Text(draft.ids.count, format: .number).monospacedDigit()
             }
@@ -190,18 +195,15 @@ struct HappeningChooserView: View {
                             }
                         } label: {
                             HStack(spacing: 16) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(happening.localizedTitle())
-                                if protectedIDs.contains(happening.id) {
-                                    Text(healthIDs.contains(happening.id) ? String(localized: "Health") : String(localized: "On Canvas"))
-                                        .font(.geist(.caption))
-                                        .foregroundStyle(ink.opacity(0.7))
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(happening.localizedTitle())
+                                    if protectedIDs.contains(happening.id) || healthIDs.contains(happening.id) {
+                                        Text(protectedIDs.contains(happening.id) ? String(localized: "On Canvas") : String(localized: "Health"))
+                                            .font(.geist(.caption))
+                                            .foregroundStyle(ink.opacity(0.7))
+                                    }
                                 }
-                            }
-                            Spacer(minLength: 8)
-                            Image(systemName: healthIDs.contains(happening.id) ? "pin.fill" : protectedIDs.contains(happening.id) ? "checkmark" : "chevron.right")
-                                .font(.geist(.footnote).weight(.semibold))
-                                .foregroundStyle(ink.opacity(0.65))
+                                Spacer(minLength: 8)
                             }
                             .padding(.vertical, 14)
                             .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
@@ -210,43 +212,40 @@ struct HappeningChooserView: View {
                         .buttonStyle(.plain)
                         .multilineTextAlignment(.leading)
                         .accessibilityIdentifier("happening_editor_row_\(happening.id)")
-                        Button {
-                            _ = draft.move(id: happening.id, by: -1)
-                        } label: {
-                            Image(systemName: "arrow.up")
-                                .frame(width: 36, height: 44)
+                        .dropDestination(for: String.self) { draggedIDs, _ in
+                            guard let draggedID = draggedIDs.first else { return false }
+                            return draft.move(id: draggedID, to: happening.id)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(draft.ids.first == happening.id)
-                        .accessibilityLabel("Move \(happening.localizedTitle()) up")
-                        .accessibilityIdentifier("happening_move_up_\(happening.id)")
-                        Button {
-                            _ = draft.move(id: happening.id, by: 1)
-                        } label: {
-                            Image(systemName: "arrow.down")
-                                .frame(width: 36, height: 44)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(draft.ids.last == happening.id)
-                        .accessibilityLabel("Move \(happening.localizedTitle()) down")
-                        .accessibilityIdentifier("happening_move_down_\(happening.id)")
-                        if happening.id.hasPrefix("health_workout_") {
+                        Image(systemName: "line.3.horizontal")
+                            .frame(width: 44, height: 48)
+                            .contentShape(Rectangle())
+                            .draggable(happening.id) {
+                                Text(happening.localizedTitle())
+                                    .font(.geist(.body).weight(.medium))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(surface, in: Capsule())
+                            }
+                            .accessibilityLabel("Reorder \(happening.localizedTitle())")
+                            .accessibilityIdentifier("happening_reorder_\(happening.id)")
+                        if !happening.isBuiltIn {
                             Button {
-                                renamingHealthID = happening.id
+                                renamingID = happening.id
                                 name = happening.title
                                 isCreating = true
                                 feedback = nil
                                 nameFocused = true
                             } label: {
-                                Image(systemName: "pencil")
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
+                                Text("Rename")
+                                    .font(.geist(.caption).weight(.medium))
+                                    .padding(.horizontal, 8)
+                                    .frame(minHeight: 44)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Rename \(happening.localizedTitle())")
                             .accessibilityIdentifier("happening_rename_\(happening.id)")
                         }
                     }
+                    .animation(.snappy(duration: 0.18), value: draft.ids)
                     if happening.id != draft.ids.last { Divider().overlay(ink.opacity(0.08)) }
                 }
             }
@@ -315,7 +314,7 @@ struct HappeningChooserView: View {
 
     private var creator: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(renamingHealthID == nil ? "Replaces \(targetTitle)" : "Rename this Health activity")
+            Text(renamingID == nil ? "Replaces \(targetTitle)" : "Rename this happening")
                 .font(.geist(.subheadline))
                 .foregroundStyle(ink.opacity(0.7))
             TextField("Name", text: limitedName, prompt: Text("Name").foregroundStyle(ink.opacity(0.65)))
@@ -361,12 +360,12 @@ struct HappeningChooserView: View {
         }
     }
 
-    private func renameHealth(_ id: String) {
+    private func renameHappening(_ id: String) {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             feedback = .invalidTitle
             return
         }
-        guard onRenameHealth(id, name) else { return }
+        guard onRename(id, name) else { return }
         onCancel()
     }
 }

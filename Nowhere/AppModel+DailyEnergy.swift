@@ -89,8 +89,8 @@ extension AppModel {
     }
 
     @discardableResult
-    func renameHealthHappening(id: String, title: String) -> Bool {
-        guard happeningStore.renameExternalHappening(id: id, title: title) != nil else { return false }
+    func renameHappening(id: String, title: String) -> Bool {
+        guard happeningStore.renameHappening(id: id, title: title) != nil else { return false }
         objectWillChange.send()
         Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
         return true
