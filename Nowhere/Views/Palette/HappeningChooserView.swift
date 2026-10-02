@@ -275,7 +275,7 @@ struct HappeningChooserView: View {
             Text("Replaces \(targetTitle)")
                 .font(.geist(.subheadline))
                 .foregroundStyle(ink.opacity(0.7))
-            TextField("Name", text: $name, prompt: Text("Name").foregroundStyle(ink.opacity(0.65)))
+            TextField("Name", text: limitedName, prompt: Text("Name").foregroundStyle(ink.opacity(0.65)))
                 .padding(16)
                 .frame(minHeight: 56)
                 .background(ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
@@ -284,6 +284,11 @@ struct HappeningChooserView: View {
                 .onSubmit(create)
                 .onChange(of: name) { _, _ in feedback = nil }
                 .accessibilityIdentifier("happening_editor_name")
+            Text("\(name.count)/\(Happening.titleCharacterLimit)")
+                .font(.geist(.caption2).monospacedDigit())
+                .foregroundStyle(ink.opacity(0.65))
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .accessibilityLabel("\(name.count) of \(Happening.titleCharacterLimit) characters")
             if let feedback {
                 Text(feedback.message)
                     .font(.geist(.subheadline))
@@ -291,6 +296,13 @@ struct HappeningChooserView: View {
                     .accessibilityIdentifier("happening_editor_error")
             }
         }
+    }
+
+    private var limitedName: Binding<String> {
+        Binding(
+            get: { name },
+            set: { name = Happening.limitedTitle($0) }
+        )
     }
 
     private func create() {

@@ -219,29 +219,36 @@ struct HappeningFreeTextField: View {
     }
 
     var body: some View {
-        TextField(
-            String(localized: "What happened?", comment: "Palette free-text placeholder"),
-            text: limitedText,
-            prompt: Text(
-                String(localized: "What happened?", comment: "Palette free-text placeholder")
+        VStack(alignment: .trailing, spacing: 6) {
+            TextField(
+                String(localized: "What happened?", comment: "Palette free-text placeholder"),
+                text: limitedText,
+                prompt: Text(
+                    String(localized: "What happened?", comment: "Palette free-text placeholder")
+                )
+                .foregroundStyle(.secondary)
             )
-            .foregroundStyle(.secondary)
-        )
-        .font(.geist(size: 14, weight: .medium))
-        .foregroundStyle(.primary)
-        .multilineTextAlignment(.center)
-        .happeningPanelTextFieldStyle()
-        .textInputAutocapitalization(.sentences)
-        // A happening is whatever the user calls it. Autocorrect against the
-        // active keyboard language rewrites unfamiliar words outright — typing
-        // "Sauna" on a Russian keyboard produced "Выгоды" — and the label is
-        // then wrong forever. A typo is the lesser failure.
-        .autocorrectionDisabled(true)
-        .submitLabel(.done)
-        .focused($isFocused)
-        .onAppear { isFocused = true }
-        .onSubmit {
-            onSubmit(trimmed)
+            .font(.geist(size: 14, weight: .medium))
+            .foregroundStyle(.primary)
+            .multilineTextAlignment(.center)
+            .happeningPanelTextFieldStyle()
+            .textInputAutocapitalization(.sentences)
+            // A happening is whatever the user calls it. Autocorrect against the
+            // active keyboard language rewrites unfamiliar words outright — typing
+            // "Sauna" on a Russian keyboard produced "Выгоды" — and the label is
+            // then wrong forever. A typo is the lesser failure.
+            .autocorrectionDisabled(true)
+            .submitLabel(.done)
+            .focused($isFocused)
+            .onAppear { isFocused = true }
+            .onSubmit {
+                onSubmit(trimmed)
+            }
+
+            Text("\(text.count)/\(Happening.titleCharacterLimit)")
+                .font(.geist(.caption2).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("\(text.count) of \(Happening.titleCharacterLimit) characters")
         }
     }
 }
