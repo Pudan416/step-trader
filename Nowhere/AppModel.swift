@@ -587,6 +587,9 @@ final class AppModel: ObservableObject {
             if hasPriorLocalState {
                 // Existing install predating this flag — mark restored, don't clobber.
                 AppLogger.app.debug("🔄 Existing install detected — seeding initial-restore flag without restoring")
+                Task {
+                    await SupabaseSyncService.shared.restoreCustomHappeningsFromServer(model: self)
+                }
             } else {
                 AppLogger.app.debug("🔄 Fresh install (authenticated) — restoring from Supabase")
                 let didRestore = await SupabaseSyncService.shared.restoreFromServer(model: self)
@@ -595,6 +598,12 @@ final class AppModel: ObservableObject {
                 }
             }
             g.set(true, forKey: SharedKeys.hasCompletedInitialRestore)
+        } else if isAuthenticated {
+            // Keep existing accounts' custom happening labels current without
+            // replaying the full restore or replacing local preferences.
+            Task {
+                await SupabaseSyncService.shared.restoreCustomHappeningsFromServer(model: self)
+            }
         }
 
         // 4. Refresh data AFTER day boundary reset so fresh values aren't wiped

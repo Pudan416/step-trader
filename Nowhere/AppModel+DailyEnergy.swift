@@ -63,6 +63,13 @@ extension AppModel {
         if syncToCloud {
             Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
             Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+            let kind = happeningStore.happening(id: id)?.isBuiltIn == false ? "custom" : "built_in"
+            Task {
+                await SupabaseSyncService.shared.trackAnalyticsEvent(
+                    name: "happening_added",
+                    properties: ["happening_kind": kind]
+                )
+            }
         }
         return entry
     }
@@ -371,6 +378,12 @@ extension AppModel {
             return happening.localizedTitle()
         }
         return EnergyDefaults.legacyTitle(for: optionId) ?? optionId
+    }
+
+    func mergeRestoredHappenings(_ happenings: [Happening]) {
+        guard !happenings.isEmpty else { return }
+        happeningStore.mergeRestored(happenings)
+        objectWillChange.send()
     }
 
     func loadPastDaySnapshots() -> [String: PastDaySnapshot] {

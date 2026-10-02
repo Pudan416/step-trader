@@ -1,17 +1,5 @@
 import SwiftUI
 import Combine
-import MetalKit
-
-private struct TodayCanvasSourceKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var isTodayCanvasSource: Bool {
-        get { self[TodayCanvasSourceKey.self] }
-        set { self[TodayCanvasSourceKey.self] = newValue }
-    }
-}
 
 extension Notification.Name {
     static let todayCanvasStorageDidChange = Notification.Name("todayCanvasStorageDidChange")
@@ -212,43 +200,6 @@ final class TodayCanvasBackdropStore: ObservableObject {
         let windowRect: CGRect
     }
     @Published private(set) var visibleFrame: VisibleFrame?
-    private weak var sourceView: MTKView?
-    private weak var sourceRenderer: DayObjectsRenderer?
-
-    func registerSource(_ view: MTKView, renderer: DayObjectsRenderer) {
-        sourceView = view
-        sourceRenderer = renderer
-    }
-
-    func unregisterSource(_ view: MTKView) {
-        guard sourceView === view else { return }
-        sourceView = nil
-        sourceRenderer = nil
-    }
-
-    func captureVisibleFrame() async {
-        guard let view = sourceView, view.window != nil, !view.isPaused,
-              let renderer = sourceRenderer else { return }
-        let rect = view.convert(view.bounds, to: nil)
-        let size = view.bounds.size
-        let scale = view.contentScaleFactor
-        let appearance = requested?.appearance
-        view.isPaused = true
-        let texture: MTLTexture? = await withCheckedContinuation { continuation in
-            renderer.renderOffscreen(size: size, pointScale: scale,
-                                     elapsedTime: renderer.lastDisplayedTime) { texture, _ in
-                continuation.resume(returning: texture)
-            }
-        }
-        defer {
-            renderer.configureAnimation(view, requestsStaticFrame: false)
-        }
-        guard !Task.isCancelled, sourceView === view, sourceRenderer === renderer,
-              appearance == requested?.appearance, let texture,
-              let image = DayObjectsImageRenderer.makeImage(texture: texture, scale: scale) else { return }
-        visibleFrame = VisibleFrame(image: image, windowRect: rect)
-    }
-
     private var sourceData: Data?
     private var requested: Request?
     private var completed: Request?

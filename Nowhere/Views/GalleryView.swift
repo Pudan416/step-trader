@@ -1026,7 +1026,6 @@ struct GalleryView: View {
             }
         }
         .ignoresSafeArea()
-        .environment(\.isTodayCanvasSource, !showHappeningPalette)
     }
 
     // ═══════════════════════════════════════════════════════════
