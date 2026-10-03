@@ -103,7 +103,9 @@ struct GalleryView: View {
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
     @State private var showEventExplorer = false
-    @State private var eventTreeEvents = HappeningEventTree.startingEvents
+    @State private var eventTree = HappeningEventTreeState()
+    @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
+    @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
     @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteTourSessionID: UUID?
     @State private var paletteHappenings: [Happening] = []
@@ -518,7 +520,11 @@ struct GalleryView: View {
         send(.openHappeningPalette)
         cancelPaletteInteraction()
         paletteMode = .all
-        eventTreeEvents = HappeningEventTree.startingEvents
+        if eventTreeDayKey != dayCanvas.dayKey {
+            eventTreeDayKey = dayCanvas.dayKey
+            eventTreeExpandedIDs = ""
+        }
+        eventTree = HappeningEventTreeState(expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init))
         refreshEventTreePalette()
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -528,8 +534,8 @@ struct GalleryView: View {
     }
 
     private func refreshEventTreePalette() {
-        let happenings = eventTreeEvents.map {
-            Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: false)
+        let happenings = eventTree.nodes.map {
+            Happening(id: "event_\($0.id)", title: $0.event.title, isBuiltIn: false)
         }
         paletteCatalog = happenings
         paletteSelectedIDs = happenings.map(\.id)
@@ -554,7 +560,7 @@ struct GalleryView: View {
     }
 
     @ViewBuilder
-    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout) -> some View {
+    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout, treeHubCenter: CGPoint?) -> some View {
         if (showHappeningPalette || showEventExplorer), !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
@@ -565,7 +571,7 @@ struct GalleryView: View {
                 activePanel: $happeningPalettePanel,
                 layout: layout,
                 mode: paletteMode,
-                compactLayout: compactLayout,
+                compactLayout: showEventExplorer ? nil : compactLayout,
                 artworkForLayout: { displayedLayout, isExpanding in
                     AnyView(DayObjectsView(
                         sceneInput: displayedEditorialRenderInput.sceneInput,
@@ -580,19 +586,7 @@ struct GalleryView: View {
                 addedIDs: paletteAddedIDs,
                 fixedIDs: paletteHealthIDs,
                 instruction: paletteInstruction,
-                onActivate: { happening in
-                    if showEventExplorer,
-                       let event = eventTreeEvents.first(where: { "event_\($0.id)" == happening.id }),
-                       paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs) == .available {
-                        let visible = Set(eventTreeEvents.map(\.id))
-                        let next = HappeningEventTree.suggestions(for: event, alreadyVisible: visible)
-                        if !next.isEmpty {
-                            eventTreeEvents.append(contentsOf: next)
-                            refreshEventTreePalette()
-                        }
-                    }
-                    handlePaletteActivation(happening)
-                },
+                onActivate: handlePaletteActivation,
                 onCreate: { handlePaletteCreation($0) },
                 onCreateReplacement: { title, replacementID, selection in
                     handlePaletteCreation(title, replacingID: replacementID, selection: selection)
@@ -604,7 +598,11 @@ struct GalleryView: View {
                     if showEventExplorer { refreshEventTreePalette() }
                     else { refreshHappeningPalette() }
                 },
-                showsDateHub: showEventExplorer
+                dateHubCenter: treeHubCenter,
+                treeFocusID: showEventExplorer ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
+                dateHubInk: .resolve(state: .available,
+                    background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
+                    material: nil)
             )
             .transition(.opacity)
             .onAppear {
@@ -665,6 +663,9 @@ struct GalleryView: View {
                 CGFloat(tour.cardBottomGlobalY) - viewport.frame(in: .global).minY + 12
             )
         }
+        if showEventExplorer {
+            return eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
+        }
         var layout = HappeningFieldLayout.layout(
             count: compact ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
@@ -679,6 +680,15 @@ struct GalleryView: View {
         layout.contentSize = CGSize(width: max(viewport.size.width, layout.contentSize.width),
                                     height: max(viewport.size.height, layout.contentSize.height))
         return layout
+    }
+
+    private func eventTreeField(in viewport: GeometryProxy, contentTopInset: CGFloat? = nil) -> HappeningEventTreeLayout.Field {
+        HappeningEventTreeLayout.layout(
+            nodes: eventTree.nodes, in: viewport.size, safeInsets: canvasSafeInsets,
+            contentTopInset: contentTopInset ?? canvasSafeInsets.top
+                + HappeningPaletteChromeLayout.panelTopInset(topCardHeight: topCardHeight, hidesSurroundingChrome: true) + 10,
+            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
+        )
     }
 
     private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false) -> DayObjectsPresentationMode {
@@ -746,8 +756,8 @@ struct GalleryView: View {
             switch mutation {
             case .add:
                 if happening.id.hasPrefix("event_"),
-                   let event = eventTreeEvents.first(where: { "event_\($0.id)" == happening.id }) {
-                    _ = model.happeningStore.ensureExternalHappening(id: happening.id, title: event.title)
+                   let node = eventTree.nodes.first(where: { "event_\($0.id)" == happening.id }) {
+                    _ = model.happeningStore.ensureExternalHappening(id: happening.id, title: node.event.title)
                 }
                 succeeded = addAndSpawnHappening(
                     optionId: happening.id,
@@ -764,6 +774,11 @@ struct GalleryView: View {
             guard succeeded else {
                 paletteErrorID = happening.id
                 return
+            }
+            if showEventExplorer, case .add = mutation {
+                eventTree.expand(String(happening.id.dropFirst("event_".count)))
+                eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
+                refreshEventTreePalette()
             }
             switch HappeningPaletteSuccessHaptic.forMutation(mutation) {
             case .addition:
@@ -1078,7 +1093,8 @@ struct GalleryView: View {
             // Labels and Metal share this exact viewport, including safe areas.
             // An overlay outside canvasLayers inherits a different screen origin.
             .overlay {
-                happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true))
+                happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true),
+                    treeHubCenter: paletteLayout.dateHubCenter)
             }
         }
         .ignoresSafeArea()
@@ -1279,6 +1295,12 @@ struct GalleryView: View {
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
         .onChange(of: dayCanvas.dayKey) {
+            if showEventExplorer {
+                eventTreeDayKey = dayCanvas.dayKey
+                eventTreeExpandedIDs = ""
+                eventTree = HappeningEventTreeState()
+                refreshEventTreePalette()
+            }
             remixHistory = CanvasRemixHistory()
             remixFeedbackTask?.cancel()
             remixFeedback = nil
@@ -1768,10 +1790,10 @@ struct GalleryView: View {
                 }
             },
             onToggleHappeningPalette: {
-                if showEventExplorer { closeHappeningPalette() }
+                if showHappeningPalette { closeHappeningPalette() }
                 else { openEventTreePalette() }
             },
-            happeningMode: showHappeningPalette ? paletteMode : nil,
+            happeningMode: showHappeningPalette && !showEventExplorer ? paletteMode : nil,
             onSelectHappeningMode: { mode in
                 guard mode != paletteMode else { return }
                 paletteConfirmationTask?.cancel()

@@ -215,6 +215,8 @@ private struct NowhereProductionRoot: View {
         // this fixture-only state an "all used" test empties the palette for
         // every test that follows it in the full suite.
         if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
+            UserDefaults.standard.removeObject(forKey: "happeningEventTreeDayKey")
+            UserDefaults.standard.removeObject(forKey: "happeningEventTreeExpandedIDs")
             UserDefaults.nowhere().removeObject(forKey: SharedKeys.todayAdditions)
             CanvasStorageService.shared.deleteCanvas(
                 for: AppModel.dayKey(for: Date.now)

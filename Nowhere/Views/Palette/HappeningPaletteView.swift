@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UIKit
 
 enum HappeningPanelTextFieldAppearance {
     static let minimumHeight: CGFloat = 44
@@ -120,7 +121,9 @@ struct HappeningPaletteView: View {
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onReroll: () -> Void
-    let showsDateHub: Bool
+    let dateHubCenter: CGPoint?
+    let treeFocusID: String?
+    let dateHubInk: HappeningPaletteLabelInk
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -146,7 +149,9 @@ struct HappeningPaletteView: View {
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onReroll: @escaping () -> Void = {},
-        showsDateHub: Bool = false
+        dateHubCenter: CGPoint? = nil,
+        treeFocusID: String? = nil,
+        dateHubInk: HappeningPaletteLabelInk = .dark
     ) {
         self.happenings = happenings
         self.assignments = assignments
@@ -169,7 +174,9 @@ struct HappeningPaletteView: View {
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onReroll = onReroll
-        self.showsDateHub = showsDateHub
+        self.dateHubCenter = dateHubCenter
+        self.treeFocusID = treeFocusID
+        self.dateHubInk = dateHubInk
     }
 
     var body: some View {
@@ -188,7 +195,7 @@ struct HappeningPaletteView: View {
                                 width: proxy.size.width, height: proxy.size.height
                             ) : visibleFieldRect
                             let displayed = HappeningFieldEdgeScale.apply(to: expanded, visibleRect: visibleRect,
-                                strength: reduceMotion || artworkForLayout == nil ? 0 : progress)
+                                strength: reduceMotion || artworkForLayout == nil || dateHubCenter != nil ? 0 : progress)
                             ZStack(alignment: .topLeading) {
                                 (artworkForLayout?(displayed, modeTransition != nil || isFieldScrolling) ?? artwork)
                                     .accessibilityHidden(true)
@@ -198,6 +205,11 @@ struct HappeningPaletteView: View {
                                     interaction: interaction, addedIDs: addedIDs,
                                     onActivate: onActivate, labelInks: labelInks
                                 )
+                                if let dateHubCenter {
+                                    HappeningPaletteDateHub(ink: dateHubInk.color)
+                                        .position(dateHubCenter)
+                                        .allowsHitTesting(false)
+                                }
                                 if let compactLayout {
                                     let compactHeight = max(proxy.size.height, compactLayout.contentSize.height)
                                     Color.clear.frame(width: proxy.size.width, height: proxy.size.height)
@@ -213,8 +225,25 @@ struct HappeningPaletteView: View {
                             }
                             .frame(width: max(proxy.size.width, displayed.contentSize.width),
                                    height: max(proxy.size.height, displayed.contentSize.height))
+                            .background {
+                                if dateHubCenter != nil,
+                                   let index = happenings.firstIndex(where: { $0.id == treeFocusID }),
+                                   index < expanded.sources.count {
+                                    HappeningTreeScrollFocus(
+                                        focusID: treeFocusID ?? "",
+                                        center: expanded.sources[index].center,
+                                        contentSize: expanded.contentSize,
+                                        animated: !reduceMotion
+                                    )
+                                    .allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
                             .transaction { $0.animation = nil }
                         }
+                        // TimelineView must advertise the entire world to the
+                        // native scroll surface, not just paint overflow inside it.
+                        .frame(width: max(proxy.size.width, layout.contentSize.width),
+                               height: max(proxy.size.height, layout.contentSize.height, compactLayout?.contentSize.height ?? 0))
                         .onGeometryChange(for: CGRect.self) { content in
                             let origin = content.frame(in: .named("happeningViewport")).origin
                             return CGRect(x: -origin.x, y: -origin.y,
@@ -250,12 +279,6 @@ struct HappeningPaletteView: View {
                         catch { return }
                         modeTransition = nil
                     }
-                }
-
-                if showsDateHub {
-                    HappeningPaletteDateHub()
-                        .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                        .allowsHitTesting(false)
                 }
 
                 // Actions live on the selected object. Keep only failures here;
@@ -357,24 +380,89 @@ struct HappeningPaletteView: View {
 
 }
 
+/// The field is an absolute-positioned lattice, so row-based scroll targets do
+/// not describe its cells. Focus the native two-axis scroll surface only after
+/// its content has laid out at the new size, keeping all world coordinates intact.
+private struct HappeningTreeScrollFocus: UIViewRepresentable {
+    let focusID: String
+    let center: CGPoint
+    let contentSize: CGSize
+    let animated: Bool
+
+    func makeUIView(context: Context) -> FocusProbe { FocusProbe() }
+
+    func updateUIView(_ view: FocusProbe, context: Context) {
+        view.request = self
+        view.scheduleFocus()
+    }
+
+    final class FocusProbe: UIView {
+        var request: HappeningTreeScrollFocus?
+        private var appliedID: String?
+        private var isScheduled = false
+        private weak var observedScroll: UIScrollView?
+        private var sizeObservation: NSKeyValueObservation?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil {
+                sizeObservation = nil
+                observedScroll = nil
+            }
+            scheduleFocus()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            scheduleFocus()
+        }
+
+        func scheduleFocus() {
+            guard !isScheduled, request?.focusID != appliedID else { return }
+            isScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isScheduled = false
+                self.applyFocusIfReady()
+            }
+        }
+
+        private func applyFocusIfReady() {
+            guard let request, request.focusID != appliedID, window != nil else { return }
+            var ancestor = superview
+            while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+            guard let scroll = ancestor as? UIScrollView else { return }
+            if observedScroll !== scroll {
+                observedScroll = scroll
+                sizeObservation = scroll.observe(\.contentSize, options: [.new]) { [weak self] _, _ in
+                    self?.scheduleFocus()
+                }
+            }
+            guard scroll.contentSize.width >= request.contentSize.width - 1,
+                  scroll.contentSize.height >= request.contentSize.height - 1 else { return }
+            let point = HappeningEventTreeLayout.focusOffset(center: request.center,
+                contentSize: scroll.contentSize, viewportSize: scroll.bounds.size)
+            appliedID = request.focusID
+            scroll.setContentOffset(point, animated: request.animated)
+        }
+    }
+}
+
 private struct HappeningPaletteDateHub: View {
-    private let ink = Color(hex: "24372B")
+    let ink: Color
+    private var dateLabel: String {
+        Date.now.formatted(.dateTime.locale(Locale(identifier: "en_US")).month(.abbreviated).day(.twoDigits)).lowercased()
+    }
 
     var body: some View {
-        Text(Date.now, format: .dateTime.month(.abbreviated).day())
+        Text(dateLabel)
             .font(.custom("NowhereDisplay091-Regular", size: 26))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .foregroundStyle(ink)
-            .frame(width: 148, height: 148)
-            .background {
-                HappeningPickerShape().fill(.white.opacity(0.12))
-            }
-            .overlay {
-                HappeningPickerShape().stroke(ink.opacity(0.10), lineWidth: 1)
-            }
+            .frame(width: 100, height: 44)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Date.now.formatted(.dateTime.month(.abbreviated).day()))
+            .accessibilityLabel(dateLabel)
             .accessibilityIdentifier("happening_palette_date_hub")
     }
 }
