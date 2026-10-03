@@ -1838,7 +1838,7 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
     func testStartsWithSixCompleteEventsAndAnEmptyDateCell() {
         let state = HappeningEventTreeState()
         XCTAssertEqual(state.nodes.count, 6)
-        XCTAssertEqual(state.nodes.map(\.event.title), ["Worked", "Chilled", "Went out", "Saw people", "Ate", "Stayed home"])
+        XCTAssertEqual(state.nodes.map(\.event.title), ["Worked", "Chilled", "Stayed home", "Ate", "Went out", "Saw people"])
         XCTAssertTrue(state.nodes.allSatisfy { $0.cell.distanceSquared == 1 && $0.parentID == nil })
         XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
     }

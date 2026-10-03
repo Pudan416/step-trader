@@ -314,8 +314,9 @@ struct DayObjectsGlitchUniforms: Equatable {
 
 /// A depth-sorted frame snapshot ready for a single instanced actor draw.
 struct DayObjectsActorUpload: Equatable {
-    /// Palette browsing can expose more choices than a day's ten artwork actors.
-    static let maximumActorCount = 64
+    /// The complete radial field may expose all 100 choices on a wide viewport.
+    /// The saved day's ten-actor limit remains in DayObjectScene.
+    static let maximumActorCount = 128
     let actors: [DayObjectGPUActor]
     let appearances: [DayObjectGPUAppearance]
     let uniforms: DayObjectsActorUniforms

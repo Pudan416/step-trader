@@ -1079,7 +1079,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertEqual(choices.count, 6)
         let date = app.descendants(matching: .any)["happening_palette_date_hub"]
         XCTAssertTrue(date.exists)
-        XCTAssertFalse(app.buttons["happening_mode_switch"].exists)
+        XCTAssertTrue(app.buttons["happening_mode_switch"].exists)
         for choice in choices.allElementsBoundByIndex {
             XCTAssertTrue(choice.isHittable)
             XCTAssertFalse(choice.frame.intersects(date.frame))
@@ -1136,7 +1136,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         let videos = app.buttons["happening_choice_event_videos"]
         XCTAssertTrue(videos.waitForExistence(timeout: 5))
         let branchVisible = NSPredicate { _, _ in
-            ["videos", "movie", "show"].allSatisfy { id in
+            ["videos", "movie", "doomscroll"].allSatisfy { id in
                 let button = app.buttons["happening_choice_event_" + id]
                 return app.windows.firstMatch.frame.contains(button.frame)
                     && button.frame.minY > app.otherElements["canvas_energy_pill"].frame.maxY + 12

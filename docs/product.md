@@ -39,10 +39,14 @@ when changing the sequence rather than using an old slide specification.
 ## Happenings field
 
 The Canvas add control opens **Tree**: six complete events surround today's date
-in the Nowhere font. Adding an event reveals up to three adjacent whole events.
-Expansion history is retained for the day. **All** opens the complete event catalog,
-including events not yet discovered in the tree; any event can be added directly.
-Switching modes preserves the tree and the day's additions.
+in the Nowhere font. Positions come from a fixed radial map. At the intersections,
+the event fits both neighboring roots: Took a break connects Worked and Chilled,
+Took a nap connects Chilled and Stayed home, and Cooked a meal connects Stayed home
+and Ate. Adding an event reveals up to three adjacent whole events.
+Expansion history is retained for the day. **All** reveals the same complete map
+around the same date; it retains the six roots and every option's position.
+Switching modes preserves the tree and the day's additions. Direct All additions
+are also visible along their path when returning to Tree.
 
 Both modes use the same transparent field, figure assignments and interactions:
 one tap adds an available event, while an added event requires two taps to remove.

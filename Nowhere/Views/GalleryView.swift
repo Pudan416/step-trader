@@ -525,6 +525,9 @@ struct GalleryView: View {
             eventTreeExpandedIDs = ""
         }
         eventTree = HappeningEventTreeState(expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init))
+        for id in paletteAddedIDs.sorted() where id.hasPrefix("event_") {
+            eventTree.reveal(String(id.dropFirst("event_".count)))
+        }
         refreshEventTreePalette()
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -666,14 +669,16 @@ struct GalleryView: View {
                 CGFloat(tour.cardBottomGlobalY) - viewport.frame(in: .global).minY + 12
             )
         }
-        if showEventExplorer, paletteMode == .frequent {
+        if showEventExplorer {
             let tree = eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
-            let placed = Dictionary(uniqueKeysWithValues: zip(eventTree.nodes, tree.sources).map { ($0.0.id, $0.1) })
+            let placed = Dictionary(uniqueKeysWithValues: zip(HappeningEventTreeState.allNodes, tree.sources).map { ($0.0.id, $0.1) })
+            let visible = Set(eventTree.nodes.map(\.id))
             let sources = HappeningEventTree.all.enumerated().map { index, event in
                 let source = placed[event.id]
+                let scale: CGFloat = paletteMode == .all || visible.contains(event.id) ? 1 : 0
                 return HappeningFieldLayout.Source(index: index,
                     center: source?.center ?? tree.dateHubCenter ?? .zero,
-                    radius: source?.radius ?? 0, appearanceScale: source == nil ? 0 : 1)
+                    radius: (source?.radius ?? 0) * scale, appearanceScale: scale)
             }
             var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: tree.dockAnchor)
             result.contentSize = tree.contentSize
@@ -698,7 +703,7 @@ struct GalleryView: View {
 
     private func eventTreeField(in viewport: GeometryProxy, contentTopInset: CGFloat? = nil) -> HappeningEventTreeLayout.Field {
         HappeningEventTreeLayout.layout(
-            nodes: eventTree.nodes, in: viewport.size, safeInsets: canvasSafeInsets,
+            nodes: HappeningEventTreeState.allNodes, in: viewport.size, safeInsets: canvasSafeInsets,
             contentTopInset: contentTopInset ?? canvasSafeInsets.top
                 + HappeningPaletteChromeLayout.panelTopInset(topCardHeight: topCardHeight, hidesSurroundingChrome: true) + 10,
             dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
@@ -713,11 +718,11 @@ struct GalleryView: View {
                   let assignment = paletteEditorialAssignments[happening.id] else { return nil }
             let source = layout.sources[index]
             let bounds = CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius, width: source.radius * 2, height: source.radius * 2)
-            // The GPU upload supports 64 actors. Cull in world coordinates
-            // around the native scroll viewport so every one of the 99 events
+            // Cull in world coordinates
+            // around the native scroll viewport so every event
             // has a rendered ball when reached, with one cell of overscan.
             let renderBounds = visibleRect ?? CGRect(origin: .zero, size: viewportSize)
-            guard bounds.intersects(renderBounds.insetBy(dx: -160, dy: -160)) else { return nil }
+            guard bounds.intersects(renderBounds.insetBy(dx: -96, dy: -96)) else { return nil }
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
@@ -793,7 +798,7 @@ struct GalleryView: View {
                 paletteErrorID = happening.id
                 return
             }
-            if showEventExplorer, paletteMode == .frequent, case .add = mutation {
+            if showEventExplorer, case .add = mutation {
                 eventTree.expand(String(happening.id.dropFirst("event_".count)))
                 eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
                 refreshEventTreePalette()

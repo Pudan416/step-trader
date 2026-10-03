@@ -75,7 +75,12 @@ extension NativeAtlasRecipe {
     /// the other actors present while choosing; a one-event recipe loses the
     /// context needed to avoid repeating their silhouettes.
     func prospectiveActor(eventID: String) -> Actor? {
-        reconciled(eventIDs: actors.map(\.eventID) + [eventID], addingEventIDs: [eventID])
+        if let existing = actors.first(where: { $0.eventID == eventID }) { return existing }
+        // A full Canvas still needs picker previews. Reserve one slot in this
+        // temporary projection so the ten-actor cap cannot discard the candidate.
+        // Reconciliation returns a copy; the saved actors stay untouched.
+        let retainedIDs = Array(actors.prefix(9).map(\.eventID))
+        return reconciled(eventIDs: retainedIDs + [eventID], addingEventIDs: [eventID])
             .actors.first { $0.eventID == eventID }
     }
 

@@ -213,7 +213,12 @@ struct HappeningPaletteView: View {
                             }
                         }
                     }
-                    .onAppear { if usesEventTree { eventLayout = layout } }
+                    .onAppear {
+                        visibleFieldRect = .zero
+                        modeTransition = nil
+                        eventTransition = nil
+                        eventLayout = usesEventTree ? layout : nil
+                    }
                     .onChange(of: layout) { oldLayout, newLayout in
                         guard usesEventTree else { return }
                         let now = Date()
@@ -299,12 +304,6 @@ struct HappeningPaletteView: View {
         }
         // Advertise the complete world to the native scroll surface.
         .frame(width: worldWidth, height: worldHeight)
-        .onGeometryChange(for: CGRect.self) { content in
-            let origin = content.frame(in: .named("happeningViewport")).origin
-            return CGRect(x: -origin.x, y: -origin.y, width: viewport.width, height: viewport.height)
-        } action: { rect in
-            updateVisibleFieldRect(rect)
-        }
     }
 
     private func sampledField(viewport: CGSize, at date: Date) -> some View {
@@ -317,6 +316,15 @@ struct HappeningPaletteView: View {
             hubCenter: expanded.dateHubCenter ?? self.dateHubCenter, at: date)
             .frame(width: max(viewport.width, displayed.contentSize.width),
                    height: max(viewport.height, displayed.contentSize.height))
+            // Cull in the same local coordinates used by Metal, labels and hits.
+            // The outer Timeline can retain larger bounds during a transition.
+            .onGeometryChange(for: CGRect.self) { content in
+                let origin = content.frame(in: .named("happeningViewport")).origin
+                return CGRect(x: -origin.x, y: -origin.y,
+                              width: viewport.width, height: viewport.height)
+            } action: { rect in
+                updateVisibleFieldRect(rect)
+            }
             .background { fieldScrollFocus(layout: expanded) }
             .transaction { $0.animation = nil }
     }
@@ -379,10 +387,11 @@ struct HappeningPaletteView: View {
 
     @ViewBuilder
     private func fieldScrollFocus(layout expanded: HappeningFieldLayout.Layout) -> some View {
-        if usesEventTree, mode == .all {
+        if usesEventTree, mode == .all, eventTransition == nil {
             HappeningTreeScrollFocus(focusID: "event_field_all",
-                center: CGPoint(x: layout.contentSize.width / 2, y: layout.contentSize.height / 2),
-                contentSize: layout.contentSize, animated: !reduceMotion)
+                center: expanded.dateHubCenter ?? self.dateHubCenter
+                    ?? CGPoint(x: expanded.contentSize.width / 2, y: expanded.contentSize.height / 2),
+                contentSize: expanded.contentSize, animated: !reduceMotion)
                 .allowsHitTesting(false).accessibilityHidden(true)
         } else if let hub = expanded.dateHubCenter, eventTransition == nil {
             let focus = treeFocusCenter(layout: expanded, fallback: hub)

@@ -51,15 +51,16 @@ enum HappeningEventTree {
     // All six starting choices are complete, loggable events.
     static let startingEvents: [HappeningEventNode] = [
         .init("root_worked", "Worked"), .init("root_chilled", "Chilled"),
-        .init("root_wentout", "Went out"), .init("root_people", "Saw people"),
-        .init("root_ate", "Ate"), .init("root_home", "Stayed home")
+        .init("root_home", "Stayed home"), .init("root_ate", "Ate"),
+        .init("root_wentout", "Went out"), .init("root_people", "Saw people")
     ]
 
-    static let all = startingEvents + spheres.flatMap { $0.children.flatMap(leaves) }
+    static let all: [HappeningEventNode] = startingEvents + [.init("break", "Took a break")]
+        + spheres.flatMap { $0.children.flatMap(leaves) }
 
     // These are associations between whole events, not steps in a classification.
     // A route stays available as each newly revealed event opens its own neighbors.
-    private static let routes: [[String]] = [
+    static let routes: [[String]] = [
         ["root_worked", "computer", "made", "nothingwork", "tasks", "email", "meeting", "workcall", "deadline", "bored", "avoidedwork", "class", "solo", "group", "listings", "application", "interview", "tired", "rage"],
         ["root_chilled", "music", "doomscroll", "nap", "videos", "movie", "show", "scroll", "losttime", "book", "news", "articles", "videogame", "boardgame", "withkid", "hobby", "nothingplay", "slept", "bed", "calm", "okay", "mixed"],
         ["root_wentout", "walk", "cafe", "lost", "run", "workout", "gym", "errands", "transit", "train", "car", "bike", "walked", "bar", "store", "nature", "detour", "new", "shopping", "appointment", "curious"],
@@ -97,6 +98,10 @@ struct HappeningEventTreeState: Equatable {
         ]
         var neighbors: [Cell] { Self.directions.map { Cell(q: q + $0.q, r: r + $0.r) } }
         var distanceSquared: Int { q * q + q * r + r * r }
+        var ring: Int { max(abs(q), abs(r), abs(q + r)) }
+        func projection(on direction: Cell) -> Int {
+            2 * q * direction.q + q * direction.r + r * direction.q + 2 * r * direction.r
+        }
     }
 
     struct PlacedEvent: Identifiable, Equatable {
@@ -109,31 +114,122 @@ struct HappeningEventTreeState: Equatable {
     private(set) var nodes: [PlacedEvent]
     private(set) var expandedIDs: [String] = []
 
+    // A single editorial map is used by Tree and All. The six intersections
+    // belong to both neighboring roots; placement never depends on click order.
+    private static let outwardIDs = ["computer", "music", "cleaned", "ate", "walk", "family"]
+    private static let intersectionIDs = ["break", "nap", "cooked", "cafe", "friend", "workcall"]
+    static let allNodes: [PlacedEvent] = makeAtlas()
+    private static let byID = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0) })
+
     init(expandedIDs: [String] = []) {
-        nodes = zip(HappeningEventTree.startingEvents, Cell.directions).map {
-            PlacedEvent(event: $0.0, cell: $0.1, parentID: nil)
-        }
+        nodes = Array(Self.allNodes.prefix(6))
         for id in expandedIDs { expand(id) }
+    }
+
+    /// Keep directly added All events visible when returning to Tree, including
+    /// the path from the hub. This does not log or remove any additional event.
+    mutating func reveal(_ id: String) {
+        guard !nodes.contains(where: { $0.id == id }), let placed = Self.byID[id] else { return }
+        if let parentID = placed.parentID { reveal(parentID) }
+        nodes.append(placed)
     }
 
     @discardableResult
     mutating func expand(_ id: String) -> Int {
-        guard !expandedIDs.contains(id), let parent = nodes.first(where: { $0.id == id }) else { return 0 }
-        let occupied = Set(nodes.map(\.cell)).union([Cell.origin])
-        let spaces = parent.cell.neighbors.filter { !occupied.contains($0) }.sorted {
-            if $0.distanceSquared != $1.distanceSquared { return $0.distanceSquared > $1.distanceSquared }
-            if $0.r != $1.r { return $0.r < $1.r }
-            return $0.q < $1.q
-        }
-        let events = HappeningEventTree.suggestions(for: parent.event, alreadyVisible: Set(nodes.map(\.id)))
-        let children = zip(events.prefix(3), spaces.prefix(3)).map {
-            PlacedEvent(event: $0.0, cell: $0.1, parentID: parent.id)
+        guard !expandedIDs.contains(id), let parent = Self.byID[id] else { return 0 }
+        reveal(id)
+        let visible = Set(nodes.map(\.id))
+        let children = Self.children(of: parent).filter { !visible.contains($0.id) }.map {
+            PlacedEvent(event: $0.event, cell: $0.cell, parentID: id)
         }
         expandedIDs.append(id)
         nodes.append(contentsOf: children)
         return children.count
     }
 
+    private static func children(of parent: PlacedEvent) -> [PlacedEvent] {
+        if let index = HappeningEventTree.startingEvents.firstIndex(where: { $0.id == parent.id }) {
+            let ids = [outwardIDs[index], intersectionIDs[(index + 5) % 6], intersectionIDs[index]]
+            return ids.compactMap { byID[$0] }
+        }
+        let neighbors = Set(parent.cell.neighbors)
+        return Array(allNodes.filter { neighbors.contains($0.cell) && $0.cell.ring > parent.cell.ring }
+            .sorted {
+                if $0.cell.distanceSquared != $1.cell.distanceSquared { return $0.cell.distanceSquared > $1.cell.distanceSquared }
+                if $0.cell.r != $1.cell.r { return $0.cell.r < $1.cell.r }
+                return $0.cell.q < $1.cell.q
+            }.prefix(3))
+    }
+
+    private static func makeAtlas() -> [PlacedEvent] {
+        let roots = HappeningEventTree.startingEvents
+        let events = Dictionary(uniqueKeysWithValues: HappeningEventTree.all.map { ($0.id, $0) })
+        var placed = zip(roots, Cell.directions).map {
+            PlacedEvent(event: $0.0, cell: $0.1, parentID: nil)
+        }
+        var contexts = Dictionary(uniqueKeysWithValues: roots.map { ($0.id, Set([$0.id])) })
+        var usedIDs = Set(roots.map(\.id))
+        var occupied = Set(Cell.directions).union([Cell.origin])
+        func place(_ id: String, at cell: Cell, parentID: String, relatedRoots: Set<String>) {
+            guard let event = events[id], !usedIDs.contains(id) else { return }
+            placed.append(PlacedEvent(event: event, cell: cell, parentID: parentID))
+            contexts[id] = relatedRoots
+            usedIDs.insert(id)
+            occupied.insert(cell)
+        }
+        for index in roots.indices {
+            let direction = Cell.directions[index]
+            place(outwardIDs[index], at: Cell(q: direction.q * 2, r: direction.r * 2),
+                parentID: roots[index].id, relatedRoots: [roots[index].id])
+        }
+        for index in roots.indices {
+            let next = (index + 1) % 6
+            let a = Cell.directions[index], b = Cell.directions[next]
+            place(intersectionIDs[index], at: Cell(q: a.q + b.q, r: a.r + b.r),
+                parentID: roots[index].id, relatedRoots: [roots[index].id, roots[next].id])
+        }
+
+        let routes = roots.map { root in
+            HappeningEventTree.routes.first(where: { $0.first == root.id }) ?? []
+        }
+        var cursors = Array(repeating: 0, count: roots.count)
+        var hasRemaining = true
+        while hasRemaining {
+            hasRemaining = false
+            for index in roots.indices {
+                let route = routes[index]
+                while cursors[index] < route.count, usedIDs.contains(route[cursors[index]]) {
+                    cursors[index] += 1
+                }
+                guard cursors[index] < route.count else { continue }
+                hasRemaining = true
+                let rootID = roots[index].id, direction = Cell.directions[index]
+                let parents = placed.filter { contexts[$0.id]?.contains(rootID) == true }
+                let candidates = Set(parents.flatMap { parent in
+                    parent.cell.neighbors.filter { cell in
+                        guard !occupied.contains(cell), cell.ring > parent.cell.ring else { return false }
+                        let projections = Cell.directions.map { cell.projection(on: $0) }
+                        return cell.projection(on: direction) == projections.max()
+                    }
+                })
+                let cell = candidates.min { a, b in
+                    if a.ring != b.ring { return a.ring < b.ring }
+                    let aa = Double(a.projection(on: direction)) / sqrt(Double(a.distanceSquared))
+                    let bb = Double(b.projection(on: direction)) / sqrt(Double(b.distanceSquared))
+                    if aa != bb { return aa > bb }
+                    if a.r != b.r { return a.r < b.r }
+                    return a.q < b.q
+                }
+                guard let cell, let parent = parents.first(where: {
+                    $0.cell.ring < cell.ring && $0.cell.neighbors.contains(cell)
+                }) else { preconditionFailure("Event sector has no outward cell") }
+                place(route[cursors[index]], at: cell, parentID: parent.id, relatedRoots: [rootID])
+                cursors[index] += 1
+            }
+        }
+        precondition(usedIDs == Set(events.keys), "Every event needs a fixed map position")
+        return placed
+    }
 }
 
 enum HappeningDayTitle {
