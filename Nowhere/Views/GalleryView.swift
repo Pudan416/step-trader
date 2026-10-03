@@ -647,7 +647,14 @@ struct GalleryView: View {
                let actor = assignment.nativeActor ?? input.nativeAtlasRecipe?.prospectiveActor(
                    eventID: assignment.elementID.uuidString.lowercased()
                ) {
-                material = actor.material.primaryCanvasMaterial.withColorVariant(assignment.colorVariant)
+                let base = actor.material.primaryCanvasMaterial
+                if let style = input.nativeAtlasRecipe?.dailyStyle,
+                   let variant = assignment.colorVariant {
+                    material = style.recolored(base, seed: (UInt64(actor.seedHex, radix: 16) ?? 0)
+                        &+ UInt64(truncatingIfNeeded: variant))
+                } else {
+                    material = base.withColorVariant(assignment.colorVariant)
+                }
             }
             return (happening.id, HappeningPaletteLabelInk.resolve(
                 state: state, background: background, material: material
@@ -2038,6 +2045,7 @@ struct GalleryView: View {
 
     private func migratedLoadedCanvas(_ loaded: DayCanvas) -> (canvas: DayCanvas, didMigrate: Bool) {
         var canvas = loaded
+        var didMigrate = false
         switch CanvasVisualStyleMigration.decision(
             dayKey: loaded.dayKey,
             storedStyleRaw: loaded.visualStyleRaw,
@@ -2053,13 +2061,17 @@ struct GalleryView: View {
             if loaded.visualStyleRaw != nil {
                 canvas.visualStyleRaw = style.rawValue
             }
-            return (canvas, false)
         case .persist(let style, let markVersion):
             canvas.visualStyleRaw = style.rawValue
             canvasVisualStyleMigrationVersion = markVersion
             preferredCanvasVisualStyleRaw = style.rawValue
-            return (canvas, true)
+            didMigrate = true
         }
+        if canvas.adoptDailyStyleForCurrentDay(currentDayKey: todayKey,
+            paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw)) {
+            didMigrate = true
+        }
+        return (canvas, didMigrate)
     }
 
     private func applyPreferredNativeBackground(_ rawValue: String) {

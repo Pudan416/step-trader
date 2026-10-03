@@ -83,7 +83,10 @@ four-lobe clovers, flowers or simplified rays. A calendar shuffle avoids
 consecutive repeats. Each day shares its selected palette and material; adding
 or removing an event preserves the other figures. Triangle and hexagon days
 are excluded from new generation, while historical artwork retains its saved
-appearance. An unlocked Remix can give an existing day a new recipe.
+appearance. Today's unlocked Editorial canvas adopts the common family even
+if it was started before this policy, retaining its added events and saved
+placements. All figures use the same order of palette colors with subtle
+lightness differences. An unlocked Remix can give an existing day a new recipe.
 
 While music is off, new Canvas figures gently drift, breathe or turn around their
 saved positions with independent phases. Idle motion pauses behind the Happenings
