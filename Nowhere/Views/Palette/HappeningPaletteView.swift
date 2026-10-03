@@ -203,7 +203,7 @@ struct HappeningPaletteView: View {
                                 HappeningShapeField(
                                     happenings: happenings, assignments: assignments, layout: displayed,
                                     interaction: interaction, addedIDs: addedIDs,
-                                    onActivate: onActivate, labelInks: labelInks
+                                    onActivate: onActivate, labelInks: labelInks, fitsTreeLabels: dateHubCenter != nil
                                 )
                                 if let dateHubCenter {
                                     HappeningPaletteDateHub(ink: dateHubInk.color)
