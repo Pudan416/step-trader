@@ -26,8 +26,17 @@ harmonic and no branches or notches. Triangles and hexagons remain decodable but
 are excluded from this new policy. Shape, compatible material, orientation and
 numeric colors are frozen once; new actors inherit them and occupy independent
 stable slots. Explicit palette changes coordinate current and future actors with
-the background. Saved `atlas-1` days are never automatically upgraded; an
-explicit unlocked Remix can generate a new daily recipe.
+the background. Ordinary daily actors use one ordered palette; event identity
+and picker variants change only subtle lightness, never the dominant hue order.
+The optional `sharesPaletteOrder` flag preserves the prior color policy when
+decoding archived atlas-2 artwork without this flag.
+Gallery adopts this policy for today's complete, editable Editorial canvas,
+including a saved empty or populated `atlas-1` day, before persisting and syncing
+it. Event IDs, saved placements, metrics and music selection survive adoption.
+It also normalizes older actor visuals imported during cloud recovery. Pending
+drafts wait for the confirmed merge; artwork locks and historical days remain
+frozen. Decoding never upgrades a recipe. An unlocked Remix can explicitly
+generate a new daily recipe.
 
 Idle motion applies seeded drift, breathing and bounded turns around those
 frozen slots at render time. It never writes positions back to persistence.

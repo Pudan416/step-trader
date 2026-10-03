@@ -14,6 +14,8 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     let shape: MetalShapeGenomeUniforms
     var material: MetalShapeMaterialUniforms
     let orientation: Float
+    /// Missing in saved atlas-2 artwork; preserve its original color policy.
+    var sharesPaletteOrder: Bool? = nil
 
     /// Shuffle each calendar block of six. Repair only the first two entries,
     /// leaving the last entry stable so the preceding block needs no recursion.
@@ -48,12 +50,18 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     func recolored(_ source: MetalShapeMaterialUniforms, seed: UInt64) -> MetalShapeMaterialUniforms {
         // Frozen background colors are already linear RGB, matching the shader.
         let colors = palette.isEmpty ? [SIMD3<Float>(repeating: 0.5)] : palette
-        let offset = Int(seed % UInt64(colors.count))
+        // Keep the same dominant hues across the day's figures. Picker variants
+        // include an identity hash even before a reroll, so neither that hash
+        // nor an actor seed may rotate the shared palette.
+        let ordered = sharesPaletteOrder == true
+        let offset = ordered ? 0 : Int(seed % UInt64(colors.count))
         let meanLightness = colors.reduce(Float(0)) {
             $0 + DayObjectRGB(linearRGB: $1).perceptualOKLab.x
         } / Float(colors.count)
         let separation: Float = meanLightness > 0.6 ? -0.07 : 0.07
-        let variation = (Float((seed >> 12) % 7) / 6 - 0.5) * 0.036
+        var rng = SeededRNG(seed: seed ^ 0x5049_474D_454E_5453)
+        let variation = ordered ? Float(rng.nextDouble(in: -0.018...0.018))
+            : (Float((seed >> 12) % 7) / 6 - 0.5) * 0.036
         func color(_ index: Int) -> SIMD4<Float> {
             let rgb = DayObjectRGB(linearRGB: colors[(offset + index) % colors.count])
                 .shiftingPerceptualLightness(by: separation + variation).linearRGB
