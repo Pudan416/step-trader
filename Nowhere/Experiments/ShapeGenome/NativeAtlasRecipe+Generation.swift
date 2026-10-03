@@ -5,6 +5,11 @@ extension NativeAtlasRecipe {
         dayKey: String,
         paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
     ) -> Self {
+        return makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
+    }
+
+    /// Original generation remains available for historical reproduction.
+    static func makeLegacy(dayKey: String, paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all) -> Self {
         let seed = CanvasElement.makeSeed(optionId: "native-atlas", dayKey: dayKey, index: 0)
         var rng = SeededRNG(seed: seed)
         let trajectory = rng.nextInt(in: 0...7), rhythm = rng.nextInt(in: 0...5)
@@ -57,6 +62,7 @@ extension NativeAtlasRecipe {
                 paletteCategories: paletteCategories
             )
         }
+        if let background = generated.backgroundStyle { generated = generated.coordinated(with: background) }
         var next = locks.contains("artwork") ? self : generated
         next.locks = locks
         let effects = locks.contains("effects") ? self : generated

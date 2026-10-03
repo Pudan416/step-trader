@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AC1004000000000000000002 /* NativeAtlasDailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */; };
+		AC1004000000000000000004 /* NativeAtlasRecipe+DailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */; };
+		AC1004000000000000000006 /* NativeAtlasAmbientMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */; };
 		A90FE0020000000000000001 /* Onest-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000007 /* Onest-Regular.ttf */; };
 		A90FE0020000000000000002 /* Onest-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000006 /* Onest-Medium.ttf */; };
 		A90FE0020000000000000003 /* Onest-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000C /* Onest-OFL.txt */; };
@@ -660,6 +663,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasDailyStyle.swift"; sourceTree = SOURCE_ROOT; };
+		AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasRecipe+DailyStyle.swift"; sourceTree = SOURCE_ROOT; };
+		AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasAmbientMotion.swift"; sourceTree = SOURCE_ROOT; };
 		A70FE0010000000000000001 /* Onest-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Black.ttf"; sourceTree = "<group>"; };
 		A70FE0010000000000000002 /* Onest-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Bold.ttf"; sourceTree = "<group>"; };
 		A70FE0010000000000000003 /* Onest-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-ExtraBold.ttf"; sourceTree = "<group>"; };
@@ -1353,6 +1359,9 @@
 				AC0909000000000000000001 /* NativeAtlasRecipe.swift */,
 				AC0909000000000000000003 /* NativeAtlasRecipe+Generation.swift */,
 				AC0909000000000000000005 /* NativeAtlasRecipe+Composition.swift */,
+				AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */,
+				AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */,
+				AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */,
 				AC0909000000000000000007 /* MetalShapeGenomeUniforms.swift */,
 				AC0909000000000000000009 /* MetalShapeMaterialUniforms.swift */,
 				AC090900000000000000000B /* MetalShapeGenomeFrame+Geometry.swift */,
@@ -2746,6 +2755,9 @@
 				AC0909000000000000000002 /* NativeAtlasRecipe.swift in Sources */,
 				AC0909000000000000000004 /* NativeAtlasRecipe+Generation.swift in Sources */,
 				AC0909000000000000000006 /* NativeAtlasRecipe+Composition.swift in Sources */,
+				AC1004000000000000000002 /* NativeAtlasDailyStyle.swift in Sources */,
+				AC1004000000000000000004 /* NativeAtlasRecipe+DailyStyle.swift in Sources */,
+				AC1004000000000000000006 /* NativeAtlasAmbientMotion.swift in Sources */,
 				AC0909000000000000000008 /* MetalShapeGenomeUniforms.swift in Sources */,
 				AC090900000000000000000A /* MetalShapeMaterialUniforms.swift in Sources */,
 				AC090900000000000000000C /* MetalShapeGenomeFrame+Geometry.swift in Sources */,

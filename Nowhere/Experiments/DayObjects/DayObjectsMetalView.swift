@@ -75,6 +75,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
     var animatesContinuously = true
     let soundPulseBus: DayObjectsSoundPulseBus?
     var presentationMode: DayObjectsPresentationMode = .canvas
+    var ambientMotionIsEnabled = false
     var lunarPhysicsIsActive = false
     var lunarAngularMotionIsEnabled = true
     var lunarInteractionBus: DayObjectLunarInteractionBus?
@@ -88,6 +89,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             digitalImpact: digitalImpact,
             soundPulseBus: soundPulseBus,
             presentationMode: presentationMode,
+            ambientMotionIsEnabled: ambientMotionIsEnabled,
             lunarPhysicsIsActive: lunarPhysicsIsActive,
             lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
             lunarInteractionBus: lunarInteractionBus,
@@ -133,6 +135,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: presentationMode,
             isAnimating: isAnimating,
             animatesContinuously: animatesContinuously,
+            ambientMotionIsEnabled: ambientMotionIsEnabled,
             lunarPhysicsIsActive: lunarPhysicsIsActive,
             lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,
             lunarInteractionBus: lunarInteractionBus,
@@ -163,6 +166,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
         private var presentationMode: DayObjectsPresentationMode
         private var isAnimating = false
         private var animatesContinuously = true
+        private var ambientMotionIsEnabled: Bool
         let motionInput = DayObjectMotionInputProvider()
         private var lunarPhysicsIsActive: Bool
         private var lunarAngularMotionIsEnabled: Bool
@@ -176,6 +180,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             digitalImpact: DayObjectDigitalImpact,
             soundPulseBus: DayObjectsSoundPulseBus?,
             presentationMode: DayObjectsPresentationMode = .canvas,
+            ambientMotionIsEnabled: Bool = false,
             lunarPhysicsIsActive: Bool = false,
             lunarAngularMotionIsEnabled: Bool = true,
             lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
@@ -187,6 +192,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             self.digitalImpact = digitalImpact
             self.soundPulseBus = soundPulseBus
             self.presentationMode = presentationMode
+            self.ambientMotionIsEnabled = ambientMotionIsEnabled
             self.lunarPhysicsIsActive = lunarPhysicsIsActive
             self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
             self.lunarInteractionBus = lunarInteractionBus
@@ -222,6 +228,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             presentationMode: DayObjectsPresentationMode,
             isAnimating: Bool,
             animatesContinuously: Bool = true,
+            ambientMotionIsEnabled: Bool = false,
             lunarPhysicsIsActive: Bool = false,
             lunarAngularMotionIsEnabled: Bool = true,
             lunarInteractionBus: DayObjectLunarInteractionBus? = nil,
@@ -236,6 +243,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             self.presentationMode = presentationMode
             self.isAnimating = isAnimating
             self.animatesContinuously = animatesContinuously
+            self.ambientMotionIsEnabled = ambientMotionIsEnabled
             self.lunarPhysicsIsActive = lunarPhysicsIsActive
             self.lunarAngularMotionIsEnabled = lunarAngularMotionIsEnabled
             self.lunarInteractionBus = lunarInteractionBus
@@ -274,6 +282,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
             }
             renderer.update(scene: scene, environment: environment, digitalImpact: digitalImpact,
                             soundPulseBus: soundPulseBus, presentationMode: presentationMode,
+                            ambientMotionIsEnabled: ambientMotionIsEnabled,
                             lunarPhysicsIsActive: lunarPhysicsIsActive,
                             lunarPhysicsReturnIsAnimated: isAnimating && !lunarPhysicsIsActive,
                             lunarAngularMotionIsEnabled: lunarAngularMotionIsEnabled,

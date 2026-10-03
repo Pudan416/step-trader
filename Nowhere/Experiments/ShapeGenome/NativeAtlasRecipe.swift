@@ -34,8 +34,12 @@ struct NativeAtlasRecipe: Codable, Equatable {
     /// Optional for recipes saved before backgrounds were frozen.
     var backgroundStyle: DayObjectMeshGradientStyle? = nil
 
+    /// Absent in atlas-1; decoding never upgrades saved artwork.
+    var dailyStyle: NativeAtlasDailyStyle? = nil
+
     var isSupported: Bool {
-        schemaVersion == 1 && generatorVersion == "atlas-1" && catalogVersion == "2026-09-09"
+        schemaVersion == 1 && catalogVersion == "2026-09-09"
+            && (generatorVersion == "atlas-1" || (generatorVersion == "atlas-2" && dailyStyle != nil))
     }
 }
 

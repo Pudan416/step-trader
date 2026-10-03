@@ -78,6 +78,18 @@ valid delayed callback. Real-device testing remains necessary after iOS updates.
 ## Music and artwork
 
 The production Canvas uses native Metal artwork with versioned deterministic recipes.
+New days share one of six shape families: circles, organic blobs, squares,
+four-lobe clovers, flowers or simplified rays. A calendar shuffle avoids
+consecutive repeats. Each day shares its selected palette and material; adding
+or removing an event preserves the other figures. Triangle and hexagon days
+are excluded from new generation, while historical artwork retains its saved
+appearance. An unlocked Remix can give an existing day a new recipe.
+
+While music is off, new Canvas figures gently drift, breathe or turn around their
+saved positions with independent phases. Idle motion pauses behind the Happenings
+picker and while the Canvas is inactive; Reduce Motion disables it. Playback
+smoothly hands placement to lunar physics and returns to the calm composition.
+
 Four sound worlds and their moods are selected from the bundled catalogs. Planners
 build music from the day's inputs; the playback engine owns audio execution.
 The same saved day must not change because a catalog was casually reordered.
