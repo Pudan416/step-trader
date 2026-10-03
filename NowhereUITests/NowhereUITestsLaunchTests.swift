@@ -85,7 +85,9 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertTrue(done.isEnabled)
         done.tap()
         XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access' AND label CONTAINS 'Named feed'")).firstMatch.waitForExistence(timeout: 5))
+        let createdFeed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access' AND label CONTAINS 'Named feed'")).firstMatch
+        XCTAssertTrue(createdFeed.waitForExistence(timeout: 5))
+        XCTAssertFalse(createdFeed.label.contains("1 app"))
         attachScreenshot(named: "single-screen-feed-created")
         app.terminate()
         app.launch()

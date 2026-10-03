@@ -167,14 +167,14 @@ struct AppsPageSimplified: View {
                     .padding(.top, 20)
                     .padding(.bottom, 14)
 
-                    addFeedCard
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 18)
-
                     if visibleGroups.isEmpty {
-                        emptyState
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(.bottom, max(tabBarHeight, 50) + 20)
+                        VStack(spacing: 18) {
+                            emptyState
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            addFeedCard
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, max(tabBarHeight, 50) + 20)
                     } else {
                         feedsList
                     }
@@ -377,6 +377,9 @@ struct AppsPageSimplified: View {
                                 }
                             }
                         }
+
+                        addFeedCard
+                            .padding(.top, 2)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
@@ -437,27 +440,18 @@ struct AppsPageSimplified: View {
         .padding(.horizontal, 40)
     }
 
-    /// A persistent entry point for adding a feed. The app marks suggest
+    /// A persistent entry point for adding a feed. Brand marks suggest
     /// popular starting points; tapping opens the full system picker.
     private var addFeedCard: some View {
         Button(action: attemptCreateGroup) {
             HStack(spacing: 14) {
-                HStack(spacing: -10) {
-                    ForEach(FeedSuggestionApp.all.indices, id: \.self) { index in
-                        FeedSuggestionIcon(app: FeedSuggestionApp.all[index])
-                            .zIndex(Double(FeedSuggestionApp.all.count - index))
-                    }
-                }
+                FeedSuggestionMarks()
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(String(localized: "POPULAR APPS", comment: "Feeds add card – eyebrow"))
-                        .font(.geist(10, weight: .semibold, relativeTo: .caption))
-                        .tracking(1.0)
-                        .foregroundStyle(palette.secondaryColor)
                     Text(String(localized: "Choose apps to block", comment: "Feeds add card – title"))
                         .font(.geist(15, weight: .semibold, relativeTo: .body))
-                        .foregroundStyle(buttonTint)
+                        .foregroundStyle(palette.textColor)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -477,11 +471,11 @@ struct AppsPageSimplified: View {
                     .fill(palette.surfaceColor)
                     .overlay {
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(palette.accentColor.opacity(0.10))
+                            .fill(palette.accentColor.opacity(0.16))
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .strokeBorder(palette.accentColor.opacity(0.52), lineWidth: 1)
+                            .strokeBorder(palette.accentColor.opacity(0.82), lineWidth: 1.5)
                     }
             }
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -617,44 +611,41 @@ struct AppsPageSimplified: View {
     }
 }
 
-private struct FeedSuggestionApp {
-    let name: String
-    let symbol: String?
-    let colors: [Color]
-
-    static let all = [
-        Self(name: "Instagram", symbol: "camera.fill", colors: [Color(red: 0.96, green: 0.38, blue: 0.48), Color(red: 0.55, green: 0.27, blue: 0.72)]),
-        Self(name: "TikTok", symbol: "music.note", colors: [Color(white: 0.08), Color(white: 0.08)]),
-        Self(name: "YouTube", symbol: "play.fill", colors: [Color(red: 0.94, green: 0.12, blue: 0.15), Color(red: 0.78, green: 0.05, blue: 0.09)]),
-        Self(name: "X", symbol: nil, colors: [Color(white: 0.08), Color(white: 0.08)]),
-        Self(name: "Telegram", symbol: "paperplane.fill", colors: [Color(red: 0.24, green: 0.64, blue: 0.88), Color(red: 0.10, green: 0.48, blue: 0.78)])
-    ]
-}
-
-private struct FeedSuggestionIcon: View {
-    let app: FeedSuggestionApp
+private struct FeedSuggestionMarks: View {
+    @Environment(\.canvasChromePalette) private var palette
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(LinearGradient(colors: app.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-            .overlay {
-                Group {
-                    if let symbol = app.symbol {
-                        Image(systemName: symbol)
-                            .font(.system(size: 16, weight: .semibold))
-                    } else {
-                        Text("X")
-                            .font(.system(size: 17, weight: .medium))
-                    }
-                }
-                .foregroundStyle(.white)
+        ZStack {
+            mark("FeedSocialInstagram", tint: palette.accentColor, size: 27)
+                .rotationEffect(.degrees(-9))
+                .position(x: 14, y: 18)
+            mark("FeedSocialTikTok", tint: palette.secondaryColor, size: 25)
+                .rotationEffect(.degrees(7))
+                .position(x: 36, y: 42)
+            mark("FeedSocialYouTube", tint: palette.textColor, size: 31)
+                .rotationEffect(.degrees(4))
+                .position(x: 57, y: 17)
+            mark("FeedSocialX", tint: palette.textColor, size: 23)
+                .rotationEffect(.degrees(-6))
+                .position(x: 80, y: 41)
+            mark("FeedSocialTelegram", tint: palette.accentColor, size: 29)
+                .rotationEffect(.degrees(8))
+                .position(x: 103, y: 18)
+        }
+        .frame(width: 118, height: 60)
+    }
+
+    private func mark(_ name: String, tint: Color, size: CGFloat) -> some View {
+        tint
+            .mask {
+                Image(name)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .colorInvert()
+                    .luminanceToAlpha()
             }
-            .frame(width: 34, height: 34)
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(.white.opacity(0.8), lineWidth: 1.5)
-            }
-            .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
+            .frame(width: size, height: size)
     }
 }
 

@@ -3196,14 +3196,6 @@
     "Outline" : {
       "comment" : "Canvas fill style"
     },
-    "POPULAR APPS" : {
-      "comment" : "Feeds add card – eyebrow",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "POPULAR APPS" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "ПОПУЛЯРНЫЕ ПРИЛОЖЕНИЯ" } }
-      }
-    },
     "Palette" : {
       "comment" : "Appearance current palette label\nAppearance palette heading"
     },
