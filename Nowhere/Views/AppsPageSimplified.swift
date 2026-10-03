@@ -162,26 +162,14 @@ struct AppsPageSimplified: View {
                             .foregroundStyle(buttonTint)
 
                         Spacer(minLength: 16)
-
-                        Button {
-                            attemptCreateGroup()
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.geist(size: 17, weight: .regular))
-                                .foregroundStyle(palette.textColor)
-                                .frame(
-                                    width: FeedCardLayout.addControlDiameter,
-                                    height: FeedCardLayout.addControlDiameter
-                                )
-                                .canvasChromeSurface(in: Circle())
-                        }
-                        .accessibilityLabel(String(localized: "Add apps"))
-                        .accessibilityIdentifier("feed.add")
-                        .canvasTourControl("feeds.add")
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
-                    .padding(.bottom, 18)
+                    .padding(.bottom, 14)
+
+                    addFeedCard
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 18)
 
                     if visibleGroups.isEmpty {
                         emptyState
@@ -444,20 +432,65 @@ struct AppsPageSimplified: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: attemptCreateGroup) {
-                Label(String(localized: "Add apps"), systemImage: "plus")
-                    .font(.geist(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(palette.onAccentColor)
-                    .padding(.horizontal, 22)
-                    .frame(height: 50)
-                    .background(Capsule().fill(palette.accentColor))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("feed.addDuplicate")
-            .canvasTourControl("feeds.addDuplicate")
         }
         .foregroundStyle(buttonTint)
         .padding(.horizontal, 40)
+    }
+
+    /// A persistent entry point for adding a feed. The app marks suggest
+    /// popular starting points; tapping opens the full system picker.
+    private var addFeedCard: some View {
+        Button(action: attemptCreateGroup) {
+            HStack(spacing: 14) {
+                HStack(spacing: -10) {
+                    ForEach(FeedSuggestionApp.all.indices, id: \.self) { index in
+                        FeedSuggestionIcon(app: FeedSuggestionApp.all[index])
+                            .zIndex(Double(FeedSuggestionApp.all.count - index))
+                    }
+                }
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(String(localized: "POPULAR APPS", comment: "Feeds add card – eyebrow"))
+                        .font(.geist(10, weight: .semibold, relativeTo: .caption))
+                        .tracking(1.0)
+                        .foregroundStyle(palette.secondaryColor)
+                    Text(String(localized: "Choose apps to block", comment: "Feeds add card – title"))
+                        .font(.geist(15, weight: .semibold, relativeTo: .body))
+                        .foregroundStyle(buttonTint)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "plus")
+                    .font(.geist(size: 14, weight: .semibold))
+                    .foregroundStyle(palette.onAccentColor)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(palette.accentColor))
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 92)
+            .background {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(palette.surfaceColor)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(palette.accentColor.opacity(0.10))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(palette.accentColor.opacity(0.52), lineWidth: 1)
+                    }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "Choose apps to block", comment: "Feeds add card – VoiceOver label"))
+        .accessibilityHint(String(localized: "Opens the app picker", comment: "Feeds add card – VoiceOver hint"))
+        .accessibilityIdentifier("feed.add")
+        .canvasTourControl("feeds.add")
     }
 
     /// Sheet for full ticket settings
@@ -581,6 +614,47 @@ struct AppsPageSimplified: View {
             autoScrolledTargetID = nil
             inlineExpansion = inlineExpansion.collapsing(groupID: groupID)
         }
+    }
+}
+
+private struct FeedSuggestionApp {
+    let name: String
+    let symbol: String?
+    let colors: [Color]
+
+    static let all = [
+        Self(name: "Instagram", symbol: "camera.fill", colors: [Color(red: 0.96, green: 0.38, blue: 0.48), Color(red: 0.55, green: 0.27, blue: 0.72)]),
+        Self(name: "TikTok", symbol: "music.note", colors: [Color(white: 0.08), Color(white: 0.08)]),
+        Self(name: "YouTube", symbol: "play.fill", colors: [Color(red: 0.94, green: 0.12, blue: 0.15), Color(red: 0.78, green: 0.05, blue: 0.09)]),
+        Self(name: "X", symbol: nil, colors: [Color(white: 0.08), Color(white: 0.08)]),
+        Self(name: "Telegram", symbol: "paperplane.fill", colors: [Color(red: 0.24, green: 0.64, blue: 0.88), Color(red: 0.10, green: 0.48, blue: 0.78)])
+    ]
+}
+
+private struct FeedSuggestionIcon: View {
+    let app: FeedSuggestionApp
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(LinearGradient(colors: app.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .overlay {
+                Group {
+                    if let symbol = app.symbol {
+                        Image(systemName: symbol)
+                            .font(.system(size: 16, weight: .semibold))
+                    } else {
+                        Text("X")
+                            .font(.system(size: 17, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.white)
+            }
+            .frame(width: 34, height: 34)
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(.white.opacity(0.8), lineWidth: 1.5)
+            }
+            .shadow(color: .black.opacity(0.14), radius: 3, y: 2)
     }
 }
 

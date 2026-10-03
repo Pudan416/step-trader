@@ -123,9 +123,10 @@ final class DailyEnergyLogicTests: XCTestCase {
     /// Ids from the old 31-option set still appear in saved days. They must
     /// resolve to a real label rather than a raw id.
     func testLegacyOptionTitlesCoverTheOldSet() {
-        XCTAssertEqual(EnergyDefaults.legacyOptionTitles.count, 31)
+        XCTAssertEqual(EnergyDefaults.legacyOptionTitles.count, 32)
         XCTAssertEqual(EnergyDefaults.legacyTitle(for: "body_walking"), "Walking")
         XCTAssertEqual(EnergyDefaults.legacyTitle(for: "mind_focusing"), "Focusing")
+        XCTAssertEqual(EnergyDefaults.legacyTitle(for: "mind_letting_go"), "Letting go")
         XCTAssertEqual(EnergyDefaults.legacyTitle(for: "heart_joy"), "Joy")
     }
 

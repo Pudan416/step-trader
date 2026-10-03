@@ -19,6 +19,8 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         app.buttons["tab_feeds"].tap()
         let groups = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access'"))
         let initialCount = groups.count
+        XCTAssertEqual(app.buttons["feed.add"].label, "Choose apps to block")
+        XCTAssertFalse(app.buttons["feed.addDuplicate"].exists)
         app.buttons["feed.add"].tap()
         let name = app.textFields["feed.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
