@@ -48,14 +48,33 @@ enum HappeningEventTree {
         .init("feelings", "Feelings", [.init("rage", "Raged"), .init("happy", "Felt happy"), .init("tired", "Felt tired"), .init("anxious", "Felt anxious"), .init("angry", "Felt angry"), .init("calm", "Felt calm"), .init("lonely", "Felt lonely"), .init("curious", "Felt curious"), .init("okay", "Felt okay"), .init("mixed", "Felt mixed")])
     ]
 
-    static let all = spheres.flatMap { $0.children.flatMap { $0.children.flatMap { leaves($0) } } }
+    static let all = spheres.flatMap { sphere in
+        sphere.children.flatMap { category in
+            category.children.flatMap { leaves($0) }
+        }
+    }
+    static let startingEvents: [HappeningEventNode] = [
+        event("computer"), event("walk"), event("coffee"), event("friend"), event("cooked"), event("doomscroll")
+    ]
+
+    static func event(_ id: String) -> HappeningEventNode {
+        all.first { $0.id == id } ?? HappeningEventNode(id, "Unknown event")
+    }
+
+    static func category(containing event: HappeningEventNode) -> HappeningEventNode? {
+        spheres.lazy.flatMap(\.children).first { category in
+            category.children.contains { leaves($0).contains(where: { $0.id == event.id }) }
+        }
+    }
+
     static func flatten(_ node: HappeningEventNode) -> [HappeningEventNode] { [node] + node.children.flatMap(flatten) }
     static func leaves(_ node: HappeningEventNode) -> [HappeningEventNode] {
         node.children.isEmpty ? [node] : node.children.flatMap(leaves)
     }
-    static func suggestions(for selected: HappeningEventNode, within sphere: HappeningEventNode) -> [HappeningEventNode] {
-        let events = sphere.children.flatMap { $0.children.flatMap(leaves) }
-        return events.filter { $0.id != selected.id }.prefix(8).map { $0 }
+    static func suggestions(for selected: HappeningEventNode, alreadyVisible: Set<String>) -> [HappeningEventNode] {
+        let category = category(containing: selected)
+        let events = category?.children.flatMap(leaves) ?? []
+        return events.filter { !alreadyVisible.contains($0.id) && $0.id != selected.id }.prefix(10).map { $0 }
     }
 }
 

@@ -1025,6 +1025,21 @@ struct GalleryView: View {
             .overlay {
                 happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true))
             }
+            .overlay {
+                if showEventExplorer {
+                    HappeningEventExplorer(
+                        onChoose: addTreeHappening,
+                        onRemove: removeTreeHappening,
+                        remaining: max(0, 10 - todayEventCount),
+                        addedIDs: Set(dayCanvas.elements.compactMap { element in
+                            guard element.optionId.hasPrefix("event_") else { return nil }
+                            return String(element.optionId.dropFirst("event_".count))
+                        }),
+                        onFinish: closeEventExplorer
+                    )
+                    .transition(.opacity)
+                }
+            }
         }
         .ignoresSafeArea()
         .environment(\.isTodayCanvasSource, !showHappeningPalette)
@@ -1418,14 +1433,6 @@ struct GalleryView: View {
                 CanvasShareSheet(items: [image])
             }
         }
-        .sheet(isPresented: $showEventExplorer) {
-            HappeningEventExplorer(
-                onChoose: addTreeHappening,
-                remaining: max(0, 10 - todayEventCount),
-                onFinish: { showEventExplorer = false }
-            )
-            .presentationDetents([.large])
-        }
         .confirmationDialog(
             String(localized: "Remove this happening?", comment: "Canvas editing – delete confirmation title"),
             isPresented: Binding(
@@ -1722,7 +1729,10 @@ struct GalleryView: View {
             },
             onToggleHappeningPalette: {
                 if showEventExplorer { showEventExplorer = false }
-                else { showEventExplorer = true }
+                else {
+                    closeHappeningPalette()
+                    showEventExplorer = true
+                }
             },
             happeningMode: showHappeningPalette ? paletteMode : nil,
             onSelectHappeningMode: { mode in
@@ -1746,6 +1756,15 @@ struct GalleryView: View {
         let optionID = "event_\(node.id)"
         _ = model.happeningStore.ensureExternalHappening(id: optionID, title: node.title)
         _ = addAndSpawnHappening(optionId: optionID, recordUse: false)
+    }
+
+    private func removeTreeHappening(_ node: HappeningEventNode) {
+        guard let element = dayCanvas.elements.last(where: { $0.optionId == "event_\(node.id)" }) else { return }
+        _ = removePaletteHappening(id: element.optionId, elementID: element.id)
+    }
+
+    private func closeEventExplorer() {
+        withAnimation(.easeInOut(duration: 0.18)) { showEventExplorer = false }
     }
 
     private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {
