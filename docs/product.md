@@ -50,8 +50,9 @@ Switching modes preserves the tree and the day's additions. Direct All additions
 are also visible along their path when returning to Tree.
 
 Both modes use the same transparent field, figure assignments and interactions.
-While the picker is open, a full-strength native blur softens the Canvas artwork
-behind it so the picker labels remain readable. Closing it restores the clear Canvas.
+While the picker is open, a light native blur and subtle white wash soften and
+lighten the Canvas artwork behind it, including in Dark Mode, so black picker
+labels remain readable. Closing it restores the clear Canvas.
 In both modes,
 one tap adds an available event, while an added event requires two taps to remove.
 New tree nodes and mode changes animate the figures, labels and hit targets together.

@@ -2954,14 +2954,20 @@ struct SuggestionBannerHeightKey: PreferenceKey {
     }
 }
 
-/// Full-strength backdrop blur keeps live Canvas artwork behind readable picker labels.
+/// A light backdrop blur lifts live Canvas artwork behind black picker labels.
 private struct HappeningCanvasBackdropBlur: UIViewRepresentable {
     func makeUIView(context: Context) -> UIVisualEffectView {
-        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterialLight))
+        view.overrideUserInterfaceStyle = .light
+        view.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.12)
         view.isUserInteractionEnabled = false
         return view
     }
 
-    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
+        uiView.overrideUserInterfaceStyle = .light
+        uiView.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        uiView.isUserInteractionEnabled = false
+    }
 
 }
