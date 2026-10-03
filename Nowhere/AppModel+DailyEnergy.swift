@@ -11,18 +11,14 @@ extension AppModel {
         HappeningEconomy.points(forAdditionCount: todayAdditions.count)
     }
 
-    /// Adds one occurrence when the happening has not already been added on
-    /// the requested custom day.
+    /// Adds an occurrence while the requested day has room for another figure.
     func canAddHappening(id: String, on date: Date = .now) -> Bool {
         let dayKey = DayBoundary.dayKey(
             for: date,
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        return !todayAdditions.contains {
-            $0.dayKey == dayKey
-                && HappeningPaletteSelection.choiceID($0.optionId) == HappeningPaletteSelection.choiceID(id)
-        }
+        return todayAdditions.filter { $0.dayKey == dayKey }.count < 10
     }
 
     @discardableResult

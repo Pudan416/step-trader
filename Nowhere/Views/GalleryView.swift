@@ -102,6 +102,7 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
+    @State private var showEventExplorer = false
     @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteTourSessionID: UUID?
     @State private var paletteHappenings: [Happening] = []
@@ -1417,6 +1418,14 @@ struct GalleryView: View {
                 CanvasShareSheet(items: [image])
             }
         }
+        .sheet(isPresented: $showEventExplorer) {
+            HappeningEventExplorer(
+                onChoose: addTreeHappening,
+                remaining: max(0, 10 - todayEventCount),
+                onFinish: { showEventExplorer = false }
+            )
+            .presentationDetents([.large])
+        }
         .confirmationDialog(
             String(localized: "Remove this happening?", comment: "Canvas editing – delete confirmation title"),
             isPresented: Binding(
@@ -1712,7 +1721,8 @@ struct GalleryView: View {
                 }
             },
             onToggleHappeningPalette: {
-                showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
+                if showEventExplorer { showEventExplorer = false }
+                else { showEventExplorer = true }
             },
             happeningMode: showHappeningPalette ? paletteMode : nil,
             onSelectHappeningMode: { mode in
@@ -1725,6 +1735,17 @@ struct GalleryView: View {
                 paletteMode = mode
             }
         )
+    }
+
+    private var todayEventCount: Int {
+        model.todayAdditions.filter { $0.dayKey == AppModel.dayKey(for: .now) }.count
+    }
+
+    private func addTreeHappening(_ node: HappeningEventNode) {
+        guard todayEventCount < 10 else { return }
+        let optionID = "event_\(node.id)"
+        _ = model.happeningStore.ensureExternalHappening(id: optionID, title: node.title)
+        _ = addAndSpawnHappening(optionId: optionID, recordUse: false)
     }
 
     private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {
@@ -2291,13 +2312,14 @@ struct GalleryView: View {
     }
 
     @discardableResult
-    private func removePaletteHappening(id: String) -> Bool {
+    private func removePaletteHappening(id: String, elementID: UUID? = nil) -> Bool {
         let now = Date.now
         guard let result = CanvasHappeningRemovalTransaction.commit(
             canvasLoaded: canvasLoaded,
             canvas: dayCanvas,
             model: model,
             happeningID: id,
+            elementID: elementID,
             at: now,
             persist: { canvas in
                 if usesTask7UITestFixture { return true }
@@ -2319,7 +2341,7 @@ struct GalleryView: View {
 
     private func removeElement(id: UUID) {
         guard let element = dayCanvas.elements.first(where: { $0.id == id }) else { return }
-        _ = removePaletteHappening(id: element.optionId)
+        _ = removePaletteHappening(id: element.optionId, elementID: element.id)
     }
 
     private func rerollElement(id: UUID) {
@@ -2742,7 +2764,11 @@ struct GalleryView: View {
                 steps: Int(model.stepsToday),
                 sleepHours: model.dailySleepHours,
                 inkEarned: dayCanvas.inkEarned,
-                inkSpent: dayCanvas.inkSpent
+                inkSpent: dayCanvas.inkSpent,
+                dayTitle: HappeningDayTitle.make(
+                    from: dayCanvas.elements.map { $0.label ?? model.resolveOptionTitle(for: $0.optionId) },
+                    dayKey: dayCanvas.dayKey
+                )
             ) {
                 canvasContent
             }
