@@ -10,6 +10,7 @@ struct CanvasPosterView<Content: View>: View {
     let sleepHours: Double?
     let inkEarned: Int?
     var inkSpent: Int?
+    var dayTitle: String = ""
     let content: Content
 
     init(
@@ -20,6 +21,7 @@ struct CanvasPosterView<Content: View>: View {
         sleepHours: Double? = nil,
         inkEarned: Int? = nil,
         inkSpent: Int? = nil,
+        dayTitle: String = "",
         @ViewBuilder content: () -> Content
     ) {
         self.style = style
@@ -29,6 +31,7 @@ struct CanvasPosterView<Content: View>: View {
         self.sleepHours = sleepHours
         self.inkEarned = inkEarned
         self.inkSpent = inkSpent
+        self.dayTitle = dayTitle
         self.content = content()
     }
 
@@ -41,7 +44,8 @@ struct CanvasPosterView<Content: View>: View {
                 steps: steps,
                 sleepHours: sleepHours,
                 inkEarned: inkEarned,
-                inkSpent: inkSpent
+                inkSpent: inkSpent,
+                dayTitle: dayTitle
             ) { content }
 
         case .fullBleed:
@@ -51,7 +55,8 @@ struct CanvasPosterView<Content: View>: View {
                 steps: steps,
                 sleepHours: sleepHours,
                 inkEarned: inkEarned,
-                inkSpent: inkSpent
+                inkSpent: inkSpent,
+                dayTitle: dayTitle
             ) { content }
 
         case .framedDark:
@@ -61,7 +66,8 @@ struct CanvasPosterView<Content: View>: View {
                 steps: steps,
                 sleepHours: sleepHours,
                 inkEarned: inkEarned,
-                inkSpent: inkSpent
+                inkSpent: inkSpent,
+                dayTitle: dayTitle
             ) { content }
         }
     }

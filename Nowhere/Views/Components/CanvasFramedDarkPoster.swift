@@ -12,6 +12,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
     let sleepHours: Double?
     let inkEarned: Int?
     var inkSpent: Int?
+    var dayTitle: String = ""
 
     init(
         date: Date,
@@ -20,6 +21,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
         sleepHours: Double? = nil,
         inkEarned: Int? = nil,
         inkSpent: Int? = nil,
+        dayTitle: String = "",
         @ViewBuilder content: () -> Content
     ) {
         self.content = content()
@@ -29,6 +31,7 @@ struct CanvasFramedDarkPoster<Content: View>: View {
         self.sleepHours = sleepHours
         self.inkEarned = inkEarned
         self.inkSpent = inkSpent
+        self.dayTitle = dayTitle
     }
 
     // Figma 595 × 842 absolute coordinates → ratios
@@ -112,11 +115,11 @@ struct CanvasFramedDarkPoster<Content: View>: View {
                     .padding(.top, h * Self.nowhereTopR)
 
                 // "NOWHERE" — bottom-left, Nowhere Display Bold
-                Text("NOWHERE")
+                Text(dayTitle.isEmpty ? "NOWHERE" : dayTitle)
                     .font(.unbounded(max(5, w * Self.dateSizeR), weight: .black))
                     .fontDesign(nil)
                     .foregroundStyle(.white)
-                    .lineLimit(1)
+                    .lineLimit(2).minimumScaleFactor(0.65)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.leading, w * Self.dateLeftR)
                     .padding(.top, h * Self.dateTopR)

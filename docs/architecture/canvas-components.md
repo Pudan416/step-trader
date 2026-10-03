@@ -12,9 +12,32 @@ All paths below are relative to `Nowhere/`.
 | Frozen, versioned artwork payload | `Experiments/ShapeGenome/NativeAtlasRecipe.swift` |
 | Root seed, initial choices, Remix locks | `Experiments/ShapeGenome/NativeAtlasRecipe+Generation.swift` |
 | Event reconciliation, stable slots, paths and size rhythms | `Experiments/ShapeGenome/NativeAtlasRecipe+Composition.swift` |
+| Frozen daily family, coordinated colors, stable family composition | `Experiments/ShapeGenome/NativeAtlasDailyStyle.swift`, `NativeAtlasRecipe+DailyStyle.swift` |
+| Bounded idle offsets and music handoff | `Experiments/ShapeGenome/NativeAtlasAmbientMotion.swift` |
 | Catalog compatibility and editorial scene planning | `Experiments/ShapeGenome/MetalShapeGenomeCatalog.swift`, `MetalShapeScenePlanner.swift` |
 
 The daily canvas remains driven by events, capped at ten. Removing or adding an event must retain the frozen actors belonging to other events. Random-number consumption order is part of `atlas-1`: changing it requires a deliberate version/compatibility decision, not an incidental cleanup.
+
+New days use `atlas-2`, with an optional frozen `dailyStyle` payload. A shuffled
+six-day calendar cycle chooses circles, blobs, squares, clovers, flowers or rays,
+without adjacent repeats. Squares choose one contour for the day; flowers share
+their petal count. Rays reuse the Snowflake uniform/shader ABI with one smooth
+harmonic and no branches or notches. Triangles and hexagons remain decodable but
+are excluded from this new policy. Shape, compatible material, orientation and
+numeric colors are frozen once; new actors inherit them and occupy independent
+stable slots. Explicit palette changes coordinate current and future actors with
+the background. Saved `atlas-1` days are never automatically upgraded; an
+explicit unlocked Remix can generate a new daily recipe.
+
+Idle motion applies seeded drift, breathing and bounded turns around those
+frozen slots at render time. It never writes positions back to persistence.
+The native adapter fades offsets during music handoffs; existing lunar physics
+still owns playback and its return animation. Reduce Motion disables the idle
+offsets. Picker slots never inherit Canvas motion, and the paused Canvas clock
+keeps artwork still behind the picker. Active new canvases request 30 FPS even
+with music off; visibility and scene lifecycle still gate rendering. Offscreen
+renderers default to the saved pose, while capture through the live renderer
+uses its current elapsed time.
 
 ## Shape geometry
 

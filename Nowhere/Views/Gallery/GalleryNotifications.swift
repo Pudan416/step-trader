@@ -292,13 +292,15 @@ enum CanvasHappeningRemovalTransaction {
         canvas: DayCanvas,
         model: AppModel,
         happeningID: String,
+        elementID: UUID? = nil,
         at date: Date,
         persist: (DayCanvas) -> Bool
     ) -> CanvasHappeningRemovalResult? {
         let capturedDayKey = AppModel.dayKey(for: date)
         guard canvasLoaded,
               canvas.dayKey == capturedDayKey,
-              let index = canvas.elements.firstIndex(where: { $0.optionId == happeningID })
+              let index = canvas.elements.firstIndex(where: { elementID == $0.id })
+                ?? canvas.elements.firstIndex(where: { $0.optionId == happeningID })
                 ?? canvas.elements.firstIndex(where: {
                     HappeningPaletteSelection.choiceID($0.optionId) == HappeningPaletteSelection.choiceID(happeningID)
                 })

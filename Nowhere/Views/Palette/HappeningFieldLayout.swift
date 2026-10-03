@@ -17,6 +17,7 @@ enum HappeningFieldLayout {
         let dockAnchor: CGPoint
         let completionBounds: CGRect?
         var contentSize: CGSize = .zero
+        var dateHubCenter: CGPoint? = nil
 
         /// Metal receives screen coordinates; ScrollView keeps the same sources
         /// in content coordinates for labels, hit testing and accessibility.
@@ -25,7 +26,8 @@ enum HappeningFieldLayout {
                 sources: sources.map { Source(index: $0.index, center: CGPoint(x: $0.center.x - offset.x, y: $0.center.y - offset.y), radius: $0.radius, appearanceScale: $0.appearanceScale) },
                 labelFrames: labelFrames.map { $0.offsetBy(dx: -offset.x, dy: -offset.y) },
                 contourBounds: contourBounds.offsetBy(dx: -offset.x, dy: -offset.y),
-                dockAnchor: dockAnchor, completionBounds: completionBounds, contentSize: contentSize
+                dockAnchor: dockAnchor, completionBounds: completionBounds, contentSize: contentSize,
+                dateHubCenter: dateHubCenter.map { CGPoint(x: $0.x - offset.x, y: $0.y - offset.y) }
             )
         }
     }
@@ -244,6 +246,59 @@ enum HappeningFieldLayout {
     }
 }
 
+/// The tree uses identity-based hex cells rather than a count-based row packer.
+/// Expanding the scroll surface adds the same offset to the date and every node.
+enum HappeningEventTreeLayout {
+    struct Field {
+        let layout: HappeningFieldLayout.Layout
+        let hubCenter: CGPoint
+    }
+
+    static func layout(
+        nodes: [HappeningEventTreeState.PlacedEvent],
+        in size: CGSize,
+        safeInsets: EdgeInsets,
+        contentTopInset: CGFloat,
+        dockCenterY: CGFloat?
+    ) -> Field {
+        let width = max(1, size.width - safeInsets.leading - safeInsets.trailing)
+        let gap: CGFloat = 10
+        let radius = max(32, min(56, (width - 32 - gap * 2) / 6))
+        let step = radius * 2 + gap
+        let dockY = dockCenterY ?? (size.height - safeInsets.bottom - 36)
+        let top = max(safeInsets.top + 16, contentTopInset)
+        let bottom = max(top + step * sqrt(3) + radius * 2, dockY - 110)
+        let initialHubY = (top + bottom) / 2
+        let relative = nodes.map { node in
+            CGPoint(x: step * (CGFloat(node.cell.q) + CGFloat(node.cell.r) / 2),
+                    y: step * sqrt(3) / 2 * CGFloat(node.cell.r))
+        }
+        let extentX = relative.map { abs($0.x) + radius + 16 }.max() ?? 0
+        let extentY = relative.map { abs($0.y) + radius }.max() ?? 0
+        // Outer branches need scroll room below the top card and above the dock.
+        let verticalPadding = max(top, size.height - dockY + 110)
+        let verticalOffset = initialHubY - size.height / 2
+        let world = CGSize(width: max(size.width, extentX * 2),
+                           height: max(size.height, (extentY + verticalPadding + abs(verticalOffset)) * 2))
+        let hub = CGPoint(x: world.width / 2, y: world.height / 2 + verticalOffset)
+        let sources = relative.enumerated().map { index, point in
+            HappeningFieldLayout.Source(index: index,
+                center: CGPoint(x: hub.x + point.x, y: hub.y + point.y), radius: radius)
+        }
+        var result = HappeningFieldLayout.makeLayout(sources: sources,
+            dockAnchor: CGPoint(x: size.width / 2, y: dockY))
+        result.contentSize = world
+        result.dateHubCenter = hub
+        return Field(layout: result, hubCenter: hub)
+    }
+
+    static func focusOffset(center: CGPoint, contentSize: CGSize, viewportSize: CGSize) -> CGPoint {
+        CGPoint(x: min(max(0, center.x - viewportSize.width / 2), max(0, contentSize.width - viewportSize.width)),
+                y: min(max(0, center.y - viewportSize.height / 2), max(0, contentSize.height - viewportSize.height)))
+    }
+
+}
+
 #if DEBUG
 private struct HappeningFieldLayoutDebugPreview: View {
     let count: Int
@@ -382,5 +437,62 @@ enum HappeningFieldEdgeScale {
         var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: layout.dockAnchor)
         result.contentSize = layout.contentSize
         return result
+    }
+}
+
+/// Identity order is the complete event catalog in both modes. One sampled
+/// layout drives Metal, titles and hit targets, including newly revealed cells.
+struct HappeningEventFieldTransition {
+    static let duration: TimeInterval = 0.58
+    let from: HappeningFieldLayout.Layout
+    let to: HappeningFieldLayout.Layout
+    let startedAt: Date
+
+    func progress(at date: Date) -> CGFloat {
+        CGFloat(min(1, max(0, date.timeIntervalSince(startedAt) / Self.duration)))
+    }
+
+    func layout(at date: Date) -> HappeningFieldLayout.Layout {
+        let phase = progress(at: date)
+        let p = phase * phase * (3 - 2 * phase)
+        // Keep one world for the duration of a transition. Once settled, the
+        // tree returns to its own bounds rather than paying for the All surface.
+        let world = CGSize(width: max(from.contentSize.width, to.contentSize.width),
+                           height: max(from.contentSize.height, to.contentSize.height))
+        func offset(_ layout: HappeningFieldLayout.Layout) -> CGPoint {
+            CGPoint(x: (world.width - layout.contentSize.width) / 2,
+                    y: (world.height - layout.contentSize.height) / 2)
+        }
+        let a = offset(from), b = offset(to)
+        let sources = to.sources.enumerated().map { index, destination in
+            let origin = index < from.sources.count ? from.sources[index] : destination
+            let target = CGPoint(x: destination.center.x + b.x, y: destination.center.y + b.y)
+            // A new tree neighbor grows in its own cell, keeping the stable
+            // lattice clear; mode changes move already visible events too.
+            let start = origin.appearanceScale <= 0.001 ? target
+                : CGPoint(x: origin.center.x + a.x, y: origin.center.y + a.y)
+            let end = destination.appearanceScale <= 0.001 ? start : target
+            let scale = origin.appearanceScale + (destination.appearanceScale - origin.appearanceScale) * p
+            let originRadius = origin.appearanceScale > 0.001 ? origin.radius / origin.appearanceScale
+                : destination.radius / max(0.001, destination.appearanceScale)
+            let targetRadius = destination.appearanceScale > 0.001 ? destination.radius / destination.appearanceScale : originRadius
+            return HappeningFieldLayout.Source(index: index,
+                center: CGPoint(x: start.x + (end.x - start.x) * p, y: start.y + (end.y - start.y) * p),
+                radius: (originRadius + (targetRadius - originRadius) * p) * scale,
+                appearanceScale: scale)
+        }
+        var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: to.dockAnchor)
+        result.contentSize = world
+        if let hub = to.dateHubCenter ?? from.dateHubCenter {
+            let shift = to.dateHubCenter != nil ? b : a
+            result.dateHubCenter = CGPoint(x: hub.x + shift.x, y: hub.y + shift.y)
+        }
+        return result
+    }
+
+    func hubOpacity(at date: Date) -> CGFloat {
+        let p = progress(at: date)
+        if from.dateHubCenter != nil, to.dateHubCenter != nil { return 1 }
+        return to.dateHubCenter == nil ? 1 - p : p
     }
 }

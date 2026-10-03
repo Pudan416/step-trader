@@ -270,7 +270,7 @@ struct DayCanvas: Codable {
             paletteCategories: paletteCategories
         )
         guard recipe.backgroundStyle != background else { return false }
-        recipe.backgroundStyle = background
+        recipe = recipe.coordinated(with: background)
         artworkRecipe = recipe
         recordExplicitArtworkEdit()
         lastModified = .now

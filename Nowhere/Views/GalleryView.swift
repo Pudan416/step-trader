@@ -102,6 +102,10 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
+    @State private var showEventExplorer = false
+    @State private var eventTree = HappeningEventTreeState()
+    @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
+    @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
     @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteTourSessionID: UUID?
     @State private var paletteHappenings: [Happening] = []
@@ -437,6 +441,10 @@ struct GalleryView: View {
     }
 
     private func refreshHappeningPalette() {
+        if showEventExplorer {
+            refreshEventTreePalette()
+            return
+        }
         let frequent = model.frequentPaletteHappenings(on: dayCanvas.dayKey, addedIDs: paletteAddedIDs)
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
@@ -459,6 +467,7 @@ struct GalleryView: View {
     private func openHappeningPalette() {
         metricOverlay = nil
         send(.openHappeningPalette)
+        showEventExplorer = false
         paletteMode = .frequent
         refreshHappeningPalette()
         happeningPalettePanel = nil
@@ -502,7 +511,45 @@ struct GalleryView: View {
         withAnimation(.easeInOut(duration: 0.18)) {
             happeningPalettePanel = nil
             showHappeningPalette = false
+            showEventExplorer = false
         }
+    }
+
+    private func openEventTreePalette() {
+        metricOverlay = nil
+        send(.openHappeningPalette)
+        cancelPaletteInteraction()
+        paletteMode = .frequent
+        if eventTreeDayKey != dayCanvas.dayKey {
+            eventTreeDayKey = dayCanvas.dayKey
+            eventTreeExpandedIDs = ""
+        }
+        eventTree = HappeningEventTreeState(expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init))
+        for id in paletteAddedIDs.sorted() where id.hasPrefix("event_") {
+            eventTree.reveal(String(id.dropFirst("event_".count)))
+        }
+        refreshEventTreePalette()
+        happeningPalettePanel = nil
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showEventExplorer = true
+            showHappeningPalette = true
+        }
+    }
+
+    private func refreshEventTreePalette() {
+        let happenings = HappeningEventTree.all.map {
+            Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: false)
+        }
+        paletteCatalog = happenings
+        paletteSelectedIDs = happenings.map(\.id)
+        paletteHappenings = happenings
+        let request = HappeningEditorialAssignmentRequest(
+            happenings: happenings,
+            baseInput: editorialRenderInput.sceneInput,
+            committedElements: dayCanvas.elements,
+            colorNonce: model.paletteColorNonce()
+        )
+        paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
     }
 
     private func consumePaletteOpenRequestIfReady() {
@@ -516,8 +563,8 @@ struct GalleryView: View {
     }
 
     @ViewBuilder
-    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout) -> some View {
-        if showHappeningPalette, !presentation.isWideCanvas {
+    private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout, treeHubCenter: CGPoint?) -> some View {
+        if (showHappeningPalette || showEventExplorer), !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 assignments: paletteEditorialAssignments,
@@ -527,15 +574,17 @@ struct GalleryView: View {
                 activePanel: $happeningPalettePanel,
                 layout: layout,
                 mode: paletteMode,
-                compactLayout: compactLayout,
-                artworkForLayout: { displayedLayout, isExpanding in
+                compactLayout: showEventExplorer ? nil : compactLayout,
+                usesEventTree: showEventExplorer,
+                artworkForLayout: { displayedLayout, isExpanding, visibleRect in
                     AnyView(DayObjectsView(
                         sceneInput: displayedEditorialRenderInput.sceneInput,
                         digitalImpact: displayedEditorialRenderInput.digitalImpact,
                         isAnimating: isCanvasSelected,
                         soundPulseBus: canvasSoundPulseBus,
                         presentationMode: paletteRenderMode(layout: displayedLayout,
-                            viewportSize: displayedLayout.contentSize, isExpanding: isExpanding)
+                            viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
+                            visibleRect: showEventExplorer ? visibleRect : nil)
                     ))
                 },
                 interaction: paletteInteraction,
@@ -556,8 +605,16 @@ struct GalleryView: View {
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {
                     model.rerollPaletteFigures()
-                    refreshHappeningPalette()
-                }
+                    if showEventExplorer { refreshEventTreePalette() }
+                    else { refreshHappeningPalette() }
+                },
+                dateHubCenter: treeHubCenter,
+                treeFocusID: showEventExplorer && paletteMode == .frequent
+                    ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
+                dateHubInk: .resolve(state: .available,
+                    background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
+                    material: nil),
+                addedEventCount: todayEventCount
             )
             .transition(.opacity)
             .onAppear {
@@ -618,8 +675,24 @@ struct GalleryView: View {
                 CGFloat(tour.cardBottomGlobalY) - viewport.frame(in: .global).minY + 12
             )
         }
+        if showEventExplorer {
+            let tree = eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
+            let placed = Dictionary(uniqueKeysWithValues: zip(HappeningEventTreeState.allNodes, tree.sources).map { ($0.0.id, $0.1) })
+            let visible = Set(eventTree.nodes.map(\.id))
+            let sources = HappeningEventTree.all.enumerated().map { index, event in
+                let source = placed[event.id]
+                let scale: CGFloat = paletteMode == .all || visible.contains(event.id) ? 1 : 0
+                return HappeningFieldLayout.Source(index: index,
+                    center: source?.center ?? tree.dateHubCenter ?? .zero,
+                    radius: (source?.radius ?? 0) * scale, appearanceScale: scale)
+            }
+            var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: tree.dockAnchor)
+            result.contentSize = tree.contentSize
+            result.dateHubCenter = tree.dateHubCenter
+            return result
+        }
         var layout = HappeningFieldLayout.layout(
-            count: compact ? min(10, paletteHappenings.count) : paletteHappenings.count,
+            count: compact && !showEventExplorer ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
             safeInsets: canvasSafeInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
@@ -634,7 +707,16 @@ struct GalleryView: View {
         return layout
     }
 
-    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false) -> DayObjectsPresentationMode {
+    private func eventTreeField(in viewport: GeometryProxy, contentTopInset: CGFloat? = nil) -> HappeningEventTreeLayout.Field {
+        HappeningEventTreeLayout.layout(
+            nodes: HappeningEventTreeState.allNodes, in: viewport.size, safeInsets: canvasSafeInsets,
+            contentTopInset: contentTopInset ?? canvasSafeInsets.top
+                + HappeningPaletteChromeLayout.panelTopInset(topCardHeight: topCardHeight, hidesSurroundingChrome: true) + 10,
+            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
+        )
+    }
+
+    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false, visibleRect: CGRect? = nil) -> DayObjectsPresentationMode {
         guard showHappeningPalette else { return .canvas }
         let slots = paletteHappenings.enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
@@ -642,7 +724,11 @@ struct GalleryView: View {
                   let assignment = paletteEditorialAssignments[happening.id] else { return nil }
             let source = layout.sources[index]
             let bounds = CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius, width: source.radius * 2, height: source.radius * 2)
-            guard bounds.intersects(CGRect(origin: .zero, size: viewportSize).insetBy(dx: -32, dy: -32)) else { return nil }
+            // Cull in world coordinates
+            // around the native scroll viewport so every event
+            // has a rendered ball when reached, with one cell of overscan.
+            let renderBounds = visibleRect ?? CGRect(origin: .zero, size: viewportSize)
+            guard bounds.intersects(renderBounds.insetBy(dx: -96, dy: -96)) else { return nil }
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
@@ -698,11 +784,15 @@ struct GalleryView: View {
             let succeeded: Bool
             switch mutation {
             case .add:
+                if happening.id.hasPrefix("event_"),
+                   let event = HappeningEventTree.event(String(happening.id.dropFirst("event_".count))) {
+                    _ = model.happeningStore.ensureExternalHappening(id: happening.id, title: event.title)
+                }
                 succeeded = addAndSpawnHappening(
                     optionId: happening.id,
                     elementID: assignment.elementID,
                     editorialColorVariant: assignment.colorVariant,
-                    recordUse: true,
+                    recordUse: !happening.id.hasPrefix("event_"),
                     origin: nil
                 )
             case let .remove(id):
@@ -713,6 +803,11 @@ struct GalleryView: View {
             guard succeeded else {
                 paletteErrorID = happening.id
                 return
+            }
+            if showEventExplorer, case .add = mutation {
+                eventTree.expand(String(happening.id.dropFirst("event_".count)))
+                eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
+                refreshEventTreePalette()
             }
             switch HappeningPaletteSuccessHaptic.forMutation(mutation) {
             case .addition:
@@ -1006,7 +1101,6 @@ struct GalleryView: View {
             .overlay {
                 if showHappeningPalette {
                     HappeningCanvasBackdropBlur()
-                        .opacity(0.5)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                         .transition(.opacity)
@@ -1027,7 +1121,8 @@ struct GalleryView: View {
             // Labels and Metal share this exact viewport, including safe areas.
             // An overlay outside canvasLayers inherits a different screen origin.
             .overlay {
-                happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true))
+                happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true),
+                    treeHubCenter: paletteLayout.dateHubCenter)
             }
         }
         .ignoresSafeArea()
@@ -1227,6 +1322,12 @@ struct GalleryView: View {
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
         .onChange(of: dayCanvas.dayKey) {
+            if showEventExplorer {
+                eventTreeDayKey = dayCanvas.dayKey
+                eventTreeExpandedIDs = ""
+                eventTree = HappeningEventTreeState()
+                refreshEventTreePalette()
+            }
             remixHistory = CanvasRemixHistory()
             remixFeedbackTask?.cancel()
             remixFeedback = nil
@@ -1716,19 +1817,27 @@ struct GalleryView: View {
                 }
             },
             onToggleHappeningPalette: {
-                showHappeningPalette ? closeHappeningPalette() : openHappeningPalette()
+                if showHappeningPalette { closeHappeningPalette() }
+                else { openEventTreePalette() }
             },
             happeningMode: showHappeningPalette ? paletteMode : nil,
+            usesEventTree: showEventExplorer,
             onSelectHappeningMode: { mode in
                 guard mode != paletteMode else { return }
                 paletteConfirmationTask?.cancel()
                 paletteTransitionTask?.cancel()
-                paletteInteraction = HappeningPaletteInteractionState()
+                if !showEventExplorer {
+                    paletteInteraction = HappeningPaletteInteractionState()
+                }
                 paletteErrorID = nil
                 paletteTransitionActive = false
                 paletteMode = mode
             }
         )
+    }
+
+    private var todayEventCount: Int {
+        model.todayAdditions.filter { $0.dayKey == AppModel.dayKey(for: .now) }.count
     }
 
     private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {
@@ -2295,13 +2404,14 @@ struct GalleryView: View {
     }
 
     @discardableResult
-    private func removePaletteHappening(id: String) -> Bool {
+    private func removePaletteHappening(id: String, elementID: UUID? = nil) -> Bool {
         let now = Date.now
         guard let result = CanvasHappeningRemovalTransaction.commit(
             canvasLoaded: canvasLoaded,
             canvas: dayCanvas,
             model: model,
             happeningID: id,
+            elementID: elementID,
             at: now,
             persist: { canvas in
                 if usesTask7UITestFixture { return true }
@@ -2323,7 +2433,7 @@ struct GalleryView: View {
 
     private func removeElement(id: UUID) {
         guard let element = dayCanvas.elements.first(where: { $0.id == id }) else { return }
-        _ = removePaletteHappening(id: element.optionId)
+        _ = removePaletteHappening(id: element.optionId, elementID: element.id)
     }
 
     private func rerollElement(id: UUID) {
@@ -2746,7 +2856,11 @@ struct GalleryView: View {
                 steps: Int(model.stepsToday),
                 sleepHours: model.dailySleepHours,
                 inkEarned: dayCanvas.inkEarned,
-                inkSpent: dayCanvas.inkSpent
+                inkSpent: dayCanvas.inkSpent,
+                dayTitle: HappeningDayTitle.make(
+                    from: dayCanvas.elements.map { $0.label ?? model.resolveOptionTitle(for: $0.optionId) },
+                    dayKey: dayCanvas.dayKey
+                )
             ) {
                 canvasContent
             }
@@ -2844,14 +2958,20 @@ struct SuggestionBannerHeightKey: PreferenceKey {
     }
 }
 
-/// Subtle backdrop blur below the picker, including live Metal canvas content.
+/// A light backdrop blur lifts live Canvas artwork behind black picker labels.
 private struct HappeningCanvasBackdropBlur: UIViewRepresentable {
     func makeUIView(context: Context) -> UIVisualEffectView {
-        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterialLight))
+        view.overrideUserInterfaceStyle = .light
+        view.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.12)
         view.isUserInteractionEnabled = false
         return view
     }
 
-    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
+        uiView.overrideUserInterfaceStyle = .light
+        uiView.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        uiView.isUserInteractionEnabled = false
+    }
 
 }

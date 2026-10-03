@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UIKit
 
 enum HappeningPanelTextFieldAppearance {
     static let minimumHeight: CGFloat = 44
@@ -102,8 +103,11 @@ struct HappeningPaletteView: View {
     let selectedIDs: [String]
     let artwork: AnyView
     let compactLayout: HappeningFieldLayout.Layout?
-    let artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)?
+    let usesEventTree: Bool
+    let artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)?
     @State private var modeTransition: HappeningFieldModeTransition?
+    @State private var eventTransition: HappeningEventFieldTransition?
+    @State private var eventLayout: HappeningFieldLayout.Layout?
     @State private var visibleFieldRect: CGRect = .zero
     @State private var isFieldScrolling = false
     @State private var scrollSettleTask: Task<Void, Never>?
@@ -121,6 +125,10 @@ struct HappeningPaletteView: View {
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onReroll: () -> Void
+    let dateHubCenter: CGPoint?
+    let treeFocusID: String?
+    let dateHubInk: HappeningPaletteLabelInk
+    let addedEventCount: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -135,7 +143,8 @@ struct HappeningPaletteView: View {
         layout: HappeningFieldLayout.Layout,
         mode: HappeningPaletteMode = .all,
         compactLayout: HappeningFieldLayout.Layout? = nil,
-        artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)? = nil,
+        usesEventTree: Bool = false,
+        artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)? = nil,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
         fixedIDs: Set<String> = [],
@@ -146,7 +155,11 @@ struct HappeningPaletteView: View {
         onRename: @escaping (String, String) -> Bool = { _, _ in false },
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
-        onReroll: @escaping () -> Void = {}
+        onReroll: @escaping () -> Void = {},
+        dateHubCenter: CGPoint? = nil,
+        treeFocusID: String? = nil,
+        dateHubInk: HappeningPaletteLabelInk = .dark,
+        addedEventCount: Int = 0
     ) {
         self.happenings = happenings
         self.assignments = assignments
@@ -155,6 +168,7 @@ struct HappeningPaletteView: View {
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         self.artwork = artwork
         self.compactLayout = compactLayout
+        self.usesEventTree = usesEventTree
         self.artworkForLayout = artworkForLayout
         _activePanel = activePanel
         self.layout = layout
@@ -170,6 +184,10 @@ struct HappeningPaletteView: View {
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onReroll = onReroll
+        self.dateHubCenter = dateHubCenter
+        self.treeFocusID = treeFocusID
+        self.dateHubInk = dateHubInk
+        self.addedEventCount = addedEventCount
     }
 
     var body: some View {
@@ -177,61 +195,18 @@ struct HappeningPaletteView: View {
             ZStack(alignment: .topLeading) {
                 ScrollViewReader { scroll in
                     ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: modeTransition == nil)) { context in
-                            let progress = modeTransition?.value(at: context.date) ?? (mode == .all ? 1 : 0)
-                            let expanded = compactLayout.map {
-                                HappeningFieldExpansion.layout(compact: $0, expanded: layout, viewport: proxy.size, progress: progress)
-                            } ?? layout
-                            let visibleRect = visibleFieldRect.isEmpty ? CGRect(
-                                x: max(0, (expanded.contentSize.width - proxy.size.width) / 2),
-                                y: max(0, (expanded.contentSize.height - proxy.size.height) / 2),
-                                width: proxy.size.width, height: proxy.size.height
-                            ) : visibleFieldRect
-                            let displayed = HappeningFieldEdgeScale.apply(to: expanded, visibleRect: visibleRect,
-                                strength: reduceMotion || artworkForLayout == nil ? 0 : progress)
-                            ZStack(alignment: .topLeading) {
-                                (artworkForLayout?(displayed, modeTransition != nil || isFieldScrolling) ?? artwork)
-                                    .accessibilityHidden(true)
-                                    .allowsHitTesting(false)
-                                HappeningShapeField(
-                                    happenings: happenings, assignments: assignments, layout: displayed,
-                                    interaction: interaction, addedIDs: addedIDs,
-                                    onActivate: onActivate, labelInks: labelInks
-                                )
-                                if let compactLayout {
-                                    let compactHeight = max(proxy.size.height, compactLayout.contentSize.height)
-                                    Color.clear.frame(width: proxy.size.width, height: proxy.size.height)
-                                        .id(HappeningPaletteMode.frequent.rawValue)
-                                        .position(x: displayed.contentSize.width / 2,
-                                            y: (displayed.contentSize.height - compactHeight + proxy.size.height) / 2)
-                                        .allowsHitTesting(false).accessibilityHidden(true)
-                                    Color.clear.frame(width: proxy.size.width, height: proxy.size.height)
-                                        .id(HappeningPaletteMode.all.rawValue)
-                                        .position(x: displayed.contentSize.width / 2, y: displayed.contentSize.height / 2)
-                                        .allowsHitTesting(false).accessibilityHidden(true)
-                                }
-                            }
-                            .frame(width: max(proxy.size.width, displayed.contentSize.width),
-                                   height: max(proxy.size.height, displayed.contentSize.height))
-                            .transaction { $0.animation = nil }
-                        }
-                        .onGeometryChange(for: CGRect.self) { content in
-                            let origin = content.frame(in: .named("happeningViewport")).origin
-                            return CGRect(x: -origin.x, y: -origin.y,
-                                width: proxy.size.width, height: proxy.size.height)
-                        } action: { rect in
-                            updateVisibleFieldRect(rect)
-                        }
+                        animatedField(viewport: proxy.size)
                     }
                     .coordinateSpace(name: "happeningViewport")
                     .defaultScrollAnchor(mode == .frequent && (compactLayout?.contentSize.height ?? 0) > proxy.size.height ? .top : .center)
-                    .scrollDisabled(compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
+                    .scrollDisabled(!usesEventTree && compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .canvasTourAnchor("canvas.happenings")
                     .accessibilityIdentifier("happening_field_scroll")
                     .accessibilityHidden(activePanel != nil)
-                    .allowsHitTesting(activePanel == nil && modeTransition == nil)
+                    .allowsHitTesting(activePanel == nil && modeTransition == nil && eventTransition == nil)
                     .onChange(of: mode) { oldMode, newMode in
+                        guard !usesEventTree else { return }
                         guard compactLayout != nil else { return }
                         let now = Date()
                         let from = modeTransition?.value(at: now) ?? (oldMode == .all ? 1 : 0)
@@ -243,6 +218,28 @@ struct HappeningPaletteView: View {
                                 scroll.scrollTo(newMode.rawValue, anchor: .center)
                             }
                         }
+                    }
+                    .onAppear {
+                        visibleFieldRect = .zero
+                        modeTransition = nil
+                        eventTransition = nil
+                        eventLayout = usesEventTree ? layout : nil
+                    }
+                    .onChange(of: layout) { oldLayout, newLayout in
+                        guard usesEventTree else { return }
+                        let now = Date()
+                        let origin = eventTransition?.layout(at: now) ?? eventLayout ?? oldLayout
+                        eventLayout = newLayout
+                        eventTransition = reduceMotion ? nil : .init(from: origin, to: newLayout, startedAt: now)
+                    }
+                    .onChange(of: reduceMotion) { _, reduced in
+                        if reduced { eventTransition = nil; modeTransition = nil }
+                    }
+                    .task(id: eventTransition?.startedAt) {
+                        guard usesEventTree, eventTransition != nil else { return }
+                        do { try await Task.sleep(for: .seconds(HappeningEventFieldTransition.duration + 0.05)) }
+                        catch { return }
+                        eventTransition = nil
                     }
                     .task(id: mode) {
                         guard modeTransition != nil else { return }
@@ -303,6 +300,119 @@ struct HappeningPaletteView: View {
         }
     }
 
+    private func animatedField(viewport: CGSize) -> some View {
+        let worldWidth = max(viewport.width, layout.contentSize.width, eventTransition?.from.contentSize.width ?? 0)
+        let worldHeight = max(viewport.height, layout.contentSize.height,
+            compactLayout?.contentSize.height ?? 0, eventTransition?.from.contentSize.height ?? 0)
+        return TimelineView(.animation(minimumInterval: 1.0 / 60,
+            paused: modeTransition == nil && eventTransition == nil)) { context in
+            sampledField(viewport: viewport, at: context.date)
+        }
+        // Advertise the complete world to the native scroll surface.
+        .frame(width: worldWidth, height: worldHeight)
+    }
+
+    private func sampledField(viewport: CGSize, at date: Date) -> some View {
+        let progress = modeTransition?.value(at: date) ?? (mode == .all ? 1 : 0)
+        let expanded = sampledLayout(viewport: viewport, progress: progress, at: date)
+        let visibleRect = resolvedVisibleRect(layout: expanded, viewport: viewport)
+        let edgeStrength: CGFloat = reduceMotion || artworkForLayout == nil || dateHubCenter != nil ? 0 : progress
+        let displayed = HappeningFieldEdgeScale.apply(to: expanded, visibleRect: visibleRect, strength: edgeStrength)
+        return fieldContent(layout: displayed, visibleRect: visibleRect, viewport: viewport,
+            hubCenter: expanded.dateHubCenter ?? self.dateHubCenter, at: date)
+            .frame(width: max(viewport.width, displayed.contentSize.width),
+                   height: max(viewport.height, displayed.contentSize.height))
+            // Cull in the same local coordinates used by Metal, labels and hits.
+            // The outer Timeline can retain larger bounds during a transition.
+            .onGeometryChange(for: CGRect.self) { content in
+                let origin = content.frame(in: .named("happeningViewport")).origin
+                return CGRect(x: -origin.x, y: -origin.y,
+                              width: viewport.width, height: viewport.height)
+            } action: { rect in
+                updateVisibleFieldRect(rect)
+            }
+            .background { fieldScrollFocus(layout: expanded) }
+            .transaction { $0.animation = nil }
+    }
+
+    private func sampledLayout(viewport: CGSize, progress: CGFloat, at date: Date) -> HappeningFieldLayout.Layout {
+        if let compactLayout {
+            return HappeningFieldExpansion.layout(compact: compactLayout, expanded: layout,
+                viewport: viewport, progress: progress)
+        }
+        if usesEventTree { return eventTransition?.layout(at: date) ?? eventLayout ?? layout }
+        return layout
+    }
+
+    private func resolvedVisibleRect(layout: HappeningFieldLayout.Layout, viewport: CGSize) -> CGRect {
+        if !visibleFieldRect.isEmpty { return visibleFieldRect }
+        return CGRect(x: max(0, (layout.contentSize.width - viewport.width) / 2),
+                      y: max(0, (layout.contentSize.height - viewport.height) / 2),
+                      width: viewport.width, height: viewport.height)
+    }
+
+    private func fieldArtwork(layout: HappeningFieldLayout.Layout, visibleRect: CGRect) -> AnyView {
+        let isMoving = modeTransition != nil || eventTransition != nil || isFieldScrolling
+        return artworkForLayout?(layout, isMoving, visibleRect) ?? artwork
+    }
+
+    private func fieldContent(layout: HappeningFieldLayout.Layout, visibleRect: CGRect,
+                              viewport: CGSize, hubCenter: CGPoint?, at date: Date) -> some View {
+        ZStack(alignment: .topLeading) {
+            fieldArtwork(layout: layout, visibleRect: visibleRect)
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+            HappeningShapeField(happenings: happenings, assignments: assignments, layout: layout,
+                interaction: interaction, addedIDs: addedIDs, onActivate: onActivate,
+                labelInks: labelInks, fitsTreeLabels: usesEventTree)
+            if let hub = hubCenter {
+                HappeningPaletteCountHub(count: addedEventCount, ink: dateHubInk.color)
+                    .position(hub)
+                    .opacity(Double(eventTransition?.hubOpacity(at: date) ?? 1))
+                    .allowsHitTesting(false)
+            }
+            compactScrollTargets(layout: layout, viewport: viewport)
+        }
+    }
+
+    @ViewBuilder
+    private func compactScrollTargets(layout: HappeningFieldLayout.Layout, viewport: CGSize) -> some View {
+        if let compactLayout {
+            let compactHeight = max(viewport.height, compactLayout.contentSize.height)
+            Color.clear.frame(width: viewport.width, height: viewport.height)
+                .id(HappeningPaletteMode.frequent.rawValue)
+                .position(x: layout.contentSize.width / 2,
+                    y: (layout.contentSize.height - compactHeight + viewport.height) / 2)
+                .allowsHitTesting(false).accessibilityHidden(true)
+            Color.clear.frame(width: viewport.width, height: viewport.height)
+                .id(HappeningPaletteMode.all.rawValue)
+                .position(x: layout.contentSize.width / 2, y: layout.contentSize.height / 2)
+                .allowsHitTesting(false).accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private func fieldScrollFocus(layout expanded: HappeningFieldLayout.Layout) -> some View {
+        if usesEventTree, mode == .all, eventTransition == nil {
+            HappeningTreeScrollFocus(focusID: "event_field_all",
+                center: expanded.dateHubCenter ?? self.dateHubCenter
+                    ?? CGPoint(x: expanded.contentSize.width / 2, y: expanded.contentSize.height / 2),
+                contentSize: expanded.contentSize, animated: !reduceMotion)
+                .allowsHitTesting(false).accessibilityHidden(true)
+        } else if let hub = expanded.dateHubCenter, eventTransition == nil {
+            let focus = treeFocusCenter(layout: expanded, fallback: hub)
+            HappeningTreeScrollFocus(focusID: treeFocusID ?? "event_field_tree_home",
+                center: focus, contentSize: expanded.contentSize, animated: !reduceMotion)
+                .allowsHitTesting(false).accessibilityHidden(true)
+        }
+    }
+
+    private func treeFocusCenter(layout: HappeningFieldLayout.Layout, fallback: CGPoint) -> CGPoint {
+        guard let index = happenings.firstIndex(where: { $0.id == treeFocusID }),
+              index < layout.sources.count else { return fallback }
+        return layout.sources[index].center
+    }
+
     // Observe size only; positions use ScrollView's native transform.
     private func updateVisibleFieldRect(_ rect: CGRect) {
         guard !rect.isEmpty, rect != visibleFieldRect else { return }
@@ -350,6 +460,94 @@ struct HappeningPaletteView: View {
         }
     }
 
+}
+
+/// The field is an absolute-positioned lattice, so row-based scroll targets do
+/// not describe its cells. Focus the native two-axis scroll surface only after
+/// its content has laid out at the new size, keeping all world coordinates intact.
+private struct HappeningTreeScrollFocus: UIViewRepresentable {
+    let focusID: String
+    let center: CGPoint
+    let contentSize: CGSize
+    let animated: Bool
+
+    func makeUIView(context: Context) -> FocusProbe { FocusProbe() }
+
+    func updateUIView(_ view: FocusProbe, context: Context) {
+        view.request = self
+        view.scheduleFocus()
+    }
+
+    final class FocusProbe: UIView {
+        var request: HappeningTreeScrollFocus?
+        private var appliedID: String?
+        private var isScheduled = false
+        private weak var observedScroll: UIScrollView?
+        private var sizeObservation: NSKeyValueObservation?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil {
+                sizeObservation = nil
+                observedScroll = nil
+            }
+            scheduleFocus()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            scheduleFocus()
+        }
+
+        func scheduleFocus() {
+            guard !isScheduled, request?.focusID != appliedID else { return }
+            isScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isScheduled = false
+                self.applyFocusIfReady()
+            }
+        }
+
+        private func applyFocusIfReady() {
+            guard let request, request.focusID != appliedID, window != nil else { return }
+            var ancestor = superview
+            while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+            guard let scroll = ancestor as? UIScrollView else { return }
+            if observedScroll !== scroll {
+                observedScroll = scroll
+                sizeObservation = scroll.observe(\.contentSize, options: [.new]) { [weak self] _, _ in
+                    self?.scheduleFocus()
+                }
+            }
+            guard scroll.contentSize.width >= request.contentSize.width - 1,
+                  scroll.contentSize.height >= request.contentSize.height - 1 else { return }
+            let point = HappeningEventTreeLayout.focusOffset(center: request.center,
+                contentSize: scroll.contentSize, viewportSize: scroll.bounds.size)
+            appliedID = request.focusID
+            scroll.setContentOffset(point, animated: request.animated)
+        }
+    }
+}
+
+private struct HappeningPaletteCountHub: View {
+    let count: Int
+    let ink: Color
+    private var countLabel: String {
+        "\(count) / \(HappeningDefaults.maximumDailyAdditions)"
+    }
+
+    var body: some View {
+        Text(countLabel)
+            .font(.custom("NowhereDisplay091-Regular", size: 26))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(ink)
+            .frame(width: 100, height: 44)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(count) of \(HappeningDefaults.maximumDailyAdditions) events added")
+            .accessibilityIdentifier("happening_palette_count_hub")
+    }
 }
 
 /// Retained for the completion-state geometry contract used by older saved

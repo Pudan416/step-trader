@@ -36,6 +36,28 @@ Onboarding introduces these surfaces in context. Its implementation lives in
 `Nowhere/Views/Onboarding/`; check the current coordinator and tour transitions
 when changing the sequence rather than using an old slide specification.
 
+## Happenings field
+
+The Canvas add control opens **Tree**: six complete events surround the current
+day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
+after additions and removals. Positions come from a fixed radial map. At the intersections,
+the event fits both neighboring roots: Took a break connects Worked and Chilled,
+Took a nap connects Chilled and Stayed home, and Cooked a meal connects Stayed home
+and Ate. Adding an event reveals up to three adjacent whole events.
+Expansion history is retained for the day. **All** reveals the same complete map
+around the same count; it retains the six roots and every option's position.
+Switching modes preserves the tree and the day's additions. Direct All additions
+are also visible along their path when returning to Tree.
+
+Both modes use the same transparent field, figure assignments and interactions.
+While the picker is open, a light native blur and subtle white wash soften and
+lighten the Canvas artwork behind it, including in Dark Mode, so black picker
+labels remain readable. Closing it restores the clear Canvas.
+In both modes,
+one tap adds an available event, while an added event requires two taps to remove.
+New tree nodes and mode changes animate the figures, labels and hit targets together.
+Reduce Motion uses the settled layout without spatial animation.
+
 ## Screen Time accounting and recovery
 
 Purchased minutes are spent by cumulative Screen Time usage thresholds, not by
@@ -56,6 +78,18 @@ valid delayed callback. Real-device testing remains necessary after iOS updates.
 ## Music and artwork
 
 The production Canvas uses native Metal artwork with versioned deterministic recipes.
+New days share one of six shape families: circles, organic blobs, squares,
+four-lobe clovers, flowers or simplified rays. A calendar shuffle avoids
+consecutive repeats. Each day shares its selected palette and material; adding
+or removing an event preserves the other figures. Triangle and hexagon days
+are excluded from new generation, while historical artwork retains its saved
+appearance. An unlocked Remix can give an existing day a new recipe.
+
+While music is off, new Canvas figures gently drift, breathe or turn around their
+saved positions with independent phases. Idle motion pauses behind the Happenings
+picker and while the Canvas is inactive; Reduce Motion disables it. Playback
+smoothly hands placement to lunar physics and returns to the calm composition.
+
 Four sound worlds and their moods are selected from the bundled catalogs. Planners
 build music from the day's inputs; the playback engine owns audio execution.
 The same saved day must not change because a catalog was casually reordered.
