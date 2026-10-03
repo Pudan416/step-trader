@@ -103,6 +103,7 @@ struct GalleryView: View {
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
     @State private var showEventExplorer = false
+    @State private var eventTreeEvents = HappeningEventTree.startingEvents
     @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteTourSessionID: UUID?
     @State private var paletteHappenings: [Happening] = []
@@ -438,6 +439,10 @@ struct GalleryView: View {
     }
 
     private func refreshHappeningPalette() {
+        if showEventExplorer {
+            refreshEventTreePalette()
+            return
+        }
         let frequent = model.frequentPaletteHappenings(on: dayCanvas.dayKey, addedIDs: paletteAddedIDs)
         paletteCatalog = model.paletteHappeningCatalog()
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
@@ -460,6 +465,7 @@ struct GalleryView: View {
     private func openHappeningPalette() {
         metricOverlay = nil
         send(.openHappeningPalette)
+        showEventExplorer = false
         paletteMode = .frequent
         refreshHappeningPalette()
         happeningPalettePanel = nil
@@ -503,7 +509,38 @@ struct GalleryView: View {
         withAnimation(.easeInOut(duration: 0.18)) {
             happeningPalettePanel = nil
             showHappeningPalette = false
+            showEventExplorer = false
         }
+    }
+
+    private func openEventTreePalette() {
+        metricOverlay = nil
+        send(.openHappeningPalette)
+        cancelPaletteInteraction()
+        paletteMode = .all
+        eventTreeEvents = HappeningEventTree.startingEvents
+        refreshEventTreePalette()
+        happeningPalettePanel = nil
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showEventExplorer = true
+            showHappeningPalette = true
+        }
+    }
+
+    private func refreshEventTreePalette() {
+        let happenings = eventTreeEvents.map {
+            Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: false)
+        }
+        paletteCatalog = happenings
+        paletteSelectedIDs = happenings.map(\.id)
+        paletteHappenings = happenings
+        let request = HappeningEditorialAssignmentRequest(
+            happenings: happenings,
+            baseInput: editorialRenderInput.sceneInput,
+            committedElements: dayCanvas.elements,
+            colorNonce: model.paletteColorNonce()
+        )
+        paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
     }
 
     private func consumePaletteOpenRequestIfReady() {
@@ -518,7 +555,7 @@ struct GalleryView: View {
 
     @ViewBuilder
     private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout) -> some View {
-        if showHappeningPalette, !presentation.isWideCanvas {
+        if (showHappeningPalette || showEventExplorer), !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 assignments: paletteEditorialAssignments,
@@ -543,7 +580,19 @@ struct GalleryView: View {
                 addedIDs: paletteAddedIDs,
                 fixedIDs: paletteHealthIDs,
                 instruction: paletteInstruction,
-                onActivate: handlePaletteActivation,
+                onActivate: { happening in
+                    if showEventExplorer,
+                       let event = eventTreeEvents.first(where: { "event_\($0.id)" == happening.id }),
+                       paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs) == .available {
+                        let visible = Set(eventTreeEvents.map(\.id))
+                        let next = HappeningEventTree.suggestions(for: event, alreadyVisible: visible)
+                        if !next.isEmpty {
+                            eventTreeEvents.append(contentsOf: next)
+                            refreshEventTreePalette()
+                        }
+                    }
+                    handlePaletteActivation(happening)
+                },
                 onCreate: { handlePaletteCreation($0) },
                 onCreateReplacement: { title, replacementID, selection in
                     handlePaletteCreation(title, replacingID: replacementID, selection: selection)
@@ -552,8 +601,10 @@ struct GalleryView: View {
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {
                     model.rerollPaletteFigures()
-                    refreshHappeningPalette()
-                }
+                    if showEventExplorer { refreshEventTreePalette() }
+                    else { refreshHappeningPalette() }
+                },
+                showsDateHub: showEventExplorer
             )
             .transition(.opacity)
             .onAppear {
@@ -694,11 +745,15 @@ struct GalleryView: View {
             let succeeded: Bool
             switch mutation {
             case .add:
+                if happening.id.hasPrefix("event_"),
+                   let event = eventTreeEvents.first(where: { "event_\($0.id)" == happening.id }) {
+                    _ = model.happeningStore.ensureExternalHappening(id: happening.id, title: event.title)
+                }
                 succeeded = addAndSpawnHappening(
                     optionId: happening.id,
                     elementID: assignment.elementID,
                     editorialColorVariant: assignment.colorVariant,
-                    recordUse: true,
+                    recordUse: !happening.id.hasPrefix("event_"),
                     origin: nil
                 )
             case let .remove(id):
@@ -1024,21 +1079,6 @@ struct GalleryView: View {
             // An overlay outside canvasLayers inherits a different screen origin.
             .overlay {
                 happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true))
-            }
-            .overlay {
-                if showEventExplorer {
-                    HappeningEventExplorer(
-                        onChoose: addTreeHappening,
-                        onRemove: removeTreeHappening,
-                        remaining: max(0, 10 - todayEventCount),
-                        addedIDs: Set(dayCanvas.elements.compactMap { element in
-                            guard element.optionId.hasPrefix("event_") else { return nil }
-                            return String(element.optionId.dropFirst("event_".count))
-                        }),
-                        onFinish: closeEventExplorer
-                    )
-                    .transition(.opacity)
-                }
             }
         }
         .ignoresSafeArea()
@@ -1728,11 +1768,8 @@ struct GalleryView: View {
                 }
             },
             onToggleHappeningPalette: {
-                if showEventExplorer { showEventExplorer = false }
-                else {
-                    closeHappeningPalette()
-                    showEventExplorer = true
-                }
+                if showEventExplorer { closeHappeningPalette() }
+                else { openEventTreePalette() }
             },
             happeningMode: showHappeningPalette ? paletteMode : nil,
             onSelectHappeningMode: { mode in
@@ -1749,22 +1786,6 @@ struct GalleryView: View {
 
     private var todayEventCount: Int {
         model.todayAdditions.filter { $0.dayKey == AppModel.dayKey(for: .now) }.count
-    }
-
-    private func addTreeHappening(_ node: HappeningEventNode) {
-        guard todayEventCount < 10 else { return }
-        let optionID = "event_\(node.id)"
-        _ = model.happeningStore.ensureExternalHappening(id: optionID, title: node.title)
-        _ = addAndSpawnHappening(optionId: optionID, recordUse: false)
-    }
-
-    private func removeTreeHappening(_ node: HappeningEventNode) {
-        guard let element = dayCanvas.elements.last(where: { $0.optionId == "event_\(node.id)" }) else { return }
-        _ = removePaletteHappening(id: element.optionId, elementID: element.id)
-    }
-
-    private func closeEventExplorer() {
-        withAnimation(.easeInOut(duration: 0.18)) { showEventExplorer = false }
     }
 
     private func handleCanvasLeadBegan(_ sample: CanvasTouchGestureSample) {

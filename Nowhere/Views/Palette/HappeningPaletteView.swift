@@ -120,6 +120,7 @@ struct HappeningPaletteView: View {
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onReroll: () -> Void
+    let showsDateHub: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -144,7 +145,8 @@ struct HappeningPaletteView: View {
         onCreateReplacement: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
-        onReroll: @escaping () -> Void = {}
+        onReroll: @escaping () -> Void = {},
+        showsDateHub: Bool = false
     ) {
         self.happenings = happenings
         self.assignments = assignments
@@ -167,6 +169,7 @@ struct HappeningPaletteView: View {
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onReroll = onReroll
+        self.showsDateHub = showsDateHub
     }
 
     var body: some View {
@@ -247,6 +250,12 @@ struct HappeningPaletteView: View {
                         catch { return }
                         modeTransition = nil
                     }
+                }
+
+                if showsDateHub {
+                    HappeningPaletteDateHub()
+                        .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                        .allowsHitTesting(false)
                 }
 
                 // Actions live on the selected object. Keep only failures here;
@@ -346,6 +355,28 @@ struct HappeningPaletteView: View {
         }
     }
 
+}
+
+private struct HappeningPaletteDateHub: View {
+    private let ink = Color(hex: "24372B")
+
+    var body: some View {
+        Text(Date.now, format: .dateTime.month(.abbreviated).day())
+            .font(.custom("NowhereDisplay091-Regular", size: 26))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(ink)
+            .frame(width: 148, height: 148)
+            .background {
+                HappeningPickerShape().fill(.white.opacity(0.12))
+            }
+            .overlay {
+                HappeningPickerShape().stroke(ink.opacity(0.10), lineWidth: 1)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Date.now.formatted(.dateTime.month(.abbreviated).day()))
+            .accessibilityIdentifier("happening_palette_date_hub")
+    }
 }
 
 /// Retained for the completion-state geometry contract used by older saved

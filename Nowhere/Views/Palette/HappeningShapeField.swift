@@ -147,7 +147,7 @@ enum HappeningPaletteLabelInk: Equatable {
 }
 
 /// Matches the subtle superellipse used by both Metal picker renderers.
-private struct HappeningPickerShape: Shape {
+struct HappeningPickerShape: Shape {
     func path(in rect: CGRect) -> Path {
         Path { path in
             for step in 0...128 {
