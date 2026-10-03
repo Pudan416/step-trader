@@ -103,8 +103,11 @@ struct HappeningPaletteView: View {
     let selectedIDs: [String]
     let artwork: AnyView
     let compactLayout: HappeningFieldLayout.Layout?
-    let artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)?
+    let usesEventTree: Bool
+    let artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)?
     @State private var modeTransition: HappeningFieldModeTransition?
+    @State private var eventTransition: HappeningEventFieldTransition?
+    @State private var eventLayout: HappeningFieldLayout.Layout?
     @State private var visibleFieldRect: CGRect = .zero
     @State private var isFieldScrolling = false
     @State private var scrollSettleTask: Task<Void, Never>?
@@ -138,7 +141,8 @@ struct HappeningPaletteView: View {
         layout: HappeningFieldLayout.Layout,
         mode: HappeningPaletteMode = .all,
         compactLayout: HappeningFieldLayout.Layout? = nil,
-        artworkForLayout: ((HappeningFieldLayout.Layout, Bool) -> AnyView)? = nil,
+        usesEventTree: Bool = false,
+        artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)? = nil,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
         fixedIDs: Set<String> = [],
@@ -160,6 +164,7 @@ struct HappeningPaletteView: View {
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         self.artwork = artwork
         self.compactLayout = compactLayout
+        self.usesEventTree = usesEventTree
         self.artworkForLayout = artworkForLayout
         _activePanel = activePanel
         self.layout = layout
@@ -184,11 +189,11 @@ struct HappeningPaletteView: View {
             ZStack(alignment: .topLeading) {
                 ScrollViewReader { scroll in
                     ScrollView([.horizontal, .vertical], showsIndicators: false) {
-                        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: modeTransition == nil)) { context in
+                        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: modeTransition == nil && eventTransition == nil)) { context in
                             let progress = modeTransition?.value(at: context.date) ?? (mode == .all ? 1 : 0)
                             let expanded = compactLayout.map {
                                 HappeningFieldExpansion.layout(compact: $0, expanded: layout, viewport: proxy.size, progress: progress)
-                            } ?? layout
+                            } ?? (usesEventTree ? eventTransition?.layout(at: context.date) ?? eventLayout ?? layout : layout)
                             let visibleRect = visibleFieldRect.isEmpty ? CGRect(
                                 x: max(0, (expanded.contentSize.width - proxy.size.width) / 2),
                                 y: max(0, (expanded.contentSize.height - proxy.size.height) / 2),
@@ -197,17 +202,18 @@ struct HappeningPaletteView: View {
                             let displayed = HappeningFieldEdgeScale.apply(to: expanded, visibleRect: visibleRect,
                                 strength: reduceMotion || artworkForLayout == nil || dateHubCenter != nil ? 0 : progress)
                             ZStack(alignment: .topLeading) {
-                                (artworkForLayout?(displayed, modeTransition != nil || isFieldScrolling) ?? artwork)
+                                (artworkForLayout?(displayed, modeTransition != nil || eventTransition != nil || isFieldScrolling, visibleRect) ?? artwork)
                                     .accessibilityHidden(true)
                                     .allowsHitTesting(false)
                                 HappeningShapeField(
                                     happenings: happenings, assignments: assignments, layout: displayed,
                                     interaction: interaction, addedIDs: addedIDs,
-                                    onActivate: onActivate, labelInks: labelInks, fitsTreeLabels: dateHubCenter != nil
+                                    onActivate: onActivate, labelInks: labelInks, fitsTreeLabels: usesEventTree
                                 )
-                                if let dateHubCenter {
+                                if let dateHubCenter = expanded.dateHubCenter ?? dateHubCenter {
                                     HappeningPaletteDateHub(ink: dateHubInk.color)
                                         .position(dateHubCenter)
+                                        .opacity(eventTransition?.hubOpacity(at: context.date) ?? 1)
                                         .allowsHitTesting(false)
                                 }
                                 if let compactLayout {
@@ -226,14 +232,19 @@ struct HappeningPaletteView: View {
                             .frame(width: max(proxy.size.width, displayed.contentSize.width),
                                    height: max(proxy.size.height, displayed.contentSize.height))
                             .background {
-                                if dateHubCenter != nil,
-                                   let index = happenings.firstIndex(where: { $0.id == treeFocusID }),
-                                   index < expanded.sources.count {
+                                if usesEventTree, mode == .all {
                                     HappeningTreeScrollFocus(
-                                        focusID: treeFocusID ?? "",
-                                        center: expanded.sources[index].center,
-                                        contentSize: expanded.contentSize,
-                                        animated: !reduceMotion
+                                        focusID: "event_field_all",
+                                        center: CGPoint(x: layout.contentSize.width / 2, y: layout.contentSize.height / 2),
+                                        contentSize: layout.contentSize, animated: !reduceMotion
+                                    )
+                                    .allowsHitTesting(false).accessibilityHidden(true)
+                                } else if let hub = expanded.dateHubCenter, eventTransition == nil {
+                                    let focus = happenings.firstIndex(where: { $0.id == treeFocusID })
+                                        .flatMap { $0 < expanded.sources.count ? expanded.sources[$0].center : nil } ?? hub
+                                    HappeningTreeScrollFocus(
+                                        focusID: treeFocusID ?? "event_field_tree_home",
+                                        center: focus, contentSize: expanded.contentSize, animated: !reduceMotion
                                     )
                                     .allowsHitTesting(false).accessibilityHidden(true)
                                 }
@@ -242,8 +253,8 @@ struct HappeningPaletteView: View {
                         }
                         // TimelineView must advertise the entire world to the
                         // native scroll surface, not just paint overflow inside it.
-                        .frame(width: max(proxy.size.width, layout.contentSize.width),
-                               height: max(proxy.size.height, layout.contentSize.height, compactLayout?.contentSize.height ?? 0))
+                        .frame(width: max(proxy.size.width, layout.contentSize.width, eventTransition?.from.contentSize.width ?? 0),
+                               height: max(proxy.size.height, layout.contentSize.height, compactLayout?.contentSize.height ?? 0, eventTransition?.from.contentSize.height ?? 0))
                         .onGeometryChange(for: CGRect.self) { content in
                             let origin = content.frame(in: .named("happeningViewport")).origin
                             return CGRect(x: -origin.x, y: -origin.y,
@@ -254,13 +265,14 @@ struct HappeningPaletteView: View {
                     }
                     .coordinateSpace(name: "happeningViewport")
                     .defaultScrollAnchor(mode == .frequent && (compactLayout?.contentSize.height ?? 0) > proxy.size.height ? .top : .center)
-                    .scrollDisabled(compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
+                    .scrollDisabled(!usesEventTree && compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .canvasTourAnchor("canvas.happenings")
                     .accessibilityIdentifier("happening_field_scroll")
                     .accessibilityHidden(activePanel != nil)
-                    .allowsHitTesting(activePanel == nil && modeTransition == nil)
+                    .allowsHitTesting(activePanel == nil && modeTransition == nil && eventTransition == nil)
                     .onChange(of: mode) { oldMode, newMode in
+                        guard !usesEventTree else { return }
                         guard compactLayout != nil else { return }
                         let now = Date()
                         let from = modeTransition?.value(at: now) ?? (oldMode == .all ? 1 : 0)
@@ -272,6 +284,23 @@ struct HappeningPaletteView: View {
                                 scroll.scrollTo(newMode.rawValue, anchor: .center)
                             }
                         }
+                    }
+                    .onAppear { if usesEventTree { eventLayout = layout } }
+                    .onChange(of: layout) { oldLayout, newLayout in
+                        guard usesEventTree else { return }
+                        let now = Date()
+                        let origin = eventTransition?.layout(at: now) ?? eventLayout ?? oldLayout
+                        eventLayout = newLayout
+                        eventTransition = reduceMotion ? nil : .init(from: origin, to: newLayout, startedAt: now)
+                    }
+                    .onChange(of: reduceMotion) { _, reduced in
+                        if reduced { eventTransition = nil; modeTransition = nil }
+                    }
+                    .task(id: eventTransition?.startedAt) {
+                        guard usesEventTree, eventTransition != nil else { return }
+                        do { try await Task.sleep(for: .seconds(HappeningEventFieldTransition.duration + 0.05)) }
+                        catch { return }
+                        eventTransition = nil
                     }
                     .task(id: mode) {
                         guard modeTransition != nil else { return }

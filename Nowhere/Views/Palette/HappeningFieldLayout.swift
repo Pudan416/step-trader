@@ -439,3 +439,60 @@ enum HappeningFieldEdgeScale {
         return result
     }
 }
+
+/// Identity order is the complete event catalog in both modes. One sampled
+/// layout drives Metal, titles and hit targets, including newly revealed cells.
+struct HappeningEventFieldTransition {
+    static let duration: TimeInterval = 0.58
+    let from: HappeningFieldLayout.Layout
+    let to: HappeningFieldLayout.Layout
+    let startedAt: Date
+
+    func progress(at date: Date) -> CGFloat {
+        CGFloat(min(1, max(0, date.timeIntervalSince(startedAt) / Self.duration)))
+    }
+
+    func layout(at date: Date) -> HappeningFieldLayout.Layout {
+        let phase = progress(at: date)
+        let p = phase * phase * (3 - 2 * phase)
+        // Keep one world for the duration of a transition. Once settled, the
+        // tree returns to its own bounds rather than paying for the All surface.
+        let world = CGSize(width: max(from.contentSize.width, to.contentSize.width),
+                           height: max(from.contentSize.height, to.contentSize.height))
+        func offset(_ layout: HappeningFieldLayout.Layout) -> CGPoint {
+            CGPoint(x: (world.width - layout.contentSize.width) / 2,
+                    y: (world.height - layout.contentSize.height) / 2)
+        }
+        let a = offset(from), b = offset(to)
+        let sources = to.sources.enumerated().map { index, destination in
+            let origin = index < from.sources.count ? from.sources[index] : destination
+            let target = CGPoint(x: destination.center.x + b.x, y: destination.center.y + b.y)
+            // A new tree neighbor grows in its own cell, keeping the stable
+            // lattice clear; mode changes move already visible events too.
+            let start = origin.appearanceScale <= 0.001 ? target
+                : CGPoint(x: origin.center.x + a.x, y: origin.center.y + a.y)
+            let end = destination.appearanceScale <= 0.001 ? start : target
+            let scale = origin.appearanceScale + (destination.appearanceScale - origin.appearanceScale) * p
+            let originRadius = origin.appearanceScale > 0.001 ? origin.radius / origin.appearanceScale
+                : destination.radius / max(0.001, destination.appearanceScale)
+            let targetRadius = destination.appearanceScale > 0.001 ? destination.radius / destination.appearanceScale : originRadius
+            return HappeningFieldLayout.Source(index: index,
+                center: CGPoint(x: start.x + (end.x - start.x) * p, y: start.y + (end.y - start.y) * p),
+                radius: (originRadius + (targetRadius - originRadius) * p) * scale,
+                appearanceScale: scale)
+        }
+        var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: to.dockAnchor)
+        result.contentSize = world
+        if let hub = to.dateHubCenter ?? from.dateHubCenter {
+            let shift = to.dateHubCenter != nil ? b : a
+            result.dateHubCenter = CGPoint(x: hub.x + shift.x, y: hub.y + shift.y)
+        }
+        return result
+    }
+
+    func hubOpacity(at date: Date) -> CGFloat {
+        let p = progress(at: date)
+        if from.dateHubCenter != nil, to.dateHubCenter != nil { return 1 }
+        return to.dateHubCenter == nil ? 1 - p : p
+    }
+}

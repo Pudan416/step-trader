@@ -519,7 +519,7 @@ struct GalleryView: View {
         metricOverlay = nil
         send(.openHappeningPalette)
         cancelPaletteInteraction()
-        paletteMode = .all
+        paletteMode = .frequent
         if eventTreeDayKey != dayCanvas.dayKey {
             eventTreeDayKey = dayCanvas.dayKey
             eventTreeExpandedIDs = ""
@@ -534,8 +534,8 @@ struct GalleryView: View {
     }
 
     private func refreshEventTreePalette() {
-        let happenings = eventTree.nodes.map {
-            Happening(id: "event_\($0.id)", title: $0.event.title, isBuiltIn: false)
+        let happenings = HappeningEventTree.all.map {
+            Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: false)
         }
         paletteCatalog = happenings
         paletteSelectedIDs = happenings.map(\.id)
@@ -572,14 +572,16 @@ struct GalleryView: View {
                 layout: layout,
                 mode: paletteMode,
                 compactLayout: showEventExplorer ? nil : compactLayout,
-                artworkForLayout: { displayedLayout, isExpanding in
+                usesEventTree: showEventExplorer,
+                artworkForLayout: { displayedLayout, isExpanding, visibleRect in
                     AnyView(DayObjectsView(
                         sceneInput: displayedEditorialRenderInput.sceneInput,
                         digitalImpact: displayedEditorialRenderInput.digitalImpact,
                         isAnimating: isCanvasSelected,
                         soundPulseBus: canvasSoundPulseBus,
                         presentationMode: paletteRenderMode(layout: displayedLayout,
-                            viewportSize: displayedLayout.contentSize, isExpanding: isExpanding)
+                            viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
+                            visibleRect: showEventExplorer ? visibleRect : nil)
                     ))
                 },
                 interaction: paletteInteraction,
@@ -599,7 +601,8 @@ struct GalleryView: View {
                     else { refreshHappeningPalette() }
                 },
                 dateHubCenter: treeHubCenter,
-                treeFocusID: showEventExplorer ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
+                treeFocusID: showEventExplorer && paletteMode == .frequent
+                    ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
                 dateHubInk: .resolve(state: .available,
                     background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
                     material: nil)
@@ -663,11 +666,22 @@ struct GalleryView: View {
                 CGFloat(tour.cardBottomGlobalY) - viewport.frame(in: .global).minY + 12
             )
         }
-        if showEventExplorer {
-            return eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
+        if showEventExplorer, paletteMode == .frequent {
+            let tree = eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
+            let placed = Dictionary(uniqueKeysWithValues: zip(eventTree.nodes, tree.sources).map { ($0.0.id, $0.1) })
+            let sources = HappeningEventTree.all.enumerated().map { index, event in
+                let source = placed[event.id]
+                return HappeningFieldLayout.Source(index: index,
+                    center: source?.center ?? tree.dateHubCenter ?? .zero,
+                    radius: source?.radius ?? 0, appearanceScale: source == nil ? 0 : 1)
+            }
+            var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: tree.dockAnchor)
+            result.contentSize = tree.contentSize
+            result.dateHubCenter = tree.dateHubCenter
+            return result
         }
         var layout = HappeningFieldLayout.layout(
-            count: compact ? min(10, paletteHappenings.count) : paletteHappenings.count,
+            count: compact && !showEventExplorer ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
             safeInsets: canvasSafeInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
@@ -691,7 +705,7 @@ struct GalleryView: View {
         )
     }
 
-    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false) -> DayObjectsPresentationMode {
+    private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false, visibleRect: CGRect? = nil) -> DayObjectsPresentationMode {
         guard showHappeningPalette else { return .canvas }
         let slots = paletteHappenings.enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
@@ -699,7 +713,11 @@ struct GalleryView: View {
                   let assignment = paletteEditorialAssignments[happening.id] else { return nil }
             let source = layout.sources[index]
             let bounds = CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius, width: source.radius * 2, height: source.radius * 2)
-            guard bounds.intersects(CGRect(origin: .zero, size: viewportSize).insetBy(dx: -32, dy: -32)) else { return nil }
+            // The GPU upload supports 64 actors. Cull in world coordinates
+            // around the native scroll viewport so every one of the 99 events
+            // has a rendered ball when reached, with one cell of overscan.
+            let renderBounds = visibleRect ?? CGRect(origin: .zero, size: viewportSize)
+            guard bounds.intersects(renderBounds.insetBy(dx: -160, dy: -160)) else { return nil }
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
@@ -756,8 +774,8 @@ struct GalleryView: View {
             switch mutation {
             case .add:
                 if happening.id.hasPrefix("event_"),
-                   let node = eventTree.nodes.first(where: { "event_\($0.id)" == happening.id }) {
-                    _ = model.happeningStore.ensureExternalHappening(id: happening.id, title: node.event.title)
+                   let event = HappeningEventTree.event(String(happening.id.dropFirst("event_".count))) {
+                    _ = model.happeningStore.ensureExternalHappening(id: happening.id, title: event.title)
                 }
                 succeeded = addAndSpawnHappening(
                     optionId: happening.id,
@@ -775,7 +793,7 @@ struct GalleryView: View {
                 paletteErrorID = happening.id
                 return
             }
-            if showEventExplorer, case .add = mutation {
+            if showEventExplorer, paletteMode == .frequent, case .add = mutation {
                 eventTree.expand(String(happening.id.dropFirst("event_".count)))
                 eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
                 refreshEventTreePalette()
@@ -1793,12 +1811,15 @@ struct GalleryView: View {
                 if showHappeningPalette { closeHappeningPalette() }
                 else { openEventTreePalette() }
             },
-            happeningMode: showHappeningPalette && !showEventExplorer ? paletteMode : nil,
+            happeningMode: showHappeningPalette ? paletteMode : nil,
+            usesEventTree: showEventExplorer,
             onSelectHappeningMode: { mode in
                 guard mode != paletteMode else { return }
                 paletteConfirmationTask?.cancel()
                 paletteTransitionTask?.cancel()
-                paletteInteraction = HappeningPaletteInteractionState()
+                if !showEventExplorer {
+                    paletteInteraction = HappeningPaletteInteractionState()
+                }
                 paletteErrorID = nil
                 paletteTransitionActive = false
                 paletteMode = mode

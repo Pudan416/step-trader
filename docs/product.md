@@ -36,6 +36,19 @@ Onboarding introduces these surfaces in context. Its implementation lives in
 `Nowhere/Views/Onboarding/`; check the current coordinator and tour transitions
 when changing the sequence rather than using an old slide specification.
 
+## Happenings field
+
+The Canvas add control opens **Tree**: six complete events surround today's date
+in the Nowhere font. Adding an event reveals up to three adjacent whole events.
+Expansion history is retained for the day. **All** opens the complete event catalog,
+including events not yet discovered in the tree; any event can be added directly.
+Switching modes preserves the tree and the day's additions.
+
+Both modes use the same transparent field, figure assignments and interactions:
+one tap adds an available event, while an added event requires two taps to remove.
+New tree nodes and mode changes animate the figures, labels and hit targets together.
+Reduce Motion uses the settled layout without spatial animation.
+
 ## Screen Time accounting and recovery
 
 Purchased minutes are spent by cumulative Screen Time usage thresholds, not by
