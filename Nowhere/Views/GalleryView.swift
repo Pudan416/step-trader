@@ -547,6 +547,11 @@ struct GalleryView: View {
                 onCreateReplacement: { title, replacementID, selection in
                     handlePaletteCreation(title, replacingID: replacementID, selection: selection)
                 },
+                onRename: { id, title in
+                    let renamed = model.renameHappening(id: id, title: title)
+                    if renamed { refreshHappeningPalette() }
+                    return renamed
+                },
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {
@@ -766,7 +771,7 @@ struct GalleryView: View {
         do {
             _ = try model.createPaletteHappening(
                 title: title,
-                protectedIDs: paletteAddedIDs.union(paletteHealthIDs),
+                protectedIDs: paletteAddedIDs,
                 selection: selection,
                 replacingID: replacingID
             )
@@ -1026,7 +1031,6 @@ struct GalleryView: View {
             }
         }
         .ignoresSafeArea()
-        .environment(\.isTodayCanvasSource, !showHappeningPalette)
     }
 
     // ═══════════════════════════════════════════════════════════

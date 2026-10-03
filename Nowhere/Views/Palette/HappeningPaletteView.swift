@@ -117,6 +117,7 @@ struct HappeningPaletteView: View {
     let onActivate: (Happening) -> Void
     let onCreate: (String) -> HappeningPaletteCreationOutcome
     let onCreateReplacement: (String, String, [String]) -> HappeningPaletteCreationOutcome
+    let onRename: (String, String) -> Bool
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onReroll: () -> Void
@@ -142,6 +143,7 @@ struct HappeningPaletteView: View {
         onActivate: @escaping (Happening) -> Void,
         onCreate: @escaping (String) -> HappeningPaletteCreationOutcome,
         onCreateReplacement: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
+        onRename: @escaping (String, String) -> Bool = { _, _ in false },
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
         onReroll: @escaping () -> Void = {}
@@ -164,6 +166,7 @@ struct HappeningPaletteView: View {
         self.onActivate = onActivate
         self.onCreate = onCreate
         self.onCreateReplacement = onCreateReplacement
+        self.onRename = onRename
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onReroll = onReroll
@@ -322,13 +325,14 @@ struct HappeningPaletteView: View {
             HappeningChooserView(
                 catalog: catalog,
                 selected: selectedIDs,
-                protectedIDs: addedIDs.union(fixedIDs),
+                protectedIDs: addedIDs,
                 healthIDs: fixedIDs,
                 onCreateNew: { title, replacementID, selection in
                     let outcome = onCreateReplacement(title, replacementID, selection)
                     if outcome.closesCreator { activePanel = nil }
                     return outcome
                 },
+                onRename: onRename,
                 onSave: { ids in
                     if onSaveSelection(ids) { activePanel = nil }
                 },

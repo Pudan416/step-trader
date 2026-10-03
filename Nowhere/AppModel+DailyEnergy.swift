@@ -63,6 +63,13 @@ extension AppModel {
         if syncToCloud {
             Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
             Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+            let kind = happeningStore.happening(id: id)?.isBuiltIn == false ? "custom" : "built_in"
+            Task {
+                await SupabaseSyncService.shared.trackAnalyticsEvent(
+                    name: "happening_added",
+                    properties: ["happening_kind": kind]
+                )
+            }
         }
         return entry
     }
@@ -79,6 +86,14 @@ extension AppModel {
 
     func createHappening(title: String, at date: Date = .now) -> Happening {
         happeningStore.create(title: title, at: date)
+    }
+
+    @discardableResult
+    func renameHappening(id: String, title: String) -> Bool {
+        guard happeningStore.renameHappening(id: id, title: title) != nil else { return false }
+        objectWillChange.send()
+        Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+        return true
     }
 
     /// Creates a catalog item and installs it into the configured ten without
@@ -153,9 +168,7 @@ extension AppModel {
         let detected = pendingActivitySuggestions.compactMap { suggestion -> String? in
             guard case .workout = suggestion.source else { return nil }
             let id = HappeningPaletteSelection.choiceID(suggestion.optionId)
-            if happeningStore.happening(id: id) == nil {
-                happeningStore.ensureExternalHappening(id: id, title: suggestion.title)
-            }
+            happeningStore.ensureExternalHappening(id: id, title: suggestion.title)
             return id
         }
         let knownHealth = happeningStore.all.filter { $0.id.hasPrefix("health_workout_") }.map(\.id)
@@ -371,6 +384,12 @@ extension AppModel {
             return happening.localizedTitle()
         }
         return EnergyDefaults.legacyTitle(for: optionId) ?? optionId
+    }
+
+    func mergeRestoredHappenings(_ happenings: [Happening]) {
+        guard !happenings.isEmpty else { return }
+        happeningStore.mergeRestored(happenings)
+        objectWillChange.send()
     }
 
     func loadPastDaySnapshots() -> [String: PastDaySnapshot] {

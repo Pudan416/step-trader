@@ -53,6 +53,12 @@ enum SessionKeychain {
     }
 }
 
+/// Identity as observed when a product analytics event is created.
+struct AnalyticsIdentitySnapshot: Sendable, Equatable {
+    let userId: String
+    let accountType: String
+}
+
 // MARK: - Errors
 
 enum AuthError: LocalizedError {

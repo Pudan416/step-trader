@@ -466,6 +466,9 @@ private struct NowhereProductionRoot: View {
             .onChange(of: model.isBootstrapping) { _, preparingLocalState in
                 if !preparingLocalState { startAutomaticCanvasOnboardingIfReady() }
             }
+            .onChange(of: authService.currentUser?.id) { _, _ in
+                Task { await SupabaseSyncService.shared.analyticsIdentityDidChange() }
+            }
             .onChange(of: onboardingState.isCompleted) { _, completed in
                 guard completed else {
                     activeFeatureTip = nil
@@ -485,11 +488,16 @@ private struct NowhereProductionRoot: View {
                     // automatic start even if bootstrap is still awaiting data.
                     _ = onboardingState.claimAutomaticStart()
                     activeFeatureTip = nil
+                    trackOnboardingStartIfNeeded()
                 } else {
+                    trackOnboardingEndIfNeeded()
                     checkForPayGateFlags()
                     checkForHandoffToken()
                     processPendingWidgetUnlock()
                 }
+            }
+            .onChange(of: CanvasTour.shared.step) { _, step in
+                trackOnboardingStepIfNeeded(step)
             }
             .onReceive(cleanupTimer) { _ in
                 model.checkDayBoundary()
@@ -497,6 +505,7 @@ private struct NowhereProductionRoot: View {
             .onChange(of: scenePhase) { _, newPhase in
                 switch newPhase {
                 case .active:
+                    Task { await SupabaseSyncService.shared.analyticsIdentityDidChange() }
                     // Skip the foregrounding refresh while bootstrap is still in flight,
                     // and on the first `.active` after cold launch (bootstrap covers it).
                     // `model.didCompleteBootstrap` flips to true at the end of `bootstrap()`,
@@ -504,6 +513,7 @@ private struct NowhereProductionRoot: View {
                     if model.didCompleteBootstrap {
                         model.handleAppWillEnterForeground()
                     }
+                    refreshWidgetAnalyticsSnapshot()
                     // Roll a new daily-random theme if the calendar day changed
                     // since the last roll (no-op if toggle is OFF).
                     model.applyDailyRandomThemeIfNeeded()
@@ -650,6 +660,99 @@ private struct NowhereProductionRoot: View {
         guard !model.isBootstrapping, allowsAutomaticCanvasOnboarding,
               !CanvasTour.shared.isActive, onboardingState.claimAutomaticStart() else { return }
         CanvasTour.shared.start(source: "firstLaunch")
+    }
+
+    private func trackOnboardingStartIfNeeded() {
+        let tour = CanvasTour.shared
+        guard tour.entrySource == "firstLaunch" else { return }
+        let isResuming = !tour.completedSteps.isEmpty || tour.step != .welcome
+        Task {
+            await SupabaseSyncService.shared.trackAnalyticsEvent(
+                name: isResuming ? "onboarding_resumed" : "onboarding_started",
+                properties: ["source": "first_launch", "flow_version": "2"],
+                dedupeKey: "onboarding_start:\(tour.sessionID)"
+            )
+        }
+        trackOnboardingStepIfNeeded(tour.step)
+    }
+
+    private func trackOnboardingStepIfNeeded(_ step: CanvasTourStep) {
+        let tour = CanvasTour.shared
+        guard tour.entrySource == "firstLaunch" else { return }
+        Task {
+            await SupabaseSyncService.shared.trackAnalyticsEvent(
+                name: "onboarding_step_reached",
+                properties: [
+                    "step": step.rawValue,
+                    "step_index": String(CanvasTourStep.allCases.firstIndex(of: step) ?? 0),
+                    "flow_version": "2"
+                ],
+                dedupeKey: "onboarding_step:\(tour.sessionID):\(step.rawValue)"
+            )
+        }
+    }
+
+    private func trackOnboardingEndIfNeeded() {
+        let tour = CanvasTour.shared
+        guard tour.entrySource == "firstLaunch" else { return }
+        let event: String
+        switch tour.status {
+        case .completed: event = "onboarding_completed"
+        case .skipped: event = "onboarding_skipped"
+        default: return
+        }
+        Task {
+            await SupabaseSyncService.shared.trackAnalyticsEvent(
+                name: event,
+                properties: [
+                    "flow_version": "2",
+                    "completed_steps": String(tour.completedSteps.count)
+                ],
+                dedupeKey: "\(event):\(tour.sessionID)"
+            )
+        }
+    }
+
+    /// WidgetKit is the source of truth for installed widgets. The first read
+    /// seeds a baseline so existing installations are not falsely counted as new.
+    private func refreshWidgetAnalyticsSnapshot() {
+        let defaults = UserDefaults.nowhere()
+        let key = "analytics_widget_inventory_v1"
+        WidgetCenter.shared.getCurrentConfigurations { result in
+            guard case .success(let widgets) = result else { return }
+            var current: [String: Int] = [:]
+            for widget in widgets {
+                let kind: String
+                switch widget.kind {
+                case "NowHereStatus_v1": kind = "status"
+                case "NowHereWidget_v2": kind = "groups"
+                case "NowHereCombo_v1": kind = "combo"
+                default: continue
+                }
+                let family = String(describing: widget.family)
+                current["\(kind):\(family)", default: 0] += 1
+            }
+            let previous = (defaults.dictionary(forKey: key) as? [String: Int])
+            defaults.set(current, forKey: key)
+            guard let previous else { return }
+            for inventoryKey in Set(previous.keys).union(current.keys).sorted() {
+                let delta = (current[inventoryKey] ?? 0) - (previous[inventoryKey] ?? 0)
+                guard delta != 0 else { continue }
+                let parts = inventoryKey.split(separator: ":", maxSplits: 1).map(String.init)
+                guard parts.count == 2 else { continue }
+                Task {
+                    await SupabaseSyncService.shared.trackAnalyticsEvent(
+                        name: delta > 0 ? "widget_added" : "widget_removed",
+                        properties: [
+                            "kind": parts[0],
+                            "family": parts[1],
+                            "count_delta": String(delta),
+                            "current_count": String(current[inventoryKey] ?? 0)
+                        ]
+                    )
+                }
+            }
+        }
     }
 
     private func processPendingWidgetUnlock() {
