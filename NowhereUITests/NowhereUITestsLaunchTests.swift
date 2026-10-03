@@ -1077,12 +1077,12 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
         XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].waitForExistence(timeout: 5))
         XCTAssertEqual(choices.count, 6)
-        let date = app.descendants(matching: .any)["happening_palette_date_hub"]
-        XCTAssertTrue(date.exists)
+        let count = app.descendants(matching: .any)["happening_palette_count_hub"]
+        XCTAssertTrue(count.exists)
         XCTAssertTrue(app.buttons["happening_mode_switch"].exists)
         for choice in choices.allElementsBoundByIndex {
             XCTAssertTrue(choice.isHittable)
-            XCTAssertFalse(choice.frame.intersects(date.frame))
+            XCTAssertFalse(choice.frame.intersects(count.frame))
         }
         attachScreenshot(named: "event-tree-six-roots")
 

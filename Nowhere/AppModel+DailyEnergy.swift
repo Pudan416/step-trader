@@ -18,7 +18,7 @@ extension AppModel {
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        return todayAdditions.filter { $0.dayKey == dayKey }.count < 10
+        return todayAdditions.filter { $0.dayKey == dayKey }.count < HappeningDefaults.maximumDailyAdditions
     }
 
     @discardableResult

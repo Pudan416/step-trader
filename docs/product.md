@@ -38,17 +38,21 @@ when changing the sequence rather than using an old slide specification.
 
 ## Happenings field
 
-The Canvas add control opens **Tree**: six complete events surround today's date
-in the Nowhere font. Positions come from a fixed radial map. At the intersections,
+The Canvas add control opens **Tree**: six complete events surround the current
+day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
+after additions and removals. Positions come from a fixed radial map. At the intersections,
 the event fits both neighboring roots: Took a break connects Worked and Chilled,
 Took a nap connects Chilled and Stayed home, and Cooked a meal connects Stayed home
 and Ate. Adding an event reveals up to three adjacent whole events.
 Expansion history is retained for the day. **All** reveals the same complete map
-around the same date; it retains the six roots and every option's position.
+around the same count; it retains the six roots and every option's position.
 Switching modes preserves the tree and the day's additions. Direct All additions
 are also visible along their path when returning to Tree.
 
-Both modes use the same transparent field, figure assignments and interactions:
+Both modes use the same transparent field, figure assignments and interactions.
+While the picker is open, a full-strength native blur softens the Canvas artwork
+behind it so the picker labels remain readable. Closing it restores the clear Canvas.
+In both modes,
 one tap adds an available event, while an added event requires two taps to remove.
 New tree nodes and mode changes animate the figures, labels and hit targets together.
 Reduce Motion uses the settled layout without spatial animation.

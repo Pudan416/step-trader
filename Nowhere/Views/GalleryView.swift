@@ -608,7 +608,8 @@ struct GalleryView: View {
                     ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
                 dateHubInk: .resolve(state: .available,
                     background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
-                    material: nil)
+                    material: nil),
+                addedEventCount: todayEventCount
             )
             .transition(.opacity)
             .onAppear {
@@ -1095,7 +1096,6 @@ struct GalleryView: View {
             .overlay {
                 if showHappeningPalette {
                     HappeningCanvasBackdropBlur()
-                        .opacity(0.5)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                         .transition(.opacity)
@@ -2954,10 +2954,10 @@ struct SuggestionBannerHeightKey: PreferenceKey {
     }
 }
 
-/// Subtle backdrop blur below the picker, including live Metal canvas content.
+/// Full-strength backdrop blur keeps live Canvas artwork behind readable picker labels.
 private struct HappeningCanvasBackdropBlur: UIViewRepresentable {
     func makeUIView(context: Context) -> UIVisualEffectView {
-        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
         view.isUserInteractionEnabled = false
         return view
     }

@@ -127,6 +127,7 @@ struct HappeningPaletteView: View {
     let dateHubCenter: CGPoint?
     let treeFocusID: String?
     let dateHubInk: HappeningPaletteLabelInk
+    let addedEventCount: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -155,7 +156,8 @@ struct HappeningPaletteView: View {
         onReroll: @escaping () -> Void = {},
         dateHubCenter: CGPoint? = nil,
         treeFocusID: String? = nil,
-        dateHubInk: HappeningPaletteLabelInk = .dark
+        dateHubInk: HappeningPaletteLabelInk = .dark,
+        addedEventCount: Int = 0
     ) {
         self.happenings = happenings
         self.assignments = assignments
@@ -182,6 +184,7 @@ struct HappeningPaletteView: View {
         self.dateHubCenter = dateHubCenter
         self.treeFocusID = treeFocusID
         self.dateHubInk = dateHubInk
+        self.addedEventCount = addedEventCount
     }
 
     var body: some View {
@@ -360,7 +363,7 @@ struct HappeningPaletteView: View {
                 interaction: interaction, addedIDs: addedIDs, onActivate: onActivate,
                 labelInks: labelInks, fitsTreeLabels: usesEventTree)
             if let hub = hubCenter {
-                HappeningPaletteDateHub(ink: dateHubInk.color)
+                HappeningPaletteCountHub(count: addedEventCount, ink: dateHubInk.color)
                     .position(hub)
                     .opacity(Double(eventTransition?.hubOpacity(at: date) ?? 1))
                     .allowsHitTesting(false)
@@ -523,22 +526,23 @@ private struct HappeningTreeScrollFocus: UIViewRepresentable {
     }
 }
 
-private struct HappeningPaletteDateHub: View {
+private struct HappeningPaletteCountHub: View {
+    let count: Int
     let ink: Color
-    private var dateLabel: String {
-        Date.now.formatted(.dateTime.locale(Locale(identifier: "en_US")).month(.abbreviated).day(.twoDigits)).lowercased()
+    private var countLabel: String {
+        "\(count) / \(HappeningDefaults.maximumDailyAdditions)"
     }
 
     var body: some View {
-        Text(dateLabel)
+        Text(countLabel)
             .font(.custom("NowhereDisplay091-Regular", size: 26))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .foregroundStyle(ink)
             .frame(width: 100, height: 44)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(dateLabel)
-            .accessibilityIdentifier("happening_palette_date_hub")
+            .accessibilityLabel("\(count) of \(HappeningDefaults.maximumDailyAdditions) events added")
+            .accessibilityIdentifier("happening_palette_count_hub")
     }
 }
 
