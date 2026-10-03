@@ -9,6 +9,8 @@ final class NativeAtlasMetalRenderer {
     private let finish: MTLRenderPipelineState
     private var targets: [MTLTexture] = []
     private var descriptors: [String: NativeAtlasRecipe.Actor] = [:]
+    private var ambientBlend = NativeAtlasAmbientBlend()
+    private var ambientRecipeSeed: String?
 
     init?(device: MTLDevice) {
         self.device = device
@@ -36,21 +38,35 @@ final class NativeAtlasMetalRenderer {
         return atan2(-direction.y, direction.x)
     }
 
-    func adapt(_ frame: DayObjectRenderFrame, recipe: NativeAtlasRecipe, aspect: Float, elapsed: Double = 0, soundPulses: [String: Double] = [:], isPalette: Bool = false) -> DayObjectRenderFrame {
+    func adapt(_ frame: DayObjectRenderFrame, recipe: NativeAtlasRecipe, aspect: Float, elapsed: Double = 0, soundPulses: [String: Double] = [:], isPalette: Bool = false, ambientMotionIsEnabled: Bool = false, playbackIsActive: Bool = false) -> DayObjectRenderFrame {
         for actor in recipe.actors { descriptors[actor.eventID] = actor }
         let activeIDs = Set(frame.actors.map(\.eventID))
         descriptors = descriptors.filter { activeIDs.contains($0.key) }
         // The picker owns its slot positions and feedback envelopes; only its
         // actual contour/material come from the same event-bound atlas recipe.
         if isPalette { return frame }
+        if ambientRecipeSeed != recipe.seedHex {
+            ambientRecipeSeed = recipe.seedHex
+            ambientBlend = NativeAtlasAmbientBlend()
+        }
+        let ambientWeight = ambientBlend.update(
+            elapsed: elapsed, enabled: ambientMotionIsEnabled && recipe.dailyStyle != nil,
+            playbackIsActive: playbackIsActive
+        )
         let actors = frame.actors.map { old -> DayObjectRenderActor in
             guard let spec = descriptors[old.eventID] else { return old }
             let pose = old.gpuActor
             let resonance = Float(DayObjectSoundResonance.scale(elapsedSinceAttack: elapsed - (soundPulses[old.eventID] ?? -100), depth: Double(pose.depth)))
-            let size = spec.size / 2.72 * (0.7 + 0.3 * pose.opacity) * resonance
+            let ambient = recipe.dailyStyle.map {
+                NativeAtlasAmbientMotion.pose(actor: spec, family: $0.family,
+                                              daySeed: UInt64(recipe.seedHex, radix: 16) ?? 0,
+                                              elapsed: elapsed, weight: ambientWeight)
+            } ?? NativeAtlasAmbientMotion.Pose()
+            let size = spec.size / 2.72 * (0.7 + 0.3 * pose.opacity) * resonance * ambient.scale
+            let rotation = spec.rotation + ambient.rotation
             let gpu = DayObjectGPUActor(
-                position: SIMD2((spec.position.x - 0.5) * max(aspect, 1), (0.5 - spec.position.y) * max(1 / aspect, 1)),
-                direction: SIMD2(cos(spec.rotation), -sin(spec.rotation)),
+                position: SIMD2((spec.position.x - 0.5) * max(aspect, 1), (0.5 - spec.position.y) * max(1 / aspect, 1)) + ambient.offset,
+                direction: SIMD2(cos(rotation), -sin(rotation)),
                 halfSize: SIMD2(repeating: size), opacity: pose.opacity, trailLength: 0,
                 shape: pose.shape, appearanceIndex: pose.appearanceIndex, depth: pose.depth,
                 materialPhase: pose.materialPhase, localDepthSoftness: 0
@@ -97,7 +113,14 @@ final class NativeAtlasMetalRenderer {
             encoder.setFragmentTexture(targets[source], index: 0)
             var geometry = spec.geometry, material = spec.material.primaryCanvasMaterial
             if let variant = colorVariants[actor.eventID] {
-                material = material.withColorVariant(variant)
+                if let style = recipe.dailyStyle {
+                    // Existing color rerolls stay inside the chosen day palette.
+                    let seed = (UInt64(spec.seedHex, radix: 16) ?? 0)
+                        &+ UInt64(truncatingIfNeeded: variant)
+                    material = style.recolored(material, seed: seed)
+                } else {
+                    material = material.withColorVariant(variant)
+                }
             }
             // Use the effective shader after remapping retired saved fills.
             let eligible: Set<UInt32> = [0, 1, 4, 5, 6, 7]

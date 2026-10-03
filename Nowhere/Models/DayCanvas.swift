@@ -270,10 +270,72 @@ struct DayCanvas: Codable {
             paletteCategories: paletteCategories
         )
         guard recipe.backgroundStyle != background else { return false }
-        recipe.backgroundStyle = background
+        recipe = recipe.coordinated(with: background)
         artworkRecipe = recipe
         recordExplicitArtworkEdit()
         lastModified = .now
+        return true
+    }
+
+    /// Adopt the daily art direction at the editable-day boundary, including
+    /// after cloud recovery. Decoding and loading archived artwork stay exact.
+    @discardableResult
+    mutating func adoptDailyStyleForCurrentDay(
+        currentDayKey: String,
+        paletteCategories: Set<ModernPaletteCategory>,
+        at now: Date = .now
+    ) -> Bool {
+        guard dayKey == currentDayKey, resolvedVisualStyle == .editorial,
+              !needsRemoteHydration else { return false }
+        let previous = artworkRecipe
+        if let previous {
+            guard previous.isSupported, !previous.locks.contains("artwork") else { return false }
+        }
+        var recipe = previous ?? NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
+        if recipe.dailyStyle == nil {
+            recipe = NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
+        }
+        recipe.dailyStyle?.sharesPaletteOrder = true
+        if let previous {
+            recipe.locks = previous.locks
+            recipe.glitchType = previous.glitchType
+            recipe.glitchStrength = previous.glitchStrength
+            recipe.intersectionType = previous.intersectionType
+            recipe.intersectionStrength = previous.intersectionStrength
+        }
+        let background = previous?.resolvedBackgroundStyle(dayKey: dayKey)
+            ?? recipe.resolvedBackgroundStyle(dayKey: dayKey)
+        recipe = recipe.coordinated(with: background)
+        guard let style = recipe.dailyStyle else { return false }
+        let retained = Dictionary((previous?.actors ?? []).map { ($0.eventID, $0) },
+                                  uniquingKeysWith: { first, _ in first })
+        let eventIDs = Array(elements.prefix(10).map { $0.id.uuidString.lowercased() })
+        // Generate common visual templates, then seed reconciliation with the
+        // saved occupants so missing actors get the actual free-slot position.
+        recipe.actors = []
+        recipe = recipe.reconciled(eventIDs: eventIDs)
+        recipe.actors = recipe.actors.compactMap { actor in
+            guard let old = retained[actor.eventID] else { return nil }
+            // Recovery can import atlas-1 actors into an atlas-2 draft. Repair
+            // those visuals too, retaining event identity and saved placement.
+            let hasDailyVisuals = previous?.dailyStyle != nil
+                && old.presetID == style.presetID && old.materialID == style.materialID
+                && old.geometry == style.shape
+            return NativeAtlasRecipe.Actor(
+                eventID: actor.eventID, presetID: style.presetID,
+                materialID: style.materialID, seedHex: actor.seedHex,
+                geometry: style.shape,
+                material: style.recolored(hasDailyVisuals ? old.material : actor.material,
+                    seed: UInt64(actor.seedHex, radix: 16) ?? 0),
+                position: old.position, size: hasDailyVisuals ? old.size : actor.size,
+                rotation: hasDailyVisuals ? old.rotation : actor.rotation, slot: old.slot
+            )
+        }
+        recipe = recipe.reconciled(eventIDs: eventIDs)
+        guard recipe != previous else { return false }
+        artworkRecipe = recipe
+        recordExplicitArtworkEdit()
+        lastModified = now
         return true
     }
 

@@ -1071,6 +1071,83 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: nil)], timeout: 3) == .completed
     }
 
+    func testEventTreeSixRootsExpansionRemovalAndReopening() throws {
+        let app = launchTask7App()
+        app.buttons["Add happening"].tap()
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
+        XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].waitForExistence(timeout: 5))
+        XCTAssertEqual(choices.count, 6)
+        let count = app.descendants(matching: .any)["happening_palette_count_hub"]
+        XCTAssertTrue(count.exists)
+        XCTAssertTrue(app.buttons["happening_mode_switch"].exists)
+        for choice in choices.allElementsBoundByIndex {
+            XCTAssertTrue(choice.isHittable)
+            XCTAssertFalse(choice.frame.intersects(count.frame))
+        }
+        attachScreenshot(named: "event-tree-six-roots")
+
+        let worked = app.buttons["happening_choice_event_root_worked"]
+        worked.tap()
+        let desk = app.buttons["happening_choice_event_computer"]
+        XCTAssertTrue(desk.waitForExistence(timeout: 5))
+        XCTAssertEqual(choices.count, 9)
+        XCTAssertEqual(worked.value as? String, "On Canvas")
+        let visible = NSPredicate { _, _ in
+            app.windows.firstMatch.frame.contains(desk.frame)
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: nil)], timeout: 4), .completed, "Desk frame: \(desk.frame)")
+        XCTAssertTrue(desk.isHittable)
+        attachScreenshot(named: "event-tree-first-branch")
+
+        desk.tap()
+        XCTAssertTrue(app.buttons["happening_choice_event_tasks"].waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(choices.count, 9)
+        attachScreenshot(named: "event-tree-second-branch")
+        desk.tap()
+        XCTAssertEqual(desk.value as? String, "Previewing removal from Canvas")
+        desk.tap()
+        XCTAssertEqual(desk.value as? String, "Available")
+        let expandedCount = choices.count
+        app.buttons["Close"].tap()
+        XCTAssertTrue(app.scrollViews["happening_field_scroll"].waitForNonExistence(timeout: 3))
+        let add = app.buttons["canvas_add_button"]
+        XCTAssertTrue(add.waitForExistence(timeout: 3))
+        // Wait for the rotating close/add control to finish its spring.
+        Thread.sleep(forTimeInterval: 0.5)
+        add.tap()
+        XCTAssertTrue(worked.waitForExistence(timeout: 5))
+        XCTAssertEqual(choices.count, expandedCount)
+        XCTAssertEqual(worked.value as? String, "On Canvas")
+        XCTAssertEqual(desk.value as? String, "Available")
+        attachScreenshot(named: "event-tree-reopened")
+    }
+
+    func testEventTreeTopBranchStaysClearOfChrome() throws {
+        let app = launchTask7App()
+        app.buttons["Add happening"].tap()
+        let chilled = app.buttons["happening_choice_event_root_chilled"]
+        XCTAssertTrue(chilled.waitForExistence(timeout: 5))
+        chilled.tap()
+        let music = app.buttons["happening_choice_event_music"]
+        XCTAssertTrue(music.waitForExistence(timeout: 5))
+        let musicVisible = NSPredicate { _, _ in app.windows.firstMatch.frame.contains(music.frame) }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: musicVisible, object: nil)], timeout: 4), .completed)
+        music.tap()
+        let videos = app.buttons["happening_choice_event_videos"]
+        XCTAssertTrue(videos.waitForExistence(timeout: 5))
+        let branchVisible = NSPredicate { _, _ in
+            ["videos", "movie", "doomscroll"].allSatisfy { id in
+                let button = app.buttons["happening_choice_event_" + id]
+                return app.windows.firstMatch.frame.contains(button.frame)
+                    && button.frame.minY > app.otherElements["canvas_energy_pill"].frame.maxY + 12
+                    && button.frame.maxY < app.buttons["canvas_palette_close_button"].frame.minY - 24
+            }
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: branchVisible, object: nil)], timeout: 4), .completed)
+        XCTAssertTrue(videos.isHittable)
+        attachScreenshot(named: "event-tree-top-branch")
+    }
+
     private func launchTask7App(
         dynamicTypeSize: String? = nil,
         increasedContrast: Bool = false,

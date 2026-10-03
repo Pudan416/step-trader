@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AC1004000000000000000002 /* NativeAtlasDailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */; };
+		AC1004000000000000000004 /* NativeAtlasRecipe+DailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */; };
+		AC1004000000000000000006 /* NativeAtlasAmbientMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */; };
 		A90FE0020000000000000001 /* Onest-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000007 /* Onest-Regular.ttf */; };
 		A90FE0020000000000000002 /* Onest-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A70FE0010000000000000006 /* Onest-Medium.ttf */; };
 		A90FE0020000000000000003 /* Onest-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = A70FE001000000000000000C /* Onest-OFL.txt */; };
@@ -398,6 +401,7 @@
 		DA0003000300030003000031 /* Happening.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0003000300030003000030 /* Happening.swift */; };
 		DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0022002200220022000010 /* HappeningShapeAssignment.swift */; };
 		DA0004000400040004000041 /* HappeningDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0004000400040004000040 /* HappeningDefaults.swift */; };
+		EVT0000000000000000000001 /* HappeningEventTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = EVT0000000000000000000002 /* HappeningEventTree.swift */; };
 		DA0011001100110011000011 /* HappeningPaletteSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0011001100110011000010 /* HappeningPaletteSelection.swift */; };
 		DA0012001200120012000011 /* HappeningPaletteSelectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0012001200120012000010 /* HappeningPaletteSelectionStore.swift */; };
 		DA0024002400240024000011 /* HappeningShapeNonceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0024002400240024000010 /* HappeningShapeNonceStore.swift */; };
@@ -659,6 +663,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasDailyStyle.swift"; sourceTree = SOURCE_ROOT; };
+		AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasRecipe+DailyStyle.swift"; sourceTree = SOURCE_ROOT; };
+		AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasAmbientMotion.swift"; sourceTree = SOURCE_ROOT; };
 		A70FE0010000000000000001 /* Onest-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Black.ttf"; sourceTree = "<group>"; };
 		A70FE0010000000000000002 /* Onest-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-Bold.ttf"; sourceTree = "<group>"; };
 		A70FE0010000000000000003 /* Onest-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Onest-ExtraBold.ttf"; sourceTree = "<group>"; };
@@ -1032,6 +1039,7 @@
 		DA0003000300030003000030 /* Happening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Happening.swift; sourceTree = "<group>"; };
 		DA0022002200220022000010 /* HappeningShapeAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeAssignment.swift; sourceTree = "<group>"; };
 		DA0004000400040004000040 /* HappeningDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningDefaults.swift; sourceTree = "<group>"; };
+		EVT0000000000000000000002 /* HappeningEventTree.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningEventTree.swift; sourceTree = "<group>"; };
 		DA0011001100110011000010 /* HappeningPaletteSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteSelection.swift; sourceTree = "<group>"; };
 		DA0012001200120012000010 /* HappeningPaletteSelectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteSelectionStore.swift; sourceTree = "<group>"; };
 		DA0024002400240024000010 /* HappeningShapeNonceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeNonceStore.swift; sourceTree = "<group>"; };
@@ -1351,6 +1359,9 @@
 				AC0909000000000000000001 /* NativeAtlasRecipe.swift */,
 				AC0909000000000000000003 /* NativeAtlasRecipe+Generation.swift */,
 				AC0909000000000000000005 /* NativeAtlasRecipe+Composition.swift */,
+				AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */,
+				AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */,
+				AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */,
 				AC0909000000000000000007 /* MetalShapeGenomeUniforms.swift */,
 				AC0909000000000000000009 /* MetalShapeMaterialUniforms.swift */,
 				AC090900000000000000000B /* MetalShapeGenomeFrame+Geometry.swift */,
@@ -1697,6 +1708,7 @@
 				DA0003000300030003000030 /* Happening.swift */,
 				DA0022002200220022000010 /* HappeningShapeAssignment.swift */,
 				DA0004000400040004000040 /* HappeningDefaults.swift */,
+				EVT0000000000000000000002 /* HappeningEventTree.swift */,
 				DA0011001100110011000010 /* HappeningPaletteSelection.swift */,
 				201DF6D82F377E3B007D716B /* TicketGroup.swift */,
 				201DF6D62F377E28007D716B /* LiteTicketConfig.swift */,
@@ -2743,6 +2755,9 @@
 				AC0909000000000000000002 /* NativeAtlasRecipe.swift in Sources */,
 				AC0909000000000000000004 /* NativeAtlasRecipe+Generation.swift in Sources */,
 				AC0909000000000000000006 /* NativeAtlasRecipe+Composition.swift in Sources */,
+				AC1004000000000000000002 /* NativeAtlasDailyStyle.swift in Sources */,
+				AC1004000000000000000004 /* NativeAtlasRecipe+DailyStyle.swift in Sources */,
+				AC1004000000000000000006 /* NativeAtlasAmbientMotion.swift in Sources */,
 				AC0909000000000000000008 /* MetalShapeGenomeUniforms.swift in Sources */,
 				AC090900000000000000000A /* MetalShapeMaterialUniforms.swift in Sources */,
 				AC090900000000000000000C /* MetalShapeGenomeFrame+Geometry.swift in Sources */,
@@ -2830,6 +2845,7 @@
 				DA0003000300030003000031 /* Happening.swift in Sources */,
 				DA0022002200220022000011 /* HappeningShapeAssignment.swift in Sources */,
 				DA0004000400040004000041 /* HappeningDefaults.swift in Sources */,
+				EVT0000000000000000000001 /* HappeningEventTree.swift in Sources */,
 				DA0011001100110011000011 /* HappeningPaletteSelection.swift in Sources */,
 				DA0012001200120012000011 /* HappeningPaletteSelectionStore.swift in Sources */,
 				DA0024002400240024000011 /* HappeningShapeNonceStore.swift in Sources */,

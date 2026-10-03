@@ -314,8 +314,9 @@ struct DayObjectsGlitchUniforms: Equatable {
 
 /// A depth-sorted frame snapshot ready for a single instanced actor draw.
 struct DayObjectsActorUpload: Equatable {
-    /// Palette browsing can expose more choices than a day's ten artwork actors.
-    static let maximumActorCount = 64
+    /// The complete radial field may expose all 100 choices on a wide viewport.
+    /// The saved day's ten-actor limit remains in DayObjectScene.
+    static let maximumActorCount = 128
     let actors: [DayObjectGPUActor]
     let appearances: [DayObjectGPUAppearance]
     let uniforms: DayObjectsActorUniforms
@@ -1021,6 +1022,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     private var soundPulseBus: DayObjectsSoundPulseBus?
     private var soundPulseTimeline = DayObjectsSoundPulseTimeline()
     private var lunarPhysics = DayObjectLunarPhysicsEngine()
+    private var ambientMotionIsEnabled = false
     private var lunarPhysicsIsActive = false
     private var lunarAngularMotionIsEnabled = true
     private weak var motionInput: DayObjectMotionInputProvider?
@@ -1257,6 +1259,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         digitalImpact: DayObjectDigitalImpact = .none,
         soundPulseBus: DayObjectsSoundPulseBus? = nil,
         presentationMode: DayObjectsPresentationMode = .canvas,
+        ambientMotionIsEnabled: Bool = false,
         lunarPhysicsIsActive: Bool = false,
         lunarPhysicsReturnIsAnimated: Bool = true,
         lunarAngularMotionIsEnabled: Bool = true,
@@ -1267,6 +1270,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     ) {
         insertionTimeline.update(scene: scene, elapsed: clock.elapsedTime)
         self.presentationMode = presentationMode
+        self.ambientMotionIsEnabled = ambientMotionIsEnabled
         lunarPhysicsReturnHandshake.update(
             playbackIsActive: lunarPhysicsIsActive
         )
@@ -1301,8 +1305,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
     }
 
-    /// Visibility gates all frames. Silent Canvas still gets enough frames to
-    /// finish actor insertions/removals, then goes back to an idle display link.
+    /// Visibility gates all frames. Daily-family canvases keep a calm idle
+    /// animation; older silent canvases only finish insertions and removals.
     func setAnimating(_ isAnimating: Bool, continuously: Bool = true) {
         isAnimationAllowed = isAnimating
         animatesContinuously = continuously
@@ -1318,6 +1322,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             || paletteTimeline.hasActiveTransitions(at: elapsedTime ?? clock.elapsedTime)
         let canvasNeedsFrames = presentationMode == .canvas && (
             animatesContinuously
+                || (ambientMotionIsEnabled && scene.input.nativeAtlasRecipe?.dailyStyle != nil)
                 || insertionTimeline.hasActiveTransitions(at: elapsedTime ?? clock.elapsedTime)
         )
         let runsContinuously = isAnimationAllowed && (canvasNeedsFrames || prefersSixtyFPS)
@@ -1597,7 +1602,11 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                 }
                 recipe.intersectionStrength = 0
             }
-            var nativeFrame = renderer.adapt(frame, recipe: recipe, aspect: Float(drawableSize.width / max(drawableSize.height, 1)), elapsed: elapsedTime, soundPulses: soundPulseTimeline.timestamps, isPalette: isPalette)
+            var nativeFrame = renderer.adapt(frame, recipe: recipe,
+                aspect: Float(drawableSize.width / max(drawableSize.height, 1)),
+                elapsed: elapsedTime, soundPulses: soundPulseTimeline.timestamps,
+                isPalette: isPalette, ambientMotionIsEnabled: ambientMotionIsEnabled,
+                playbackIsActive: lunarPhysicsIsActive)
             if !isPalette {
                 let orientationByEventID = Dictionary(uniqueKeysWithValues: recipe.actors.map {
                     ($0.eventID, $0.lunarPhysicsOrientation)

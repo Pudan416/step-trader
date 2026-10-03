@@ -73,6 +73,7 @@ struct DayObjectsView: View {
                 animatesContinuously: animatesContinuously,
                 soundPulseBus: soundPulseBus,
                 presentationMode: presentationMode,
+                ambientMotionIsEnabled: !reduceMotion,
                 lunarPhysicsIsActive: lunarPhysicsIsActive,
                 lunarAngularMotionIsEnabled: DayObjectLunarMotionPolicy.angularMotionIsEnabled(
                     playbackIsActive: lunarPhysicsIsActive,
