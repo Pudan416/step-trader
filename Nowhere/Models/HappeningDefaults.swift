@@ -70,6 +70,19 @@ enum HappeningDefaults {
         retiredEventTitles[id] ?? legacyBuiltIns.first { $0.id == id }?.title
     }
 
+    /// System identities are shared between accounts. The legacy custom table
+    /// has a global ID key, so these must never be uploaded as user-owned rows.
+    static func customHappeningsForSync(_ happenings: [Happening]) -> [Happening] {
+        return happenings.filter { happening in
+            !happening.isBuiltIn && !isSystemHappeningID(happening.id)
+        }
+    }
+
+    static func isSystemHappeningID(_ id: String) -> Bool {
+        ["event_", "happening_", "body_", "mind_", "heart_", "health_workout_"]
+            .contains(where: id.hasPrefix)
+    }
+
     /// One catalog backs Tree, All, the old chooser and external suggestions.
     static let builtIns: [Happening] = HappeningEventTree.all.map {
         Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: true)

@@ -234,11 +234,16 @@ extension SupabaseSyncService {
     
     /// Load day snapshots from Supabase (for restoring history on new device)
     func loadDaySnapshotsFromServer() async -> [String: PastDaySnapshot] {
-        guard let auth = await authenticatedContext() else { return [:] }
+        await loadDaySnapshotsForRestore() ?? [:]
+    }
+
+    /// Empty history is a successful read; nil keeps initial restore pending.
+    func loadDaySnapshotsForRestore() async -> [String: PastDaySnapshot]? {
+        guard let auth = await authenticatedContext() else { return nil }
         let token = auth.token
         let userId = auth.userId
         
-        guard let config = try? SupabaseConfig.load() else { return [:] }
+        guard let config = try? SupabaseConfig.load() else { return nil }
         
         let endpoint = config.baseURL.appendingPathComponent("rest/v1/user_day_snapshots")
         let baseQuery = [
@@ -277,7 +282,7 @@ extension SupabaseSyncService {
             return result
         } catch {
             AppLogger.network.error("📡 Failed to load day snapshots: \(error.localizedDescription)")
-            return [:]
+            return nil
         }
     }
     

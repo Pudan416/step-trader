@@ -49,6 +49,18 @@ remain renderable and removable from today's Canvas, but cannot be added again
 as new choices. Usage metadata is retained; behavior-based ranking and a larger
 adaptive catalog are deferred.
 
+Cloud compatibility is independent of the selectable catalog. Archived custom
+titles, including titles longer than 20 characters, and original event IDs remain
+unchanged. Custom metadata restores page by page; shared system identities are
+excluded from the globally keyed custom-activity table, including old retry
+batches. Initial restoration reads the catalog, additions, snapshots and routines
+successfully before applying history; an empty result succeeds, while a failed
+section remains pending. Local startup must classify the installation before
+seeding its day anchor. For a legacy-only account, today's additions can restore
+from a saved Canvas, old option entries or category selections. A saved empty
+Canvas is authoritative; upgraded accounts do not resurrect stale legacy entries.
+Old category arrays and fractional timestamps remain readable.
+
 The Canvas add control opens **Tree**: six complete events surround the current
 day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
 after additions and removals. The initial six are Worked, Chilled, Stayed home,

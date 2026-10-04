@@ -34,7 +34,7 @@ final class CanvasOnboardingStateTests: XCTestCase {
         XCTAssertFalse(model.didCompleteBootstrap, "Background startup is still pending")
         let entryID = UUID().uuidString
         let entry = model.addHappening(
-            id: "offline-onboarding-\(entryID)", colorHex: "#AABBCC",
+            id: "event_walk", colorHex: "#AABBCC",
             recordUse: false, entryId: entryID, syncToCloud: false
         )
         XCTAssertNotNil(entry)
@@ -45,6 +45,56 @@ final class CanvasOnboardingStateTests: XCTestCase {
         XCTAssertTrue(model.todayAdditions.contains { $0.id == entryID },
                       "Finishing background startup must preserve the first tour edit")
         model.removeAddition(entryId: entryID, syncToCloud: false)
+    }
+
+    func testFreshRestoreClassificationSurvivesStartupSeedingAnAnchor() throws {
+        try withDefaults { defaults in
+            let hadPriorState = InitialServerRestoreGate.capturePriorLocalState(
+                defaults: defaults, hasLiveLocalState: false
+            )
+            defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
+            XCTAssertFalse(hadPriorState, "Widget or foreground loading must not turn a fresh install into an upgrade")
+            XCTAssertFalse(defaults.bool(forKey: SharedKeys.hasCompletedInitialRestore))
+        }
+    }
+
+    func testExistingInstallRetainsLocalStateWithoutRestore() throws {
+        try withDefaults { defaults in
+            defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
+            XCTAssertTrue(InitialServerRestoreGate.capturePriorLocalState(
+                defaults: defaults, hasLiveLocalState: false
+            ))
+            InitialServerRestoreGate.finish(defaults: defaults, preservedLocalState: true, didRestore: false)
+            XCTAssertTrue(defaults.bool(forKey: SharedKeys.hasCompletedInitialRestore))
+        }
+    }
+
+    func testFailedRestoreRetriesDespiteAnchorOnNextLaunch() throws {
+        try withDefaults { defaults in
+            XCTAssertFalse(InitialServerRestoreGate.capturePriorLocalState(
+                defaults: defaults, hasLiveLocalState: false
+            ))
+            defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
+            InitialServerRestoreGate.finish(defaults: defaults, preservedLocalState: false, didRestore: false)
+            XCTAssertFalse(InitialServerRestoreGate.capturePriorLocalState(
+                defaults: defaults, hasLiveLocalState: false
+            ), "A failed restore must remain pending on the next launch")
+            InitialServerRestoreGate.finish(defaults: defaults, preservedLocalState: false, didRestore: true)
+            XCTAssertTrue(defaults.bool(forKey: SharedKeys.hasCompletedInitialRestore))
+        }
+    }
+
+    func testEditsAfterFreshClassificationCanMergeWithRestoredHistory() throws {
+        try withDefaults { defaults in
+            let hadPriorState = InitialServerRestoreGate.capturePriorLocalState(defaults: defaults, hasLiveLocalState: false)
+            defaults.set(Date.now, forKey: SharedKeys.dailyEnergyAnchor)
+            XCTAssertFalse(hadPriorState, "Later edits must not suppress fresh-install restoration")
+            let local = OptionEntry(id: UUID().uuidString, dayKey: "2026-01-02", optionId: "event_walk", colorHex: "#123456", timestamp: .now)
+            let server = OptionEntry(id: UUID().uuidString, dayKey: local.dayKey, optionId: "happening_walk", colorHex: "#654321", timestamp: .distantPast)
+            XCTAssertEqual(HappeningRestoreMerge.entries(server: [server], local: [local], removedIDs: []), [server, local])
+            InitialServerRestoreGate.finish(defaults: defaults, preservedLocalState: hadPriorState, didRestore: true)
+            XCTAssertTrue(defaults.bool(forKey: SharedKeys.hasCompletedInitialRestore))
+        }
     }
 
     func testFreshInstallClaimsAutomaticStartOnceWithoutCompleting() throws {

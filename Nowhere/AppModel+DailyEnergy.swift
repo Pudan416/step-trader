@@ -50,6 +50,7 @@ extension AppModel {
             assetVariant: assetVariant
         )
         todayAdditions.append(entry)
+        locallyRemovedAdditionIDs.remove(OptionEntryCanonicalIdentity.key(for: entry.id))
         removeSatisfiedActivitySuggestions()
         let lastUseDayKey = happeningStore.happening(id: id)?.lastUsedAt.map {
             DayBoundary.dayKey(for: $0, dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
@@ -69,6 +70,7 @@ extension AppModel {
     func removeAddition(entryId: String, syncToCloud: Bool = true) {
         guard let index = todayAdditions.firstIndex(where: { $0.id == entryId }) else { return }
         todayAdditions.remove(at: index)
+        locallyRemovedAdditionIDs.insert(OptionEntryCanonicalIdentity.key(for: entryId))
         recalculateDailyEnergy()
         persistTodayAdditions()
         if syncToCloud {
@@ -219,7 +221,7 @@ extension AppModel {
         recoverSelectionsFromCanvasIfNeeded()
     }
 
-    private func reconstituteHappeningsFromHistory() {
+    func reconstituteHappeningsFromHistory() {
         var ids = Set(todayAdditions.map(\.optionId))
         for snapshot in loadPastDaySnapshots().values {
             ids.formUnion(snapshot.happeningIds)
