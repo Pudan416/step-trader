@@ -2,11 +2,14 @@ import Foundation
 import simd
 
 extension NativeAtlasRecipe {
-    static func makeDaily(dayKey: String, paletteCategories: Set<ModernPaletteCategory>) -> Self {
+    static func makeDaily(
+        dayKey: String, paletteCategories: Set<ModernPaletteCategory>,
+        family selectedFamily: NativeAtlasDailyStyle.Family? = nil
+    ) -> Self {
         var recipe = makeLegacy(dayKey: dayKey, paletteCategories: paletteCategories)
         let seed = UInt64(recipe.seedHex, radix: 16) ?? 0
         var rng = SeededRNG(seed: seed ^ 0x4441_494C_5953_5459)
-        let family = NativeAtlasDailyStyle.family(dayKey: dayKey)
+        let family = selectedFamily ?? NativeAtlasDailyStyle.family(dayKey: dayKey)
         let presetID: String
         switch family {
         case .circles: presetID = "legacy.circle"

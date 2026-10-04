@@ -93,7 +93,9 @@ range. Directed beams retain their diffuse silhouette and a larger size floor.
 Independent drift and bounded turns take 12 seconds; breathing takes six.
 Large figures mainly drift, while smaller ones breathe more noticeably. Noir
 keeps a monochrome color group. Historical recipes retain their saved policy.
-An unlocked Remix can give an existing day a new recipe.
+An unlocked Remix selects a different shape family from the previous composition,
+with every figure sharing that family. All six families remain available. The
+chosen family stays saved with the day; Undo restores the previous composition.
 
 While music is off, new Canvas figures gently drift, breathe or turn around their
 saved positions with independent phases. Idle motion pauses behind the Happenings

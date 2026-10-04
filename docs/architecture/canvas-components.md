@@ -77,8 +77,11 @@ also converts radial Snowflake rays into directed beams. Both preserve event
 IDs, positions, rotations and slots. Further A adoption retains the frozen
 sizes, per-actor materials and pigment pool. Missing optional flags preserve
 historical generation and motion. Pending drafts wait for the confirmed merge;
-artwork locks and historical days remain frozen. Decoding never upgrades a recipe. An unlocked Remix can explicitly
-generate a new daily recipe.
+artwork locks and historical days remain frozen. Decoding never upgrades a recipe.
+An unlocked Remix generates a new coherent family from the full Remix seed,
+excluding the previously saved family. All six families remain eligible across
+Remixes; the calendar shuffle only selects the initial family. Current-day
+adoption retains an explicitly remixed family, and Undo restores the saved recipe.
 
 Idle motion applies seeded drift, breathing and bounded turns around those
 frozen slots at render time. It never writes positions back to persistence.

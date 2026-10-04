@@ -54,7 +54,8 @@ extension NativeAtlasRecipe {
         paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
     ) -> Self {
         guard isSupported else { return self }
-        var generated = Self.make(dayKey: seedKey, paletteCategories: paletteCategories)
+        let family = NativeAtlasDailyStyle.remixFamily(seedKey: seedKey, excluding: dailyStyle?.family)
+        var generated = Self.makeDaily(dayKey: seedKey, paletteCategories: paletteCategories, family: family)
             .reconciled(eventIDs: actors.map(\.eventID))
         if let dayKey {
             generated.backgroundStyle = Self.makeBackgroundStyle(

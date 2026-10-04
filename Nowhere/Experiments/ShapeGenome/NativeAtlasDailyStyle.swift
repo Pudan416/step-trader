@@ -130,6 +130,16 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         return values[offset]
     }
 
+    /// Explicit Remix consumes the entire seed, independent of the calendar.
+    /// Keep one coherent family and guarantee a change from the saved family.
+    static func remixFamily(seedKey: String, excluding previous: Family?) -> Family {
+        let candidates = Family.allCases.filter { $0 != previous }
+        var rng = SeededRNG(seed: CanvasElement.makeSeed(
+            optionId: "remix-family", dayKey: seedKey, index: 0
+        ))
+        return candidates[rng.nextInt(in: 0...(candidates.count - 1))]
+    }
+
     /// Called explicitly by today's unlocked Canvas adoption, never decoding.
     func adoptingLivingVariation(seed: UInt64) -> Self {
         var result = self
