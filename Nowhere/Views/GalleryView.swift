@@ -445,9 +445,11 @@ struct GalleryView: View {
             refreshEventTreePalette()
             return
         }
-        let frequent = model.frequentPaletteHappenings(on: dayCanvas.dayKey, addedIDs: paletteAddedIDs)
-        paletteCatalog = model.paletteHappeningCatalog()
+        paletteCatalog = model.selectableHappenings
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
+        let frequent = paletteSelectedIDs.compactMap { id in
+            paletteCatalog.first { $0.id == id }
+        }
         paletteHappenings = frequent
             + HappeningPaletteSelection.alternatives(catalog: paletteCatalog, selected: paletteSelectedIDs)
         let request = HappeningEditorialAssignmentRequest(
@@ -525,8 +527,10 @@ struct GalleryView: View {
             eventTreeExpandedIDs = ""
         }
         eventTree = HappeningEventTreeState(expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init))
-        for id in paletteAddedIDs.sorted() where id.hasPrefix("event_") {
-            eventTree.reveal(String(id.dropFirst("event_".count)))
+        for id in paletteAddedIDs.sorted() {
+            if let eventID = HappeningEventTree.eventID(forHappeningID: id) {
+                eventTree.reveal(eventID)
+            }
         }
         refreshEventTreePalette()
         happeningPalettePanel = nil
@@ -537,11 +541,10 @@ struct GalleryView: View {
     }
 
     private func refreshEventTreePalette() {
-        let happenings = HappeningEventTree.all.map {
-            Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: false)
-        }
+        let catalog = Dictionary(uniqueKeysWithValues: model.selectableHappenings.map { ($0.id, $0) })
+        let happenings = HappeningEventTree.all.compactMap { catalog["event_" + $0.id] }
         paletteCatalog = happenings
-        paletteSelectedIDs = happenings.map(\.id)
+        paletteSelectedIDs = model.selectedPaletteHappeningIDs()
         paletteHappenings = happenings
         let request = HappeningEditorialAssignmentRequest(
             happenings: happenings,
@@ -571,7 +574,10 @@ struct GalleryView: View {
                 labelInks: paletteLabelInks,
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
-                activePanel: $happeningPalettePanel,
+                activePanel: Binding(
+                    get: { showEventExplorer ? nil : happeningPalettePanel },
+                    set: { happeningPalettePanel = showEventExplorer ? nil : $0 }
+                ),
                 layout: layout,
                 mode: paletteMode,
                 compactLayout: showEventExplorer ? nil : compactLayout,
@@ -592,10 +598,6 @@ struct GalleryView: View {
                 fixedIDs: paletteHealthIDs,
                 instruction: paletteInstruction,
                 onActivate: handlePaletteActivation,
-                onCreate: { handlePaletteCreation($0) },
-                onCreateReplacement: { title, replacementID, selection in
-                    handlePaletteCreation(title, replacingID: replacementID, selection: selection)
-                },
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {
@@ -628,12 +630,15 @@ struct GalleryView: View {
     }
 
     private var paletteHealthIDs: Set<String> {
-        Set(FrequentHappeningSelection.healthCoreIDs + paletteSelectedIDs.filter { $0.hasPrefix("health_workout_") })
+        Set(FrequentHappeningSelection.healthCoreIDs.map(HappeningDefaults.canonicalID))
+            .intersection(Set(paletteCatalog.map(\.id)))
     }
 
     private var paletteAddedIDs: Set<String> {
         guard dayCanvas.dayKey == AppModel.dayKey(for: .now) else { return [] }
-        return Set(dayCanvas.elements.map { HappeningPaletteSelection.choiceID($0.optionId) })
+        return Set(dayCanvas.elements.map {
+            HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID($0.optionId))
+        })
     }
 
     private var paletteLabelInks: [String: HappeningPaletteLabelInk] {
@@ -766,7 +771,10 @@ struct GalleryView: View {
         } else {
             return nil
         }
-        return HappeningPaletteInstruction(title: model.resolveOptionTitle(for: id), kind: kind)
+        return HappeningPaletteInstruction(
+            title: paletteCatalog.first { $0.id == id }?.title ?? model.resolveOptionTitle(for: id),
+            kind: kind
+        )
     }
 
     private func handlePaletteActivation(_ happening: Happening) {
@@ -786,19 +794,23 @@ struct GalleryView: View {
             let succeeded: Bool
             switch mutation {
             case .add:
-                if happening.id.hasPrefix("event_"),
-                   let event = HappeningEventTree.event(String(happening.id.dropFirst("event_".count))) {
-                    _ = model.happeningStore.ensureExternalHappening(id: happening.id, title: event.title)
-                }
                 succeeded = addAndSpawnHappening(
                     optionId: happening.id,
                     elementID: assignment.elementID,
                     editorialColorVariant: assignment.colorVariant,
-                    recordUse: !happening.id.hasPrefix("event_"),
+                    recordUse: true,
                     origin: nil
                 )
             case let .remove(id):
-                succeeded = removePaletteHappening(id: id)
+                // The picker highlights exact aliases as their canonical choice,
+                // while removal targets the original persisted Canvas record.
+                if let element = dayCanvas.elements.first(where: {
+                    HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID($0.optionId)) == id
+                }) {
+                    succeeded = removePaletteHappening(id: element.optionId, elementID: element.id)
+                } else {
+                    succeeded = false
+                }
             }
             paletteInteraction.resolve(mutation, succeeded: succeeded)
             beginPaletteTransition()
@@ -806,8 +818,9 @@ struct GalleryView: View {
                 paletteErrorID = happening.id
                 return
             }
-            if showEventExplorer, case .add = mutation {
-                eventTree.expand(String(happening.id.dropFirst("event_".count)))
+            if showEventExplorer, case .add = mutation,
+               let eventID = HappeningEventTree.eventID(forHappeningID: happening.id) {
+                eventTree.expand(eventID)
                 eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
                 refreshEventTreePalette()
             }
@@ -859,36 +872,8 @@ struct GalleryView: View {
         paletteInteraction.cancel()
     }
 
-    private func handlePaletteCreation(
-        _ title: String, replacingID: String? = nil, selection: [String]? = nil
-    ) -> HappeningPaletteCreationOutcome {
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .invalidTitle
-        }
-        do {
-            _ = try model.createPaletteHappening(
-                title: title,
-                protectedIDs: paletteAddedIDs.union(paletteHealthIDs),
-                selection: selection,
-                replacingID: replacingID
-            )
-        } catch let error as HappeningPaletteSelectionError {
-            if error == .noReplaceableSlot { return .noReplaceableSlot }
-            AppLogger.ui.error(
-                "Failed to create palette happening: \(error.localizedDescription)"
-            )
-            return .failed
-        } catch {
-            AppLogger.ui.error(
-                "Failed to create palette happening: \(error.localizedDescription)"
-            )
-            return .failed
-        }
-        refreshHappeningPalette()
-        return .created
-    }
-
     private func handlePaletteSelectionSave(_ ids: [String]) -> Bool {
+        guard !showEventExplorer else { return false }
         do {
             try model.savePaletteHappeningSelection(ids)
             cancelPaletteInteraction()
@@ -1644,7 +1629,10 @@ struct GalleryView: View {
                     } else {
                         EveningReflectionCard(
                             date: date,
-                            titleForHappening: { model.resolveOptionTitle(for: $0) },
+                            titleForHappening: {
+                                HappeningDefaults.selectableHappening(id: $0)?.title
+                                    ?? model.resolveOptionTitle(for: $0)
+                            },
                             onChoose: { id in
                                 if addAndSpawnHappening(optionId: id) { dismissEveningReflection(at: date) }
                             },
@@ -1815,6 +1803,7 @@ struct GalleryView: View {
                 && model.pendingActivitySuggestions.isEmpty ? activeHintWindow.prompt : nil,
             onSound: handleCanvasSoundControl,
             onOpenHappeningList: {
+                guard !showEventExplorer else { return }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     happeningPalettePanel = .chooser
                 }
@@ -2100,7 +2089,7 @@ struct GalleryView: View {
     }
 
     /// Both the live day-key observer and the foreground boundary check use
-    /// this one reset so the palette, chooser/creator, and hidden tab chrome
+    /// this one reset so the palette, chooser, and hidden tab chrome
     /// cannot survive into a new day.
     private func rollOverCanvas(to newKey: String) {
         var paletteState = CanvasPalettePresentationState(
@@ -2329,6 +2318,10 @@ struct GalleryView: View {
         recordUse: Bool = true,
         origin: CGPoint? = nil
     ) -> Bool {
+        let canonicalID = HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID(optionId))
+        guard let happening = model.selectableHappenings.first(where: { $0.id == canonicalID }) else {
+            return false
+        }
         let tourOperation = CanvasTour.shared.beginOperation("addHappening")
         let now = Date.now
         let transactionDayKey = AppModel.dayKey(for: now)
@@ -2338,8 +2331,8 @@ struct GalleryView: View {
         }
         var element = CanvasElement.spawn(
             id: elementID,
-            optionId: optionId,
-            label: model.resolveOptionTitle(for: optionId),
+            optionId: happening.id,
+            label: happening.title,
             existingElements: dayCanvas.elements,
             dayKey: transactionDayKey,
             composition: DayComposition.forDay(

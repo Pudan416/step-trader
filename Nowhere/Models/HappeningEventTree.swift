@@ -15,59 +15,69 @@ struct HappeningEventNode: Identifiable, Hashable {
 enum HappeningEventTree {
     static let spheres: [HappeningEventNode] = [
         .init("work", "Work & study", [
-            .init("work", "Worked", [.init("computer", "Worked at a desk"), .init("tasks", "Did my tasks"), .init("email", "Checked email"), .init("made", "Made something"), .init("meeting", "Went to a meeting"), .init("workcall", "Had a work call"), .init("deadline", "Felt deadline heat"), .init("bored", "Was bored at work"), .init("avoidedwork", "Avoided my work"), .init("nothingwork", "Got nothing done")]),
+            .init("work", "Worked", [.init("email", "Checked email"), .init("wrote", "Wrote"), .init("made", "Made something"), .init("meeting", "Went to a meeting"), .init("workcall", "Had a work call"), .init("deadline", "Felt deadline stress"), .init("bored", "Was bored at work"), .init("avoidedwork", "Avoided my work"), .init("nothingwork", "Got nothing done")]),
             .init("study", "Studied", [.init("class", "Went to class"), .init("solo", "Studied alone"), .init("group", "Studied with others")]),
             .init("job", "Looked for work", [.init("listings", "Browsed job ads"), .init("application", "Sent an application"), .init("interview", "Had an interview")])
         ]),
         .init("body", "Body & wellbeing", [
-            .init("move", "Moved around", [.init("walk", "Went for a walk"), .init("run", "Went for a run"), .init("workout", "Worked out"), .init("gym", "Went to the gym"), .init("errands", "Ran errands"), .init("stayedin", "Stayed indoors")]),
-            .init("food", "Ate & drank", [.init("ate", "Ate a meal"), .init("alonefood", "Ate alone"), .init("snack", "Had a snack"), .init("coffee", "Had coffee"), .init("tea", "Had some tea"), .init("wasted", "Got wasted"), .init("hangover", "Had a hangover")]),
+            .init("move", "Moved around", [.init("walk", "Went for a walk"), .init("run", "Went for a run"), .init("workout", "Worked out"), .init("swam", "Swam"), .init("stretched", "Stretched"), .init("errands", "Ran errands")]),
+            .init("food", "Ate & drank", [.init("snack", "Had a snack"), .init("meal_breakfast", "Had breakfast"), .init("meal_lunch", "Had lunch"), .init("meal_dinner", "Had dinner"), .init("coffee", "Had coffee"), .init("tea", "Had tea"), .init("wasted", "Got wasted"), .init("hangover", "Had a hangover")]),
             .init("rest", "Rested", [.init("slept", "Slept"), .init("nap", "Took a nap"), .init("bed", "Stayed in bed"), .init("shower", "Took a shower")])
         ]),
         .init("people", "People & connection", [
             .init("talk", "Talked with people", [.init("friend", "Saw a friend"), .init("family", "Saw family"), .init("colleague", "Saw a colleague"), .init("texted", "Texted someone"), .init("peoplecall", "Called someone"), .init("snapped", "Snapped at someone"), .init("avoidedpeople", "Avoided everyone")]),
-            .init("care", "Cared for someone", [.init("helped", "Helped a friend"), .init("child", "Looked after a kid"), .init("pet", "Cared for a pet")]),
+            .init("care", "Cared for someone", [.init("helped", "Helped a friend"), .init("askedhelp", "Asked for help"), .init("saidno", "Said no"), .init("child", "Looked after a kid"), .init("pet", "Cared for a pet")]),
             .init("solitude", "Spent time alone", [.init("alonepeople", "Kept to myself"), .init("leftout", "Felt left out")])
         ]),
         .init("home", "Home & everyday", [
-            .init("chores", "Did housework", [.init("cooked", "Cooked a meal"), .init("cleaned", "Cleaned up"), .init("laundry", "Did the laundry"), .init("fixed", "Fixed something"), .init("plants", "Watered plants"), .init("ignored", "Ignored the mess")]),
+            .init("chores", "Did housework", [.init("cooked", "Cooked"), .init("cleaned", "Cleaned up"), .init("laundry", "Did the laundry"), .init("fixed", "Fixed something"), .init("plants", "Watered plants"), .init("ignored", "Ignored the mess")]),
             .init("out", "Went out", [.init("shopping", "Went shopping"), .init("paperwork", "Did paperwork"), .init("appointment", "Had an appointment")]),
-            .init("home", "Stayed at home", [.init("relaxed", "Chilled at home"), .init("guests", "Had people over"), .init("doomscroll", "Doomscrolled")])
+            .init("home", "Stayed at home", [.init("guests", "Had people over"), .init("doomscroll", "Doomscrolled")])
         ]),
         .init("travel", "Getting around", [
             .init("commute", "Got to work", [.init("transit", "Took the bus"), .init("train", "Took the train"), .init("car", "Drove to work"), .init("bike", "Biked to work"), .init("walked", "Walked to work")]),
-            .init("places", "Went places", [.init("cafe", "Went to a café"), .init("bar", "Went to a bar"), .init("store", "Went to a store"), .init("nature", "Went outdoors")]),
+            .init("places", "Went places", [.init("cafe", "Went to a café"), .init("bar", "Went to a bar"), .init("nature", "Spent time outside")]),
             .init("changed", "Changed plans", [.init("lost", "Got lost"), .init("detour", "Took a detour"), .init("new", "Went somewhere new")])
         ]),
         .init("play", "Rest & play", [
-            .init("watch", "Watched things", [.init("videos", "Watched videos"), .init("movie", "Watched a movie"), .init("show", "Watched a show"), .init("scroll", "Scrolled for hours"), .init("losttime", "Lost track of time")]),
-            .init("read", "Read something", [.init("book", "Read a book"), .init("news", "Read the news"), .init("articles", "Read some posts")]),
+            .init("watch", "Watched things", [.init("videos", "Watched videos"), .init("movie", "Watched a movie"), .init("show", "Watched a show"), .init("losttime", "Lost track of time")]),
+            .init("read", "Read something", [.init("book", "Read a book"), .init("news", "Read the news"), .init("articles", "Read posts")]),
             .init("play", "Played a game", [.init("videogame", "Played video games"), .init("boardgame", "Played a board game"), .init("withkid", "Played with a kid")]),
-            .init("unwind", "Did my own thing", [.init("music", "Listened to music"), .init("hobby", "Did a hobby"), .init("nothingplay", "Did nothing much")])
+            .init("unwind", "Did my own thing", [.init("music", "Listened to music"), .init("hobby", "Did hobby stuff"), .init("drew", "Drew"), .init("sang", "Sang"), .init("danced", "Danced"), .init("photos", "Took photos"), .init("nothingplay", "Did nothing much")])
         ]),
-        .init("feelings", "Feelings", [.init("rage", "Raged"), .init("happy", "Felt happy"), .init("tired", "Felt tired"), .init("anxious", "Felt anxious"), .init("angry", "Felt angry"), .init("calm", "Felt calm"), .init("lonely", "Felt lonely"), .init("curious", "Felt curious"), .init("okay", "Felt okay"), .init("mixed", "Felt mixed")])
+        .init("feelings", "Feelings", [.init("rage", "Raged"), .init("happy", "Felt happy"), .init("tired", "Felt tired"), .init("anxious", "Felt anxious"), .init("angry", "Felt angry"), .init("calm", "Felt calm"), .init("lonely", "Felt lonely"), .init("curious", "Felt curious"), .init("okay", "Felt okay"), .init("mixed", "Had mixed feelings")])
     ]
 
-    // All six starting choices are complete, loggable events.
+    // Six independently loggable shortcuts into the same reviewed catalog.
     static let startingEvents: [HappeningEventNode] = [
         .init("root_worked", "Worked"), .init("root_chilled", "Chilled"),
-        .init("root_home", "Stayed home"), .init("root_ate", "Ate"),
-        .init("root_wentout", "Went out"), .init("root_people", "Saw people")
+        .init("root_home", "Stayed home"), .init("meal_breakfast", "Had breakfast"),
+        .init("walk", "Went for a walk"), .init("friend", "Saw a friend")
     ]
 
-    static let all: [HappeningEventNode] = startingEvents + [.init("break", "Took a break")]
-        + spheres.flatMap { $0.children.flatMap(leaves) }
+    static let all: [HappeningEventNode] = {
+        let roots = Set(startingEvents.map(\.id))
+        return startingEvents + [.init("break", "Took a break")]
+            + spheres.flatMap { $0.children.flatMap(leaves) }.filter { !roots.contains($0.id) }
+    }()
 
-    // These are associations between whole events, not steps in a classification.
-    // A route stays available as each newly revealed event opens its own neighbors.
+    // These are associations between whole events, not classifications.
+    // All permits any direct addition without logging an ancestor first.
     static let routes: [[String]] = [
-        ["root_worked", "computer", "made", "nothingwork", "tasks", "email", "meeting", "workcall", "deadline", "bored", "avoidedwork", "class", "solo", "group", "listings", "application", "interview", "tired", "rage"],
-        ["root_chilled", "music", "doomscroll", "nap", "videos", "movie", "show", "scroll", "losttime", "book", "news", "articles", "videogame", "boardgame", "withkid", "hobby", "nothingplay", "slept", "bed", "calm", "okay", "mixed"],
-        ["root_wentout", "walk", "cafe", "lost", "run", "workout", "gym", "errands", "transit", "train", "car", "bike", "walked", "bar", "store", "nature", "detour", "new", "shopping", "appointment", "curious"],
-        ["root_people", "friend", "wasted", "snapped", "family", "colleague", "texted", "peoplecall", "avoidedpeople", "helped", "child", "pet", "guests", "happy", "angry", "lonely", "leftout"],
-        ["root_ate", "coffee", "ate", "cooked", "alonefood", "snack", "tea", "hangover", "wasted"],
-        ["root_home", "cleaned", "shower", "ignored", "laundry", "fixed", "plants", "paperwork", "relaxed", "stayedin", "alonepeople", "anxious"]
+        ["root_worked", "email", "made", "nothingwork", "meeting", "workcall", "deadline", "bored", "avoidedwork", "class", "solo", "group", "listings", "application", "interview", "tired", "rage", "wrote"],
+        ["root_chilled", "music", "doomscroll", "nap", "videos", "movie", "show", "losttime", "book", "news", "articles", "videogame", "boardgame", "withkid", "hobby", "nothingplay", "slept", "bed", "calm", "okay", "mixed", "drew", "sang", "danced", "photos"],
+        ["walk", "cafe", "lost", "run", "workout", "errands", "transit", "train", "car", "bike", "walked", "bar", "nature", "detour", "new", "shopping", "appointment", "curious", "swam", "stretched"],
+        ["friend", "wasted", "snapped", "family", "colleague", "texted", "peoplecall", "avoidedpeople", "helped", "askedhelp", "saidno", "child", "pet", "guests", "happy", "angry", "lonely", "leftout"],
+        ["meal_breakfast", "coffee", "meal_lunch", "meal_dinner", "cooked", "snack", "tea", "hangover", "wasted"],
+        ["root_home", "cleaned", "shower", "ignored", "laundry", "fixed", "plants", "paperwork", "alonepeople", "anxious"]
     ]
+
+    static func eventID(forHappeningID id: String) -> String? {
+        let canonical = HappeningDefaults.canonicalID(id)
+        guard canonical.hasPrefix("event_") else { return nil }
+        let sourceID = String(canonical.dropFirst(6))
+        return event(sourceID) == nil ? nil : sourceID
+    }
 
     static func event(_ id: String) -> HappeningEventNode? {
         all.first { $0.id == id }
@@ -116,8 +126,8 @@ struct HappeningEventTreeState: Equatable {
 
     // A single editorial map is used by Tree and All. The six intersections
     // belong to both neighboring roots; placement never depends on click order.
-    private static let outwardIDs = ["computer", "music", "cleaned", "ate", "walk", "family"]
-    private static let intersectionIDs = ["break", "nap", "cooked", "cafe", "friend", "workcall"]
+    private static let outwardIDs = ["email", "music", "cleaned", "meal_lunch", "run", "family"]
+    private static let intersectionIDs = ["break", "nap", "cooked", "cafe", "peoplecall", "workcall"]
     static let allNodes: [PlacedEvent] = makeAtlas()
     private static let byID = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0) })
 
@@ -237,7 +247,7 @@ enum HappeningDayTitle {
         let values = titles.map { $0.lowercased() }
         let work = values.contains { $0.contains("work") || $0.contains("desk") }
         let coffee = values.contains { $0.contains("coffee") }
-        let outside = values.contains { $0.contains("walk") || $0.contains("outdoors") }
+        let outside = values.contains { $0.contains("walk") || $0.contains("outside") || $0.contains("outdoors") }
         let screen = values.contains { $0.contains("scroll") || $0.contains("videos") }
         if work && coffee && outside { return "Coffee, Work & Air" }
         if work && outside { return "Work, Then Outside" }

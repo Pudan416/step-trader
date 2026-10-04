@@ -7,7 +7,10 @@ extension AppModel {
     var pendingActivitySuggestions: [ActivitySuggestion] {
         get {
             let addedOptionIds = Set(todayAdditions.map(\.optionId))
-            return _pendingActivitySuggestions.filter { !$0.isSatisfied(by: addedOptionIds) }
+            return _pendingActivitySuggestions.filter {
+                HappeningDefaults.selectableHappening(id: $0.optionId) != nil
+                    && !$0.isSatisfied(by: addedOptionIds)
+            }
         }
         set {
             _pendingActivitySuggestions = newValue
@@ -49,6 +52,8 @@ extension AppModel {
         if shouldSuggestLowScreenTime(dismissed: dismissed) {
             suggestions.append(.fromLowScreenTime())
         }
+
+        suggestions.removeAll { HappeningDefaults.selectableHappening(id: $0.optionId) == nil }
 
         let satisfiedSuggestionIds = suggestions
             .filter { $0.isSatisfied(by: alreadyAdded) }

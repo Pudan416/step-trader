@@ -38,12 +38,26 @@ when changing the sequence rather than using an old slide specification.
 
 ## Happenings field
 
+New additions use one reviewed catalog of exactly **100** events. Labels are
+English, at most 20 characters, and describe complete events. Broad duplicate
+meal options are replaced by Had breakfast, Had lunch and Had dinner; Cooked
+means preparing food. Creating or naming custom happenings is unavailable,
+including in the old chooser and empty-search states. Health detections and
+evening reflection answers resolve existing catalog choices and do not add new
+options. Archived custom and retired records retain their IDs and titles; they
+remain renderable and removable from today's Canvas, but cannot be added again
+as new choices. Usage metadata is retained; behavior-based ranking and a larger
+adaptive catalog are deferred.
+
 The Canvas add control opens **Tree**: six complete events surround the current
 day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
-after additions and removals. Positions come from a fixed radial map. At the intersections,
+after additions and removals. The initial six are Worked, Chilled, Stayed home,
+Had breakfast, Went for a walk and Saw a friend. Each has one catalog identity,
+including those promoted from outer positions. Positions come from a fixed radial map. At the intersections,
 the event fits both neighboring roots: Took a break connects Worked and Chilled,
-Took a nap connects Chilled and Stayed home, and Cooked a meal connects Stayed home
-and Ate. Adding an event reveals up to three adjacent whole events.
+Took a nap connects Chilled and Stayed home, and Cooked connects Stayed home
+and Had breakfast. These are associations; revealing a meal does not log its
+neighbors or earlier meals. Adding an event reveals up to three adjacent whole events.
 Expansion history is retained for the day. **All** reveals the same complete map
 around the same count; it retains the six roots and every option's position.
 Switching modes preserves the tree and the day's additions. Direct All additions

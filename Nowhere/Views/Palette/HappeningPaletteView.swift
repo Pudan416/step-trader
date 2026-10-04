@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import UIKit
 
 enum HappeningPanelTextFieldAppearance {
     static let minimumHeight: CGFloat = 44
@@ -57,6 +56,7 @@ enum HappeningPaletteChromeLayout {
 
 enum HappeningPalettePanel: Equatable {
     case chooser
+    // Legacy presentation state; resolves to the selection-only chooser.
     case creator
 }
 
@@ -119,8 +119,6 @@ struct HappeningPaletteView: View {
     let fixedIDs: Set<String>
     let instruction: HappeningPaletteInstruction?
     let onActivate: (Happening) -> Void
-    let onCreate: (String) -> HappeningPaletteCreationOutcome
-    let onCreateReplacement: (String, String, [String]) -> HappeningPaletteCreationOutcome
     let onSaveSelection: ([String]) -> Bool
     let onPanelPresentationChange: (Bool) -> Void
     let onReroll: () -> Void
@@ -149,7 +147,8 @@ struct HappeningPaletteView: View {
         fixedIDs: Set<String> = [],
         instruction: HappeningPaletteInstruction?,
         onActivate: @escaping (Happening) -> Void,
-        onCreate: @escaping (String) -> HappeningPaletteCreationOutcome,
+        // Ignored compatibility callbacks. Live panels only select catalog entries.
+        onCreate: @escaping (String) -> HappeningPaletteCreationOutcome = { _ in .failed },
         onCreateReplacement: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
         onSaveSelection: @escaping ([String]) -> Bool = { _ in true },
         onPanelPresentationChange: @escaping (Bool) -> Void = { _ in },
@@ -176,8 +175,6 @@ struct HappeningPaletteView: View {
         self.fixedIDs = fixedIDs
         self.instruction = instruction
         self.onActivate = onActivate
-        self.onCreate = onCreate
-        self.onCreateReplacement = onCreateReplacement
         self.onSaveSelection = onSaveSelection
         self.onPanelPresentationChange = onPanelPresentationChange
         self.onReroll = onReroll
@@ -428,28 +425,15 @@ struct HappeningPaletteView: View {
     @ViewBuilder
     private func panel(for panel: HappeningPalettePanel) -> some View {
         switch panel {
-        case .chooser:
+        case .chooser, .creator:
+            // Old creator state safely opens the selection-only chooser.
             HappeningChooserView(
                 catalog: catalog,
                 selected: selectedIDs,
                 protectedIDs: addedIDs.union(fixedIDs),
                 healthIDs: fixedIDs,
-                onCreateNew: { title, replacementID, selection in
-                    let outcome = onCreateReplacement(title, replacementID, selection)
-                    if outcome.closesCreator { activePanel = nil }
-                    return outcome
-                },
                 onSave: { ids in
                     if onSaveSelection(ids) { activePanel = nil }
-                },
-                onCancel: { activePanel = nil }
-            )
-        case .creator:
-            HappeningCreatorPanel(
-                onCreate: { title in
-                    let outcome = onCreate(title)
-                    if outcome.closesCreator { activePanel = nil }
-                    return outcome
                 },
                 onCancel: { activePanel = nil }
             )

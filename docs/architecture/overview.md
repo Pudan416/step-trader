@@ -8,7 +8,7 @@ and primary scheme are named Nowhere. Energy and steps remain domain concepts.
 | Startup, dependency wiring, app lifecycle | `Nowhere/NowhereApp.swift`, `DIContainer.swift`, `AppModel.swift` | `AuthSessionRestoreTests`, `AuthSignInLoadingStateTests` |
 | Tabs and navigation | `Views/MainTabView.swift`, `Views/GalleryView.swift`, `Views/MeView.swift`, `Views/AppsPageSimplified.swift` | `MainTabSelectionTests`, `CanvasPresentationStateTests` |
 | Onboarding and tours | `Views/Onboarding/`, `Views/CoachMark/` | `CanvasOnboardingStateTests` |
-| Happenings, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
+| Happenings, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/HappeningDefaults.swift`, `Models/HappeningEventTree.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
 | Palette selection and adding/removing objects | `Views/Palette/`, `Models/CanvasElement.swift`, `Models/DayCanvas.swift` | `HappeningPaletteSelectionTests`, `CanvasPersistenceRegressionTests` |
 | Canvas rendering, gestures, saved artwork | `Views/GalleryView.swift`, `Views/Gallery/`, `Experiments/DayObjects/`, `Experiments/ShapeGenome/`, `Metal/` | `DayCanvasArtworkRoutingTests`, `MetalShapeCompatibilityTests`, `CanvasRemixTests` |
 | Music | `Experiments/DayObjects/Sound/` — Director, Domain, Engine, Playback, Lab, Diagnostics | `DeterministicMusicDirectorTests`, `DayObjectsMusicPlaybackEngineTests`, `DayObjectsAudioResourceTests` |
@@ -25,6 +25,10 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
+- `HappeningDefaults.builtIns` derives the fixed 100 choices from `HappeningEventTree.all`.
+  `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
+  `all` also contains historical/imported records and must not feed new-choice UI.
+  Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
 - The app and extensions are separate processes. Preserve App Group identifiers, persisted
   keys, atomic read/modify/write operations and the existing lock ordering. An actor in one
   process does not synchronize another process.

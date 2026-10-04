@@ -18,7 +18,8 @@ extension AppModel {
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        return todayAdditions.filter { $0.dayKey == dayKey }.count < HappeningDefaults.maximumDailyAdditions
+        return HappeningDefaults.selectableHappening(id: id) != nil
+            && todayAdditions.filter { $0.dayKey == dayKey }.count < HappeningDefaults.maximumDailyAdditions
     }
 
     @discardableResult
@@ -36,7 +37,9 @@ extension AppModel {
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        guard canAddHappening(id: id, on: date) else { return nil }
+        guard let choice = HappeningDefaults.selectableHappening(id: id),
+              canAddHappening(id: choice.id, on: date) else { return nil }
+        let id = choice.id
 
         let entry = OptionEntry(
             id: entryId,
@@ -77,8 +80,7 @@ extension AppModel {
         happeningStore.create(title: title, at: date)
     }
 
-    /// Creates a catalog item and installs it into the configured ten without
-    /// logging it to the current day. The user still has to tap its field zone.
+    /// Retained API for older callers; creation is unavailable in the fixed catalog.
     func createPaletteHappening(
         title: String,
         at date: Date = .now,
@@ -89,98 +91,35 @@ extension AppModel {
             Task { await SupabaseSyncService.shared.syncCustomHappenings(happenings) }
         }
     ) throws -> Happening {
-        let selected = selection ?? happeningPaletteSelectionStore.ids
-        guard selected.count == HappeningPaletteSelection.slotCount,
-              Set(selected).count == HappeningPaletteSelection.slotCount,
-              selected.allSatisfy({ id in happeningStore.all.contains { $0.id == id } }) else {
-            throw HappeningPaletteSelectionError.requiresExactlyTen
-        }
-        // Validate before creating: a rejected edit must not leave an orphan catalog item.
-        let index: Int?
-        if let replacingID {
-            index = protectedIDs.contains(replacingID) ? nil : selected.firstIndex(of: replacingID)
-        } else {
-            index = HappeningPaletteSelection.replacementIndex(
-                in: selected, catalog: happeningStore.all, excluding: protectedIDs
-            )
-        }
-        guard let index,
-              protectedIDs.intersection(happeningPaletteSelectionStore.ids).isSubset(of: Set(selected)) else {
-            throw HappeningPaletteSelectionError.noReplaceableSlot
-        }
-        let happening = createHappening(title: title, at: date)
-        var replacement = selected
-        replacement[index] = happening.id
-        try happeningPaletteSelectionStore.save(replacement, catalog: happeningStore.all)
-        frequentHappeningStore.saveExplicitSelection(replacement, dayKey: Self.dayKey(for: date))
-        objectWillChange.send()
-        syncCustomHappenings(happeningStore.all)
-        return happening
+        throw HappeningPaletteSelectionError.customCreationUnavailable
     }
 
-    /// Adds a detected external activity to the full catalog and to the ten
-    /// active palette slots. Stable ids make this operation idempotent.
+    /// External detections can resolve an existing choice, never grow the catalog.
     func installExternalPaletteHappening(id: String, title: String) -> Happening? {
-        // A detected walk uses the same active slot as the built-in Walk.
-        // Imported catalog records remain available to resolve historical days.
-        let happening = happeningStore.happening(id: HappeningPaletteSelection.choiceID(id))
-            ?? happeningStore.ensureExternalHappening(id: id, title: title)
-        do {
-            if !happeningPaletteSelectionStore.ids.contains(happening.id) {
-                try happeningPaletteSelectionStore.insertReplacingLeastUsed(
-                    happening.id,
-                    catalog: happeningStore.all
-                )
-            }
-            objectWillChange.send()
-            Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
-            return happening
-        } catch {
-            AppLogger.energy.error(
-                "Failed to install external palette happening: \(error.localizedDescription)"
-            )
-            return nil
-        }
+        selectableHappenings.first { $0.id == HappeningDefaults.canonicalID(id) }
     }
 
-    /// Health choices are available before accepting a suggestion. This only
-    /// ensures catalog identity; adding a choice still uses the normal action.
+    /// Compatibility name for the static selection. Adaptive promotion is deferred.
     func frequentPaletteHappenings(on dayKey: String, addedIDs: Set<String>) -> [Happening] {
-        let detected = pendingActivitySuggestions.compactMap { suggestion -> String? in
-            guard case .workout = suggestion.source else { return nil }
-            let id = HappeningPaletteSelection.choiceID(suggestion.optionId)
-            if happeningStore.happening(id: id) == nil {
-                happeningStore.ensureExternalHappening(id: id, title: suggestion.title)
-            }
-            return id
-        }
-        let knownHealth = happeningStore.all.filter { $0.id.hasPrefix("health_workout_") }.map(\.id)
-        let todayHealth = knownHealth.filter { addedIDs.contains($0) }
-        let ids = frequentHappeningStore.resolve(catalog: happeningStore.all,
-            healthIDs: todayHealth + detected + knownHealth, protectedIDs: addedIDs, dayKey: dayKey,
-            seedIDs: happeningPaletteSelectionStore.ids)
-        if ids.count == 10, ids != happeningPaletteSelectionStore.ids {
-            try? happeningPaletteSelectionStore.save(ids, catalog: happeningStore.all)
-        }
-        return ids.compactMap { happeningStore.happening(id: $0) }
+        configuredPaletteHappenings()
     }
 
-    func paletteHappeningCatalog() -> [Happening] {
-        happeningStore.all
-    }
+    var selectableHappenings: [Happening] { happeningStore.selectable }
 
-    func selectedPaletteHappeningIDs() -> [String] {
-        happeningPaletteSelectionStore.ids
-    }
+    func paletteHappeningCatalog() -> [Happening] { selectableHappenings }
+
+    func selectedPaletteHappeningIDs() -> [String] { happeningPaletteSelectionStore.ids }
 
     func savePaletteHappeningSelection(_ ids: [String]) throws {
-        try happeningPaletteSelectionStore.save(ids, catalog: happeningStore.all)
-        frequentHappeningStore.saveExplicitSelection(ids, dayKey: Self.dayKey(for: .now))
+        try happeningPaletteSelectionStore.save(ids, catalog: selectableHappenings)
+        frequentHappeningStore.saveExplicitSelection(happeningPaletteSelectionStore.ids,
+                                                    dayKey: Self.dayKey(for: .now))
         objectWillChange.send()
     }
 
     func configuredPaletteHappenings() -> [Happening] {
-        happeningPaletteSelectionStore.ids.compactMap { happeningStore.happening(id: $0) }
+        let catalog = Dictionary(uniqueKeysWithValues: selectableHappenings.map { ($0.id, $0) })
+        return happeningPaletteSelectionStore.ids.compactMap { catalog[$0] }
     }
 
     /// The figure each configured happening takes today — the shape type,
@@ -249,7 +188,7 @@ extension AppModel {
     func loadDailyEnergyState() {
         let g = UserDefaults.nowhere()
         happeningStore.load()
-        happeningPaletteSelectionStore.load(catalog: happeningStore.all)
+        happeningPaletteSelectionStore.load(catalog: selectableHappenings)
         loadTodayAdditions(from: g)
         reconstituteHappeningsFromHistory()
         let rawAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor)
@@ -286,7 +225,7 @@ extension AppModel {
             ids.formUnion(snapshot.happeningIds)
         }
         happeningStore.reconstituteOrphans(fromHistoryIds: ids) { id in
-            EnergyDefaults.legacyTitle(for: id) ?? id
+            HappeningDefaults.historicalTitle(for: id) ?? EnergyDefaults.legacyTitle(for: id) ?? id
         }
     }
 
@@ -366,7 +305,10 @@ extension AppModel {
         if let happening = happeningStore.happening(id: optionId) {
             return happening.localizedTitle()
         }
-        return EnergyDefaults.legacyTitle(for: optionId) ?? optionId
+        return HappeningDefaults.historicalTitle(for: optionId)
+            ?? EnergyDefaults.legacyTitle(for: optionId)
+            ?? HappeningDefaults.selectableHappening(id: optionId)?.title
+            ?? optionId
     }
 
     func loadPastDaySnapshots() -> [String: PastDaySnapshot] {

@@ -1,8 +1,7 @@
 import Foundation
 
-/// The thirty-one built-in happenings and the addition economy's constants.
-/// The original ten keep their identifiers and order. New choices follow
-/// them so upgrading expands the field without rewriting saved days.
+/// The reviewed fixed catalog and the addition economy. Historical identities
+/// remain resolvable separately; they are not additional selectable choices.
 enum HappeningDefaults {
 
     // MARK: - Economy
@@ -18,10 +17,9 @@ enum HappeningDefaults {
 
     // MARK: - Built-ins
     //
-    // Ids use the `happening_` namespace so they can never collide with the old
-    // `body_` / `mind_` / `heart_` ids still sitting in users' saved days.
+    // Original IDs/copy are historical resolvers, not extra selectable choices.
 
-    static let builtIns: [Happening] = [
+    static let legacyBuiltIns: [Happening] = [
         Happening(id: "happening_walk",           title: "Walk",                   isBuiltIn: true),
         Happening(id: "happening_workout",        title: "Workout",                isBuiltIn: true),
         Happening(id: "happening_slept_well",     title: "Slept well",             isBuiltIn: true),
@@ -55,5 +53,67 @@ enum HappeningDefaults {
         Happening(id: "happening_listened", title: "Listened", isBuiltIn: true)
     ]
 
+    static let maximumCatalogCount = 100
+    static let allowsCustomCreation = false
+
+    // Retired choices still resolve in archived days and restored entries.
+    private static let retiredEventTitles: [String: String] = [
+        "event_root_ate": "Ate", "event_ate": "Ate a meal",
+        "event_alonefood": "Ate alone", "event_root_wentout": "Went out",
+        "event_root_people": "Saw people", "event_computer": "Worked at a desk",
+        "event_tasks": "Did my tasks", "event_stayedin": "Stayed indoors",
+        "event_relaxed": "Chilled at home", "event_gym": "Went to the gym",
+        "event_store": "Went to a store", "event_scroll": "Scrolled for hours"
+    ]
+
+    static func historicalTitle(for id: String) -> String? {
+        retiredEventTitles[id] ?? legacyBuiltIns.first { $0.id == id }?.title
+    }
+
+    /// One catalog backs Tree, All, the old chooser and external suggestions.
+    static let builtIns: [Happening] = HappeningEventTree.all.map {
+        Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: true)
+    }
     static let builtInIds: Set<String> = Set(builtIns.map(\.id))
+
+    /// Known equivalents affect new-choice selection only, never saved history.
+    /// Generic historical meals, contacts and outings are not narrowed to new roots.
+    static func canonicalID(_ id: String) -> String {
+        if id.hasPrefix("health_workout_"), let type = UInt(id.dropFirst(15)) {
+            // Persisted HKWorkoutActivityType raw values, confirmed against the SDK.
+            switch type {
+            case 52: return "event_walk"
+            case 37: return "event_run"
+            case 46: return "event_swam"
+            case 14, 77, 78: return "event_danced"
+            case 62: return "event_stretched"
+            default: return "event_workout"
+            }
+        }
+        switch id {
+        case "happening_walk", "body_walking": return "event_walk"
+        case "happening_workout", "body_physical_effort": return "event_workout"
+        case "event_computer", "event_tasks": return "event_root_worked"
+        case "event_relaxed": return "event_root_chilled"
+        case "happening_made_something": return "event_made"
+        case "happening_cooked": return "event_cooked"
+        case "happening_film": return "event_movie"
+        case "happening_outside": return "event_nature"
+        case "happening_danced": return "event_danced"
+        case "happening_sang": return "event_sang"
+        case "happening_drew": return "event_drew"
+        case "happening_wrote", "mind_writing": return "event_wrote"
+        case "happening_photos": return "event_photos"
+        case "happening_swam": return "event_swam"
+        case "happening_stretched", "body_stretching": return "event_stretched"
+        case "happening_asked_for_help": return "event_askedhelp"
+        case "happening_said_no": return "event_saidno"
+        default: return id
+        }
+    }
+
+    static func selectableHappening(id: String) -> Happening? {
+        let canonical = canonicalID(id)
+        return builtIns.first { $0.id == canonical }
+    }
 }

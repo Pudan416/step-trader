@@ -154,13 +154,13 @@ struct EveningReflectionCard: View {
         switch EveningReflection.questionIndex(for: date) {
         case 0:
             (String(localized: "What would you like to keep from today?"),
-             ["happening_called_someone", "happening_laughed", "happening_made_something"])
+             ["event_peoplecall", "event_happy", "event_made"])
         case 1:
             (String(localized: "Was there a moment just for you?"),
-             ["happening_read", "happening_outside", "happening_did_nothing"])
+             ["event_book", "event_nature", "event_root_chilled"])
         default:
             (String(localized: "What made today feel different?"),
-             ["happening_walk", "happening_drinks", "happening_made_something"])
+             ["event_walk", "event_friend", "event_made"])
         }
     }
 

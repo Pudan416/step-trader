@@ -6,14 +6,12 @@ import Foundation
 /// `useCount` and `lastUsedAt` are stored rather than derived: the palette reads
 /// them every time it opens and must not scan history to do it.
 struct Happening: Identifiable, Codable, Equatable {
-    static let titleCharacterLimit = 15
+    static let titleCharacterLimit = 20
 
     let id: String
 
-    /// Fallback English title. For built-ins the authoritative copy lives in
-    /// `Localizable.xcstrings` under `option.title.<id>`, matching the
-    /// convention built-in options already use. User happenings carry their
-    /// own title here and use it directly.
+    /// Reviewed English copy for new built-ins. Historical records preserve
+    /// their original titles and legacy string-catalog keys.
     var title: String
 
     let isBuiltIn: Bool
@@ -38,10 +36,11 @@ struct Happening: Identifiable, Codable, Equatable {
         self.lastUsedAt = lastUsedAt
     }
 
-    /// Built-ins resolve through the string catalog; user happenings return
-    /// their own title, which is already in whatever language they typed.
+    /// The fixed catalog is English. Older built-ins retain their localization;
+    /// historical user records retain the language in which they were entered.
     func localizedTitle() -> String {
         guard isBuiltIn else { return title }
+        if id.hasPrefix("event_") { return title }
         return Bundle.main.localizedString(
             forKey: "option.title.\(id)", value: title, table: nil
         )

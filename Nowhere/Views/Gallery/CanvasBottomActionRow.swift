@@ -56,7 +56,14 @@ struct CanvasBottomActionRow: View {
         HStack(alignment: .center, spacing: 0) {
             if !isDataPanelOpen {
                 if isHappeningPalettePresented {
-                    listControl
+                    if usesEventTree {
+                        // Keep the mode selector and close control in place.
+                        Color.clear.frame(width: 52, height: 52)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    } else {
+                        listControl
+                    }
                 } else {
                     soundControl
                 }

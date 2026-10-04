@@ -15,7 +15,7 @@ struct DetectedWorkout: Identifiable, Equatable {
     var activityName: String { Self.displayName(for: activityType) }
 
     private static func mapToOptionId(activityType: UInt) -> String? {
-        "health_workout_\(activityType)"
+        HappeningDefaults.canonicalID("health_workout_\(activityType)")
     }
 
     static func displayName(for activityType: UInt) -> String {
@@ -79,7 +79,10 @@ struct ActivitySuggestion: Identifiable, Equatable {
 
         switch source {
         case .workout(let workout):
-            ids.formUnion(["happening_workout", "body_physical_effort"])
+            ids.insert("health_workout_\(workout.activityType)")
+            if HappeningDefaults.canonicalID(optionId) == "event_workout" {
+                ids.formUnion(["happening_workout", "body_physical_effort"])
+            }
             if HKWorkoutActivityType(rawValue: workout.activityType) == .walking {
                 ids.formUnion(["happening_walk", "body_walking"])
             }
@@ -93,7 +96,9 @@ struct ActivitySuggestion: Identifiable, Equatable {
     }
 
     func isSatisfied(by addedOptionIds: Set<String>) -> Bool {
-        !satisfyingOptionIds.isDisjoint(with: addedOptionIds)
+        let expected = Set(satisfyingOptionIds.map(HappeningDefaults.canonicalID))
+        let added = Set(addedOptionIds.map(HappeningDefaults.canonicalID))
+        return !expected.isDisjoint(with: added)
     }
 
     static func fromWorkout(_ workout: DetectedWorkout) -> ActivitySuggestion? {
@@ -129,7 +134,7 @@ struct ActivitySuggestion: Identifiable, Equatable {
             id: "low_screen_time",
             optionId: "happening_did_nothing",
             source: .lowScreenTime,
-            title: "Screen Detoxing",
+            title: "Low screen time",
             subtitle: "Low screen time today",
             icon: "iphone.slash"
         )
