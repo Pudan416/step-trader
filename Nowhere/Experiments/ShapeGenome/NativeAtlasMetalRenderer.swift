@@ -60,7 +60,8 @@ final class NativeAtlasMetalRenderer {
             let ambient = recipe.dailyStyle.map {
                 NativeAtlasAmbientMotion.pose(actor: spec, family: $0.family,
                                               daySeed: UInt64(recipe.seedHex, radix: 16) ?? 0,
-                                              elapsed: elapsed, weight: ambientWeight)
+                                              elapsed: elapsed, weight: ambientWeight,
+                                              livingVariation: $0.livingVariation == true)
             } ?? NativeAtlasAmbientMotion.Pose()
             let size = spec.size / 2.72 * (0.7 + 0.3 * pose.opacity) * resonance * ambient.scale
             let rotation = spec.rotation + ambient.rotation

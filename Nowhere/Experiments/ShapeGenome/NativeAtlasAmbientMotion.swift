@@ -15,21 +15,23 @@ enum NativeAtlasAmbientMotion {
         family: NativeAtlasDailyStyle.Family,
         daySeed: UInt64,
         elapsed: TimeInterval,
-        weight: Float
+        weight: Float,
+        livingVariation: Bool = false
     ) -> Pose {
         guard elapsed.isFinite, weight > 0 else { return Pose() }
         let seed = UInt64(actor.seedHex, radix: 16) ?? 0
         var random = SeededRNG(seed: seed ^ 0x414D_4249_454E_5432)
         let phase = Float(random.nextDouble(in: 0...(2 * .pi)))
-        let driftPeriod = Float(random.nextDouble(in: 24...40))
-        let breathPeriod = Float(random.nextDouble(in: 14...24))
-        let turnPeriod = Float(random.nextDouble(in: 140...220))
+        let driftPeriod = Float(random.nextDouble(in: livingVariation ? 14...24 : 24...40))
+        let breathPeriod = Float(random.nextDouble(in: livingVariation ? 9...15 : 14...24))
+        let turnPeriod = Float(random.nextDouble(in: livingVariation ? 50...85 : 140...220))
         let time = max(0, elapsed)
         func cycle(_ period: Float, speed: Float = 1) -> Float {
             Float((time * Double(speed) * 2 * .pi / Double(period))
                 .truncatingRemainder(dividingBy: 2 * .pi))
         }
-        let strength: Float = seed % 5 == 0 ? 0.18 : 1
+        let strength: Float = livingVariation ? 0.78 + Float(seed % 5) * 0.055
+            : seed % 5 == 0 ? 0.18 : 1
         let blend = min(max(weight, 0), 1) * strength
         let drift = cycle(driftPeriod)
         let breath = sin(cycle(breathPeriod) + phase * 1.7)
@@ -63,11 +65,13 @@ enum NativeAtlasAmbientMotion {
             breathing = 0.007
             let axis = Float(daySeed & 65_535) / 65_535 * 2 * .pi
             offset = SIMD2(cos(axis), sin(axis)) * sin(drift + phase)
-            rotation = sin(cycle(driftPeriod, speed: 0.4) + phase) * 0.035
+            rotation = sin(cycle(driftPeriod, speed: 0.4) + phase) * (livingVariation ? 0.14 : 0.035)
         }
-        return Pose(offset: offset * amplitude * blend,
+        let driftGain: Float = livingVariation ? 1.35 : 1
+        let breathGain: Float = livingVariation ? 1.3 : 1
+        return Pose(offset: offset * amplitude * driftGain * blend,
                     rotation: rotation * blend,
-                    scale: 1 + breath * breathing * blend)
+                    scale: 1 + breath * breathing * breathGain * blend)
     }
 }
 

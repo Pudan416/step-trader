@@ -295,6 +295,8 @@ struct DayCanvas: Codable {
         if recipe.dailyStyle == nil {
             recipe = NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
         }
+        recipe.dailyStyle = recipe.dailyStyle?.adoptingLivingVariation(
+            seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
         recipe.dailyStyle?.sharesPaletteOrder = true
         recipe.dailyStyle?.softGradients = true
         if let previous {
@@ -311,25 +313,27 @@ struct DayCanvas: Codable {
         let retained = Dictionary((previous?.actors ?? []).map { ($0.eventID, $0) },
                                   uniquingKeysWith: { first, _ in first })
         let eventIDs = Array(elements.prefix(10).map { $0.id.uuidString.lowercased() })
-        // Generate common visual templates, then seed reconciliation with the
-        // saved occupants so missing actors get the actual free-slot position.
-        recipe.actors = []
-        recipe = recipe.reconciled(eventIDs: eventIDs)
-        recipe.actors = recipe.actors.compactMap { actor in
-            guard let old = retained[actor.eventID] else { return nil }
+        let hadLivingVariation = previous?.dailyStyle?.livingVariation == true
+        // Derive each template from its saved slot. Event order can differ after
+        // cloud recovery, so a new enumeration must not choose its size tier.
+        recipe.actors = eventIDs.compactMap { eventID in
+            guard let old = retained[eventID],
+                  let actor = recipe.dailyActor(eventID: eventID, slot: old.slot) else { return nil }
             // Recovery can import atlas-1 actors into an atlas-2 draft. Repair
             // those visuals too, retaining event identity and saved placement.
             let hasDailyVisuals = previous?.dailyStyle != nil
                 && old.presetID == style.presetID && old.materialID == style.materialID
                 && old.geometry == style.shape
+            let keepsFrozenVisuals = hasDailyVisuals && hadLivingVariation
+            let actorSeedHex = keepsFrozenVisuals ? old.seedHex : actor.seedHex
             return NativeAtlasRecipe.Actor(
                 eventID: actor.eventID, presetID: style.presetID,
-                materialID: style.materialID, seedHex: actor.seedHex,
+                materialID: style.materialID, seedHex: actorSeedHex,
                 geometry: style.shape,
-                material: style.recolored(hasDailyVisuals ? old.material : actor.material,
-                    seed: UInt64(actor.seedHex, radix: 16) ?? 0),
-                position: old.position, size: hasDailyVisuals ? old.size : actor.size,
-                rotation: hasDailyVisuals ? old.rotation : actor.rotation, slot: old.slot
+                material: style.recolored(keepsFrozenVisuals ? old.material : actor.material,
+                    seed: UInt64(actorSeedHex, radix: 16) ?? 0),
+                position: old.position, size: keepsFrozenVisuals ? old.size : actor.size,
+                rotation: old.rotation, slot: old.slot
             )
         }
         recipe = recipe.reconciled(eventIDs: eventIDs)
