@@ -30,7 +30,7 @@ extension NativeAtlasRecipe {
             let amplitude = Float(rng.nextDouble(in: 0.32...0.43))
             geometry = .init(superformula: SIMD4(Float(folds), 1, 0, 0), harmonic0: SIMD4(1, amplitude, 0, 0), harmonic1: .zero, harmonic2: .zero, anisotropyOffset: SIMD4(1, 1, 0, 0), transform: SIMD4(0, 1 / (1 + amplitude), 0, 0.5), metadata: SIMD4(2, UInt32(truncatingIfNeeded: seed), UInt32(folds), 1), reserved: .zero)
         } else { geometry = frame.geometry }
-        var style = NativeAtlasDailyStyle(family: family, presetID: presetID, materialID: materialID, palette: recipe.backgroundStyle?.colors ?? [], shape: geometry, material: frame.material, orientation: Float(rng.nextDouble(in: 0...(2 * .pi))), sharesPaletteOrder: true)
+        var style = NativeAtlasDailyStyle(family: family, presetID: presetID, materialID: materialID, palette: recipe.backgroundStyle?.colors ?? [], shape: geometry, material: frame.material, orientation: Float(rng.nextDouble(in: 0...(2 * .pi))), sharesPaletteOrder: true, softGradients: true)
         style.material = style.recolored(frame.material, seed: seed)
         recipe = Self(schemaVersion: 1, generatorVersion: "atlas-2", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
         return recipe

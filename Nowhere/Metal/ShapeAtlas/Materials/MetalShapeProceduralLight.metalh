@@ -7,6 +7,18 @@ static void metalShapeShadeProceduralLight(
     thread float3 & color) {
     const float2 first = (m.params2.xy - 0.5) * 0.9;
     const float2 second = (m.params2.zw - 0.5) * 0.9;
+    // Opt-in daily material policy. The original path below remains exact for
+    // saved artwork without the flag; the 128-byte uniform layout is unchanged.
+    if ((m.metadata.y & 0x80000000u) != 0u) {
+        const float glow = (exp(-dot(p - first, p - first) * 1.65)
+            + 0.72 * exp(-dot(p - second, p - second) * 2.20)) / 1.72;
+        // Normalize overlapping lights rather than clipping a broad flat core.
+        // The terminal stop stays blended, even at the theoretical light peak.
+        const float base = smoothstep(0.0, 0.72, glow);
+        const float highlight = smoothstep(0.36, 1.16, glow);
+        color = mix(mix(m.color0.rgb, m.color1.rgb, base), m.color2.rgb, highlight);
+        return;
+    }
     const float glow = exp(-dot(p - first, p - first) * 2.4)
         + 0.72 * exp(-dot(p - second, p - second) * 3.2);
     color = metalShapePalette(clamp(glow, 0.0, 1.0), m);

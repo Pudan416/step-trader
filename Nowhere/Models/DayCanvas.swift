@@ -296,6 +296,7 @@ struct DayCanvas: Codable {
             recipe = NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
         }
         recipe.dailyStyle?.sharesPaletteOrder = true
+        recipe.dailyStyle?.softGradients = true
         if let previous {
             recipe.locks = previous.locks
             recipe.glitchType = previous.glitchType
