@@ -21,6 +21,17 @@ final class CanvasRemixTests: XCTestCase {
             let recipe = try XCTUnwrap(result.canvas.artworkRecipe)
             let style = try XCTUnwrap(recipe.dailyStyle)
             XCTAssertNotEqual(style.family, previous.dailyStyle?.family)
+            let background = try XCTUnwrap(recipe.backgroundStyle)
+            let previousBackground = try XCTUnwrap(previous.backgroundStyle)
+            XCTAssertNotEqual(Set(background.colors), Set(previousBackground.colors))
+            XCTAssertNotEqual(background.archetype, previousBackground.archetype)
+            XCTAssertEqual(style.palette, background.colors)
+            let previousPalettes = ModernPaletteCatalog.all.filter {
+                Set(previousBackground.colors).isSubset(of: Set($0.hexes.map { DayObjectRGB(hex: $0).linearRGB }))
+            }
+            XCTAssertFalse(previousPalettes.contains {
+                Set(background.colors).isSubset(of: Set($0.hexes.map { DayObjectRGB(hex: $0).linearRGB }))
+            })
             XCTAssertEqual(recipe, CanvasUnifiedRemix.next(canvas: canvas, at: date).canvas.artworkRecipe)
             XCTAssertEqual(result.canvas.elements.map(\.id), elementIDs)
             XCTAssertEqual(recipe.actors.map(\.eventID), elementIDs.map { $0.uuidString.lowercased() })
@@ -33,6 +44,28 @@ final class CanvasRemixTests: XCTestCase {
             XCTAssertEqual(canvas.artworkRecipe?.dailyStyle?.family, style.family)
         }
         XCTAssertEqual(visited, Set(NativeAtlasDailyStyle.Family.allCases))
+    }
+
+    func testRemixPaletteSelectionKeepsNoirAndSinglePaletteScopes() throws {
+        let noir = ModernPaletteCatalog.palettes(matching: [.noir])
+        var background = NativeAtlasRecipe.makeRemixBackgroundStyle(recipeSeed: 1, palettes: noir, excluding: [])
+        for seed in UInt64(2)...33 {
+            let next = NativeAtlasRecipe.makeRemixBackgroundStyle(recipeSeed: seed, palettes: noir,
+                excluding: background.colors, previousArchetype: background.archetype)
+            XCTAssertTrue(next.isNoir == true)
+            XCTAssertNotEqual(Set(next.colors), Set(background.colors))
+            XCTAssertNotEqual(next.archetype, background.archetype)
+            XCTAssertTrue(noir.contains { Set(next.colors).isSubset(of: Set($0.hexes.map { DayObjectRGB(hex: $0).linearRGB })) })
+            background = next
+        }
+        let only = try XCTUnwrap(noir.first)
+        let first = NativeAtlasRecipe.makeRemixBackgroundStyle(recipeSeed: 42, palettes: [only], excluding: background.colors)
+        let next = NativeAtlasRecipe.makeRemixBackgroundStyle(recipeSeed: 43, palettes: [only],
+            excluding: Array(first.colors.reversed()), previousArchetype: first.archetype)
+        XCTAssertEqual(next, NativeAtlasRecipe.makeRemixBackgroundStyle(recipeSeed: 43, palettes: [only],
+            excluding: first.colors, previousArchetype: first.archetype))
+        XCTAssertTrue(Set(next.colors).isSubset(of: Set(only.hexes.map { DayObjectRGB(hex: $0).linearRGB })))
+        XCTAssertNotEqual(next.archetype, first.archetype)
     }
 
     func testNativeRemixFamilySelectionUsesFullSeedAndHonorsArtworkLock() throws {

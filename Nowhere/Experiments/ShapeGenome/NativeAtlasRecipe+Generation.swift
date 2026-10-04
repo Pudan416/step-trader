@@ -49,6 +49,44 @@ extension NativeAtlasRecipe {
         return style
     }
 
+    /// Explicit Remix uses the full recipe seed, rather than calendar routing.
+    /// Compare numerical swatches without order: reversing the same palette is
+    /// not a new color group. Keep every candidate inside the selected categories.
+    static func makeRemixBackgroundStyle(
+        recipeSeed: UInt64, palettes: [ModernPalette],
+        excluding previousColors: [SIMD3<Float>],
+        previousArchetype: DayObjectMeshGradientArchetype? = nil
+    ) -> DayObjectMeshGradientStyle {
+        precondition(!palettes.isEmpty, "Modern palette catalog must not be empty")
+        let previous = Set(previousColors)
+        var seen = Set<Set<SIMD3<Float>>>()
+        let candidates = palettes.compactMap { palette -> (palette: ModernPalette, colors: Set<SIMD3<Float>>)? in
+            let colors = Set(palette.hexes.map { DayObjectRGB(hex: $0).linearRGB })
+            return seen.insert(colors).inserted ? (palette, colors) : nil
+        }
+        func makeStyle(_ palette: ModernPalette) -> DayObjectMeshGradientStyle {
+            var style = DayObjectMeshGradientStyle.primaryCanvas(seed: recipeSeed,
+                palette: DayObjectPalette.make(modernPalette: palette), excluding: previousArchetype)
+            if palette.categories.contains(.noir) { style.isNoir = true }
+            return style
+        }
+        // Saved backgrounds may contain only two or three stops. Exclude every
+        // catalog palette containing those stops, so a new stop count cannot
+        // disguise selecting the old palette again. The normal tap path creates
+        // only the chosen mesh; ambiguous shared stops use the bounded fallback.
+        let alternatives = candidates.filter { previous.isEmpty || !previous.isSubset(of: $0.colors) }
+        var rng = SeededRNG.derived(from: recipeSeed, domain: "native-remix-background-palette")
+        if !alternatives.isEmpty {
+            return makeStyle(alternatives[rng.nextInt(in: 0...(alternatives.count - 1))].palette)
+        }
+        let styles = candidates.map { makeStyle($0.palette) }
+        let different = styles.filter { Set($0.colors) != previous }
+        let available = different.isEmpty ? styles : different
+        // A single eligible palette is retained deterministically. Its mesh
+        // still rerolls, and reversing swatches never creates another candidate.
+        return available[rng.nextInt(in: 0...(available.count - 1))]
+    }
+
     func remixed(
         seedKey: String, dayKey: String? = nil,
         paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
@@ -56,14 +94,15 @@ extension NativeAtlasRecipe {
         guard isSupported else { return self }
         let family = NativeAtlasDailyStyle.remixFamily(seedKey: seedKey, excluding: dailyStyle?.family)
         var generated = Self.makeDaily(dayKey: seedKey, paletteCategories: paletteCategories, family: family)
+        let previousBackground = backgroundStyle ?? dayKey.map { resolvedBackgroundStyle(dayKey: $0) }
+        let background = Self.makeRemixBackgroundStyle(
+            recipeSeed: UInt64(generated.seedHex, radix: 16) ?? 0,
+            palettes: ModernPaletteCatalog.palettes(matching: paletteCategories),
+            excluding: previousBackground?.colors ?? dailyStyle?.palette ?? [],
+            previousArchetype: previousBackground?.archetype
+        )
+        generated = generated.coordinated(with: background, paletteCategories: paletteCategories)
             .reconciled(eventIDs: actors.map(\.eventID))
-        if let dayKey {
-            generated.backgroundStyle = Self.makeBackgroundStyle(
-                dayKey: dayKey, recipeSeed: UInt64(generated.seedHex, radix: 16) ?? 0,
-                paletteCategories: paletteCategories
-            )
-        }
-        if let background = generated.backgroundStyle { generated = generated.coordinated(with: background) }
         var next = locks.contains("artwork") ? self : generated
         next.locks = locks
         let effects = locks.contains("effects") ? self : generated

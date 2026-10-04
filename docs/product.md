@@ -95,7 +95,10 @@ Large figures mainly drift, while smaller ones breathe more noticeably. Noir
 keeps a monochrome color group. Historical recipes retain their saved policy.
 An unlocked Remix selects a different shape family from the previous composition,
 with every figure sharing that family. All six families remain available. The
-chosen family stays saved with the day; Undo restores the previous composition.
+background and color group change with it, using the enabled palette categories
+and coordinated figure pigments. The complete composition stays saved with the
+day; Undo restores the previous composition. With only one eligible color group,
+Remix keeps that group and changes its background mesh.
 
 While music is off, new Canvas figures gently drift, breathe or turn around their
 saved positions with independent phases. Idle motion pauses behind the Happenings

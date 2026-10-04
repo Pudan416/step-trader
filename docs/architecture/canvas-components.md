@@ -80,8 +80,15 @@ historical generation and motion. Pending drafts wait for the confirmed merge;
 artwork locks and historical days remain frozen. Decoding never upgrades a recipe.
 An unlocked Remix generates a new coherent family from the full Remix seed,
 excluding the previously saved family. All six families remain eligible across
-Remixes; the calendar shuffle only selects the initial family. Current-day
-adoption retains an explicitly remixed family, and Undo restores the saved recipe.
+Remixes; the calendar shuffle only selects the initial family. Explicit Remix
+also selects a native palette from enabled categories using the full recipe seed,
+excluding the previous numerical swatches regardless of their order when an
+alternative exists. Its mesh selects a different archetype and rerolls its parameters. The new
+mesh and palette are frozen in the recipe before
+actors are generated; the background and daily style share those colors, and
+actor pigments are coordinated with them. A single eligible palette stays
+selected while its mesh rerolls. Initial calendar selection remains unchanged.
+Current-day adoption retains the complete remixed recipe, and Undo restores it.
 
 Idle motion applies seeded drift, breathing and bounded turns around those
 frozen slots at render time. It never writes positions back to persistence.
