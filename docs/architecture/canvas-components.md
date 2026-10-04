@@ -30,6 +30,12 @@ the background. Ordinary daily actors use one ordered palette; event identity
 and picker variants change only subtle lightness, never the dominant hue order.
 The optional `sharesPaletteOrder` flag preserves the prior color policy when
 decoding archived atlas-2 artwork without this flag.
+New/current daily styles also opt into `softGradients`: the selected hues retain
+their shared order, OKLab lightness spread is capped at 0.19, and chroma is
+reduced to 75% with hue-preserving gamut fitting. Procedural light uses broader,
+normalized overlapping lights and a blended highlight rather than a clipped
+terminal-color core. Its opt-in marker uses the high bit of material
+`metadata.y`; the 128-byte CPU/GPU layout and unflagged shader path stay exact.
 Gallery adopts this policy for today's complete, editable Editorial canvas,
 including a saved empty or populated `atlas-1` day, before persisting and syncing
 it. Event IDs, saved placements, metrics and music selection survive adoption.

@@ -16,6 +16,8 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     let orientation: Float
     /// Missing in saved atlas-2 artwork; preserve its original color policy.
     var sharesPaletteOrder: Bool? = nil
+    /// Missing in historical artwork; opt in without changing its frozen policy.
+    var softGradients: Bool? = nil
 
     /// Shuffle each calendar block of six. Repair only the first two entries,
     /// leaving the last entry stable so the preceding block needs no recursion.
@@ -62,6 +64,28 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         var rng = SeededRNG(seed: seed ^ 0x5049_474D_454E_5453)
         let variation = ordered ? Float(rng.nextDouble(in: -0.018...0.018))
             : (Float((seed >> 12) % 7) / 6 - 0.5) * 0.036
+        if softGradients == true {
+            let perceptualColors = colors.map { DayObjectRGB(linearRGB: $0).perceptualOKLab }
+            let minimum = perceptualColors.map(\.x).min() ?? meanLightness
+            let maximum = perceptualColors.map(\.x).max() ?? meanLightness
+            let midpoint = (minimum + maximum) * 0.5
+            let lightnessScale = min(1, 0.19 / max(maximum - minimum, 0.000_001))
+            // Keep palette context, while moving extreme palettes toward a
+            // moderate field. All stops share the actor's small seed variation.
+            let center = min(max(meanLightness * 0.70 + 0.60 * 0.30, 0.32), 0.80)
+            func softColor(_ index: Int) -> SIMD4<Float> {
+                let paletteIndex = (offset + index) % colors.count
+                let target = center + (perceptualColors[paletteIndex].x - midpoint) * lightnessScale + variation
+                let rgb = DayObjectRGB(linearRGB: colors[paletteIndex])
+                    .fittingPerceptualLightness(to: target, chromaFraction: 0.75).linearRGB
+                return SIMD4(rgb, 1)
+            }
+            var metadata = source.metadata
+            if source.materialIndex == 6 {
+                metadata.y |= 0x8000_0000
+            }
+            return .init(color0: softColor(0), color1: softColor(1), color2: materialID == .sideLight ? softColor(1) : softColor(2), params0: source.params0, params1: source.params1, params2: source.params2, params3: source.params3, metadata: metadata)
+        }
         func color(_ index: Int) -> SIMD4<Float> {
             let rgb = DayObjectRGB(linearRGB: colors[(offset + index) % colors.count])
                 .shiftingPerceptualLightness(by: separation + variation).linearRGB

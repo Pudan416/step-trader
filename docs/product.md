@@ -86,7 +86,9 @@ are excluded from new generation, while historical artwork retains its saved
 appearance. Today's unlocked Editorial canvas adopts the common family even
 if it was started before this policy, retaining its added events and saved
 placements. All figures use the same order of palette colors with subtle
-lightness differences. An unlocked Remix can give an existing day a new recipe.
+lightness differences. Daily figure gradients use a smaller lightness range,
+slightly muted color and broad transitions with softly blended highlights.
+An unlocked Remix can give an existing day a new recipe.
 
 While music is off, new Canvas figures gently drift, breathe or turn around their
 saved positions with independent phases. Idle motion pauses behind the Happenings
