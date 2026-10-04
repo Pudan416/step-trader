@@ -26,6 +26,9 @@ extension NativeAtlasRecipe {
         let materialID = allowed[rng.nextInt(in: 0...(allowed.count - 1))]
         let frame = MetalShapeGenomeFrame.make(preset: preset, material: materialID, seed: seed)
         var style = NativeAtlasDailyStyle(family: family, presetID: presetID, materialID: materialID, palette: recipe.backgroundStyle?.colors ?? [], shape: frame.geometry, material: frame.material, orientation: Float(rng.nextDouble(in: 0...(2 * .pi))), sharesPaletteOrder: true, softGradients: true, livingVariation: true)
+        if let background = recipe.backgroundStyle {
+            style.freezeApprovedAppearance(background: background, categories: paletteCategories, seed: seed)
+        }
         style.material = style.recolored(frame.material, seed: seed)
         recipe = Self(schemaVersion: 1, generatorVersion: "atlas-2", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
         return recipe
@@ -33,15 +36,21 @@ extension NativeAtlasRecipe {
 
     /// Explicit palette edits coordinate current actors and future additions.
     /// atlas-1 retains its original frozen materials.
-    func coordinated(with background: DayObjectMeshGradientStyle) -> Self {
+    func coordinated(with background: DayObjectMeshGradientStyle, paletteCategories: Set<ModernPaletteCategory>? = nil) -> Self {
         var result = self
         result.backgroundStyle = background
         guard var style = dailyStyle, generatorVersion == "atlas-2" else { return result }
+        let paletteChanged = style.palette != background.colors || backgroundStyle?.isNoir != background.isNoir
         style.palette = background.colors
+        if style.usesApprovedAppearance, paletteChanged {
+            style.freezeApprovedAppearance(background: background,
+                categories: paletteCategories ?? Set(style.neighboringPaletteCategories ?? ModernPaletteCategory.allCases),
+                seed: UInt64(seedHex, radix: 16) ?? 0)
+        }
         style.material = style.recolored(style.material, seed: UInt64(seedHex, radix: 16) ?? 0)
         result.dailyStyle = style
         result.actors = actors.map { actor in
-            Actor(eventID: actor.eventID, presetID: actor.presetID, materialID: actor.materialID, seedHex: actor.seedHex, geometry: actor.geometry, material: style.recolored(actor.material, seed: UInt64(actor.seedHex, radix: 16) ?? 0), position: actor.position, size: actor.size, rotation: actor.rotation, slot: actor.slot)
+            Actor(eventID: actor.eventID, presetID: actor.presetID, materialID: actor.materialID, seedHex: actor.seedHex, geometry: actor.geometry, material: style.recolored(actor.material, seed: UInt64(actor.seedHex, radix: 16) ?? 0, slot: actor.slot), position: actor.position, size: actor.size, rotation: actor.rotation, slot: actor.slot)
         }
         return result
     }
@@ -84,9 +93,16 @@ extension NativeAtlasRecipe {
         }
         let angleRange: Double = style.family == .squares ? 0.06 : (style.family == .rays && style.livingVariation == true ? 0.38 : 0.18)
         let rotation = style.orientation + Float(rng.nextDouble(in: -angleRange...angleRange))
-        var params0 = style.material.params0
+        let actorMaterialID = style.actorMaterialID(slot: slot)
+        let actorMaterial: MetalShapeMaterialUniforms
+        if style.usesApprovedAppearance,
+           let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == style.presetID }) {
+            actorMaterial = MetalShapeGenomeFrame.make(preset: preset, material: actorMaterialID, seed: seed,
+                blurMode: style.family == .rays && max(0, slot) % 4 == 2 ? 2 : 0).material
+        } else { actorMaterial = style.material }
+        var params0 = actorMaterial.params0
         params0.x += Float(rng.nextDouble(in: -0.025...0.025))
-        let material = MetalShapeMaterialUniforms(color0: style.material.color0, color1: style.material.color1, color2: style.material.color2, params0: params0, params1: style.material.params1, params2: style.material.params2, params3: style.material.params3, metadata: style.material.metadata)
-        return Actor(eventID: id, presetID: style.presetID, materialID: style.materialID, seedHex: String(seed, radix: 16), geometry: style.shape, material: style.recolored(style.variedMaterial(material, seed: seed), seed: seed), position: position, size: size, rotation: rotation, slot: slot)
+        let material = MetalShapeMaterialUniforms(color0: actorMaterial.color0, color1: actorMaterial.color1, color2: actorMaterial.color2, params0: params0, params1: actorMaterial.params1, params2: actorMaterial.params2, params3: actorMaterial.params3, metadata: actorMaterial.metadata)
+        return Actor(eventID: id, presetID: style.presetID, materialID: actorMaterialID, seedHex: String(seed, radix: 16), geometry: style.shape, material: style.recolored(style.variedMaterial(material, seed: seed), seed: seed, slot: slot), position: position, size: size, rotation: rotation, slot: slot)
     }
 }

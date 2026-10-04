@@ -16,9 +16,37 @@ enum NativeAtlasAmbientMotion {
         daySeed: UInt64,
         elapsed: TimeInterval,
         weight: Float,
-        livingVariation: Bool = false
+        livingVariation: Bool = false,
+        approvedAppearance: Bool = false
     ) -> Pose {
         guard elapsed.isFinite, weight > 0 else { return Pose() }
+        if approvedAppearance {
+            let role = max(0, actor.slot) % 4
+            let phase = Float(max(0, actor.slot)) * 1.63 + Float(daySeed % 997) / 997 * 2 * .pi
+            let cycle = Float((max(0, elapsed) / 12 * 2 * .pi).truncatingRemainder(dividingBy: 2 * .pi))
+            let blend = min(max(weight, 0), 1)
+            let amplitude: Float = [0.045, 0.053, 0.025, 0.038][role]
+            var offset = SIMD2(sin(cycle + phase), cos(cycle + phase * 1.3) * 0.76) * amplitude
+            var breathing: Float = [0.035, 0.095, 0.055, 0.02][role]
+            let turn: Float
+            switch family {
+            case .circles: turn = 0
+            case .blobs: turn = 0.20
+            case .squares: turn = 0.15
+            case .clovers: turn = 0.30
+            case .flowers: turn = 0.26
+            case .rays:
+                turn = 0.25
+                offset = SIMD2(cos(actor.rotation), sin(actor.rotation)) * sin(cycle + phase) * amplitude
+                breathing *= 0.60
+            }
+            let turnWeight: Float = [0.25, 0.55, 1, 0.75][role]
+            // GPU y points upward, while saved canvas positions point down.
+            offset.y = -offset.y
+            return Pose(offset: offset * blend,
+                        rotation: sin(cycle + phase * 0.9) * turn * turnWeight * blend,
+                        scale: 1 + sin(cycle * 2 + phase * 1.7) * breathing * blend)
+        }
         let seed = UInt64(actor.seedHex, radix: 16) ?? 0
         var random = SeededRNG(seed: seed ^ 0x414D_4249_454E_5432)
         let phase = Float(random.nextDouble(in: 0...(2 * .pi)))

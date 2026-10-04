@@ -80,16 +80,19 @@ valid delayed callback. Real-device testing remains necessary after iOS updates.
 The production Canvas uses native Metal artwork with versioned deterministic recipes.
 New days share one of six shape families: circles, organic blobs, squares,
 four-lobe clovers, flowers or directed light beams. A calendar shuffle avoids
-consecutive repeats. Each day shares its selected palette and material; adding
-or removing an event preserves the other figures. Triangle and hexagon days
+consecutive repeats. Figures share a family and a related color group, with
+pigments borrowed from nearby palettes in the selected categories. The numeric
+pigments are frozen with the day. Adding or removing an event preserves the
+other figures. Triangle and hexagon days
 are excluded from new generation, while historical artwork retains its saved
 appearance. Today's unlocked Editorial canvas adopts the common family even
 if it was started before this policy, retaining its added events and saved
-placements and rotations. Figures have visibly different sizes and related
-colors within the same ordered daily palette. Gentle independent drift,
-breathing and bounded turns keep the visible Canvas alive; directed beams
-slowly sweep in a lighter muted tone from the same palette. Daily figure gradients use a smaller lightness range, slightly
-muted color and broad transitions with softly blended highlights.
+placements and rotations. The selected A appearance mixes one-tone fills,
+outlines and soft two-color shading, with approximately a 2.7-fold diameter
+range. Directed beams retain their diffuse silhouette and a larger size floor.
+Independent drift and bounded turns take 12 seconds; breathing takes six.
+Large figures mainly drift, while smaller ones breathe more noticeably. Noir
+keeps a monochrome color group. Historical recipes retain their saved policy.
 An unlocked Remix can give an existing day a new recipe.
 
 While music is off, new Canvas figures gently drift, breathe or turn around their

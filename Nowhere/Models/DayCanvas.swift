@@ -270,7 +270,7 @@ struct DayCanvas: Codable {
             paletteCategories: paletteCategories
         )
         guard recipe.backgroundStyle != background else { return false }
-        recipe = recipe.coordinated(with: background)
+        recipe = recipe.coordinated(with: background, paletteCategories: paletteCategories)
         artworkRecipe = recipe
         recordExplicitArtworkEdit()
         lastModified = .now
@@ -308,12 +308,17 @@ struct DayCanvas: Codable {
         }
         let background = previous?.resolvedBackgroundStyle(dayKey: dayKey)
             ?? recipe.resolvedBackgroundStyle(dayKey: dayKey)
+        if recipe.dailyStyle?.usesApprovedAppearance != true {
+            recipe.dailyStyle?.palette = background.colors
+            recipe.dailyStyle?.freezeApprovedAppearance(background: background,
+                categories: paletteCategories, seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
+        }
         recipe = recipe.coordinated(with: background)
         guard let style = recipe.dailyStyle else { return false }
         let retained = Dictionary((previous?.actors ?? []).map { ($0.eventID, $0) },
                                   uniquingKeysWith: { first, _ in first })
         let eventIDs = Array(elements.prefix(10).map { $0.id.uuidString.lowercased() })
-        let hadLivingVariation = previous?.dailyStyle?.livingVariation == true
+        let hadApprovedAppearance = previous?.dailyStyle?.usesApprovedAppearance == true
         // Derive each template from its saved slot. Event order can differ after
         // cloud recovery, so a new enumeration must not choose its size tier.
         recipe.actors = eventIDs.compactMap { eventID in
@@ -322,16 +327,16 @@ struct DayCanvas: Codable {
             // Recovery can import atlas-1 actors into an atlas-2 draft. Repair
             // those visuals too, retaining event identity and saved placement.
             let hasDailyVisuals = previous?.dailyStyle != nil
-                && old.presetID == style.presetID && old.materialID == style.materialID
+                && old.presetID == style.presetID && old.materialID == actor.materialID
                 && old.geometry == style.shape
-            let keepsFrozenVisuals = hasDailyVisuals && hadLivingVariation
+            let keepsFrozenVisuals = hasDailyVisuals && hadApprovedAppearance
             let actorSeedHex = keepsFrozenVisuals ? old.seedHex : actor.seedHex
             return NativeAtlasRecipe.Actor(
                 eventID: actor.eventID, presetID: style.presetID,
-                materialID: style.materialID, seedHex: actorSeedHex,
+                materialID: actor.materialID, seedHex: actorSeedHex,
                 geometry: style.shape,
                 material: style.recolored(keepsFrozenVisuals ? old.material : actor.material,
-                    seed: UInt64(actorSeedHex, radix: 16) ?? 0),
+                    seed: UInt64(actorSeedHex, radix: 16) ?? 0, slot: old.slot),
                 position: old.position, size: keepsFrozenVisuals ? old.size : actor.size,
                 rotation: old.rotation, slot: old.slot
             )
