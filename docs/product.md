@@ -46,8 +46,8 @@ including in the old chooser and empty-search states. Health detections and
 evening reflection answers resolve existing catalog choices and do not add new
 options. Archived custom and retired records retain their IDs and titles; they
 remain renderable and removable from today's Canvas, but cannot be added again
-as new choices. Usage metadata is retained; behavior-based ranking and a larger
-adaptive catalog are deferred.
+as new choices. Personal ranks familiar events from usage metadata and restored
+day history. A larger adaptive catalog remains a future step.
 
 Cloud compatibility is independent of the selectable catalog. Archived custom
 titles, including titles longer than 20 characters, and original event IDs remain
@@ -61,19 +61,42 @@ from a saved Canvas, old option entries or category selections. A saved empty
 Canvas is authoritative; upgraded accounts do not resurrect stale legacy entries.
 Old category arrays and fractional timestamps remain readable.
 
-The Canvas add control opens **Tree**: six complete events surround the current
+The Canvas add control opens **Personal**: six complete events surround the current
 day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
 after additions and removals. The initial six are Worked, Chilled, Stayed home,
 Had breakfast, Went for a walk and Saw a friend. Each has one catalog identity,
-including those promoted from outer positions. Positions come from a fixed radial map. At the intersections,
+including those promoted from outer positions. The six roots remain fixed. At the intersections,
 the event fits both neighboring roots: Took a break connects Worked and Chilled,
 Took a nap connects Chilled and Stayed home, and Cooked connects Stayed home
 and Had breakfast. These are associations; revealing a meal does not log its
 neighbors or earlier meals. Adding an event reveals up to three adjacent whole events.
 Expansion history is retained for the day. **All** reveals the same complete map
 around the same count; it retains the six roots and every option's position.
-Switching modes preserves the tree and the day's additions. Direct All additions
-are also visible along their path when returning to Tree.
+Switching modes preserves the open field and the day's additions. Direct All additions
+are also visible along their path when returning to Personal.
+
+Personal pre-reveals up to three familiar events beside the six roots. It ranks
+frequency with a 21-day recency half-life, requires two use days, and excludes
+the six roots from extra recommendations. Repeated additions on one custom day
+do not increase the usage counter. Restored snapshots canonicalize old IDs and
+count each event once per day; their count is combined with local counters by
+the maximum, avoiding double-counting overlapping history. Recommendations do
+not exclude uncomfortable events such as Raged or Got wasted.
+
+Current Health workout hints and today's additions are also visible. The first
+recommendation in each sector moves to that root's nearest outward position;
+remaining recommendations reveal their paths. Shared intersections remain
+anchored. The map is recomputed on opening and then stays fixed through taps
+and Personal/All switches. The radial field remains pannable.
+
+Health walking, running, swimming, dance and flexibility resolve to Went for a
+walk, Went for a run, Swam, Danced and Stretched. Other documented workouts use
+Worked out; cycling does not imply Biked to work. Unsupported workout raw values
+do not create suggestions. A generic Worked out addition does not satisfy a
+specific running or swimming suggestion. Accepting a suggestion logs its catalog
+ID and reveals that same choice in Personal. Mindful-minutes and low-screen-time
+signals currently have no honest matching event in the fixed catalog and are
+filtered out rather than inventing a feeling or another choice.
 
 Both modes use the same transparent field, figure assignments and interactions.
 While the picker is open, a light native blur and subtle white wash soften and

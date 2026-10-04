@@ -1088,25 +1088,25 @@ final class NowhereUITestsLaunchTests: XCTestCase {
 
         let worked = app.buttons["happening_choice_event_root_worked"]
         worked.tap()
-        let desk = app.buttons["happening_choice_event_computer"]
-        XCTAssertTrue(desk.waitForExistence(timeout: 5))
+        let email = app.buttons["happening_choice_event_email"]
+        XCTAssertTrue(email.waitForExistence(timeout: 5))
         XCTAssertEqual(choices.count, 9)
         XCTAssertEqual(worked.value as? String, "On Canvas")
         let visible = NSPredicate { _, _ in
-            app.windows.firstMatch.frame.contains(desk.frame)
+            app.windows.firstMatch.frame.contains(email.frame)
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: nil)], timeout: 4), .completed, "Desk frame: \(desk.frame)")
-        XCTAssertTrue(desk.isHittable)
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: nil)], timeout: 4), .completed, "Email frame: \(email.frame)")
+        XCTAssertTrue(email.isHittable)
         attachScreenshot(named: "event-tree-first-branch")
 
-        desk.tap()
-        XCTAssertTrue(app.buttons["happening_choice_event_tasks"].waitForExistence(timeout: 5))
+        email.tap()
+        XCTAssertTrue(app.buttons["happening_choice_event_made"].waitForExistence(timeout: 5))
         XCTAssertGreaterThan(choices.count, 9)
         attachScreenshot(named: "event-tree-second-branch")
-        desk.tap()
-        XCTAssertEqual(desk.value as? String, "Previewing removal from Canvas")
-        desk.tap()
-        XCTAssertEqual(desk.value as? String, "Available")
+        email.tap()
+        XCTAssertEqual(email.value as? String, "Previewing removal from Canvas")
+        email.tap()
+        XCTAssertEqual(email.value as? String, "Available")
         let expandedCount = choices.count
         app.buttons["Close"].tap()
         XCTAssertTrue(app.scrollViews["happening_field_scroll"].waitForNonExistence(timeout: 3))
@@ -1118,7 +1118,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertTrue(worked.waitForExistence(timeout: 5))
         XCTAssertEqual(choices.count, expandedCount)
         XCTAssertEqual(worked.value as? String, "On Canvas")
-        XCTAssertEqual(desk.value as? String, "Available")
+        XCTAssertEqual(email.value as? String, "Available")
         attachScreenshot(named: "event-tree-reopened")
     }
 

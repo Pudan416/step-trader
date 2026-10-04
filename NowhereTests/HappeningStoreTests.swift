@@ -378,3 +378,96 @@ final class FrequentHappeningSelectionTests: XCTestCase {
         XCTAssertEqual(ids.count, 10)
     }
 }
+
+final class PersonalHappeningRecommendationsTests: XCTestCase {
+    private let now = ISO8601DateFormatter().date(from: "2026-10-04T12:00:00Z")!
+
+    func testEmptyHistoryKeepsExactlySixDefaultEvents() {
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: HappeningDefaults.builtIns, at: now), [])
+        let state = HappeningEventTreeState()
+        XCTAssertEqual(state.nodes.map(\.id), HappeningEventTree.startingEvents.map(\.id))
+        XCTAssertEqual(state.atlasNodes, HappeningEventTreeState.allNodes)
+    }
+
+    func testFrequencyRecencyAndUnflatteringEventsAffectRecommendations() {
+        let catalog = [
+            Happening(id: "event_rage", title: "Raged", isBuiltIn: true, useCount: 4, lastUsedAt: now),
+            Happening(id: "event_doomscroll", title: "Doomscrolled", isBuiltIn: true, useCount: 100, lastUsedAt: now.addingTimeInterval(-90 * 86_400)),
+            Happening(id: "event_coffee", title: "Had coffee", isBuiltIn: true, useCount: 1, lastUsedAt: now),
+            Happening(id: "event_root_worked", title: "Worked", isBuiltIn: true, useCount: 200, lastUsedAt: now),
+            Happening(id: "user_saved", title: "Saved", isBuiltIn: false, useCount: 200, lastUsedAt: now)
+        ]
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: catalog, at: now), ["event_rage", "event_doomscroll"])
+    }
+
+    func testRestoredDayHistoryLearnsCanonicalEventsWithoutUsageMetadata() {
+        let history = ["2026-10-01": ["happening_danced"], "2026-10-02": ["health_workout_14"]]
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: HappeningDefaults.builtIns, historyByDay: history, at: now), ["event_danced"])
+    }
+
+    func testRepeatedAddsAndAliasesCountOnlyOncePerDay() {
+        let history = ["2026-10-02": ["event_danced", "happening_danced", "health_workout_14"]]
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: HappeningDefaults.builtIns, historyByDay: history,
+            todayIDs: ["event_danced"], dayKey: "2026-10-02", at: now), [])
+    }
+
+    func testPersonalPromotionsPreserveRootsIntersectionsAndCompleteCatalog() {
+        let state = HappeningEventTreeState(recommendedHappeningIDs: ["event_rage", "event_danced", "event_swam"])
+        XCTAssertEqual(Array(state.atlasNodes.prefix(6)), Array(HappeningEventTreeState.allNodes.prefix(6)))
+        for id in ["break", "nap", "cooked", "cafe", "peoplecall", "workcall"] {
+            XCTAssertEqual(state.atlasNodes.first { $0.id == id }?.cell, HappeningEventTreeState.allNodes.first { $0.id == id }?.cell)
+        }
+        XCTAssertEqual(state.atlasNodes.count, 100)
+        XCTAssertEqual(Set(state.atlasNodes.map(\.id)).count, 100)
+        XCTAssertEqual(Set(state.atlasNodes.map(\.cell)).count, 100)
+        XCTAssertFalse(state.atlasNodes.contains { $0.cell == .origin })
+        for id in ["rage", "danced", "swam"] { XCTAssertEqual(state.nodes.first { $0.id == id }?.cell.ring, 2) }
+    }
+
+    func testPromotedHealthHappeningIsVisibleAndRemainsInItsOwnSector() {
+        var state = HappeningEventTreeState(recommendedHappeningIDs: ["health_workout_46"])
+        state.revealHappenings(["event_swam", "health_workout_46"])
+        XCTAssertEqual(state.nodes.filter { $0.id == "swam" }.count, 1)
+        XCTAssertEqual(state.nodes.first { $0.id == "swam" }?.parentID, "walk")
+        state.expand("walk")
+        XCTAssertEqual(HappeningEventTreeState(expandedIDs: state.expandedIDs, recommendedHappeningIDs: ["health_workout_46"]), state)
+    }
+
+    func testEveryPromotionStaysBesideItsEditorialRoot() {
+        let anchored = Set(HappeningEventTree.startingEvents.map(\.id)
+            + ["break", "nap", "cooked", "cafe", "peoplecall", "workcall"])
+        for event in HappeningEventTree.all where !anchored.contains(event.id) {
+            let expectedRoot = HappeningEventTree.routes.first { $0.contains(event.id) }?.first
+            let state = HappeningEventTreeState(recommendedHappeningIDs: ["event_" + event.id])
+            XCTAssertEqual(state.nodes.first { $0.id == event.id }?.parentID, expectedRoot, event.id)
+            XCTAssertEqual(state.nodes.first { $0.id == event.id }?.cell.ring, 2, event.id)
+        }
+    }
+
+    func testMapAndParentsRemainStableAndEveryChoiceRemainsReachable() {
+        var state = HappeningEventTreeState(recommendedHappeningIDs: ["event_rage", "event_danced", "event_swam"])
+        let atlas = state.atlasNodes
+        let byID = Dictionary(uniqueKeysWithValues: atlas.map { ($0.id, $0) })
+        for item in atlas {
+            if let parentID = item.parentID, let parent = byID[parentID] {
+                XCTAssertLessThan(parent.cell.ring, item.cell.ring)
+                XCTAssertTrue(parent.cell.neighbors.contains(item.cell))
+            }
+        }
+        var index = 0
+        while index < state.nodes.count {
+            XCTAssertLessThanOrEqual(state.expand(state.nodes[index].id), 3)
+            index += 1
+        }
+        XCTAssertEqual(Set(state.nodes.map(\.id)), Set(atlas.map(\.id)))
+        XCTAssertEqual(state.atlasNodes, atlas)
+        XCTAssertEqual(HappeningEventTreeState(expandedIDs: state.expandedIDs,
+            recommendedHappeningIDs: ["event_rage", "event_danced", "event_swam"]), state)
+    }
+
+    func testModesUsePersonalAndAllWhileRetainingPersistedRawValue() {
+        XCTAssertEqual(HappeningPaletteMode.frequent.title, "Personal")
+        XCTAssertEqual(HappeningPaletteMode.all.title, "All")
+        XCTAssertEqual(HappeningPaletteMode.frequent.rawValue, "frequent")
+    }
+}

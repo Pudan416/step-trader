@@ -222,7 +222,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         captureSuggestion(app, name: "activity-suggestion-queue")
 
         app.buttons["canvas_activity_suggestion_dismiss"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Screen Detoxing")).firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Swimming")).firstMatch.waitForExistence(timeout: 3))
         app.buttons["canvas_activity_suggestion_add"].tap()
         XCTAssertTrue(app.buttons["canvas_activity_suggestion_add"].waitForNonExistence(timeout: 3))
     }
@@ -235,7 +235,7 @@ final class CanvasSimplificationUITests: XCTestCase {
         let dismiss = app.buttons["canvas_activity_suggestion_dismiss"]
         XCTAssertTrue(dismiss.waitForExistence(timeout: 5))
         dismiss.tap()
-        let copy = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Screen Detoxing")).firstMatch
+        let copy = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Swimming")).firstMatch
         XCTAssertTrue(copy.waitForExistence(timeout: 3))
         let accept = app.buttons["canvas_activity_suggestion_add"]
         let tabBar = app.descendants(matching: .any)["canvas_tab_bar"]
@@ -400,6 +400,33 @@ final class CanvasSimplificationUITests: XCTestCase {
         openDataDrawer(in: app)
 
         XCTAssertEqual(suggestion.frame.midY, frameBefore.midY, accuracy: 1)
+    }
+
+    func testAcceptedHealthSuggestionUsesTheSameChoiceInPersonalAndAll() {
+        let app = launchCanvas(additionalArguments: ["ui-testing-suggestion-single"])
+        let accept = app.buttons["canvas_activity_suggestion_add"]
+        XCTAssertTrue(accept.waitForExistence(timeout: 5))
+        accept.tap()
+        XCTAssertTrue(accept.waitForNonExistence(timeout: 3))
+        app.buttons["canvas_add_button"].tap()
+
+        let personal = app.buttons["happening_mode_frequent"]
+        let all = app.buttons["happening_mode_all"]
+        XCTAssertTrue(personal.waitForExistence(timeout: 5))
+        personal.tap()
+        let swam = app.buttons["happening_choice_event_swam"]
+        XCTAssertTrue(swam.waitForExistence(timeout: 5))
+        XCTAssertEqual(personal.label, "Personal")
+        XCTAssertEqual(swam.label, "Swam")
+        XCTAssertEqual(swam.value as? String, "On Canvas")
+
+        all.tap()
+        XCTAssertEqual(swam.value as? String, "On Canvas")
+        XCTAssertTrue(app.descendants(matching: .any)["happening_palette_count_hub"].exists)
+        personal.tap()
+        XCTAssertEqual(swam.value as? String, "On Canvas")
+        XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].exists)
+        XCTAssertTrue(app.buttons["happening_choice_event_root_chilled"].exists)
     }
 
     func testFullScreenHidesChromeAndDoesNotStartEditing() {

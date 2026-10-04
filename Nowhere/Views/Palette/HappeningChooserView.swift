@@ -132,7 +132,7 @@ struct HappeningChooserView: View {
         .tint(ink)
         .preferredColorScheme(.light)
         .interactiveDismissDisabled(draft.hasChanges)
-        .alert(protectedHealth ? String(localized: "Health happenings stay in Frequent") : String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
+        .alert(protectedHealth ? "Health happenings stay in Personal" : String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(protectedHealth ? String(localized: "Health activities are always close at hand. You can replace another happening.") : String(localized: "Remove this happening from Canvas before replacing it."))

@@ -526,12 +526,7 @@ struct GalleryView: View {
             eventTreeDayKey = dayCanvas.dayKey
             eventTreeExpandedIDs = ""
         }
-        eventTree = HappeningEventTreeState(expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init))
-        for id in paletteAddedIDs.sorted() {
-            if let eventID = HappeningEventTree.eventID(forHappeningID: id) {
-                eventTree.reveal(eventID)
-            }
-        }
+        rebuildPersonalEventField()
         refreshEventTreePalette()
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -541,6 +536,8 @@ struct GalleryView: View {
     }
 
     private func refreshEventTreePalette() {
+        // Synchronize every addition path, not just a tap within this field.
+        eventTree.revealHappenings(personalHealthRecommendationIDs + paletteAddedIDs.sorted())
         let catalog = Dictionary(uniqueKeysWithValues: model.selectableHappenings.map { ($0.id, $0) })
         let happenings = HappeningEventTree.all.compactMap { catalog["event_" + $0.id] }
         paletteCatalog = happenings
@@ -553,6 +550,25 @@ struct GalleryView: View {
             colorNonce: model.paletteColorNonce()
         )
         paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+    }
+
+    private func rebuildPersonalEventField() {
+        let familiar = PersonalHappeningRecommendations.ranked(
+            catalog: model.selectableHappenings,
+            historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
+            todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now
+        )
+        eventTree = HappeningEventTreeState(
+            expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
+            recommendedHappeningIDs: personalHealthRecommendationIDs + familiar + paletteAddedIDs.sorted()
+        )
+    }
+
+    private var personalHealthRecommendationIDs: [String] {
+        let pending = model.pendingActivitySuggestions.filter { $0.source.isWorkout }.map {
+            HappeningDefaults.canonicalID($0.optionId)
+        }
+        return pending + paletteAddedIDs.intersection(paletteHealthIDs).sorted()
     }
 
     private func consumePaletteOpenRequestIfReady() {
@@ -630,8 +646,11 @@ struct GalleryView: View {
     }
 
     private var paletteHealthIDs: Set<String> {
-        Set(FrequentHappeningSelection.healthCoreIDs.map(HappeningDefaults.canonicalID))
-            .intersection(Set(paletteCatalog.map(\.id)))
+        Set(model.pendingWorkoutSuggestions.compactMap(\.suggestedOptionId)
+            + model.pendingActivitySuggestions.filter { $0.source.isWorkout }.map {
+                HappeningDefaults.canonicalID($0.optionId)
+            })
+            .intersection(HappeningDefaults.builtInIds)
     }
 
     private var paletteAddedIDs: Set<String> {
@@ -684,7 +703,7 @@ struct GalleryView: View {
         }
         if showEventExplorer {
             let tree = eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
-            let placed = Dictionary(uniqueKeysWithValues: zip(HappeningEventTreeState.allNodes, tree.sources).map { ($0.0.id, $0.1) })
+            let placed = Dictionary(uniqueKeysWithValues: zip(eventTree.atlasNodes, tree.sources).map { ($0.0.id, $0.1) })
             let visible = Set(eventTree.nodes.map(\.id))
             let sources = HappeningEventTree.all.enumerated().map { index, event in
                 let source = placed[event.id]
@@ -716,7 +735,7 @@ struct GalleryView: View {
 
     private func eventTreeField(in viewport: GeometryProxy, contentTopInset: CGFloat? = nil) -> HappeningEventTreeLayout.Field {
         HappeningEventTreeLayout.layout(
-            nodes: HappeningEventTreeState.allNodes, in: viewport.size, safeInsets: canvasSafeInsets,
+            nodes: eventTree.atlasNodes, in: viewport.size, safeInsets: canvasSafeInsets,
             contentTopInset: contentTopInset ?? canvasSafeInsets.top
                 + HappeningPaletteChromeLayout.panelTopInset(topCardHeight: topCardHeight, hidesSurroundingChrome: true) + 10,
             dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
@@ -1300,6 +1319,9 @@ struct GalleryView: View {
             }
             syncCanvasMusicInput()
         }
+        .onChange(of: model.pendingActivitySuggestions.map(\.optionId)) {
+            if showEventExplorer { refreshEventTreePalette() }
+        }
         .onChange(of: preferredCanvasVisualStyleRaw) { _, rawValue in
             applyPreferredCanvasVisualStyle(rawValue)
         }
@@ -1313,7 +1335,7 @@ struct GalleryView: View {
             if showEventExplorer {
                 eventTreeDayKey = dayCanvas.dayKey
                 eventTreeExpandedIDs = ""
-                eventTree = HappeningEventTreeState()
+                rebuildPersonalEventField()
                 refreshEventTreePalette()
             }
             remixHistory = CanvasRemixHistory()

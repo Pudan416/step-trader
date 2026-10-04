@@ -8,7 +8,7 @@ and primary scheme are named Nowhere. Energy and steps remain domain concepts.
 | Startup, dependency wiring, app lifecycle | `Nowhere/NowhereApp.swift`, `DIContainer.swift`, `AppModel.swift` | `AuthSessionRestoreTests`, `AuthSignInLoadingStateTests` |
 | Tabs and navigation | `Views/MainTabView.swift`, `Views/GalleryView.swift`, `Views/MeView.swift`, `Views/AppsPageSimplified.swift` | `MainTabSelectionTests`, `CanvasPresentationStateTests` |
 | Onboarding and tours | `Views/Onboarding/`, `Views/CoachMark/` | `CanvasOnboardingStateTests` |
-| Happenings, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/HappeningDefaults.swift`, `Models/HappeningEventTree.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
+| Happenings, Personal recommendations, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/ActivitySuggestion.swift`, `Models/HappeningDefaults.swift`, `Models/HappeningEventTree.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `PersonalHappeningRecommendationsTests`, `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
 | Palette selection and adding/removing objects | `Views/Palette/`, `Models/CanvasElement.swift`, `Models/DayCanvas.swift` | `HappeningPaletteSelectionTests`, `CanvasPersistenceRegressionTests` |
 | Canvas rendering, gestures, saved artwork | `Views/GalleryView.swift`, `Views/Gallery/`, `Experiments/DayObjects/`, `Experiments/ShapeGenome/`, `Metal/` | `DayCanvasArtworkRoutingTests`, `MetalShapeCompatibilityTests`, `CanvasRemixTests` |
 | Music | `Experiments/DayObjects/Sound/` — Director, Domain, Engine, Playback, Lab, Diagnostics | `DeterministicMusicDirectorTests`, `DayObjectsMusicPlaybackEngineTests`, `DayObjectsAudioResourceTests` |
@@ -29,6 +29,14 @@ Test names live in `NowhereTests/` unless stated otherwise.
   `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
   `all` also contains historical/imported records and must not feed new-choice UI.
   Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
+- `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
+  it does not mutate the catalog. `GalleryView` combines familiar, Health and added
+  IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared
+  Personal/All map for that opening, with six roots and shared intersections fixed.
+  Later additions reveal their canonical paths without moving the open map.
+- `DetectedWorkout.suggestedOptionId` and `ActivitySuggestion.isSatisfied` own
+  Health-to-catalog identity and equivalence. Views log the resolved catalog ID;
+  a generic workout must not satisfy a specific run or swim.
 - The app and extensions are separate processes. Preserve App Group identifiers, persisted
   keys, atomic read/modify/write operations and the existing lock ordering. An actor in one
   process does not synchronize another process.

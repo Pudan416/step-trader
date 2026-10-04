@@ -145,8 +145,8 @@ enum HappeningPaletteMode: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .frequent: String(localized: "Frequent", comment: "Happening chooser: automatic frequent set")
-        case .all: String(localized: "All", comment: "Happening chooser: full catalog")
+        case .frequent: "Personal"
+        case .all: "All"
         }
     }
 }

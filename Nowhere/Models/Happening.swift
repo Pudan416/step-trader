@@ -3,8 +3,8 @@ import Foundation
 /// A single loggable thing. Replaces `EnergyOption`, `CustomEnergyOption` and
 /// `EphemeralMoment` — the three near-identical types the category model needed.
 ///
-/// `useCount` and `lastUsedAt` are stored rather than derived: the palette reads
-/// them every time it opens and must not scan history to do it.
+/// `useCount` and `lastUsedAt` retain local usage metadata. Personal also uses
+/// restored day snapshots when an older account has no local counters.
 struct Happening: Identifiable, Codable, Equatable {
     static let titleCharacterLimit = 20
 

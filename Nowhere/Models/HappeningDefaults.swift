@@ -83,7 +83,7 @@ enum HappeningDefaults {
             .contains(where: id.hasPrefix)
     }
 
-    /// One catalog backs Tree, All, the old chooser and external suggestions.
+    /// One catalog backs Personal, All, the old chooser and external suggestions.
     static let builtIns: [Happening] = HappeningEventTree.all.map {
         Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: true)
     }

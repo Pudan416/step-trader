@@ -15,7 +15,13 @@ struct DetectedWorkout: Identifiable, Equatable {
     var activityName: String { Self.displayName(for: activityType) }
 
     private static func mapToOptionId(activityType: UInt) -> String? {
-        HappeningDefaults.canonicalID("health_workout_\(activityType)")
+        // NS_ENUM accepts unknown raw values too. Restrict new suggestions to
+        // documented HealthKit workout kinds; historical IDs still resolve separately.
+        guard (1...80).contains(activityType)
+                || (82...84).contains(activityType)
+                || activityType == HKWorkoutActivityType.other.rawValue else { return nil }
+        let id = HappeningDefaults.canonicalID("health_workout_\(activityType)")
+        return HappeningDefaults.selectableHappening(id: id)?.id
     }
 
     static func displayName(for activityType: UInt) -> String {

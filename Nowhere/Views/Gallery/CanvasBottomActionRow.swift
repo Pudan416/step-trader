@@ -88,7 +88,7 @@ struct CanvasBottomActionRow: View {
         HStack(spacing: 0) {
             ForEach(HappeningPaletteMode.allCases, id: \.self) { mode in
                 Button { onSelectHappeningMode(mode) } label: {
-                    Text(usesEventTree ? (mode == .frequent ? "Tree" : "All") : mode.title)
+                    Text(mode.title)
                         .font(.custom("Onest-SemiBold", size: 14, relativeTo: .subheadline))
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .lineLimit(1)

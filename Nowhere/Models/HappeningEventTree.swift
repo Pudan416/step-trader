@@ -124,32 +124,48 @@ struct HappeningEventTreeState: Equatable {
     private(set) var nodes: [PlacedEvent]
     private(set) var expandedIDs: [String] = []
 
-    // A single editorial map is used by Tree and All. The six intersections
-    // belong to both neighboring roots; placement never depends on click order.
+    // The default atlas retains the six roots and their shared intersections.
+    // Personal can promote a recommendation within its own sector; its atlas
+    // is then shared with All and stays frozen for the open field.
     private static let outwardIDs = ["email", "music", "cleaned", "meal_lunch", "run", "family"]
     private static let intersectionIDs = ["break", "nap", "cooked", "cafe", "peoplecall", "workcall"]
     static let allNodes: [PlacedEvent] = makeAtlas()
-    private static let byID = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0) })
+    private static let defaultByID = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0) })
+    let atlasNodes: [PlacedEvent]
+    private var byID: [String: PlacedEvent] {
+        Dictionary(uniqueKeysWithValues: atlasNodes.map { ($0.id, $0) })
+    }
 
-    init(expandedIDs: [String] = []) {
-        nodes = Array(Self.allNodes.prefix(6))
+    init(expandedIDs: [String] = [], recommendedHappeningIDs: [String] = []) {
+        atlasNodes = Self.personalAtlas(recommendedHappeningIDs)
+        nodes = Array(atlasNodes.prefix(6))
+        // Replay the same starting field before its taps, including pre-revealed
+        // recommendations, so reopening preserves node order and parent links.
+        revealHappenings(recommendedHappeningIDs)
         for id in expandedIDs { expand(id) }
     }
 
-    /// Keep directly added All events visible when returning to Tree, including
+    /// Every addition path, including Health and restore, reveals the same ID.
+    mutating func revealHappenings(_ ids: [String]) {
+        for id in ids {
+            if let eventID = HappeningEventTree.eventID(forHappeningID: id) { reveal(eventID) }
+        }
+    }
+
+    /// Keep directly added All events visible when returning to Personal, including
     /// the path from the hub. This does not log or remove any additional event.
     mutating func reveal(_ id: String) {
-        guard !nodes.contains(where: { $0.id == id }), let placed = Self.byID[id] else { return }
+        guard !nodes.contains(where: { $0.id == id }), let placed = byID[id] else { return }
         if let parentID = placed.parentID { reveal(parentID) }
         nodes.append(placed)
     }
 
     @discardableResult
     mutating func expand(_ id: String) -> Int {
-        guard !expandedIDs.contains(id), let parent = Self.byID[id] else { return 0 }
+        guard !expandedIDs.contains(id), let parent = byID[id] else { return 0 }
         reveal(id)
         let visible = Set(nodes.map(\.id))
-        let children = Self.children(of: parent).filter { !visible.contains($0.id) }.map {
+        let children = children(of: parent).filter { !visible.contains($0.id) }.map {
             PlacedEvent(event: $0.event, cell: $0.cell, parentID: id)
         }
         expandedIDs.append(id)
@@ -157,18 +173,47 @@ struct HappeningEventTreeState: Equatable {
         return children.count
     }
 
-    private static func children(of parent: PlacedEvent) -> [PlacedEvent] {
+    private func children(of parent: PlacedEvent) -> [PlacedEvent] {
         if let index = HappeningEventTree.startingEvents.firstIndex(where: { $0.id == parent.id }) {
-            let ids = [outwardIDs[index], intersectionIDs[(index + 5) % 6], intersectionIDs[index]]
+            let direction = Cell.directions[index]
+            let outwardCell = Cell(q: direction.q * 2, r: direction.r * 2)
+            let outwardID = atlasNodes.first { $0.cell == outwardCell }?.id
+            let ids = [outwardID, Self.intersectionIDs[(index + 5) % 6], Self.intersectionIDs[index]].compactMap { $0 }
             return ids.compactMap { byID[$0] }
         }
         let neighbors = Set(parent.cell.neighbors)
-        return Array(allNodes.filter { neighbors.contains($0.cell) && $0.cell.ring > parent.cell.ring }
+        return Array(atlasNodes.filter { neighbors.contains($0.cell) && $0.cell.ring > parent.cell.ring }
             .sorted {
                 if $0.cell.distanceSquared != $1.cell.distanceSquared { return $0.cell.distanceSquared > $1.cell.distanceSquared }
                 if $0.cell.r != $1.cell.r { return $0.cell.r < $1.cell.r }
                 return $0.cell.q < $1.cell.q
             }.prefix(3))
+    }
+
+    private static func personalAtlas(_ happeningIDs: [String]) -> [PlacedEvent] {
+        let roots = HappeningEventTree.startingEvents.map(\.id)
+        let anchored = Set(roots + intersectionIDs)
+        var promotedSectors = Set<String>()
+        var occupants = allNodes.map(\.event)
+        for happeningID in happeningIDs {
+            guard let id = HappeningEventTree.eventID(forHappeningID: happeningID),
+                  !anchored.contains(id),
+                  // A shared intersection can have the neighboring root as its
+                  // primary parent. Use the event's editorial route for its sector.
+                  let rootID = HappeningEventTree.routes.first(where: { $0.contains(id) })?.first,
+                  let sector = roots.firstIndex(of: rootID),
+                  promotedSectors.insert(rootID).inserted,
+                  let from = allNodes.firstIndex(where: { $0.id == id }),
+                  let to = allNodes.firstIndex(where: { $0.id == outwardIDs[sector] }) else { continue }
+            occupants.swapAt(from, to)
+        }
+        let newIDAtCell = Dictionary(uniqueKeysWithValues: zip(allNodes, occupants).map { ($0.0.cell, $0.1.id) })
+        return zip(allNodes, occupants).map { slot, event in
+            // Parents follow the immutable cell graph, avoiding an ID cycle
+            // when an outer event trades places with its former ancestor.
+            let parentID = slot.parentID.flatMap { defaultByID[$0]?.cell }.flatMap { newIDAtCell[$0] }
+            return PlacedEvent(event: event, cell: slot.cell, parentID: parentID)
+        }
     }
 
     private static func makeAtlas() -> [PlacedEvent] {
@@ -239,6 +284,59 @@ struct HappeningEventTreeState: Equatable {
         }
         precondition(usedIDs == Set(events.keys), "Every event needs a fixed map position")
         return placed
+    }
+}
+
+/// Familiar events are recommended without replacing the six starting roots.
+/// Count is one successful-use day; recency decay lets a changed routine emerge.
+enum PersonalHappeningRecommendations {
+    static let maximumCount = 3
+
+    static func ranked(catalog: [Happening], historyByDay: [String: [String]] = [:],
+                       todayIDs: [String] = [], dayKey: String? = nil, at date: Date) -> [String] {
+        let roots = Set(HappeningEventTree.startingEvents.map { "event_" + $0.id })
+        var usedDays: [String: Set<String>] = [:]
+        var lastSeen: [String: Date] = [:]
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        for (day, ids) in historyByDay {
+            guard let seen = formatter.date(from: day), formatter.string(from: seen) == day,
+                  seen <= date else { continue }
+            for id in Set(ids.map(HappeningDefaults.canonicalID)) where HappeningDefaults.builtInIds.contains(id) {
+                usedDays[id, default: []].insert(day)
+                lastSeen[id] = max(lastSeen[id] ?? .distantPast, seen)
+            }
+        }
+        if let dayKey {
+            for id in Set(todayIDs.map(HappeningDefaults.canonicalID)) where HappeningDefaults.builtInIds.contains(id) {
+                usedDays[id, default: []].insert(dayKey)
+                lastSeen[id] = max(lastSeen[id] ?? .distantPast, date)
+            }
+        }
+        let familiar = catalog.map { stored in
+            var value = stored
+            // Catalog tracking and snapshots overlap. Count their maximum,
+            // never their sum, and count repeat additions only once per day.
+            value.useCount = max(stored.useCount, usedDays[stored.id]?.count ?? 0)
+            value.lastUsedAt = [stored.lastUsedAt, lastSeen[stored.id]].compactMap { $0 }.max()
+            return value
+        }
+        return familiar.filter {
+            HappeningDefaults.builtInIds.contains($0.id) && !roots.contains($0.id)
+                && $0.useCount >= 2 && $0.lastUsedAt != nil
+        }.sorted { left, right in
+            func score(_ happening: Happening) -> Double {
+                let days = max(0, date.timeIntervalSince(happening.lastUsedAt!) / 86_400)
+                return log1p(Double(happening.useCount)) * pow(0.5, days / 21)
+            }
+            let a = score(left), b = score(right)
+            if a != b { return a > b }
+            if left.lastUsedAt != right.lastUsedAt { return left.lastUsedAt! > right.lastUsedAt! }
+            return left.id < right.id
+        }.prefix(maximumCount).map(\.id)
     }
 }
 
