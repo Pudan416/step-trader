@@ -20,11 +20,12 @@ The daily canvas remains driven by events, capped at ten. Removing or adding an 
 
 New days use `atlas-2`, with an optional frozen `dailyStyle` payload. A shuffled
 six-day calendar cycle chooses circles, blobs, squares, clovers, flowers or rays,
-without adjacent repeats. Squares choose one contour for the day; flowers share
-their petal count. Rays use the existing directed diffuse-beam branch: stable
+without adjacent repeats. Squares choose one contour for the day; flowers choose
+Windflower or Snowflake and share their petal/fold count. Rays use the existing directed diffuse-beam branch: stable
 `legacy.rounded-triangle` geometry (source kind 1, shape 5, variant 5) plus
 `directionalBlur`. The triangle body is replaced by the tapered light cone in
-that material; other daily families do not select this fill. Triangle and hexagon outlines remain decodable but are excluded from new
+that material. Circles and legacy soft squares also select their compatible
+directional blur. Triangle and hexagon outlines remain decodable but are excluded from new
 daily families; the beam uses its triangle only as the compatible shader carrier.
 The daily family template is frozen once; actors inherit the family and occupy
 independent stable slots. Explicit palette changes coordinate current and future
@@ -38,10 +39,23 @@ farthest-point ordering gives sparse days distinct leading pigments. Noir uses
 only its monochrome anchors. The pool is generated at creation, first current-day
 upgrade or an explicit background palette change, never during ordinary rendering.
 
-Saved slots choose one-tone, one-tone, `radialTwo`, then contour roles. A preset
-that does not allow solid uses equal-color side light for the one-tone role.
-Two-color shading uses one pigment with a lightness difference of 0.08 and no
-third contrasting color. Color variants tint the slot's leading pigment by
+New/current artwork opts into `materialPolicyVersion = 1` and freezes
+`materialOrder`: all catalog-compatible fills except `proceduralLight` and
+`proceduralFlow`, shuffled from a separate recipe seed stream. Rays retain only
+their directed blur. Supported blur moves to slot 1; ten saved slots cover all
+remaining compatible fills, with no random starvation. Ordinary additions,
+removals and palette edits retain this order. Snowflake preserves its packed
+harmonic count and normalized contour rather than using Windflower's parameters.
+Side-light, radial, procedural contour and sunset stops use nearby frozen
+pigments, with lightness offsets of +0.055 and -0.035 for soft transitions.
+Flagged procedural contours and sunsets bypass the old renderer fallback.
+The marker is `0x40000000` in material `metadata.y`, only on those two materials;
+directional blur mode bits and the 128-byte uniform layout stay unchanged.
+Flagged sunset shades with the frozen colors instead of hardcoded red/yellow.
+Unflagged historical payloads retain their old fallback and shader behavior.
+
+Styles without this policy keep one-tone, one-tone, `radialTwo`, then contour
+roles and their previous two-color pigments. Color variants tint the slot's leading pigment by
 10–18% toward another frozen member; default picker identity hashes therefore
 do not replace the assigned leading hue. Non-beam sizes range from 0.15 to 0.41.
 Beams use `directionalBlur` mode 0 or gentle two-color mode 2, sizes multiplied

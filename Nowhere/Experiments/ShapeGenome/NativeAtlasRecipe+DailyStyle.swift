@@ -16,15 +16,15 @@ extension NativeAtlasRecipe {
         case .blobs: presetID = "genome.soft-drift"
         case .squares: presetID = rng.nextInt(in: 0...1) == 0 ? "legacy.soft-square" : "genome.concave-square"
         case .clovers: presetID = "genome.soft-clover"
-        case .flowers: presetID = "genome.windflower"
+        case .flowers: presetID = rng.nextInt(in: 0...1) == 0 ? "genome.windflower" : "genome.snowflake"
         case .rays: presetID = "legacy.rounded-triangle"
         }
         // Stable IDs, never global catalog order, define the v2 family mapping.
         guard let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == presetID }) else { return recipe }
         // The existing triangle/blur pairing renders a soft directed cone;
-        // other families keep their shared compatible gradient/outline choice.
+        // other families use the complete compatible reference material set.
         let candidates: [MetalShapeMaterial] = family == .rays ? [.directionalBlur]
-            : [.sideLight, .radialTwo, .proceduralLight, .contour, .eclipseGlow]
+            : NativeAtlasDailyStyle.referenceMaterials(for: preset)
         let allowed = candidates.filter { preset.compatibility.allowed.contains($0) }
         let materialID = allowed[rng.nextInt(in: 0...(allowed.count - 1))]
         let frame = MetalShapeGenomeFrame.make(preset: preset, material: materialID, seed: seed)
@@ -33,6 +33,7 @@ extension NativeAtlasRecipe {
             style.freezeApprovedAppearance(background: background, categories: paletteCategories, seed: seed)
         }
         style.silhouettePolicyVersion = 1
+        style.freezeReferenceMaterials(seed: seed)
         style.material = style.recolored(frame.material, seed: seed)
         recipe = Self(schemaVersion: 1, generatorVersion: "atlas-2", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
         return recipe

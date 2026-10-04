@@ -140,10 +140,17 @@ are excluded from new generation, while historical artwork retains its saved
 appearance. Today's unlocked Editorial canvas adopts the common family even
 if it was started before this policy, retaining its added events and saved
 placements and manual rotations. Figures vary their contours and orientations
-within that family: flowers keep one petal count and squares keep one daily mode.
+within that family: flowers keep one petal/fold count and squares keep one daily mode.
+Flowers can use either Windflower or Snowflake; squares can use the soft or concave contour.
 Today's unlocked Canvas upgrades its generated contours and initial angles once;
-manual poses and historical artwork remain saved. The selected A appearance mixes one-tone fills,
-outlines and soft two-color shading, with approximately a 2.7-fold diameter
+manual poses and historical artwork remain saved. New/current artwork uses all
+compatible reference fills except Procedural Light and Procedural Flow: solid,
+side light, outline, directional blur, soft two/three-color radial shading,
+procedural contour, glow and circle-only sunset. Supported blur occupies the
+second stable slot, making blurred circles and soft squares available on sparse
+days. Each day freezes its fill order; every compatible fill is represented by
+ten events. Sunset and gradient stops use nearby pigments from the day's color
+group. Figures retain approximately a 2.7-fold diameter
 range. Directed beams retain their diffuse silhouette and a larger size floor.
 Independent drift and bounded turns take 12 seconds; breathing takes six.
 Large figures mainly drift, while smaller ones breathe more noticeably. Noir

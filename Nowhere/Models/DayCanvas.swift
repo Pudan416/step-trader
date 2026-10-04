@@ -314,6 +314,7 @@ struct DayCanvas: Codable {
             recipe.dailyStyle?.freezeApprovedAppearance(background: background,
                 categories: paletteCategories, seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
         }
+        recipe.dailyStyle?.freezeReferenceMaterials(seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
         recipe = recipe.coordinated(with: background)
         guard let style = recipe.dailyStyle else { return false }
         let retained = Dictionary((previous?.actors ?? []).map { ($0.eventID, $0) },
@@ -327,10 +328,11 @@ struct DayCanvas: Codable {
                   let actor = recipe.dailyActor(eventID: eventID, slot: old.slot) else { return nil }
             // Recovery can import atlas-1 actors into an atlas-2 draft. Repair
             // those visuals too, retaining event identity and saved placement.
-            let hasDailyVisuals = previous?.dailyStyle != nil
-                && old.presetID == style.presetID && old.materialID == actor.materialID
+            let hasDailyShape = previous?.dailyStyle != nil && old.presetID == style.presetID
+            let hasDailyVisuals = hasDailyShape && old.materialID == actor.materialID
             let keepsFrozenVisuals = hasDailyVisuals && hadApprovedAppearance
-            let keepsFrozenGeometry = hasDailyVisuals
+            let keepsFrozenSize = hasDailyShape && hadApprovedAppearance
+            let keepsFrozenGeometry = hasDailyShape
                 && previous?.dailyStyle?.usesIndividualSilhouettes == true
             let actorSeedHex = keepsFrozenVisuals ? old.seedHex : actor.seedHex
             // Only replace an old automatically generated angle. A moved actor
@@ -347,7 +349,7 @@ struct DayCanvas: Codable {
                 geometry: keepsFrozenGeometry ? old.geometry : actor.geometry,
                 material: style.recolored(keepsFrozenVisuals ? old.material : actor.material,
                     seed: UInt64(actorSeedHex, radix: 16) ?? 0, slot: old.slot),
-                position: old.position, size: keepsFrozenVisuals ? old.size : actor.size,
+                position: old.position, size: keepsFrozenSize ? old.size : actor.size,
                 rotation: upgradesRotation ? actor.rotation : old.rotation, slot: old.slot
             )
         }

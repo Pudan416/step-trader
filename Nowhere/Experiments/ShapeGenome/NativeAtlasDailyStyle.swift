@@ -26,9 +26,37 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// Missing in archives: their shared contour and narrow rotation stay exact.
     var silhouettePolicyVersion: Int? = nil
     var usesIndividualSilhouettes: Bool { silhouettePolicyVersion == 1 }
+    /// Only new/current editable artwork adopts the complete reference fills.
+    var materialPolicyVersion: Int? = nil
+    var materialOrder: [MetalShapeMaterial]? = nil
+    var usesReferenceMaterials: Bool { materialPolicyVersion == 1 }
     var neighboringPigments: [SIMD3<Float>]? = nil
     var neighboringPaletteCategories: [ModernPaletteCategory]? = nil
     var usesApprovedAppearance: Bool { appearancePolicyVersion == 1 }
+
+    static func referenceMaterials(for preset: MetalShapePreset) -> [MetalShapeMaterial] {
+        MetalShapeMaterial.allCases.filter {
+            $0 != .proceduralLight && $0 != .proceduralFlow
+                && preset.compatibility.allowed.contains($0)
+        }
+    }
+
+    mutating func freezeReferenceMaterials(seed: UInt64) {
+        guard !usesReferenceMaterials,
+              let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == presetID }) else { return }
+        var materials = family == .rays ? [.directionalBlur] : Self.referenceMaterials(for: preset)
+        var rng = SeededRNG(seed: seed ^ 0x5245_4646_494C_4C53)
+        if materials.count > 1 {
+            for index in stride(from: materials.count - 1, through: 1, by: -1) {
+                materials.swapAt(index, rng.nextInt(in: 0...index))
+            }
+            // Supported blur appears even on a sparse two-event day, rather
+            // than being hidden behind eight later slots or another Remix.
+            if let blur = materials.firstIndex(of: .directionalBlur) { materials.swapAt(1, blur) }
+        }
+        materialOrder = materials
+        materialPolicyVersion = 1
+    }
 
     /// Freeze numerical pigments only at creation, current-day upgrade or edit.
     mutating func freezeApprovedAppearance(background: DayObjectMeshGradientStyle,
@@ -155,6 +183,15 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             anisotropy.x = 1 + stretch
             anisotropy.y = 1 - stretch
         case .flowers:
+            if shape.sourceKind == 2 {
+                // Snowflake packs harmonic count/amplitudes in these fields,
+                // unlike Windflower's valley/tip parameters. Keep its frozen
+                // folds and normalized contour; vary the ellipse proportions.
+                let stretch = profile * 0.06
+                anisotropy.x = 1 + stretch
+                anisotropy.y = 1 - stretch
+                break
+            }
             formula.y = min(max(shape.superformula.y + profile * 0.04, 0.30), 0.45)
             formula.z = min(max(shape.superformula.z + random(-0.08, 0.08), 0.16), 0.38)
             formula.w = min(max(shape.superformula.w + random(-0.08, 0.08), 0.50), 0.78)
@@ -190,6 +227,9 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
     func actorMaterialID(slot: Int) -> MetalShapeMaterial {
         guard usesApprovedAppearance else { return materialID }
+        if usesReferenceMaterials, let materials = materialOrder, !materials.isEmpty {
+            return materials[max(0, slot) % materials.count]
+        }
         if family == .rays { return .directionalBlur }
         let requested: MetalShapeMaterial = [.solid, .solid, .radialTwo, .contour][max(0, slot) % 4]
         let preset = MetalShapeGenomeCatalog.presets.first { $0.id == presetID }
@@ -356,13 +396,32 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         let mean = palette.reduce(Float(0)) { $0 + DayObjectRGB(linearRGB: $1).perceptualOKLab.x } / Float(max(1, palette.count))
         var rng = SeededRNG(seed: seed ^ 0x5049_474D_454E_5453)
         let variation = Float(rng.nextDouble(in: -0.012...0.012))
-        let isTwo = source.materialIndex == 4 || (source.materialIndex == 3 && source.metadata.y == 2)
-        let contour = source.materialIndex == 2
-        let lightness: Float = isTwo ? (mean > 0.78 ? 0.66 : 0.78)
-            : contour ? (mean > 0.55 ? 0.49 : 0.76)
+        let referenceGradient = usesReferenceMaterials && [1, 5, 8, 9, 10].contains(source.materialIndex)
+        let isTwo = source.materialIndex == 4 || (source.materialIndex == 3 && source.metadata.y == 2) || referenceGradient
+        let contour = source.materialIndex == 2 || (usesReferenceMaterials && source.materialIndex == 8)
+        let lightness: Float = contour ? (mean > 0.55 ? 0.49 : 0.76)
+            : isTwo ? (mean > 0.78 ? 0.66 : 0.78)
             : family == .rays ? (role == 1 ? 0.70 : 0.79)
             : min(max(pigment.perceptualOKLab.x + (mean > 0.65 ? -0.035 : 0.07), 0.48), 0.84)
         let first = SIMD4(pigment.fittingPerceptualLightness(to: lightness + variation, chromaFraction: 0.92).linearRGB, 1)
+        if usesReferenceMaterials {
+            func relatedColor(offset: Int, lightnessShift: Float) -> SIMD4<Float> {
+                let neighbor = colors[(max(0, slot) + offset) % colors.count]
+                let mixed = pigment.linearRGB + (neighbor - pigment.linearRGB) * 0.16
+                return SIMD4(DayObjectRGB(linearRGB: mixed).fittingPerceptualLightness(
+                    to: min(max(lightness + lightnessShift + variation, 0.42), 0.88),
+                    chromaFraction: 0.78).linearRGB, 1)
+            }
+            let second = isTwo ? relatedColor(offset: 1, lightnessShift: 0.055) : first
+            let third = source.materialIndex == 5 ? relatedColor(offset: 2, lightnessShift: -0.035) : second
+            var metadata = source.metadata
+            if source.materialIndex == 8 || source.materialIndex == 10 {
+                metadata.y |= MetalShapeMaterialUniforms.referenceMaterialFlag
+            }
+            return .init(color0: first, color1: second, color2: third,
+                         params0: source.params0, params1: source.params1, params2: source.params2,
+                         params3: source.params3, metadata: metadata)
+        }
         let second = isTwo ? SIMD4(pigment.fittingPerceptualLightness(to: lightness + 0.08 + variation, chromaFraction: 0.65).linearRGB, 1) : first
         return .init(color0: first, color1: second, color2: second,
                      params0: source.params0, params1: source.params1, params2: source.params2,
