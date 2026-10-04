@@ -18,19 +18,21 @@ All paths below are relative to `Nowhere/`.
 
 The daily canvas remains driven by events, capped at ten. Removing or adding an event must retain the frozen actors belonging to other events. Random-number consumption order is part of `atlas-1`: changing it requires a deliberate version/compatibility decision, not an incidental cleanup.
 
-New days use `atlas-2`, with an optional frozen `dailyStyle` payload. A shuffled
-six-day calendar cycle chooses circles, blobs, squares, clovers, flowers or rays,
-without adjacent repeats. Squares choose one contour for the day; flowers choose
-Windflower or Snowflake and share their petal/fold count. Rays use the existing directed diffuse-beam branch: stable
-`legacy.rounded-triangle` geometry (source kind 1, shape 5, variant 5) plus
-`directionalBlur`. The triangle body is replaced by the tapered light cone in
-that material. Circles and legacy soft squares also select their compatible
-directional blur. Triangle and hexagon outlines remain decodable but are excluded from new
-daily families; the beam uses its triangle only as the compatible shader carrier.
-The daily family template is frozen once; actors inherit the family and occupy
-independent stable slots. Explicit palette changes coordinate current and future
-actors with the background.
-
+New days use `atlas-2`, with an optional frozen `dailyStyle` payload. Its optional
+`collection` selects eight looks in a shuffled eight-day cycle without adjacent
+repeats: circles, blurred circles, blobs, squares, blurred squares, clovers,
+flowers and rays. The saved six-case `Family` remains the geometry/motion identity;
+blurred circles and squares map to their existing families. Selection uses the
+collection count, and explicit Remix excludes only the previous collection.
+Squares choose one contour for the day; flowers choose Windflower or Snowflake
+and share their petal/fold count. Each blur collection freezes only
+`directionalBlur`. Blurred circles use `legacy.circle`; blurred squares use only
+`legacy.soft-square`. Rays use `legacy.rounded-triangle` (source kind 1, shape 5,
+variant 5), whose material replaces the triangle body with a tapered diffuse cone.
+Ordinary collections never include directional blur. Triangle and hexagon
+outlines remain decodable but are excluded from new daily collections.
+The collection template is frozen once; actors occupy independent stable slots.
+Explicit palette changes coordinate current and future actors with the background.
 The selected A policy uses optional `appearancePolicyVersion = 1`, frozen
 `neighboringPigments` and `neighboringPaletteCategories`. Three nearby catalog
 palettes are ranked by their average nearest-anchor OKLab distance. Borrowed
@@ -40,20 +42,23 @@ only its monochrome anchors. The pool is generated at creation, first current-da
 upgrade or an explicit background palette change, never during ordinary rendering.
 
 New/current artwork opts into `materialPolicyVersion = 1` and freezes
-`materialOrder`: all catalog-compatible fills except `proceduralLight` and
-`proceduralFlow`, shuffled from a separate recipe seed stream. Rays retain only
-their directed blur. Supported blur moves to slot 1; ten saved slots cover all
-remaining compatible fills, with no random starvation. Ordinary additions,
-removals and palette edits retain this order. Snowflake preserves its packed
-harmonic count and normalized contour rather than using Windflower's parameters.
-Side-light, radial, procedural contour and sunset stops use nearby frozen
-pigments, with lightness offsets of +0.055 and -0.035 for soft transitions.
-Flagged procedural contours and sunsets bypass the old renderer fallback.
+`materialOrder` from the collection's compatible fills using a separate seed
+stream. Procedural Light, Procedural Flow and Sunset are excluded from fresh
+selection. Ordinary collections additionally exclude blur; the three blur looks
+retain only their own directed blur. Ten saved slots cover each ordinary look's
+eligible fills. Additions, removals and palette edits retain this order.
+Snowflake preserves its packed harmonic count and normalized contour rather than
+using Windflower's parameters. Side-light, radial and procedural contour stops
+use nearby frozen pigments with lightness offsets of +0.055 and -0.035.
+Flagged procedural contours and saved sunsets bypass the old renderer fallback.
 The marker is `0x40000000` in material `metadata.y`, only on those two materials;
 directional blur mode bits and the 128-byte uniform layout stay unchanged.
-Flagged sunset shades with the frozen colors instead of hardcoded red/yellow.
-Unflagged historical payloads retain their old fallback and shader behavior.
-
+The Sunset enum, shader and saved payloads remain intact for historical artwork.
+An absent `collection` retains the old saved material order on decode/render.
+Only explicit adoption of today's unlocked, hydrated Editorial canvas freezes a
+regular collection for its existing family and regenerates the eligible order.
+It corrects circle anisotropy to `(1,1)` while preserving event IDs, positions,
+sizes, slots and manual rotations. Repeated adoption is idempotent.
 Styles without this policy keep one-tone, one-tone, `radialTwo`, then contour
 roles and their previous two-color pigments. Color variants tint the slot's leading pigment by
 10–18% toward another frozen member; default picker identity hashes therefore
@@ -66,7 +71,8 @@ The separate optional `silhouettePolicyVersion = 1` freezes a distinct contour
 and orientation in each newly generated actor. Blobs vary their actual
 superformula, harmonic amplitudes/phases and ellipse proportions; generating
 another frame from the static soft-drift preset alone would reuse its contour.
-Circles vary from round to gently elliptical. Squares retain the selected daily
+Collection-aware circles retain a round SDF and isotropic scaling; old styles
+without `collection` keep their archived ellipses. Squares retain the selected daily
 mode while varying proportions and, for concave squares, valley depth and edge
 exponent. Clovers retain four lobes with bounded valley, lobe and proportion
 variation. Flowers retain the day's petal count while varying petal irregularity,
@@ -75,7 +81,7 @@ before freezing; shader anisotropy remains within 0.82–1.18. Rays retain the
 existing diffuse beam silhouette and receive independent aims.
 
 The first five stable slots spread orientations through one visible symmetry
-sector; the next five fill its gaps. Ellipses use a half-turn, squares and clovers
+sector; the next five fill its gaps. Circle material directions use a half-turn, squares and clovers
 a quarter-turn, flowers one petal sector, and blobs/beams a full turn. Event-seeded
 jitter is at most 2% of that sector. The daily contour's internal rotation stays
 fixed, so it cannot cancel the actor angle spread. Generation uses separate
@@ -120,9 +126,10 @@ poses, rather than resetting them to the daily template. Further A adoption
 retains the frozen sizes, per-actor materials and pigment pool. Missing optional flags preserve
 historical generation and motion. Pending drafts wait for the confirmed merge;
 artwork locks and historical days remain frozen. Decoding never upgrades a recipe.
-An unlocked Remix generates a new coherent family from the full Remix seed,
-excluding the previously saved family. All six families remain eligible across
-Remixes; the calendar shuffle only selects the initial family. Explicit Remix
+An unlocked Remix generates a new coherent collection from the full Remix seed,
+excluding the previously saved collection. All eight collections remain eligible;
+a geometry sibling can follow its regular/blurred counterpart. The calendar
+shuffle only selects the initial collection. Explicit Remix
 also selects a native palette from enabled categories using the full recipe seed,
 excluding the previous numerical swatches regardless of their order when an
 alternative exists. Its mesh selects a different archetype and rerolls its parameters. The new
@@ -217,7 +224,7 @@ Only coordination methods/types needed across the extracted files become interna
 ## Adding or retiring a component safely
 
 1. Add geometry parameters and the corresponding GPU function, then register the preset in `MetalShapeGenomeCatalog`. Preserve the ordering of existing presets for existing generator versions.
-2. Declare compatible materials in the preset policy. Sunset remains circle-only; dense procedural contour remains excluded from primary-canvas generation.
+2. Declare compatible materials in the preset policy, then constrain the daily collection selector. Sunset remains decodable but is excluded from new collections; Procedural Light and Flow are also excluded. Approved procedural contours use their opt-in renderer marker.
 3. To retire a shape from **new generation**, change the versioned selection policy. Do not delete a decoder, shader branch or enum value still referenced by saved canvases.
 4. Material indices come from `MetalShapeMaterial` order. Never reorder/remove old cases as a shortcut; new meanings must not reinterpret old saved uniforms.
 5. Audio worlds are validated as a complete compatible catalog. Removing a world is a coordinated change to selection, recipe/group validation and fallback behavior, not just deleting a sample file.

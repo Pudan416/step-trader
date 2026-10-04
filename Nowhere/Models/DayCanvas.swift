@@ -314,6 +314,7 @@ struct DayCanvas: Codable {
             recipe.dailyStyle?.freezeApprovedAppearance(background: background,
                 categories: paletteCategories, seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
         }
+        recipe.dailyStyle?.adoptCollectionIfNeeded(seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
         recipe.dailyStyle?.freezeReferenceMaterials(seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
         recipe = recipe.coordinated(with: background)
         guard let style = recipe.dailyStyle else { return false }
@@ -332,8 +333,10 @@ struct DayCanvas: Codable {
             let hasDailyVisuals = hasDailyShape && old.materialID == actor.materialID
             let keepsFrozenVisuals = hasDailyVisuals && hadApprovedAppearance
             let keepsFrozenSize = hasDailyShape && hadApprovedAppearance
+            let correctsCircle = style.family == .circles && style.collection != nil
+                && (old.geometry.anisotropyOffset.x != 1 || old.geometry.anisotropyOffset.y != 1)
             let keepsFrozenGeometry = hasDailyShape
-                && previous?.dailyStyle?.usesIndividualSilhouettes == true
+                && previous?.dailyStyle?.usesIndividualSilhouettes == true && !correctsCircle
             let actorSeedHex = keepsFrozenVisuals ? old.seedHex : actor.seedHex
             // Only replace an old automatically generated angle. A moved actor
             // keeps its position; a deliberately rotated actor keeps its angle.

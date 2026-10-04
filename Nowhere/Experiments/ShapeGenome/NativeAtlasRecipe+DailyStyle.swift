@@ -4,27 +4,30 @@ import simd
 extension NativeAtlasRecipe {
     static func makeDaily(
         dayKey: String, paletteCategories: Set<ModernPaletteCategory>,
-        family selectedFamily: NativeAtlasDailyStyle.Family? = nil
+        family selectedFamily: NativeAtlasDailyStyle.Family? = nil,
+        collection selectedCollection: NativeAtlasDailyStyle.Collection? = nil
     ) -> Self {
         var recipe = makeLegacy(dayKey: dayKey, paletteCategories: paletteCategories)
         let seed = UInt64(recipe.seedHex, radix: 16) ?? 0
         var rng = SeededRNG(seed: seed ^ 0x4441_494C_5953_5459)
-        let family = selectedFamily ?? NativeAtlasDailyStyle.family(dayKey: dayKey)
+        let collection = selectedCollection ?? selectedFamily.map { .regular(for: $0) }
+            ?? NativeAtlasDailyStyle.collection(dayKey: dayKey)
+        let family = collection.family
         let presetID: String
-        switch family {
-        case .circles: presetID = "legacy.circle"
+        switch collection {
+        case .circles, .blurredCircles: presetID = "legacy.circle"
         case .blobs: presetID = "genome.soft-drift"
         case .squares: presetID = rng.nextInt(in: 0...1) == 0 ? "legacy.soft-square" : "genome.concave-square"
+        case .blurredSquares: presetID = "legacy.soft-square"
         case .clovers: presetID = "genome.soft-clover"
         case .flowers: presetID = rng.nextInt(in: 0...1) == 0 ? "genome.windflower" : "genome.snowflake"
         case .rays: presetID = "legacy.rounded-triangle"
         }
         // Stable IDs, never global catalog order, define the v2 family mapping.
         guard let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == presetID }) else { return recipe }
-        // The existing triangle/blur pairing renders a soft directed cone;
-        // other families use the complete compatible reference material set.
-        let candidates: [MetalShapeMaterial] = family == .rays ? [.directionalBlur]
-            : NativeAtlasDailyStyle.referenceMaterials(for: preset)
+        // Blur is a complete collection, never a fill mixed into another look.
+        let candidates: [MetalShapeMaterial] = collection.isBlurred ? [.directionalBlur]
+            : NativeAtlasDailyStyle.referenceMaterials(for: preset).filter { $0 != .directionalBlur }
         let allowed = candidates.filter { preset.compatibility.allowed.contains($0) }
         let materialID = allowed[rng.nextInt(in: 0...(allowed.count - 1))]
         let frame = MetalShapeGenomeFrame.make(preset: preset, material: materialID, seed: seed)
@@ -33,6 +36,7 @@ extension NativeAtlasRecipe {
             style.freezeApprovedAppearance(background: background, categories: paletteCategories, seed: seed)
         }
         style.silhouettePolicyVersion = 1
+        style.collection = collection
         style.freezeReferenceMaterials(seed: seed)
         style.material = style.recolored(frame.material, seed: seed)
         recipe = Self(schemaVersion: 1, generatorVersion: "atlas-2", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
