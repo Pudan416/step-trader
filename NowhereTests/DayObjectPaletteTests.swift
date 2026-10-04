@@ -2335,3 +2335,74 @@ final class DayObjectPaletteTests: XCTestCase {
         }.min() ?? 0
     }
 }
+
+final class DayObjectPaletteSetCacheTests: XCTestCase {
+    private let sample = DayObjectPaletteSet(
+        background: ModernPalette(code: "111111222222333333444444", categories: [.retro]),
+        primaryObjects: ModernPalette(code: "555555666666777777888888", categories: [.warm]),
+        secondaryObjects: ModernPalette(code: "999999aaaaaabbbbbbcccccc", categories: [.cold]),
+        actorLightnessShift: 0.125
+    )
+
+    private func key(seed: UInt64 = 1, categories: Set<ModernPaletteCategory> = [.warm],
+                     day: String? = "2026-10-04", identity: String = "primary-canvas") -> DayObjectPaletteSetCache.Key {
+        .init(rootSeed: seed, categories: categories, dayKey: day, identity: identity)
+    }
+
+    func testRepeatedKeyReusesExactPaletteWithoutDerivation() {
+        let cache = DayObjectPaletteSetCache()
+        var builds = 0
+        for _ in 0..<100 {
+            let result = cache.palette(for: key()) { builds += 1; return sample }
+            XCTAssertEqual(result, sample)
+        }
+        XCTAssertEqual(builds, 1)
+    }
+
+    func testEveryPaletteDependencyHasAnIndependentCacheEntry() {
+        let cache = DayObjectPaletteSetCache()
+        let inputs = [key(), key(seed: 2), key(categories: [.cold]), key(day: nil),
+                      key(day: "2026-10-05"), key(identity: "day-objects-lab")]
+        var builds = 0
+        for input in inputs + inputs {
+            XCTAssertEqual(cache.palette(for: input) { builds += 1; return sample }, sample)
+        }
+        XCTAssertEqual(builds, inputs.count)
+    }
+
+    func testBoundedCacheEvictsLeastRecentlyUsedPalette() {
+        let cache = DayObjectPaletteSetCache(capacity: 2)
+        var builds = 0
+        func read(_ seed: UInt64) {
+            _ = cache.palette(for: key(seed: seed)) { builds += 1; return sample }
+        }
+        read(1); read(2); read(1); read(3)
+        XCTAssertEqual(builds, 3)
+        read(1)
+        XCTAssertEqual(builds, 3, "A cache hit must keep that palette alive")
+        read(2)
+        XCTAssertEqual(builds, 4, "The least recently used palette must be evicted")
+    }
+
+    func testConcurrentSceneAndExportRequestsKeepExactNumericPalette() {
+        let expected = DayObjectPaletteSet.make(rootSeed: 71177632, categories: ModernPaletteSelection.all,
+            dayKey: "2026-10-04", identity: "primary-canvas")
+        DispatchQueue.concurrentPerform(iterations: 128) { index in
+            let result = DayObjectPaletteSet.make(rootSeed: index.isMultiple(of: 2) ? 71177632 : 71177633,
+                categories: ModernPaletteSelection.all, dayKey: "2026-10-04", identity: "primary-canvas")
+            if index.isMultiple(of: 2) { XCTAssertEqual(result, expected) }
+        }
+    }
+
+    func testCacheKeepsPaletteAndLightnessFromBeforeOptimization() {
+        // Captured from the unchanged production generator, including -0.0.
+        for _ in 0..<2 {
+            let result = DayObjectPaletteSet.make(rootSeed: 142355264,
+                categories: ModernPaletteSelection.all, dayKey: "2026-10-05", identity: "day-objects-lab")
+            XCTAssertEqual(result.background.code, "c1ebe9fff7c5f4ae524f252e")
+            XCTAssertEqual(result.primaryObjects.code, "2f2fe4162e931a1953080616")
+            XCTAssertEqual(result.secondaryObjects.code, "280905740a03c3110ce6501b")
+            XCTAssertEqual(result.actorLightnessShift?.bitPattern, UInt32(2147483648))
+        }
+    }
+}

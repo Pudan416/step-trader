@@ -34,6 +34,11 @@ Test names live in `NowhereTests/` unless stated otherwise.
   IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared
   Personal/All map for that opening, with six roots and shared intersections fixed.
   Later additions reveal their canonical paths without moving the open map.
+- `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
+  complete request is unchanged; expansion and duplicate mutation/sync callbacks
+  must not rebuild all 100 candidates. `DayObjectPaletteSet.make` shares a bounded
+  16-entry palette cache keyed by root seed, normalized categories, day and identity.
+  Its lock protects lookup/publication, while palette derivation runs outside the lock.
 - `DetectedWorkout.suggestedOptionId` and `ActivitySuggestion.isSatisfied` own
   Health-to-catalog identity and equivalence. Views log the resolved catalog ID;
   a generic workout must not satisfy a specific run or swim.

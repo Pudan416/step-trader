@@ -549,7 +549,14 @@ struct GalleryView: View {
             committedElements: dayCanvas.elements,
             colorNonce: model.paletteColorNonce()
         )
-        paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+        // Expanding the visible field does not change its complete atlas. Add,
+        // remove and sync callbacks can also deliver the same request again.
+        if HappeningEditorialAssignmentResolver.needsRefresh(
+            current: paletteAssignmentSnapshot,
+            request: request
+        ) {
+            paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+        }
     }
 
     private func rebuildPersonalEventField() {
