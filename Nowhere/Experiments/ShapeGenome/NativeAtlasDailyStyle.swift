@@ -123,7 +123,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
                 var beamRNG = SeededRNG(seed: seed ^ 0x4245_414D_544F_4E45)
                 let count = max(1, (ranked.count + 1) / 2)
                 let selected = ranked[beamRNG.nextInt(in: 0...(count - 1))]
-                let target = min(max(perceptualColors[selected].x + 0.08 + variation * 0.4, 0.72), 0.82)
+                let target = min(max(0.77 + variation * 0.9, 0.72), 0.82)
                 firstColor = SIMD4(DayObjectRGB(linearRGB: pigments[selected])
                     .fittingPerceptualLightness(to: target, chromaFraction: min(chroma, 0.75)).linearRGB, 1)
             }
