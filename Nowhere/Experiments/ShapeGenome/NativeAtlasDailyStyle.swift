@@ -23,6 +23,9 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
     /// A is opt-in: nil retains the exact archived appearance and motion.
     var appearancePolicyVersion: Int? = nil
+    /// Missing in archives: their shared contour and narrow rotation stay exact.
+    var silhouettePolicyVersion: Int? = nil
+    var usesIndividualSilhouettes: Bool { silhouettePolicyVersion == 1 }
     var neighboringPigments: [SIMD3<Float>]? = nil
     var neighboringPaletteCategories: [ModernPaletteCategory]? = nil
     var usesApprovedAppearance: Bool { appearancePolicyVersion == 1 }
@@ -90,6 +93,99 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             pool.append(candidates.remove(at: bestIndex))
         }
         neighboringPigments = pool
+    }
+
+    /// Generate once into the actor payload, independently of the legacy RNG.
+    /// A daily family retains its contour kind, square mode and flower petal count.
+    func actorGeometry(seed: UInt64, slot: Int) -> MetalShapeGenomeUniforms {
+        guard usesIndividualSilhouettes else { return shape }
+        let index = min(max(slot, 0), 9)
+        let profiles: [Float] = [-1, 1, -0.5, 0.5, 0, -0.8, 0.8, -0.3, 0.3, 0.1]
+        let profile = profiles[index]
+        var rng = SeededRNG(seed: seed ^ 0x5349_4C48_4F55_4554)
+        func random(_ lower: Double, _ upper: Double) -> Float {
+            Float(rng.nextDouble(in: lower...upper))
+        }
+        var formula = shape.superformula
+        var h0 = shape.harmonic0, h1 = shape.harmonic1
+        var anisotropy = shape.anisotropyOffset, transform = shape.transform
+        var metadata = shape.metadata
+        switch family {
+        case .circles:
+            let stretches: [Float] = [0, 0.14, -0.10, 0.07, -0.16, 0.11, -0.04, 0.16, -0.07, 0.04]
+            let stretch = stretches[index] + random(-0.008, 0.008)
+            anisotropy.x = 1 + stretch
+            anisotropy.y = 1 - stretch
+        case .blobs:
+            // soft-drift's catalog genome is static: changing a frame seed alone
+            // cannot change it. Vary its real superformula and harmonic fields.
+            formula.y = min(max(formula.y + random(-0.28, 0.28), 1.7), 2.5)
+            formula.z = min(max(formula.z + profile * 0.35 + random(-0.12, 0.12), 2.0), 3.0)
+            formula.w = min(max(formula.w - profile * 0.25 + random(-0.12, 0.12), 1.25), 2.1)
+            h0 = SIMD4(3, random(0.035, 0.11), random(0, 2 * Double.pi), 1)
+            h1 = SIMD4(2, random(0.025, 0.065), random(0, 2 * Double.pi), 1)
+            let stretch = profile * 0.10 + random(-0.015, 0.015)
+            anisotropy.x = 0.98 + stretch
+            anisotropy.y = 1.02 - stretch
+            anisotropy.z = random(-0.055, 0.055)
+            anisotropy.w = random(-0.045, 0.045)
+            let genome = MetalShapeGenome(morphology: .softRadial, superformula: formula,
+                harmonics: [.init(frequency: 3, amplitude: h0.y, phase: h0.z),
+                            .init(frequency: 2, amplitude: h1.y, phase: h1.z)],
+                anisotropy: SIMD2(anisotropy.x, anisotropy.y),
+                centerOffset: SIMD2(anisotropy.z, anisotropy.w), rotation: transform.x)
+            transform.y = MetalShapeGenomeFrame.normalization(genome)
+            metadata.w = 2
+        case .squares:
+            let stretch = profile * 0.075 + random(-0.012, 0.012)
+            anisotropy.x = 1 + stretch
+            anisotropy.y = 1 - stretch
+            if shape.sourceKind == 4 {
+                transform.z = min(max(shape.transform.z + profile * 0.045, 0.62), 0.72)
+                transform.w = min(max(shape.transform.w + random(-0.55, 0.55), 2.4), 4.0)
+                formula.y = transform.z
+                formula.z = transform.w
+            }
+        case .clovers:
+            transform.z = min(max(shape.transform.z + profile * 0.05, 0.46), 0.58)
+            transform.w = min(max(shape.transform.w + random(-0.075, 0.075), 0.54), 0.74)
+            formula.y = transform.z
+            formula.z = transform.w
+            let stretch = profile * 0.08 + random(-0.012, 0.012)
+            anisotropy.x = 1 + stretch
+            anisotropy.y = 1 - stretch
+        case .flowers:
+            formula.y = min(max(shape.superformula.y + profile * 0.04, 0.30), 0.45)
+            formula.z = min(max(shape.superformula.z + random(-0.08, 0.08), 0.16), 0.38)
+            formula.w = min(max(shape.superformula.w + random(-0.08, 0.08), 0.50), 0.78)
+            metadata.y = UInt32(truncatingIfNeeded: seed)
+            let stretch = profile * 0.06
+            anisotropy.x = 1 + stretch
+            anisotropy.y = 1 - stretch
+        case .rays:
+            // The diffuse beam branch owns its silhouette; keep its carrier.
+            return shape
+        }
+        return .init(superformula: formula, harmonic0: h0, harmonic1: h1,
+                     harmonic2: shape.harmonic2, anisotropyOffset: anisotropy,
+                     transform: transform, metadata: metadata, reserved: shape.reserved)
+    }
+
+    func actorRotation(seed: UInt64, slot: Int, legacyRotation: Float) -> Float {
+        guard usesIndividualSilhouettes else { return legacyRotation }
+        // First five slots cover a whole turn; ten fill the gaps. Symmetric
+        // families spread within one symmetry sector rather than aliasing axes.
+        let phases: [Float] = [0, 0.4, 0.8, 0.2, 0.6, 0.1, 0.5, 0.9, 0.3, 0.7]
+        let period: Float
+        switch family {
+        case .circles: period = .pi
+        case .squares, .clovers: period = .pi / 2
+        case .flowers: period = 2 * .pi / Float(max(3, shape.metadata.z))
+        default: period = 2 * .pi
+        }
+        var rng = SeededRNG(seed: seed ^ 0x4F52_4945_4E54_4154)
+        let jitter = Float(rng.nextDouble(in: -0.02...0.02))
+        return orientation + (phases[min(max(slot, 0), 9)] + jitter) * period
     }
 
     func actorMaterialID(slot: Int) -> MetalShapeMaterial {

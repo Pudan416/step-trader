@@ -26,7 +26,7 @@ their petal count. Rays use the existing directed diffuse-beam branch: stable
 `directionalBlur`. The triangle body is replaced by the tapered light cone in
 that material; other daily families do not select this fill. Triangle and hexagon outlines remain decodable but are excluded from new
 daily families; the beam uses its triangle only as the compatible shader carrier.
-Shape and orientation are frozen once; actors inherit the family and occupy
+The daily family template is frozen once; actors inherit the family and occupy
 independent stable slots. Explicit palette changes coordinate current and future
 actors with the background.
 
@@ -47,6 +47,29 @@ do not replace the assigned leading hue. Non-beam sizes range from 0.15 to 0.41.
 Beams use `directionalBlur` mode 0 or gentle two-color mode 2, sizes multiplied
 by 1.8 with a 0.30 floor. Each actor freezes its own material and size, so
 additions and removals do not reroll survivors.
+
+The separate optional `silhouettePolicyVersion = 1` freezes a distinct contour
+and orientation in each newly generated actor. Blobs vary their actual
+superformula, harmonic amplitudes/phases and ellipse proportions; generating
+another frame from the static soft-drift preset alone would reuse its contour.
+Circles vary from round to gently elliptical. Squares retain the selected daily
+mode while varying proportions and, for concave squares, valley depth and edge
+exponent. Clovers retain four lobes with bounded valley, lobe and proportion
+variation. Flowers retain the day's petal count while varying petal irregularity,
+valley depth, tip exponent and proportions. Blob normalization is recomputed
+before freezing; shader anisotropy remains within 0.82–1.18. Rays retain the
+existing diffuse beam silhouette and receive independent aims.
+
+The first five stable slots spread orientations through one visible symmetry
+sector; the next five fill its gaps. Ellipses use a half-turn, squares and clovers
+a quarter-turn, flowers one petal sector, and blobs/beams a full turn. Event-seeded
+jitter is at most 2% of that sector. The daily contour's internal rotation stays
+fixed, so it cannot cancel the actor angle spread. Generation uses separate
+seed streams and still consumes the original rotation draw, preserving the
+archived RNG sequence, actor material, size and position policies. Reconciliation
+retains saved actors, so additions/removals never reroll their contours or poses.
+Absent silhouette policy preserves the archived shared contour and narrow angle
+range; decoding and rendering do not upgrade it.
 
 Styles without `appearancePolicyVersion` retain the earlier ordered palette,
 materials and size policy. The optional
@@ -74,8 +97,13 @@ It also normalizes older actor visuals imported during cloud recovery. The
 first A adoption rebuilds sizes and mixed materials from each saved slot and
 freezes its neighboring pigment pool. The earlier `livingVariation` boundary
 also converts radial Snowflake rays into directed beams. Both preserve event
-IDs, positions, rotations and slots. Further A adoption retains the frozen
-sizes, per-actor materials and pigment pool. Missing optional flags preserve
+IDs, positions, rotations and slots. The separate first silhouette adoption
+updates contours and replaces only angles matching the previous generated pose
+(with a wrapped 0.0001-radian tolerance); deliberately rotated actors retain their
+angles, and moved actors retain their positions. It retains existing A materials,
+sizes, seeds and pigments. Subsequent adoption retains frozen actor contours and
+poses, rather than resetting them to the daily template. Further A adoption
+retains the frozen sizes, per-actor materials and pigment pool. Missing optional flags preserve
 historical generation and motion. Pending drafts wait for the confirmed merge;
 artwork locks and historical days remain frozen. Decoding never upgrades a recipe.
 An unlocked Remix generates a new coherent family from the full Remix seed,

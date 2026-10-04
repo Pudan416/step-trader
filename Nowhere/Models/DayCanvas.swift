@@ -299,6 +299,7 @@ struct DayCanvas: Codable {
             seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
         recipe.dailyStyle?.sharesPaletteOrder = true
         recipe.dailyStyle?.softGradients = true
+        recipe.dailyStyle?.silhouettePolicyVersion = 1
         if let previous {
             recipe.locks = previous.locks
             recipe.glitchType = previous.glitchType
@@ -328,17 +329,26 @@ struct DayCanvas: Codable {
             // those visuals too, retaining event identity and saved placement.
             let hasDailyVisuals = previous?.dailyStyle != nil
                 && old.presetID == style.presetID && old.materialID == actor.materialID
-                && old.geometry == style.shape
             let keepsFrozenVisuals = hasDailyVisuals && hadApprovedAppearance
+            let keepsFrozenGeometry = hasDailyVisuals
+                && previous?.dailyStyle?.usesIndividualSilhouettes == true
             let actorSeedHex = keepsFrozenVisuals ? old.seedHex : actor.seedHex
+            // Only replace an old automatically generated angle. A moved actor
+            // keeps its position; a deliberately rotated actor keeps its angle.
+            let previousActor = previous?.dailyActor(eventID: eventID, slot: old.slot)
+            let rotationDelta = previousActor.map { old.rotation - $0.rotation }
+            let hasAutomaticRotation = rotationDelta.map {
+                abs(atan2(sin($0), cos($0))) < 0.0001
+            } ?? false
+            let upgradesRotation = hasDailyVisuals && !keepsFrozenGeometry && hasAutomaticRotation
             return NativeAtlasRecipe.Actor(
                 eventID: actor.eventID, presetID: style.presetID,
                 materialID: actor.materialID, seedHex: actorSeedHex,
-                geometry: style.shape,
+                geometry: keepsFrozenGeometry ? old.geometry : actor.geometry,
                 material: style.recolored(keepsFrozenVisuals ? old.material : actor.material,
                     seed: UInt64(actorSeedHex, radix: 16) ?? 0, slot: old.slot),
                 position: old.position, size: keepsFrozenVisuals ? old.size : actor.size,
-                rotation: old.rotation, slot: old.slot
+                rotation: upgradesRotation ? actor.rotation : old.rotation, slot: old.slot
             )
         }
         recipe = recipe.reconciled(eventIDs: eventIDs)

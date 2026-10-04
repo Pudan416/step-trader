@@ -87,7 +87,10 @@ other figures. Triangle and hexagon days
 are excluded from new generation, while historical artwork retains its saved
 appearance. Today's unlocked Editorial canvas adopts the common family even
 if it was started before this policy, retaining its added events and saved
-placements and rotations. The selected A appearance mixes one-tone fills,
+placements and manual rotations. Figures vary their contours and orientations
+within that family: flowers keep one petal count and squares keep one daily mode.
+Today's unlocked Canvas upgrades its generated contours and initial angles once;
+manual poses and historical artwork remain saved. The selected A appearance mixes one-tone fills,
 outlines and soft two-color shading, with approximately a 2.7-fold diameter
 range. Directed beams retain their diffuse silhouette and a larger size floor.
 Independent drift and bounded turns take 12 seconds; breathing takes six.

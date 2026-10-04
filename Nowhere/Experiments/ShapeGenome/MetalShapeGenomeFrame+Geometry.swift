@@ -96,7 +96,7 @@ extension MetalShapeGenomeFrame {
         }
     }
 
-    private static func normalization(_ genome: MetalShapeGenome) -> Float {
+    static func normalization(_ genome: MetalShapeGenome) -> Float {
         let maximum = (0..<512).reduce(Float(0)) { current, index in
             let angle = Float(index) * 2 * .pi / 512
             return max(current, MetalShapeContour.radius(angle: angle, genome: genome))

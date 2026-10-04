@@ -32,6 +32,7 @@ extension NativeAtlasRecipe {
         if let background = recipe.backgroundStyle {
             style.freezeApprovedAppearance(background: background, categories: paletteCategories, seed: seed)
         }
+        style.silhouettePolicyVersion = 1
         style.material = style.recolored(frame.material, seed: seed)
         recipe = Self(schemaVersion: 1, generatorVersion: "atlas-2", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
         return recipe
@@ -88,14 +89,16 @@ extension NativeAtlasRecipe {
         let size = style.actorSize(base: baseSize, slot: slot, seed: seed, legacyScale: legacyScale)
         var position = slots[min(max(slot, 0), slots.count - 1)]
         if style.family == .squares {
-            // A tighter grid and common orientation lend squares order.
+            // Preserve the tighter square grid independently of silhouette policy.
             position = SIMD2(0.5, 0.5) + (position - SIMD2(0.5, 0.5)) * 0.9
         } else {
             let jitter: Float = airy ? 0.012 : 0.025
             position += SIMD2(Float(rng.nextDouble(in: Double(-jitter)...Double(jitter))), Float(rng.nextDouble(in: Double(-jitter)...Double(jitter))))
         }
         let angleRange: Double = style.family == .squares ? 0.06 : (style.family == .rays && style.livingVariation == true ? 0.38 : 0.18)
-        let rotation = style.orientation + Float(rng.nextDouble(in: -angleRange...angleRange))
+        // Consume the archived draw even when the opt-in policy owns rotation.
+        let legacyRotation = style.orientation + Float(rng.nextDouble(in: -angleRange...angleRange))
+        let rotation = style.actorRotation(seed: seed, slot: slot, legacyRotation: legacyRotation)
         let actorMaterialID = style.actorMaterialID(slot: slot)
         let actorMaterial: MetalShapeMaterialUniforms
         if style.usesApprovedAppearance,
@@ -106,6 +109,6 @@ extension NativeAtlasRecipe {
         var params0 = actorMaterial.params0
         params0.x += Float(rng.nextDouble(in: -0.025...0.025))
         let material = MetalShapeMaterialUniforms(color0: actorMaterial.color0, color1: actorMaterial.color1, color2: actorMaterial.color2, params0: params0, params1: actorMaterial.params1, params2: actorMaterial.params2, params3: actorMaterial.params3, metadata: actorMaterial.metadata)
-        return Actor(eventID: id, presetID: style.presetID, materialID: actorMaterialID, seedHex: String(seed, radix: 16), geometry: style.shape, material: style.recolored(style.variedMaterial(material, seed: seed), seed: seed, slot: slot), position: position, size: size, rotation: rotation, slot: slot)
+        return Actor(eventID: id, presetID: style.presetID, materialID: actorMaterialID, seedHex: String(seed, radix: 16), geometry: style.actorGeometry(seed: seed, slot: slot), material: style.recolored(style.variedMaterial(material, seed: seed), seed: seed, slot: slot), position: position, size: size, rotation: rotation, slot: slot)
     }
 }
