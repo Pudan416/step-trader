@@ -164,23 +164,6 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["canvas_add_button"].exists)
     }
 
-    func testEveningNavigationKeepsGapsBetweenTabsAndSideButtons() {
-        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"])
-        let bar = app.descendants(matching: .any)["canvas_tab_bar"]
-        XCTAssertTrue(bar.waitForExistence(timeout: 5))
-        let sound = app.buttons["canvas_sound_button"]
-        let add = app.buttons["canvas_add_button"]
-        captureSuggestion(app, name: "evening-navigation-english")
-        XCTAssertGreaterThanOrEqual(bar.frame.minX - sound.frame.maxX, 8 - 0.1)
-        XCTAssertGreaterThanOrEqual(add.frame.minX - bar.frame.maxX, 8 - 0.1)
-        for id in ["tab_canvas", "tab_feeds", "tab_me"] {
-            let tab = app.buttons[id]
-            XCTAssertGreaterThanOrEqual(tab.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(tab.frame.height, 44)
-            XCTAssertTrue(tab.isHittable)
-        }
-    }
-
     func testCompactNavigationKeepsGapsBetweenTabsAndSideButtons() {
         let app = launchCanvas()
         let sound = app.buttons["canvas_sound_button"]
@@ -248,53 +231,6 @@ final class CanvasSimplificationUITests: XCTestCase {
         }
         XCTAssertLessThanOrEqual(copy.frame.maxY, accept.frame.minY)
         captureSuggestion(app, name: "activity-suggestion-accessibility-dark")
-    }
-
-    func testEveningQuestionOffersThreeChoicesAndDisappearsAfterAdding() {
-        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"])
-        let card = app.otherElements["canvas_evening_reflection"]
-        XCTAssertTrue(card.waitForExistence(timeout: 8))
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "You slept")).firstMatch.exists)
-        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "canvas_evening_choice_"))
-        XCTAssertEqual(choices.count, 3)
-        XCTAssertFalse(app.staticTexts["Today is uncolored"].exists)
-        XCTAssertFalse(app.staticTexts["What have you done so far?"].exists)
-        captureSuggestion(app, name: "evening-reflection-empty-canvas")
-        choices.element(boundBy: 0).tap()
-        XCTAssertTrue(card.waitForNonExistence(timeout: 5))
-    }
-
-    func testEveningQuestionStaysDismissedAndOtherOpensThePicker() {
-        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"])
-        let card = app.otherElements["canvas_evening_reflection"]
-        XCTAssertTrue(card.waitForExistence(timeout: 8))
-        app.buttons["canvas_evening_reflection_other"].tap()
-        XCTAssertTrue(app.buttons["canvas_palette_close_button"].waitForExistence(timeout: 5))
-        app.buttons["canvas_palette_close_button"].tap()
-        XCTAssertTrue(card.waitForExistence(timeout: 5))
-        app.buttons["canvas_evening_reflection_dismiss"].tap()
-        XCTAssertTrue(card.waitForNonExistence(timeout: 5))
-        app.buttons["tab_me"].tap()
-        app.buttons["tab_canvas"].tap()
-        XCTAssertFalse(card.exists)
-    }
-
-    func testEveningQuestionIsAbsentAtNight() {
-        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection", "ui-testing-evening-night"])
-        XCTAssertFalse(app.otherElements["canvas_evening_reflection"].exists)
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "You slept")).firstMatch.exists)
-    }
-
-    func testEveningQuestionLargeTextKeepsChoicesReachable() {
-        let app = launchCanvas(additionalArguments: ["ui-testing-evening-reflection"], accessibilitySize: "accessibility3")
-        let card = app.otherElements["canvas_evening_reflection"]
-        XCTAssertTrue(card.waitForExistence(timeout: 8))
-        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "canvas_evening_choice_"))
-        for button in choices.allElementsBoundByIndex {
-            XCTAssertTrue(button.isHittable)
-            XCTAssertTrue(app.frame.contains(button.frame))
-        }
-        captureSuggestion(app, name: "evening-reflection-large-text")
     }
 
     private func captureSuggestion(_ app: XCUIApplication, name: String) {

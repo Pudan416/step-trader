@@ -112,7 +112,7 @@ final class NotificationDelegate: NSObject, @preconcurrency UNUserNotificationCe
             self.model?.rebuildFamilyControlsShield()
         }
         
-        // The in-app card owns this question while the app is open.
+        // Evening reminders do not interrupt Canvas while the app is open.
         if userInfo["eveningReflectionDay"] is String {
             completionHandler([])
             return

@@ -159,9 +159,6 @@ struct GalleryView: View {
     /// reserves this much extra room above the data panel so the panel
     /// doesn't grow up under the banner the way it can under the pill alone.
     @State private var suggestionBannerHeight: CGFloat = 0
-    @State private var reflectionNow = Date.now
-    @AppStorage(SharedKeys.eveningReflectionDismissedDay, store: UserDefaults.nowhere())
-    private var eveningReflectionDismissedDay = ""
     @Environment(\.topCardHeight) private var topCardHeight
     @Environment(\.canvasBalanceBottomGlobalY) private var balanceBottomGlobalY
     @State private var dataPanelHostGlobalY: CGFloat?
@@ -1309,7 +1306,6 @@ struct GalleryView: View {
 
         let syncingCanvas = visualCanvas
         .onAppear {
-            reflectionNow = .now
             _ = musicController.acceptLifecycleEvent(.viewAppeared)
             syncCanvasMusicInput()
             model.checkDayBoundary()
@@ -1486,7 +1482,6 @@ struct GalleryView: View {
                 return
             }
             guard scenePhase == .active else { return }
-            reflectionNow = .now
             retryPendingCanvasRecovery()
             model.checkDayBoundary()
             let newKey = AppModel.dayKey(for: Date.now)
@@ -1587,7 +1582,6 @@ struct GalleryView: View {
             guard value > 0, value != canvasGlobalMaxY else { return }
             canvasGlobalMaxY = value
         }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { reflectionNow = $0 }
         .onPreferenceChange(SuggestionBannerHeightKey.self) { value in
             guard value != suggestionBannerHeight else { return }
             suggestionBannerHeight = value
@@ -1648,40 +1642,18 @@ struct GalleryView: View {
     }
 
     private var canvasSuggestions: some View {
-        let date = reflectionDate(reflectionNow)
-        let showReflection = canvasLoaded && !dayCanvas.needsRemoteHydration
-            && EveningReflection.isEligible(
-                at: date,
-                isCanvasEmpty: dayCanvas.elements.isEmpty && model.todayAdditions.isEmpty,
-                dismissedDay: eveningReflectionDismissedDay
-            )
-        return Group {
+        Group {
             if !isCanvasTourActive && !presentation.isWideCanvas && !showHappeningPalette
-                && (!model.pendingActivitySuggestions.isEmpty || showReflection) {
+                && !model.pendingActivitySuggestions.isEmpty {
                 VStack(spacing: 0) {
-                    if !model.pendingActivitySuggestions.isEmpty {
-                        ActivitySuggestionBanner(
-                            suggestions: model.pendingActivitySuggestions,
-                            onAccept: { suggestion in
-                                guard let optionId = model.acceptActivitySuggestion(suggestion) else { return }
-                                addAndSpawnHappening(optionId: optionId)
-                            },
-                            onDismiss: { model.dismissActivitySuggestion($0) }
-                        )
-                    } else {
-                        EveningReflectionCard(
-                            date: date,
-                            titleForHappening: {
-                                HappeningDefaults.selectableHappening(id: $0)?.title
-                                    ?? model.resolveOptionTitle(for: $0)
-                            },
-                            onChoose: { id in
-                                if addAndSpawnHappening(optionId: id) { dismissEveningReflection(at: date) }
-                            },
-                            onChooseOther: { openHappeningPalette() },
-                            onDismiss: { dismissEveningReflection(at: date) }
-                        )
-                    }
+                    ActivitySuggestionBanner(
+                        suggestions: model.pendingActivitySuggestions,
+                        onAccept: { suggestion in
+                            guard let optionId = model.acceptActivitySuggestion(suggestion) else { return }
+                            addAndSpawnHappening(optionId: optionId)
+                        },
+                        onDismiss: { model.dismissActivitySuggestion($0) }
+                    )
                 }
                 .background {
                     GeometryReader { proxy in
@@ -1696,22 +1668,6 @@ struct GalleryView: View {
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
-    }
-
-    private func dismissEveningReflection(at date: Date) {
-        eveningReflectionDismissedDay = EveningReflection.dayKey(for: date)
-        (model.notificationService as? NotificationManager)?.scheduleDailyCanvasReminder()
-    }
-
-    private func reflectionDate(_ date: Date) -> Date {
-        #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("ui-testing"), arguments.contains("ui-testing-evening-reflection") {
-            let hour = arguments.contains("ui-testing-evening-night") ? 1 : 20
-            return Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: date) ?? date
-        }
-        #endif
-        return date
     }
 
     private var dataPanelRows: [CanvasDataRow] {
