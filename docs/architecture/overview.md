@@ -39,6 +39,10 @@ Test names live in `NowhereTests/` unless stated otherwise.
   must not rebuild all 100 candidates. `DayObjectPaletteSet.make` shares a bounded
   16-entry palette cache keyed by root seed, normalized categories, day and identity.
   Its lock protects lookup/publication, while palette derivation runs outside the lock.
+- `MePosterEventLedger.unlocks` retains four immutable full-ledger requests so live
+  Canvas updates do not repeatedly classify every historical unlock by its logical
+  day. Record edits/removals, day/boundary/calendar changes and formatting/locale
+  context invalidate the cache; the underlying classification stays unchanged.
 - `DetectedWorkout.suggestedOptionId` and `ActivitySuggestion.isSatisfied` own
   Health-to-catalog identity and equivalence. Views log the resolved catalog ID;
   a generic workout must not satisfy a specific run or swim.

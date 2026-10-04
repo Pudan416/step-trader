@@ -1027,3 +1027,66 @@ final class MePremergeRefreshRegressionTests: XCTestCase {
                        "HealthKit arriving after the initial poster must refresh its rendered/share artwork")
     }
 }
+
+
+final class MePosterUnlockCacheTests: XCTestCase {
+    private func key(_ records: [MePosterUnlockRecord] = [], day: String = "2026-10-04",
+                     hour: Int = 4, minute: Int = 0,
+                     calendar: Calendar = .current) -> MePosterUnlockCache.Key {
+        .init(records: records, dayKey: day, dayEndHour: hour,
+              dayEndMinute: minute, calendar: calendar)
+    }
+
+    func testRepeatedPosterRequestsBuildOnce() {
+        let cache = MePosterUnlockCache()
+        let request = key()
+        let expected = [MePosterUnlock(title: "Example", count: 2, minutes: 15)]
+        var builds = 0
+        for _ in 0..<100 {
+            XCTAssertEqual(cache.value(for: request) { builds += 1; return expected }, expected)
+        }
+        XCTAssertEqual(builds, 1)
+    }
+
+    func testFullLedgerAndBoundaryInvalidateEvenWithSameRecordCount() {
+        let cache = MePosterUnlockCache()
+        let original = MePosterUnlockRecord(timestamp: Date(timeIntervalSince1970: 100),
+                                             target: "group_example", targetName: "Example", minutes: 10)
+        let edited = MePosterUnlockRecord(timestamp: original.timestamp,
+                                           target: original.target, targetName: "Renamed", minutes: 20)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var otherCalendar = calendar
+        otherCalendar.timeZone = TimeZone(secondsFromGMT: 3600)!
+        let requests = [key([original], calendar: calendar), key([edited], calendar: calendar),
+                        key([], calendar: calendar), key([original], day: "2026-10-05", calendar: calendar),
+                        key([original], hour: 5, calendar: calendar), key([original], minute: 30, calendar: calendar),
+                        key([original], calendar: otherCalendar)]
+        for (index, request) in requests.enumerated() {
+            let expected = [MePosterUnlock(title: "Result", count: index, minutes: 0)]
+            XCTAssertEqual(cache.value(for: request) { expected }, expected)
+        }
+    }
+
+    func testCacheIsBoundedAndUsesRecentRequests() {
+        let cache = MePosterUnlockCache()
+        var builds = 0
+        func load(_ day: String) {
+            _ = cache.value(for: key(day: day)) { builds += 1; return [] }
+        }
+        for day in ["1", "2", "3", "4"] { load(day) }
+        load("1"); load("5"); load("1")
+        XCTAssertEqual(builds, 5)
+        load("2")
+        XCTAssertEqual(builds, 6)
+    }
+
+    func testConcurrentPosterRequestsReturnTheSameImmutableValue() {
+        let cache = MePosterUnlockCache()
+        let request = key()
+        let expected = [MePosterUnlock(title: "Example", count: 2, minutes: 15)]
+        DispatchQueue.concurrentPerform(iterations: 128) { _ in
+            XCTAssertEqual(cache.value(for: request) { expected }, expected)
+        }
+    }
+}

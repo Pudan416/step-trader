@@ -376,7 +376,26 @@ struct MeDayHealth: Equatable {
 }
 
 enum MePosterEventLedger {
+    private static let unlockCache = MePosterUnlockCache()
+
     static func unlocks(
+        records: [MePosterUnlockRecord],
+        dayKey: String,
+        dayEndHour: Int,
+        dayEndMinute: Int,
+        calendar: Calendar = .current
+    ) -> [MePosterUnlock] {
+        let key = MePosterUnlockCache.Key(
+            records: records, dayKey: dayKey, dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute, calendar: calendar
+        )
+        return unlockCache.value(for: key) {
+            buildUnlocks(records: records, dayKey: dayKey, dayEndHour: dayEndHour,
+                         dayEndMinute: dayEndMinute, calendar: calendar)
+        }
+    }
+
+    private static func buildUnlocks(
         records: [MePosterUnlockRecord],
         dayKey: String,
         dayEndHour: Int,
@@ -444,6 +463,66 @@ enum MePosterEventLedger {
 
         let lowercased = title.localizedLowercase
         return lowercased.prefix(1).localizedUppercase + lowercased.dropFirst()
+    }
+}
+
+/// SwiftUI can revisit the same poster on every live Canvas update. Keep only
+/// four immutable requests; compare the full ledger so hydration, edits and
+/// deletions invalidate the result even when record counts stay unchanged.
+final class MePosterUnlockCache: @unchecked Sendable {
+    struct Key: Equatable {
+        let records: [MePosterUnlockRecord]
+        let dayKey: String
+        let dayEndHour: Int
+        let dayEndMinute: Int
+        let calendar: Calendar
+        private let calendarTimeZone: String
+        private let calendarLocale: String?
+        private let formatterCalendar: Calendar?
+        private let formatterTimeZone: String?
+        private let formatterLocale: String?
+        private let formatterDateFormat: String?
+        private let currentLocale: String
+
+        init(records: [MePosterUnlockRecord], dayKey: String, dayEndHour: Int,
+             dayEndMinute: Int, calendar: Calendar) {
+            self.records = records
+            self.dayKey = dayKey
+            self.dayEndHour = dayEndHour
+            self.dayEndMinute = dayEndMinute
+            self.calendar = calendar
+            calendarTimeZone = calendar.timeZone.identifier
+            calendarLocale = calendar.locale?.identifier
+            let formatter = CachedFormatters.dayKey
+            formatterCalendar = formatter.calendar
+            formatterTimeZone = formatter.timeZone?.identifier
+            formatterLocale = formatter.locale?.identifier
+            formatterDateFormat = formatter.dateFormat
+            currentLocale = Locale.current.identifier
+        }
+    }
+
+    private let lock = NSLock()
+    private var entries: [(key: Key, value: [MePosterUnlock])] = []
+
+    func value(for key: Key, build: () -> [MePosterUnlock]) -> [MePosterUnlock] {
+        lock.lock()
+        if let value = take(key) { lock.unlock(); return value }
+        lock.unlock()
+        let result = build()
+        lock.lock()
+        defer { lock.unlock() }
+        if let value = take(key) { return value }
+        entries.append((key, result))
+        if entries.count > 4 { entries.removeFirst() }
+        return result
+    }
+
+    private func take(_ key: Key) -> [MePosterUnlock]? {
+        guard let index = entries.firstIndex(where: { $0.key == key }) else { return nil }
+        let entry = entries.remove(at: index)
+        entries.append(entry)
+        return entry.value
     }
 }
 
