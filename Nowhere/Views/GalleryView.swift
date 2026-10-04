@@ -656,7 +656,7 @@ struct GalleryView: View {
                 if let style = input.nativeAtlasRecipe?.dailyStyle,
                    let variant = assignment.colorVariant {
                     material = style.recolored(base, seed: (UInt64(actor.seedHex, radix: 16) ?? 0)
-                        &+ UInt64(truncatingIfNeeded: variant))
+                        &+ UInt64(truncatingIfNeeded: variant), slot: actor.slot, colorVariant: variant)
                 } else {
                     material = base.withColorVariant(assignment.colorVariant)
                 }

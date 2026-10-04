@@ -61,7 +61,8 @@ final class NativeAtlasMetalRenderer {
                 NativeAtlasAmbientMotion.pose(actor: spec, family: $0.family,
                                               daySeed: UInt64(recipe.seedHex, radix: 16) ?? 0,
                                               elapsed: elapsed, weight: ambientWeight,
-                                              livingVariation: $0.livingVariation == true)
+                                              livingVariation: $0.livingVariation == true,
+                                              approvedAppearance: $0.usesApprovedAppearance)
             } ?? NativeAtlasAmbientMotion.Pose()
             let size = spec.size / 2.72 * (0.7 + 0.3 * pose.opacity) * resonance * ambient.scale
             let rotation = spec.rotation + ambient.rotation
@@ -118,7 +119,7 @@ final class NativeAtlasMetalRenderer {
                     // Existing color rerolls stay inside the chosen day palette.
                     let seed = (UInt64(spec.seedHex, radix: 16) ?? 0)
                         &+ UInt64(truncatingIfNeeded: variant)
-                    material = style.recolored(material, seed: seed)
+                    material = style.recolored(material, seed: seed, slot: spec.slot, colorVariant: variant)
                 } else {
                     material = material.withColorVariant(variant)
                 }

@@ -25,10 +25,31 @@ their petal count. Rays use the existing directed diffuse-beam branch: stable
 `legacy.rounded-triangle` geometry (source kind 1, shape 5, variant 5) plus
 `directionalBlur`. The triangle body is replaced by the tapered light cone in
 that material; other daily families do not select this fill. Triangle and hexagon outlines remain decodable but are excluded from new
-daily families; the beam uses its triangle only as the compatible shader carrier. Shape, compatible material, orientation and
-numeric colors are frozen once; new actors inherit the family and occupy
-independent stable slots. Explicit palette changes coordinate current and future actors with
-the background. Daily actors use one ordered palette. The optional
+daily families; the beam uses its triangle only as the compatible shader carrier.
+Shape and orientation are frozen once; actors inherit the family and occupy
+independent stable slots. Explicit palette changes coordinate current and future
+actors with the background.
+
+The selected A policy uses optional `appearancePolicyVersion = 1`, frozen
+`neighboringPigments` and `neighboringPaletteCategories`. Three nearby catalog
+palettes are ranked by their average nearest-anchor OKLab distance. Borrowed
+pigments must fit the anchor hue/chroma group and a distance limit of 0.20;
+farthest-point ordering gives sparse days distinct leading pigments. Noir uses
+only its monochrome anchors. The pool is generated at creation, first current-day
+upgrade or an explicit background palette change, never during ordinary rendering.
+
+Saved slots choose one-tone, one-tone, `radialTwo`, then contour roles. A preset
+that does not allow solid uses equal-color side light for the one-tone role.
+Two-color shading uses one pigment with a lightness difference of 0.08 and no
+third contrasting color. Color variants tint the slot's leading pigment by
+10–18% toward another frozen member; default picker identity hashes therefore
+do not replace the assigned leading hue. Non-beam sizes range from 0.15 to 0.41.
+Beams use `directionalBlur` mode 0 or gentle two-color mode 2, sizes multiplied
+by 1.8 with a 0.30 floor. Each actor freezes its own material and size, so
+additions and removals do not reroll survivors.
+
+Styles without `appearancePolicyVersion` retain the earlier ordered palette,
+materials and size policy. The optional
 `livingVariation` policy adds a seed-stable tint toward one existing palette member (12–32%), lightness
 variation of up to 0.055 and chroma at 68–88%, retaining the stop order and soft
 lightness cap. Each stable slot has a large, medium or small size tier, clamped
@@ -50,17 +71,34 @@ Gallery adopts this policy for today's complete, editable Editorial canvas,
 including a saved empty or populated `atlas-1` day, before persisting and syncing
 it. Event IDs, saved placements, metrics and music selection survive adoption.
 It also normalizes older actor visuals imported during cloud recovery. The
-first `livingVariation` adoption rebuilds sizes and materials from each saved
-slot, and converts the earlier radial Snowflake rays into directed beams while
-preserving event IDs, positions, rotations and slots. Further adoption retains
-those frozen sizes and material parameters. Missing optional flags preserve
+first A adoption rebuilds sizes and mixed materials from each saved slot and
+freezes its neighboring pigment pool. The earlier `livingVariation` boundary
+also converts radial Snowflake rays into directed beams. Both preserve event
+IDs, positions, rotations and slots. Further A adoption retains the frozen
+sizes, per-actor materials and pigment pool. Missing optional flags preserve
 historical generation and motion. Pending drafts wait for the confirmed merge;
-artwork locks and historical days remain frozen. Decoding never upgrades a recipe. An unlocked Remix can explicitly
-generate a new daily recipe.
+artwork locks and historical days remain frozen. Decoding never upgrades a recipe.
+An unlocked Remix generates a new coherent family from the full Remix seed,
+excluding the previously saved family. All six families remain eligible across
+Remixes; the calendar shuffle only selects the initial family. Explicit Remix
+also selects a native palette from enabled categories using the full recipe seed,
+excluding the previous numerical swatches regardless of their order when an
+alternative exists. Its mesh selects a different archetype and rerolls its parameters. The new
+mesh and palette are frozen in the recipe before
+actors are generated; the background and daily style share those colors, and
+actor pigments are coordinated with them. A single eligible palette stays
+selected while its mesh rerolls. Initial calendar selection remains unchanged.
+Current-day adoption retains the complete remixed recipe, and Undo restores it.
 
 Idle motion applies seeded drift, breathing and bounded turns around those
 frozen slots at render time. It never writes positions back to persistence.
-With `livingVariation`, drift takes 14–24 seconds, breathing 9–15 seconds and
+With A, drift and bounded turns take 12 seconds; breathing takes six seconds.
+Four motion roles have drift half-amplitudes of 0.045, 0.053, 0.025 and 0.038
+canvas widths, and breathing half-amplitudes of 3.5%, 9.5%, 5.5% and 2%.
+The full saved slot and day seed choose the phase, so later slots do not move
+in lockstep with earlier ones. Circles drift and breathe; other families also
+sway, and rays glide along their own axis. With the older `livingVariation`,
+drift takes 14–24 seconds, breathing 9–15 seconds and
 slow bounded turns 50–85 seconds; each actor retains at least 78% of its family
 motion strength. Directed beams sweep by at most 0.14 radians. Unflagged styles
 retain the previous periods and amplitudes. The native adapter fades offsets
