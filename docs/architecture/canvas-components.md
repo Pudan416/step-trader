@@ -21,33 +21,50 @@ The daily canvas remains driven by events, capped at ten. Removing or adding an 
 New days use `atlas-2`, with an optional frozen `dailyStyle` payload. A shuffled
 six-day calendar cycle chooses circles, blobs, squares, clovers, flowers or rays,
 without adjacent repeats. Squares choose one contour for the day; flowers share
-their petal count. Rays reuse the Snowflake uniform/shader ABI with one smooth
-harmonic and no branches or notches. Triangles and hexagons remain decodable but
-are excluded from this new policy. Shape, compatible material, orientation and
-numeric colors are frozen once; new actors inherit them and occupy independent
-stable slots. Explicit palette changes coordinate current and future actors with
-the background. Ordinary daily actors use one ordered palette; event identity
-and picker variants change only subtle lightness, never the dominant hue order.
+their petal count. Rays use the existing directed diffuse-beam branch: stable
+`legacy.rounded-triangle` geometry (source kind 1, shape 5, variant 5) plus
+`directionalBlur`. The triangle body is replaced by the tapered light cone in
+that material; other daily families do not select this fill. Triangle and hexagon outlines remain decodable but are excluded from new
+daily families; the beam uses its triangle only as the compatible shader carrier. Shape, compatible material, orientation and
+numeric colors are frozen once; new actors inherit the family and occupy
+independent stable slots. Explicit palette changes coordinate current and future actors with
+the background. Daily actors use one ordered palette. The optional
+`livingVariation` policy adds a seed-stable tint toward one existing palette member (12–32%), lightness
+variation of up to 0.055 and chroma at 68–88%, retaining the stop order and soft
+lightness cap. Each stable slot has a large, medium or small size tier, clamped
+to 0.65–1.25 of the family baseline with slight event-seeded jitter. Shared
+materials have bounded light-direction/position variation. These actor values
+are frozen when generated; adding or removing events does not reroll survivors.
+The directed beam is a single-color light role: its mode-0 `color0` selects a
+seed-stable pigment from the brighter half of the daily palette and fits OKLab
+lightness to 0.72–0.82 with chroma at most 75%. Its diffuse alpha is unchanged.
 The optional `sharesPaletteOrder` flag preserves the prior color policy when
 decoding archived atlas-2 artwork without this flag.
 New/current daily styles also opt into `softGradients`: the selected hues retain
-their shared order, OKLab lightness spread is capped at 0.19, and chroma is
-reduced to 75% with hue-preserving gamut fitting. Procedural light uses broader,
-normalized overlapping lights and a blended highlight rather than a clipped
+their shared order and OKLab lightness spread is capped at 0.19, with hue-preserving
+gamut fitting. Styles without `livingVariation` retain their 75% chroma policy.
+Procedural light uses broader, normalized overlapping lights and a blended highlight rather than a clipped
 terminal-color core. Its opt-in marker uses the high bit of material
 `metadata.y`; the 128-byte CPU/GPU layout and unflagged shader path stay exact.
 Gallery adopts this policy for today's complete, editable Editorial canvas,
 including a saved empty or populated `atlas-1` day, before persisting and syncing
 it. Event IDs, saved placements, metrics and music selection survive adoption.
-It also normalizes older actor visuals imported during cloud recovery. Pending
-drafts wait for the confirmed merge; artwork locks and historical days remain
-frozen. Decoding never upgrades a recipe. An unlocked Remix can explicitly
+It also normalizes older actor visuals imported during cloud recovery. The
+first `livingVariation` adoption rebuilds sizes and materials from each saved
+slot, and converts the earlier radial Snowflake rays into directed beams while
+preserving event IDs, positions, rotations and slots. Further adoption retains
+those frozen sizes and material parameters. Missing optional flags preserve
+historical generation and motion. Pending drafts wait for the confirmed merge;
+artwork locks and historical days remain frozen. Decoding never upgrades a recipe. An unlocked Remix can explicitly
 generate a new daily recipe.
 
 Idle motion applies seeded drift, breathing and bounded turns around those
 frozen slots at render time. It never writes positions back to persistence.
-The native adapter fades offsets during music handoffs; existing lunar physics
-still owns playback and its return animation. Reduce Motion disables the idle
+With `livingVariation`, drift takes 14–24 seconds, breathing 9–15 seconds and
+slow bounded turns 50–85 seconds; each actor retains at least 78% of its family
+motion strength. Directed beams sweep by at most 0.14 radians. Unflagged styles
+retain the previous periods and amplitudes. The native adapter fades offsets
+during music handoffs; existing lunar physics still owns playback and its return animation. Reduce Motion disables the idle
 offsets. Picker slots never inherit Canvas motion, and the paused Canvas clock
 keeps artwork still behind the picker. Active new canvases request 30 FPS even
 with music off; visibility and scene lifecycle still gate rendering. Offscreen
