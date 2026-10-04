@@ -106,6 +106,7 @@ struct GalleryView: View {
     @State private var eventTree = HappeningEventTreeState()
     @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
     @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
+    @AppStorage("happeningEventTreeClearedDayKey") private var eventTreeClearedDayKey = ""
     @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteTourSessionID: UUID?
     @State private var paletteHappenings: [Happening] = []
@@ -537,7 +538,9 @@ struct GalleryView: View {
 
     private func refreshEventTreePalette() {
         // Synchronize every addition path, not just a tap within this field.
-        eventTree.revealHappenings(personalHealthRecommendationIDs + paletteAddedIDs.sorted())
+        if !personalEventFieldWasCleared {
+            eventTree.revealHappenings(personalHealthRecommendationIDs + paletteAddedIDs.sorted())
+        }
         let catalog = Dictionary(uniqueKeysWithValues: model.selectableHappenings.map { ($0.id, $0) })
         let happenings = HappeningEventTree.all.compactMap { catalog["event_" + $0.id] }
         paletteCatalog = happenings
@@ -560,6 +563,12 @@ struct GalleryView: View {
     }
 
     private func rebuildPersonalEventField() {
+        if personalEventFieldWasCleared {
+            eventTree = HappeningEventTreeState(
+                expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init)
+            )
+            return
+        }
         let familiar = PersonalHappeningRecommendations.ranked(
             catalog: model.selectableHappenings,
             historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
@@ -569,6 +578,10 @@ struct GalleryView: View {
             expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
             recommendedHappeningIDs: personalHealthRecommendationIDs + familiar + paletteAddedIDs.sorted()
         )
+    }
+
+    private var personalEventFieldWasCleared: Bool {
+        eventTreeClearedDayKey == dayCanvas.dayKey && dayCanvas.elements.isEmpty
     }
 
     private var personalHealthRecommendationIDs: [String] {
@@ -2457,6 +2470,15 @@ struct GalleryView: View {
         dayCanvas = result.canvas
         localMutationCounter &+= 1
         publishCanvasPersistence(result.canvas)
+        if result.canvas.elements.isEmpty {
+            eventTreeDayKey = result.canvas.dayKey
+            eventTreeExpandedIDs = ""
+            eventTreeClearedDayKey = result.canvas.dayKey
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                eventTree = HappeningEventTreeState()
+                paletteMode = .frequent
+            }
+        }
         refreshHappeningPalette()
         return true
     }

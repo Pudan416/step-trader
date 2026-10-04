@@ -217,6 +217,7 @@ private struct NowhereProductionRoot: View {
         if ProcessInfo.processInfo.arguments.contains("ui-testing-task7") {
             UserDefaults.standard.removeObject(forKey: "happeningEventTreeDayKey")
             UserDefaults.standard.removeObject(forKey: "happeningEventTreeExpandedIDs")
+            UserDefaults.standard.removeObject(forKey: "happeningEventTreeClearedDayKey")
             UserDefaults.nowhere().removeObject(forKey: SharedKeys.todayAdditions)
             CanvasStorageService.shared.deleteCanvas(
                 for: AppModel.dayKey(for: Date.now)

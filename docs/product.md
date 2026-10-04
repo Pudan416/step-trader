@@ -74,6 +74,10 @@ Expansion history is retained for the day. **All** reveals the same complete map
 around the same count; it retains the six roots and every option's position.
 Switching modes preserves the open field and the day's additions. Direct All additions
 are also visible along their path when returning to Personal.
+Removing the last Canvas happening clears the day's expansion history and returns
+the field to Personal with only the six roots. This cleared empty state survives
+closing and reopening the field; familiar and Health recommendations resume after
+a new happening is added. All remains available with the complete catalog.
 
 Personal pre-reveals up to three familiar events beside the six roots. It ranks
 frequency with a 21-day recency half-life, requires two use days, and excludes

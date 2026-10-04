@@ -34,6 +34,9 @@ Test names live in `NowhereTests/` unless stated otherwise.
   IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared
   Personal/All map for that opening, with six roots and shared intersections fixed.
   Later additions reveal their canonical paths without moving the open map.
+  Successful removal of the final Canvas element resets the field and its saved
+  expansion IDs. A local cleared-day marker suppresses recommendation prereveals
+  while that Canvas remains empty; normal recommendations resume on addition.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
   must not rebuild all 100 candidates. `DayObjectPaletteSet.make` shares a bounded
