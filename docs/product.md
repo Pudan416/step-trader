@@ -137,6 +137,8 @@ circles, blurred squares and rays are separate collections: every figure in each
 uses its own silhouette and directional blur. Ordinary collections exclude blur.
 Circles remain round with no elliptical stretching. Figures share a related color
 group, with pigments borrowed from nearby palettes in the selected categories.
+With zero automatically spent colors, there is no global scene blur. Blur
+collections retain their own softness, and manual Trace overrides stay available.
 The numeric pigments are frozen with the day. Adding or removing an event
 preserves the other figures. Triangle and hexagon days are excluded from new
 generation, while historical artwork retains its saved appearance.

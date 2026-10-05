@@ -184,6 +184,11 @@ Matching GPU geometry is in `Metal/ShapeAtlas/Geometry/`. `MetalShapeBasic.metal
 - Existing non-atlas digital impact: `Metal/Post/DayObjectsDigitalImpact.metalh`.
 - Shared blur/final color entry points: `Metal/DayObjectsPostShader.metal`.
 
+Native display scene softness requires a nonzero effective trace strength. At
+zero automatic spent-color trace, Health clarity cannot blur the whole canvas.
+Intrinsic blur materials retain their softness; explicit manual Trace overrides
+remain available.
+
 Headers compile into their consuming shader translation units. This split does not introduce a render pass per material or per shape.
 
 Smudge uses a static color field in `Views/Components/SmudgeCanvasView.swift`,

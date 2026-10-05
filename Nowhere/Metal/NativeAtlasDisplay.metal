@@ -41,8 +41,9 @@ fragment float4 nativeAtlasDisplay(MetalShapeVertexOut in [[stage_in]], texture2
             color = mix(color, echo, min(0.8, edge * strength * 2.0) / float(index));
         }
     }
-    // Health-driven softness and color clarity remain independent of digital damage.
-    if (finish.x > 0.0001) {
+    // Scene softness belongs to the spent-color trace. At zero strength, keep
+    // the source contours intact; blur collections already own their material.
+    if (strength > 0.0 && finish.x > 0.0001) {
         float3 soft = color * 0.4;
         for (uint i = 0; i < 6; i++) {
             const float a = float(i) * 1.04719755;
