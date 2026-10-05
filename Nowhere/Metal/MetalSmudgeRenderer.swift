@@ -164,7 +164,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     // ── Tuning constants ────────────────────────────────────────────
     private let relaxationTimeout: CFTimeInterval = 4.0
     private let targetReturnSeconds: Float = 1.0
-    private let alphaDiffusion: Float = 0.05
+    private let alphaDiffusion: Float = 0.07
     private let ageAcceleration: Float = 3.5
     private let fadeWindow: Float = 1.0
 
@@ -411,21 +411,6 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             maxMovement:  0
         )
 
-        // Fire a ripple immediately on every touch
-        let ripple = RippleInfo(
-            center:    pixel,
-            elapsed:   0,
-            amplitude: 50,
-            ringSpeed: 250,
-            mainWidth: 42,
-            decay:     0.0015,
-            duration:  3.0
-        )
-        activeRipples.append(ActiveRipple(info: ripple, startTime: now))
-        if activeRipples.count > maxRipples {
-            activeRipples.removeFirst()
-        }
-
         lastStrokeTime = now
         // The renderer is paused between gestures. Reset the frame clock so
         // the first relaxation step never receives the entire idle interval.
@@ -454,8 +439,11 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
         let speed  = simd_length(v) / max(dt, 1e-4)
         let segLen = simd_length(v)
 
-        let radius     = min(max(baseRadius   + speed * 0.04,   baseRadius),   maxRadius)
+        let phase = (p0.x * 0.013 + p0.y * 0.017).truncatingRemainder(dividingBy: 2 * .pi)
+        let variation = 1.0 + 0.08 * sin(phase)
+        let radius     = min(max(baseRadius   + speed * 0.04,   baseRadius),   maxRadius) * variation
         let strength   = min(max(baseStrength + speed * 0.0018, baseStrength), maxStrength)
+                          * (0.98 + 0.04 * cos(phase))
 
         let rawDrag    = min(max(baseDragFactor + speed * 0.0008, baseDragFactor), maxDragFactor)
         let dragFactor = min(max(rawDrag * segLen, 8.0), 80.0)
@@ -466,7 +454,7 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
             p0: p0, p1: p1,
             radius: radius,
             strength: strength,
-            dragFactor: dragFactor,
+            dragFactor: dragFactor * (0.98 + 0.04 * sin(phase + 1.1)),
             direction: direction
         )
 
@@ -479,8 +467,26 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
     }
 
     func handleTouchEnded(id: ObjectIdentifier) {
-        activeTouches.removeValue(forKey: id)
-        lastStrokeTime = CACurrentMediaTime()
+        guard let touch = activeTouches.removeValue(forKey: id) else { return }
+        let now = CACurrentMediaTime()
+        if touch.maxMovement <= tapThreshold {
+            let phase = (touch.beganPixel.x * 0.017 + touch.beganPixel.y * 0.011)
+                .truncatingRemainder(dividingBy: 2 * .pi)
+            let ripple = RippleInfo(
+                center: touch.beganPixel,
+                elapsed: 0,
+                amplitude: 50 + 4 * sin(phase),
+                ringSpeed: 250 + 10 * cos(phase),
+                mainWidth: 42 + 2 * sin(phase + 0.8),
+                decay: 0.0015,
+                duration: 3.0
+            )
+            activeRipples.append(ActiveRipple(info: ripple, startTime: now))
+            if activeRipples.count > maxRipples { activeRipples.removeFirst() }
+        }
+        lastStrokeTime = now
+        lastFrameTime = now
+        isDistorted = true
     }
 
     func setActive(_ active: Bool) {

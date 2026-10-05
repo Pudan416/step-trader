@@ -82,7 +82,7 @@ fragment float4 smudgeDisplayFragment(
     float ageFade = saturate(1.0 - age / 3.0);
 
     float3 colorShift = interactive.rgb - base.rgb;
-    float3 smudgeColor = saturate(interactive.rgb + colorShift * 5.0 + float3(ageFade * 0.07));
+    float3 smudgeColor = saturate(interactive.rgb + colorShift * 0.28 + float3(ageFade * 0.018));
     float  smudgeAlpha = ageFade * 0.55;
 
     // ── 2. Ripple: WAVE-SHAPE visibility (independent of colors) ─
@@ -129,7 +129,7 @@ fragment float4 smudgeDisplayFragment(
     if (rippleWave > 0.001) {
         float4 rippledBase = baseTex.sample(s, rippleUV);
         float3 rShift = rippledBase.rgb - base.rgb;
-        rippleColor = saturate(rippledBase.rgb + rShift * 5.0 + float3(rippleWave * 0.09));
+        rippleColor = saturate(rippledBase.rgb + rShift * 0.25 + float3(rippleWave * 0.035));
         rippleAlpha = rippleWave * 0.6;
     }
 
