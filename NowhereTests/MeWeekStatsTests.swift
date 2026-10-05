@@ -727,6 +727,25 @@ final class MePosterSnapshotTests: XCTestCase {
         XCTAssertEqual(renders, 1, "App relaunch must reuse the saved bitmap")
     }
 
+    func testReopenedCalendarImageLoadsFromDiskWithoutRendering() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let canvas = DayCanvas(dayKey: "2026-09-07")
+        let original = MePosterSnapshotCache(directory: directory) { _, _ in self.fixtureImage(.red) }
+        _ = await original.image(for: canvas, categories: ModernPaletteSelection.all)
+
+        var renders = 0
+        let reopened = MePosterSnapshotCache(directory: directory) { _, _ in
+            renders += 1
+            return nil
+        }
+        XCTAssertNil(reopened.cachedImageInMemory(for: canvas.dayKey))
+        let restored = await reopened.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertNotNil(restored)
+        XCTAssertTrue(reopened.cachedImageInMemory(for: canvas.dayKey) === restored)
+        XCTAssertEqual(renders, 0)
+    }
+
     func testSnapshotRefreshesWhenAnElementIsAddedRemovedOrCanvasIsRemixed() async {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

@@ -115,7 +115,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(persisted.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
         XCTAssertEqual(result.canvas.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
         XCTAssertEqual(model.todayAdditions.map(\.id), [element.id.uuidString])
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), [element.optionId])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), [HappeningDefaults.canonicalID(element.optionId)])
     }
 
     func testAllTenDifferentPaletteHappeningsCanBeAddedToTheCanvas() throws {

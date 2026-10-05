@@ -194,7 +194,7 @@ final class AppTypographyTests: XCTestCase {
     }
 
     @MainActor
-    func testMuseumPosterDateRendersTheBoldNowhereDisplayFace() throws {
+    func testMuseumPosterHeaderUsesTheDisplayTitleAndMetadataHierarchy() throws {
         let date = try XCTUnwrap(
             Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 8, day: 22))
         )
@@ -207,15 +207,17 @@ final class AppTypographyTests: XCTestCase {
         let posterHeader = try XCTUnwrap(
             posterImage.cgImage?.cropping(to: CGRect(x: 0, y: 0, width: 604, height: 96))
         )
-        let actualInk = try darkPixelCount(in: posterHeader)
+        let cgImage = posterHeader
+        let titleInk = try darkPixelCount(in: try XCTUnwrap(
+            cgImage.cropping(to: CGRect(x: 30, y: 0, width: 145, height: 96))
+        ))
+        let dateInk = try darkPixelCount(in: try XCTUnwrap(
+            cgImage.cropping(to: CGRect(x: 170, y: 0, width: 130, height: 96))
+        ))
 
-        let blackReference = try renderedImage(
-            Text("22/08/26")
-                .font(.custom("NowhereDisplay091-Bold", fixedSize: 48))
-        )
-        let expectedInk = try darkPixelCount(in: try XCTUnwrap(blackReference.cgImage))
-
-        XCTAssertEqual(actualInk, expectedInk, accuracy: 40)
+        XCTAssertGreaterThan(titleInk, 0, "The poster should show its display title.")
+        XCTAssertGreaterThan(dateInk, 0, "The poster should show its date metadata.")
+        XCTAssertGreaterThan(titleInk, dateInk, "The display title should carry more visual weight than the date.")
     }
 
     @MainActor

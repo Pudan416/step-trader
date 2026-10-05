@@ -1,8 +1,8 @@
 #include "HappeningPickerStyle.metalh"
 #include "ShapeAtlas/Materials/MetalShapeMaterials.metalh"
 
-struct NativeAtlasPlacement { float4 pose; float4 canvas; float4 effects; float4 presentation; };
-static_assert(sizeof(NativeAtlasPlacement) == 64, "Native placement must match four Swift float4 values");
+struct NativeAtlasPlacement { float4 pose; float4 canvas; float4 effects; float4 presentation; float4 trace; };
+static_assert(sizeof(NativeAtlasPlacement) == 80, "Native placement must match five Swift float4 values");
 
 fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
     constant MetalShapeGenomeUniforms &g [[buffer(0)]],
@@ -40,7 +40,7 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
         shape = mix(happeningPickerFill(happeningPickerRadius(pickerPoint), filled, pickerAccent.rgb), shape, reveal);
     }
     float4 foreground = shape * placement.canvas.z;
-    const float a = clamp(foreground.a, 0.0, 1.0);
+    float a = clamp(foreground.a, 0.0, 1.0);
     const float coverageDerivative = fwidth(a);
     float3 color = foreground.rgb / max(a, 0.00001);
     color = mix(float3(dot(color, float3(0.2126, 0.7152, 0.0722))), color, placement.effects.z);
@@ -59,6 +59,42 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
             const float neighbor = min(min(previous.sample(linearSampler, in.uv + float2(delta.x, 0)).a, previous.sample(linearSampler, in.uv - float2(delta.x, 0)).a), min(previous.sample(linearSampler, in.uv + float2(0, delta.y)).a, previous.sample(linearSampler, in.uv - float2(0, delta.y)).a));
             const float edge = max(smoothstep(0.015, 0.15, coverageDerivative), 1.0 - smoothstep(0.1, 0.6, neighbor));
             color = mix(color, float3(1.0), edge * strength * 0.9);
+        }
+    }
+    // Spend traces are rendered against each figure's local geometry. The
+    // ambient gradient remains the material revealed by fades and erosion.
+    const uint traceType = uint(placement.trace.x);
+    const float traceStrength = saturate(placement.trace.y);
+    if (eligible && traceStrength > 0.0 && traceType >= 5u && traceType <= 8u) {
+        const float seeded = placement.trace.z * 127.0 + placement.trace.w * 311.0;
+        if (traceType == 5u && a > 0.001) { // Signal: color registration at edges and tiny tears.
+            const float edge = smoothstep(0.025, 0.18, coverageDerivative);
+            const float band = fract((local.y * 21.0 + seeded) * 0.5);
+            const float tear = (1.0 - smoothstep(0.08, 0.19, abs(band - 0.5)))
+                * step(0.72, fract(sin(floor(local.y * 21.0 + seeded) * 91.7) * 43758.5));
+            const float3 split = float3(color.r * 0.62 + 0.38, color.g * 0.78 + 0.12, color.b * 0.66 + 0.34);
+            color = mix(color, split, traceStrength * (edge * 0.7 + tear * 0.38));
+        } else if (traceType == 6u && a > 0.001) { // Fade: pigment recedes into the canvas.
+            color = mix(color, background.rgb, traceStrength * 0.88);
+            a *= 1.0 - traceStrength * 0.36;
+        } else if (traceType == 7u) { // Drift: a soft, seeded pigment echo trails an edge.
+            const float angle = placement.trace.z * 6.2831853;
+            const float2 direction = float2(cos(angle), sin(angle));
+            MetalShapeVertexOut echoIn = in;
+            echoIn.uv = local + 0.5 - direction * (0.06 + traceStrength * 0.28);
+            if (all(echoIn.uv >= 0.0) && all(echoIn.uv <= 1.0)) {
+                const float4 echo = metalShapeGenomeShade(echoIn, g, m);
+                const float trail = clamp(echo.a * traceStrength * 0.42 * (1.0 - a), 0.0, 0.28);
+                const float3 pigment = mix(echo.rgb / max(echo.a, 0.0001), float3(0.30, 0.78, 0.72), 0.22);
+                color = (color * a + pigment * trail) / max(a + trail, 0.0001);
+                a += trail;
+            }
+        } else if (traceType == 8u && a > 0.001) { // Erosion: pinholes reveal the gradient below.
+            const float cellScale = mix(16.0, 43.0, traceStrength);
+            const float2 cell = floor((local + 0.5) * cellScale + float2(seeded, seeded * 0.71));
+            const float noise = fract(sin(dot(cell, float2(127.1, 311.7))) * 43758.5453);
+            const float erosion = step(0.63, noise) * smoothstep(0.14, 0.92, traceStrength);
+            a *= 1.0 - erosion * 0.78;
         }
     }
     float3 combined = color * a + background.rgb * (1.0 - a);

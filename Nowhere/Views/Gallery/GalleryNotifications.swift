@@ -92,7 +92,7 @@ enum CanvasHappeningReconciler {
         var duplicateElementIDs = [UUID]()
         for index in canvas.elements.indices {
             let element = canvas.elements[index]
-            if seenOptionIDs.insert(element.optionId).inserted {
+            if seenOptionIDs.insert(HappeningDefaults.canonicalID(element.optionId)).inserted {
                 canonicalElementIndices.append(index)
             } else {
                 duplicateElementIDs.append(element.id)
@@ -114,7 +114,8 @@ enum CanvasHappeningReconciler {
                 unmatchedEntryIndices.contains($0)
                     && UUID(uuidString: currentEntries[$0].id) == element.id
             }) else { continue }
-            guard currentEntries[entryIndex].optionId == element.optionId else {
+            guard HappeningDefaults.canonicalID(currentEntries[entryIndex].optionId)
+                    == HappeningDefaults.canonicalID(element.optionId) else {
                 // Reserve both sides of a conflicting stable identity. Neither
                 // may be rescued by the legacy option-only fallback: Canvas
                 // must replace the stale entry with its canonical metadata.
@@ -134,7 +135,8 @@ enum CanvasHappeningReconciler {
             guard let entryIndex = currentEntries.indices.first(where: {
                 unmatchedEntryIndices.contains($0)
                     && !conflictingEntryIndices.contains($0)
-                    && currentEntries[$0].optionId == element.optionId
+                    && HappeningDefaults.canonicalID(currentEntries[$0].optionId)
+                        == HappeningDefaults.canonicalID(element.optionId)
             }) else { continue }
             unmatchedEntryIndices.remove(entryIndex)
             unmatchedElementIndices.remove(elementIndex)
@@ -145,7 +147,7 @@ enum CanvasHappeningReconciler {
             return OptionEntry(
                 id: element.id.uuidString,
                 dayKey: dayKey,
-                optionId: element.optionId,
+                optionId: HappeningDefaults.canonicalID(element.optionId),
                 colorHex: element.hexColor,
                 timestamp: now,
                 assetVariant: element.assetVariant

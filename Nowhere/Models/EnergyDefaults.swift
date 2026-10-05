@@ -44,6 +44,7 @@ enum EnergyDefaults {
         "mind_ordering": "Ordering",
         "mind_remembering": "Remembering",
         "mind_screen_detox": "Screen Detoxing",
+        "mind_letting_go": "Letting go",
 
         "heart_joy": "Joy",
         "heart_calm": "Calm",
@@ -61,10 +62,19 @@ enum EnergyDefaults {
     /// Resolves through `option.title.<id>` exactly as the old model did, so
     /// translated copy already in the catalog keeps working.
     static func legacyTitle(for optionId: String) -> String? {
-        guard let fallback = legacyOptionTitles[optionId] else { return nil }
-        return Bundle.main.localizedString(
-            forKey: "option.title.\(optionId)", value: fallback, table: nil
-        )
+        if let fallback = legacyOptionTitles[optionId] {
+            return Bundle.main.localizedString(
+                forKey: "option.title.\(optionId)", value: fallback, table: nil
+            )
+        }
+
+        // Older releases could leave generated custom activity identifiers in
+        // Canvas history even when their user_custom_activities row was not
+        // restored. Never expose an internal key such as custom_body_<hash>.
+        guard optionId.hasPrefix("custom_body_")
+                || optionId.hasPrefix("custom_mind_")
+                || optionId.hasPrefix("custom_heart_") else { return nil }
+        return String(localized: "Activity", comment: "Fallback title for an old custom happening whose saved title cannot be restored")
     }
 }
 

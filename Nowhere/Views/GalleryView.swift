@@ -2792,8 +2792,6 @@ struct GalleryView: View {
             try? await Task.sleep(for: .milliseconds(50))
 
             let userName = AuthenticationService.shared.currentUser?.displayName
-            let style = PosterStyle.museum
-
             // Render the poster at the exact on-screen frame size, then upscale via
             // `renderer.scale`. This keeps every element — including the canvas's
             // absolute-point labels — at the same proportions shown on screen,
@@ -2857,8 +2855,7 @@ struct GalleryView: View {
                 )
             }
 
-            let shareable = CanvasPosterView(
-                style: style,
+            let shareable = CanvasFrameView(
                 date: Date.now,
                 userName: userName,
                 steps: Int(model.stepsToday),

@@ -1323,6 +1323,14 @@
     "Choose app for %@" : {
       "comment" : "TimeAccessPicker – title with app name"
     },
+    "Choose apps to block" : {
+      "comment" : "Feeds add card – title and VoiceOver label",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose apps to block" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Выбрать приложения для блокировки" } }
+      }
+    },
     "Choose happenings" : {
       "comment" : "Palette dock button"
     },
@@ -1415,9 +1423,6 @@
     },
     "Copy Shield Diagnostics" : {
       "comment" : "Developer diagnostic action"
-    },
-    "Cosmic" : {
-      "comment" : "Canvas animation picker – cosmic shader option"
     },
     "Couldn't initialise your account. Please check your connection and try again." : {
       "comment" : "Auth – anonymous signup failure surfaced on cold launch"
@@ -1579,9 +1584,6 @@
     "Drag to smudge the canvas." : {
       "comment" : "Canvas animation picker – smudge subtitle"
     },
-    "Drifting field — tap and drag to morph it." : {
-      "comment" : "Canvas animation picker – cosmic subtitle"
-    },
     "Dusk" : {
 
     },
@@ -1700,14 +1702,8 @@
     "Force Health Reset (New Day)" : {
       "comment" : "Developer diagnostic action"
     },
-    "Framed" : {
-      "comment" : "Poster style name"
-    },
     "Full" : {
       "comment" : "GradientPreview – preview mode showing all data"
-    },
-    "Full Bleed" : {
-      "comment" : "Poster style name"
     },
     "Gained" : {
 
@@ -2040,6 +2036,14 @@
     },
     "Opens the canvas without editing" : {
       "comment" : "Canvas – full screen button VoiceOver hint"
+    },
+    "Opens the app picker" : {
+      "comment" : "Feeds add card – VoiceOver hint",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Opens the app picker" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Открывает список приложений" } }
+      }
     },
     "option.description.body_balance" : {
       "extractionState" : "stale",

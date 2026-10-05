@@ -19,6 +19,8 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         app.buttons["tab_feeds"].tap()
         let groups = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access'"))
         let initialCount = groups.count
+        XCTAssertEqual(app.buttons["feed.add"].label, "Choose apps to block")
+        XCTAssertFalse(app.buttons["feed.addDuplicate"].exists)
         app.buttons["feed.add"].tap()
         let name = app.textFields["feed.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
@@ -83,7 +85,9 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertTrue(done.isEnabled)
         done.tap()
         XCTAssertTrue(app.buttons["feed.add"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access' AND label CONTAINS 'Named feed'")).firstMatch.waitForExistence(timeout: 5))
+        let createdFeed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed.' AND identifier ENDSWITH '.access' AND label CONTAINS 'Named feed'")).firstMatch
+        XCTAssertTrue(createdFeed.waitForExistence(timeout: 5))
+        XCTAssertFalse(createdFeed.label.contains("1 app"))
         attachScreenshot(named: "single-screen-feed-created")
         app.terminate()
         app.launch()

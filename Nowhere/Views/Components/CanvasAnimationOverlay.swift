@@ -1,8 +1,6 @@
 import SwiftUI
 
-/// Routes between the available canvas-overlay animations based on the
-/// user's choice in Settings → Appearance. Smudge keeps its full
-/// configuration; cosmic ignores it (it's a procedural standalone effect).
+/// Routes the selected canvas-overlay animation.
 ///
 /// The active style is persisted via `SharedKeys.canvasOverlayStyle` in the
 /// shared App-Group defaults, defaulting to `.smudge` so existing users see
@@ -32,6 +30,7 @@ struct CanvasAnimationOverlay: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var style: CanvasOverlayStyle {
+        // Removed legacy values (including `cosmic`) safely fall back to Smudge.
         CanvasOverlayStyle.currentCanvasStyle(
             storedRaw: styleRaw,
             overrideRaw: overlayStyleOverride
@@ -86,8 +85,6 @@ struct CanvasAnimationOverlay: View {
                 onGestureUpdated: onGestureUpdated,
                 onGestureEnded: onGestureEnded
             )
-        case .cosmic:
-            ShaderParkOverlayView(isRenderingAllowed: isRenderingAllowed)
         }
     }
 }

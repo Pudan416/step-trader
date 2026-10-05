@@ -18,7 +18,11 @@ extension AppModel {
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        return HappeningDefaults.selectableHappening(id: id) != nil
+        guard let choice = HappeningDefaults.selectableHappening(id: id) else { return false }
+        let alreadyAdded = todayAdditions.contains {
+            $0.dayKey == dayKey && HappeningDefaults.canonicalID($0.optionId) == choice.id
+        }
+        return !alreadyAdded
             && todayAdditions.filter { $0.dayKey == dayKey }.count < HappeningDefaults.maximumDailyAdditions
     }
 
@@ -80,6 +84,13 @@ extension AppModel {
 
     func createHappening(title: String, at date: Date = .now) -> Happening {
         happeningStore.create(title: title, at: date)
+    }
+
+    /// Merges restored records for historical label resolution; fixed built-in
+    /// choices remain the only selectable palette entries.
+    func mergeRestoredHappenings(_ happenings: [Happening]) {
+        happeningStore.mergeRestored(happenings)
+        objectWillChange.send()
     }
 
     /// Retained API for older callers; creation is unavailable in the fixed catalog.

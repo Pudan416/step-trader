@@ -42,15 +42,24 @@ struct MainTabView: View {
         let previous = selection
         tabTransition = Task { @MainActor in
             defer { tabTransition = nil }
-            if previous == Tab.canvas.rawValue, tab != .canvas {
-                await TodayCanvasBackdropStore.shared.captureVisibleFrame()
-            }
+            let transitionStartedAt = ProcessInfo.processInfo.systemUptime
             guard !Task.isCancelled, selection == previous, let destination = pendingTab else { return }
             pendingTab = nil
             if animated {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selection = destination.rawValue }
             } else { selection = destination.rawValue }
             CanvasTour.shared.send(.tabSelected(destination.rawValue))
+            let selectionLatency = Int((ProcessInfo.processInfo.systemUptime - transitionStartedAt) * 1_000)
+            Task {
+                await SupabaseSyncService.shared.trackAnalyticsEvent(
+                    name: "tab_switched",
+                    properties: [
+                        "from_tab": Tab.resolve(storedRawValue: previous).telemetryName,
+                        "to_tab": destination.telemetryName,
+                        "selection_latency_ms": String(selectionLatency)
+                    ]
+                )
+            }
         }
     }
 
@@ -120,6 +129,14 @@ struct MainTabView: View {
             case .feeds: return "tab_feeds"
             case .canvas: return "tab_canvas"
             case .me: return "tab_me"
+            }
+        }
+
+        var telemetryName: String {
+            switch self {
+            case .canvas: return "canvas"
+            case .feeds: return "feeds"
+            case .me: return "me"
             }
         }
 

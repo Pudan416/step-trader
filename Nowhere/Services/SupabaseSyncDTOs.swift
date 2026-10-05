@@ -165,10 +165,20 @@ struct DailySpentRow: Codable {
 
 struct AnalyticsEventPayload: Codable, Equatable {
     let id: String
+    /// Owner captured when the event was recorded; nil only for pre-fix queue rows.
+    let userId: String?
+    let identityType: String?
     let eventName: String
     let dayKey: String
     let properties: [String: String]
     let occurredAt: Date
+    let eventStage: String?
+    let schemaVersion: Int?
+    let appVersion: String?
+    let appBuild: String?
+    let osVersion: String?
+    let deviceModel: String?
+    let sessionId: String?
 }
 
 struct AnalyticsEventInsertRow: Codable {
@@ -178,6 +188,14 @@ struct AnalyticsEventInsertRow: Codable {
     let properties: [String: String]
     let eventId: String
     let occurredAt: String
+    let eventStage: String
+    let schemaVersion: Int
+    let appVersion: String?
+    let appBuild: String?
+    let osVersion: String?
+    let deviceModel: String?
+    let sessionId: String?
+    let identityType: String?
     
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -186,6 +204,14 @@ struct AnalyticsEventInsertRow: Codable {
         case properties
         case eventId = "event_id"
         case occurredAt = "occurred_at"
+        case eventStage = "event_stage"
+        case schemaVersion = "schema_version"
+        case appVersion = "app_version"
+        case appBuild = "app_build"
+        case osVersion = "os_version"
+        case deviceModel = "device_model"
+        case sessionId = "session_id"
+        case identityType = "identity_type"
     }
 }
 

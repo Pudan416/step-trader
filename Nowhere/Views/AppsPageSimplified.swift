@@ -162,31 +162,19 @@ struct AppsPageSimplified: View {
                             .foregroundStyle(buttonTint)
 
                         Spacer(minLength: 16)
-
-                        Button {
-                            attemptCreateGroup()
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.geist(size: 17, weight: .regular))
-                                .foregroundStyle(palette.textColor)
-                                .frame(
-                                    width: FeedCardLayout.addControlDiameter,
-                                    height: FeedCardLayout.addControlDiameter
-                                )
-                                .canvasChromeSurface(in: Circle())
-                        }
-                        .accessibilityLabel(String(localized: "Add apps"))
-                        .accessibilityIdentifier("feed.add")
-                        .canvasTourControl("feeds.add")
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
-                    .padding(.bottom, 18)
+                    .padding(.bottom, 14)
 
                     if visibleGroups.isEmpty {
-                        emptyState
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(.bottom, max(tabBarHeight, 50) + 20)
+                        VStack(spacing: 18) {
+                            emptyState
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            addFeedCard
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, max(tabBarHeight, 50) + 20)
                     } else {
                         feedsList
                     }
@@ -389,6 +377,9 @@ struct AppsPageSimplified: View {
                                 }
                             }
                         }
+
+                        addFeedCard
+                            .padding(.top, 2)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
@@ -444,20 +435,56 @@ struct AppsPageSimplified: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: attemptCreateGroup) {
-                Label(String(localized: "Add apps"), systemImage: "plus")
-                    .font(.geist(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(palette.onAccentColor)
-                    .padding(.horizontal, 22)
-                    .frame(height: 50)
-                    .background(Capsule().fill(palette.accentColor))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("feed.addDuplicate")
-            .canvasTourControl("feeds.addDuplicate")
         }
         .foregroundStyle(buttonTint)
         .padding(.horizontal, 40)
+    }
+
+    /// A persistent entry point for adding a feed. Brand marks suggest
+    /// popular starting points; tapping opens the full system picker.
+    private var addFeedCard: some View {
+        Button(action: attemptCreateGroup) {
+            HStack(spacing: 14) {
+                FeedSuggestionMarks()
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(String(localized: "Choose apps to block", comment: "Feeds add card – title"))
+                        .font(.geist(15, weight: .semibold, relativeTo: .body))
+                        .foregroundStyle(palette.textColor)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "plus")
+                    .font(.geist(size: 14, weight: .semibold))
+                    .foregroundStyle(palette.onAccentColor)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(palette.accentColor))
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 92)
+            .background {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(palette.surfaceColor)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(palette.accentColor.opacity(0.16))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(palette.accentColor.opacity(0.82), lineWidth: 1.5)
+                    }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "Choose apps to block", comment: "Feeds add card – VoiceOver label"))
+        .accessibilityHint(String(localized: "Opens the app picker", comment: "Feeds add card – VoiceOver hint"))
+        .accessibilityIdentifier("feed.add")
+        .canvasTourControl("feeds.add")
     }
 
     /// Sheet for full ticket settings
@@ -581,6 +608,44 @@ struct AppsPageSimplified: View {
             autoScrolledTargetID = nil
             inlineExpansion = inlineExpansion.collapsing(groupID: groupID)
         }
+    }
+}
+
+private struct FeedSuggestionMarks: View {
+    @Environment(\.canvasChromePalette) private var palette
+
+    var body: some View {
+        ZStack {
+            mark("FeedSocialInstagram", tint: palette.accentColor, size: 27)
+                .rotationEffect(.degrees(-9))
+                .position(x: 14, y: 18)
+            mark("FeedSocialTikTok", tint: palette.secondaryColor, size: 25)
+                .rotationEffect(.degrees(7))
+                .position(x: 36, y: 42)
+            mark("FeedSocialYouTube", tint: palette.textColor, size: 31)
+                .rotationEffect(.degrees(4))
+                .position(x: 57, y: 17)
+            mark("FeedSocialX", tint: palette.textColor, size: 23)
+                .rotationEffect(.degrees(-6))
+                .position(x: 80, y: 41)
+            mark("FeedSocialTelegram", tint: palette.accentColor, size: 29)
+                .rotationEffect(.degrees(8))
+                .position(x: 103, y: 18)
+        }
+        .frame(width: 118, height: 60)
+    }
+
+    private func mark(_ name: String, tint: Color, size: CGFloat) -> some View {
+        tint
+            .mask {
+                Image(name)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .colorInvert()
+                    .luminanceToAlpha()
+            }
+            .frame(width: size, height: size)
     }
 }
 

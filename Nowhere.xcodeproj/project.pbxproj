@@ -442,9 +442,6 @@
 		60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */; };
 		60SA00023003000060SA0002 /* SleepGoalArcPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SA00013003000060SA0001 /* SleepGoalArcPicker.swift */; };
 		60SD00023003000060SD0002 /* StepGoalDrumPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SD00013003000060SD0001 /* StepGoalDrumPicker.swift */; };
-		60SP0001300000000060SP0001 /* ShaderParkShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0002300000000060SP0002 /* ShaderParkShader.metal */; };
-		60SP0003300000000060SP0003 /* MetalShaderParkRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0004300000000060SP0004 /* MetalShaderParkRenderer.swift */; };
-		60SP0005300000000060SP0005 /* ShaderParkOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60SP0006300000000060SP0006 /* ShaderParkOverlayView.swift */; };
 		62FCEE93619D57A0D6E82263 /* AnnouncementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */; };
 		69624326AA0BD3D99B13FBCA /* GalleryNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */; };
 		6B454ECDBA75497D1287A4E1 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7F473D8EA05B52428ABD08 /* AppColors.swift */; };
@@ -455,10 +452,6 @@
 		70DB3A6D3B5C4A1A9E0F0001 /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DB3A6C3B5C4A1A9E0F0001 /* NetworkClient.swift */; };
 		70SL0001300000000070SL0001 /* SpotlightShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 70SL0002300000000070SL0002 /* SpotlightShader.metal */; };
 		746D440DB0B70DEB8DC115D9 /* Tariff.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A644F2816949A05C4C7FEE /* Tariff.swift */; };
-		80FB00023005000080FB0002 /* CanvasFullBleedPoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80FB00013005000080FB0001 /* CanvasFullBleedPoster.swift */; };
-		80FD00023005000080FD0002 /* CanvasFramedDarkPoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80FD00013005000080FD0001 /* CanvasFramedDarkPoster.swift */; };
-		80PS00023005000080PS0002 /* PosterStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80PS00013005000080PS0001 /* PosterStyle.swift */; };
-		80PV00023005000080PV0002 /* CanvasPosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80PV00013005000080PV0001 /* CanvasPosterView.swift */; };
 		813F4369B7A9A646FC3A6336 /* MindShapeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74354085AF5838FDBCB636B7 /* MindShapeGenerator.swift */; };
 		852646119C9CEFF14D480477 /* ActivitySuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49124F0393F299111D41A1B0 /* ActivitySuggestion.swift */; };
 		8B384FBFB75371B21BDF1BC5 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4C408A95DD73B3A9D51628 /* WidgetSnapshot.swift */; };
@@ -1081,9 +1074,6 @@
 		60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasAnimationOverlay.swift; sourceTree = "<group>"; };
 		60SA00013003000060SA0001 /* SleepGoalArcPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepGoalArcPicker.swift; sourceTree = "<group>"; };
 		60SD00013003000060SD0001 /* StepGoalDrumPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepGoalDrumPicker.swift; sourceTree = "<group>"; };
-		60SP0002300000000060SP0002 /* ShaderParkShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = ShaderParkShader.metal; sourceTree = "<group>"; };
-		60SP0004300000000060SP0004 /* MetalShaderParkRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalShaderParkRenderer.swift; sourceTree = "<group>"; };
-		60SP0006300000000060SP0006 /* ShaderParkOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShaderParkOverlayView.swift; sourceTree = "<group>"; };
 		6566493AB846569B72E1684D /* NotificationServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NotificationServiceProtocol.swift; path = Nowhere/Protocols/NotificationServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
 		6C7F473D8EA05B52428ABD08 /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppColors.swift; path = Nowhere/Theme/AppColors.swift; sourceTree = SOURCE_ROOT; };
 		70CF00013004000070CF0001 /* CanvasFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFrameView.swift; sourceTree = "<group>"; };
@@ -1094,10 +1084,6 @@
 		795B4773B7FDBF974114BA9F /* HeartShapeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HeartShapeGenerator.swift; path = Nowhere/Shapes/HeartShapeGenerator.swift; sourceTree = SOURCE_ROOT; };
 		7A214D7EB007648A8206D56D /* EnergyDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EnergyDefaults.swift; path = Nowhere/Models/EnergyDefaults.swift; sourceTree = SOURCE_ROOT; };
 		7EF6441CB730DE1DF44F4310 /* HandoffToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HandoffToken.swift; path = Nowhere/Models/HandoffToken.swift; sourceTree = SOURCE_ROOT; };
-		80FB00013005000080FB0001 /* CanvasFullBleedPoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFullBleedPoster.swift; sourceTree = "<group>"; };
-		80FD00013005000080FD0001 /* CanvasFramedDarkPoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasFramedDarkPoster.swift; sourceTree = "<group>"; };
-		80PS00013005000080PS0001 /* PosterStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterStyle.swift; sourceTree = "<group>"; };
-		80PV00013005000080PV0001 /* CanvasPosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasPosterView.swift; sourceTree = "<group>"; };
 		8C8648A4882378AF2E1E742F /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Color+Hex.swift"; path = "Nowhere/Extensions/Color+Hex.swift"; sourceTree = SOURCE_ROOT; };
 		9D48E49DD31DC0AC95530A16 /* AnnouncementService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementService.swift; sourceTree = "<group>"; };
 		A51444749A1B225FCD6A4DCF /* GalleryNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GalleryNotifications.swift; path = Nowhere/Views/Gallery/GalleryNotifications.swift; sourceTree = SOURCE_ROOT; };
@@ -1718,7 +1704,6 @@
 				2061ED012F277010009FEC25 /* Nowhere/Services/ErrorManager.swift */,
 				2061ECF92F277010009FEC24 /* PayGateSession.swift */,
 				60CO0002300000000060CO0002 /* CanvasOverlayStyle.swift */,
-				80PS00013005000080PS0001 /* PosterStyle.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1833,12 +1818,8 @@
 				50SM00063002000050SM0006 /* SmudgeCanvasView.swift */,
 				60SD00013003000060SD0001 /* StepGoalDrumPicker.swift */,
 				60SA00013003000060SA0001 /* SleepGoalArcPicker.swift */,
-				60SP0006300000000060SP0006 /* ShaderParkOverlayView.swift */,
 				60CO0004300000000060CO0004 /* CanvasAnimationOverlay.swift */,
 				70CF00013004000070CF0001 /* CanvasFrameView.swift */,
-				80FB00013005000080FB0001 /* CanvasFullBleedPoster.swift */,
-				80FD00013005000080FD0001 /* CanvasFramedDarkPoster.swift */,
-				80PV00013005000080PV0001 /* CanvasPosterView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2015,8 +1996,6 @@
 				AC0909000000000000000041 /* Post */,
 				50SM00043002000050SM0004 /* SmudgeShaders.metal */,
 				50SM00053002000050SM0005 /* MetalSmudgeRenderer.swift */,
-				60SP0002300000000060SP0002 /* ShaderParkShader.metal */,
-				60SP0004300000000060SP0004 /* MetalShaderParkRenderer.swift */,
 				70SL0002300000000070SL0002 /* SpotlightShader.metal */,
 				D0B10000000000000000001B /* DayObjectsMeshGradientShader.metal */,
 				D0B10000000000000000001C /* DayObjectsActorShader.metal */,
@@ -2915,9 +2894,6 @@
 				50SM00033002000050SM0003 /* SmudgeCanvasView.swift in Sources */,
 				60CO0001300000000060CO0001 /* CanvasOverlayStyle.swift in Sources */,
 				60CO0003300000000060CO0003 /* CanvasAnimationOverlay.swift in Sources */,
-				60SP0001300000000060SP0001 /* ShaderParkShader.metal in Sources */,
-				60SP0003300000000060SP0003 /* MetalShaderParkRenderer.swift in Sources */,
-				60SP0005300000000060SP0005 /* ShaderParkOverlayView.swift in Sources */,
 				70SL0001300000000070SL0001 /* SpotlightShader.metal in Sources */,
 				60SD00023003000060SD0002 /* StepGoalDrumPicker.swift in Sources */,
 				60SA00023003000060SA0002 /* SleepGoalArcPicker.swift in Sources */,
@@ -2935,10 +2911,6 @@
 				20CC02062F86000000000006 /* SettingsAboutPage.swift in Sources */,
 				20C7E6142F8BF2A200BD06AA /* CanvasShapePreview.swift in Sources */,
 				70CF00023004000070CF0002 /* CanvasFrameView.swift in Sources */,
-				80PS00023005000080PS0002 /* PosterStyle.swift in Sources */,
-				80FB00023005000080FB0002 /* CanvasFullBleedPoster.swift in Sources */,
-				80FD00023005000080FD0002 /* CanvasFramedDarkPoster.swift in Sources */,
-				80PV00023005000080PV0002 /* CanvasPosterView.swift in Sources */,
 				20CC020A2F86000000000010 /* SettingsPermissionsPage.swift in Sources */,
 				20CC02072F86000000000007 /* SettingsComponents.swift in Sources */,
 				20CC02102F86000000000016 /* SettingsHomeCards.swift in Sources */,
@@ -3250,7 +3222,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DeviceActivityMonitor/Info.plist;
@@ -3271,7 +3243,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3289,7 +3261,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldConfiguration/Info.plist;
@@ -3310,7 +3282,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3330,7 +3302,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShieldConfiguration/ShieldConfiguration.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldConfiguration/Info.plist;
@@ -3351,7 +3323,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldConfiguration";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3373,7 +3345,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldAction/Info.plist;
@@ -3394,7 +3366,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3415,7 +3387,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShieldAction/Info.plist;
@@ -3436,7 +3408,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.ShieldAction";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3585,7 +3557,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_ASSET_PATHS = "\"Nowhere/Preview Content\"";
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
@@ -3614,7 +3586,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Nowhere;
 				PRODUCT_NAME = Nowhere;
@@ -3641,7 +3613,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_ASSET_PATHS = "\"Nowhere/Preview Content\"";
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				ENABLE_PREVIEWS = YES;
@@ -3670,7 +3642,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader";
 				PRODUCT_MODULE_NAME = Nowhere;
 				PRODUCT_NAME = Nowhere;
@@ -3692,7 +3664,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -3704,7 +3676,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = NowhereTests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3720,7 +3692,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -3732,7 +3704,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4Tests";
 				PRODUCT_NAME = NowhereTests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3747,7 +3719,7 @@
 			baseConfigurationReference = 20DE0E5F2F2B62230016EEAE /* Debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -3759,7 +3731,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = NowhereUITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3774,7 +3746,7 @@
 			baseConfigurationReference = 20DE0E602F2B62230016EEAE /* Release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LIBRARY_SEARCH_PATHS = (
@@ -3786,7 +3758,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.Steps4UITests";
 				PRODUCT_NAME = NowhereUITests;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3805,7 +3777,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = UnlockWidget/Info.plist;
@@ -3826,7 +3798,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3848,7 +3820,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = UnlockWidget/Info.plist;
@@ -3869,7 +3841,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.UnlockWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3890,7 +3862,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_TEAM = 39V44D64DY;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = DeviceActivityMonitor/Info.plist;
@@ -3911,7 +3883,7 @@
 					"$(SRCROOT)/Nowhere/Views/Gallery",
 					"$(SRCROOT)/Nowhere/Views/Canvas",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "personal-project.StepsTrader.DeviceActivityMonitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

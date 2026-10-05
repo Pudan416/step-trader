@@ -86,12 +86,30 @@ final class HappeningStore {
     /// duplicate rows for the same HealthKit workout type.
     @discardableResult
     func ensureExternalHappening(id: String, title: String) -> Happening {
-        if let existing = happening(id: id) { return existing }
+        if let index = all.firstIndex(where: { $0.id == id }) {
+            // Repair older generic Health imports, while leaving deliberate
+            // user renames untouched on every later HealthKit refresh.
+            if id.hasPrefix("health_workout_"), all[index].title == "Workout", title != "Workout" {
+                all[index].title = Happening.limitedTitle(title)
+                persist()
+            }
+            return all[index]
+        }
 
         let made = Happening(id: id, title: title, isBuiltIn: false)
         all.append(made)
         persist()
         return made
+    }
+
+    @discardableResult
+    func renameHappening(id: String, title: String) -> Happening? {
+        guard let index = all.firstIndex(where: { $0.id == id && !$0.isBuiltIn }) else { return nil }
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTitle.isEmpty else { return nil }
+        all[index].title = Happening.limitedTitle(normalizedTitle)
+        persist()
+        return all[index]
     }
 
     func mergeRestored(_ happenings: [Happening]) {
