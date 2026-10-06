@@ -7,6 +7,7 @@ struct CanvasRemixSnapshot {
     let elements: [CanvasElement]
     let gradientStyle: String?
     let gradientPalette: String?
+    let visualStyleRaw: String?
     let overlayStyle: String?
     let textureRaw: String?
     let soundWorldRaw: String?
@@ -22,6 +23,7 @@ struct CanvasRemixSnapshot {
         elements = canvas.elements
         gradientStyle = canvas.gradientStyle
         gradientPalette = canvas.gradientPalette
+        visualStyleRaw = canvas.visualStyleRaw
         overlayStyle = canvas.overlayStyle
         textureRaw = canvas.textureRaw
         soundWorldRaw = canvas.soundWorldRaw
@@ -61,8 +63,14 @@ enum CanvasUnifiedRemix {
             ),
             remixSeed: seed, allowedShapes: allowedShapes, at: date
         )
-        next.artworkRecipe = canvas.artworkRecipe?.remixed(seedKey: String(seed), dayKey: canvas.dayKey, paletteCategories: paletteCategories)
-            .reconciled(eventIDs: next.elements.map { $0.id.uuidString.lowercased() })
+        let eventIDs = next.elements.map { $0.id.uuidString.lowercased() }
+        next.visualStyleRaw = CanvasVisualStyle.editorial.rawValue
+        let startingRecipe = canvas.artworkRecipe.flatMap { $0.isSupported ? $0 : nil }
+            ?? NativeAtlasRecipe.make(dayKey: canvas.dayKey, paletteCategories: paletteCategories)
+                .reconciled(eventIDs: eventIDs, addingEventIDs: Set(eventIDs))
+        next.artworkRecipe = startingRecipe.remixed(
+            seedKey: String(seed), dayKey: canvas.dayKey, paletteCategories: paletteCategories
+        ).reconciled(eventIDs: eventIDs)
         var style = SeededRNG.derived(from: seed, domain: "canvas.background.style")
         var palette = SeededRNG.derived(from: seed, domain: "canvas.background.palette")
         var texture = SeededRNG.derived(from: seed, domain: "canvas.background.texture")
@@ -84,6 +92,7 @@ enum CanvasUnifiedRemix {
         restored.remixSeed = snapshot.remixSeed
         restored.gradientStyle = snapshot.gradientStyle
         restored.gradientPalette = snapshot.gradientPalette
+        restored.visualStyleRaw = snapshot.visualStyleRaw
         restored.overlayStyle = snapshot.overlayStyle
         restored.textureRaw = snapshot.textureRaw
         restored.soundWorldRaw = snapshot.soundWorldRaw

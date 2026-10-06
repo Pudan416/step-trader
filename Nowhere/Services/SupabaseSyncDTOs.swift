@@ -301,6 +301,8 @@ struct DaySnapshotRow: Codable {
     let sleepHours: Double
     let stepsTarget: Double
     let sleepTargetHours: Double
+    let happeningTagCounts: [String: Int]
+    let dayTitle: String?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -315,11 +317,14 @@ struct DaySnapshotRow: Codable {
         case sleepHours = "sleep_hours"
         case stepsTarget = "steps_target"
         case sleepTargetHours = "sleep_target_hours"
+        case happeningTagCounts = "happening_tag_counts"
+        case dayTitle = "day_title"
     }
 
     init(userId: String, dayKey: String, inkEarned: Int, inkSpent: Int,
          happeningIds: [String],
-         steps: Int, sleepHours: Double, stepsTarget: Double, sleepTargetHours: Double) {
+         steps: Int, sleepHours: Double, stepsTarget: Double, sleepTargetHours: Double,
+         happeningTagCounts: [String: Int] = [:], dayTitle: String? = nil) {
         self.userId = userId
         self.dayKey = dayKey
         self.inkEarned = inkEarned
@@ -329,6 +334,8 @@ struct DaySnapshotRow: Codable {
         self.sleepHours = sleepHours
         self.stepsTarget = stepsTarget
         self.sleepTargetHours = sleepTargetHours
+        self.happeningTagCounts = happeningTagCounts
+        self.dayTitle = dayTitle
     }
 
     init(from decoder: Decoder) throws {
@@ -352,6 +359,8 @@ struct DaySnapshotRow: Codable {
         sleepHours = try c.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
         stepsTarget = try c.decodeIfPresent(Double.self, forKey: .stepsTarget) ?? EnergyDefaults.stepsTarget
         sleepTargetHours = try c.decodeIfPresent(Double.self, forKey: .sleepTargetHours) ?? EnergyDefaults.sleepTargetHours
+        happeningTagCounts = try c.decodeIfPresent([String: Int].self, forKey: .happeningTagCounts) ?? [:]
+        dayTitle = try c.decodeIfPresent(String.self, forKey: .dayTitle)
     }
 
     /// Writes `happening_ids` only. The three category columns are deliberately
@@ -368,6 +377,8 @@ struct DaySnapshotRow: Codable {
         try c.encode(sleepHours, forKey: .sleepHours)
         try c.encode(stepsTarget, forKey: .stepsTarget)
         try c.encode(sleepTargetHours, forKey: .sleepTargetHours)
+        try c.encode(happeningTagCounts, forKey: .happeningTagCounts)
+        try c.encodeIfPresent(dayTitle, forKey: .dayTitle)
     }
 }
 

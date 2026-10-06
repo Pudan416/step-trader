@@ -4,6 +4,7 @@
 static void metalShapeShadeRadial(
     float2 p,
     uint material,
+    constant MetalShapeGenomeUniforms & g,
     constant MetalShapeMaterialUniforms & m,
     thread float3 & color) {
     const float2 focus = (m.params2.xy - 0.5) * 0.68;
@@ -11,4 +12,18 @@ static void metalShapeShadeRadial(
     color = material == 4u
         ? mix(m.color1.rgb, m.color0.rgb, smoothstep(0.08, 0.96, radial))
         : metalShapePalette(radial, m);
+    if (g.metadata.x == 6u) {
+        const float2 pocket = p - float2(0.25, -0.20);
+        const float q = length(pocket) / 0.48;
+        const float bowl = 1.0 - smoothstep(0.78, 1.20, q);
+        const float k = max(0.0, 1.0 - q * q);
+        const float dz = 4.0 * 0.22 * k / 0.48;
+        const float3 normalPocket = normalize(float3(-pocket.x * dz, -pocket.y * dz, 1.0));
+        const float3 lightDirection = normalize(float3(-0.48, -0.58, 0.78));
+        const float pocketLight = clamp(0.30 + 0.92 * dot(normalPocket, lightDirection), 0.10, 1.0);
+        const float innerShade = 0.34 + 0.62 * pocketLight - 0.32 * exp(-pow(q / 0.58, 2.0));
+        const float softRim = exp(-pow((q - 0.78) / 0.40, 2.0)) * 0.24;
+        const float3 recessed = color * innerShade + m.color0.rgb * softRim;
+        color = mix(color, recessed, bowl);
+    }
 }

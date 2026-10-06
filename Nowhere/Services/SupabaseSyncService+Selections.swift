@@ -27,7 +27,7 @@ extension SupabaseSyncService {
     // MARK: - Public Sync Methods
 
     func syncCustomHappenings(_ happenings: [Happening]) async {
-        await performCustomHappeningsSync(happenings)
+        await performCustomHappeningsSync(HappeningDefaults.customHappeningsForSync(happenings))
     }
 
     func performCustomHappeningsSync(_ happenings: [Happening]) async {
@@ -273,6 +273,7 @@ struct CustomHappeningRow: Codable {
     let title: String
     let useCount: Int
     let lastUsedAt: String?
+    let tags: [String]?
 
     init(happening: Happening, userId: String) {
         id = happening.id
@@ -280,6 +281,7 @@ struct CustomHappeningRow: Codable {
         title = happening.title
         useCount = happening.useCount
         lastUsedAt = happening.lastUsedAt.map { ISO8601DateFormatter().string(from: $0) }
+        tags = happening.tags
     }
 
     var happening: Happening {
@@ -287,6 +289,7 @@ struct CustomHappeningRow: Codable {
             id: id,
             title: title,
             isBuiltIn: false,
+            tags: tags ?? [],
             useCount: useCount,
             lastUsedAt: lastUsedAt.flatMap(HappeningServerTimestamp.date)
         )
@@ -298,5 +301,6 @@ struct CustomHappeningRow: Codable {
         case title = "title_en"
         case useCount = "use_count"
         case lastUsedAt = "last_used_at"
+        case tags
     }
 }

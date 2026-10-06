@@ -32,6 +32,7 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             "legacy.soft-square:6:17",
             "legacy.rounded-triangle:5:5",
             "legacy.rounded-hexagon:5:8",
+            "reference.spiral-rays:0:1",
         ])
     }
 
@@ -40,7 +41,7 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             guard case let .genome(genome) = preset.contour else { return nil }
             return genome
         }
-        XCTAssertEqual(Set(genomes.map { $0.morphology }), [.softRadial])
+        XCTAssertEqual(Set(genomes.map { $0.morphology }), [.concentricRipple])
         for genome in genomes {
             XCTAssertTrue((2...12).contains(Int(genome.superformula.x)))
             XCTAssertGreaterThan(genome.superformula.y, 0)
@@ -54,14 +55,16 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
         }
     }
 
-    func testCatalogExposesElevenApprovedMaterialsAndThreeRoles() {
-        XCTAssertEqual(MetalShapeMaterial.allCases.count, 11)
+    func testCatalogExposesThirteenApprovedMaterialsAndThreeRoles() {
+        XCTAssertEqual(MetalShapeMaterial.allCases.count, 13)
         XCTAssertEqual(Set(MetalShapeMaterial.allCases.map(\.rawValue)), Set([
             "solid", "sideLight", "contour", "directionalBlur", "radialTwo",
             "radialThree", "proceduralLight", "proceduralFlow", "proceduralContour",
-            "eclipseGlow", "sunset",
+            "eclipseGlow", "sunset", "concentricRings", "spiralVariation",
         ]))
         XCTAssertEqual(MetalShapeRole.allCases, [.primary, .supporting, .accent])
         XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.sunset) }.map(\.id), ["legacy.circle"])
+        XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.concentricRings) }.map(\.id), ["genome.concentric-ripple"])
+        XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.spiralVariation) }.map(\.id), ["reference.spiral-rays"])
     }
 }

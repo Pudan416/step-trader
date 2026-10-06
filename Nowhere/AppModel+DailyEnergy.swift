@@ -18,12 +18,8 @@ extension AppModel {
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        guard let choice = HappeningDefaults.selectableHappening(id: id) else { return false }
-        let alreadyAdded = todayAdditions.contains {
-            $0.dayKey == dayKey && HappeningDefaults.canonicalID($0.optionId) == choice.id
-        }
-        return !alreadyAdded
-            && todayAdditions.filter { $0.dayKey == dayKey }.count < HappeningDefaults.maximumDailyAdditions
+        guard HappeningDefaults.selectableHappening(id: id) != nil else { return false }
+        return todayAdditions.filter { $0.dayKey == dayKey }.count < HappeningDefaults.maximumDailyAdditions
     }
 
     @discardableResult
@@ -381,6 +377,7 @@ extension AppModel {
         let dayKeyToSave = Self.dayKey(for: oldAnchor)
         let savedSpent = g.integer(forKey: SharedKeys.spentStepsToday)
         let savedHappeningIds = todayAdditions.map(\.optionId)
+        let savedTagCounts = HappeningTagging.counts(for: savedHappeningIds, catalog: happeningStore.all)
         let savedSleep = g.double(forKey: SharedKeys.dailySleepHours)
         let cachedSteps = g.double(forKey: SharedKeys.cachedStepsToday)
         let savedSteps: Int = cachedSteps > 0 ? Int(cachedSteps) : Int(stepsToday)
@@ -389,8 +386,10 @@ extension AppModel {
         let savedBaseEnergy = g.integer(forKey: SharedKeys.baseEnergyToday)
 
         let daySnapshot = buildPastDaySnapshot(
+            dayKey: dayKeyToSave,
             savedSpent: savedSpent,
             savedHappeningIds: savedHappeningIds,
+            happeningTagCounts: savedTagCounts,
             savedSleep: savedSleep,
             cachedSteps: cachedSteps,
             savedSteps: savedSteps,
@@ -436,8 +435,10 @@ extension AppModel {
     /// Pure function: builds a PastDaySnapshot from explicit parameters,
     /// avoiding any dependency on mutable in-memory or UserDefaults state.
     private func buildPastDaySnapshot(
+        dayKey: String,
         savedSpent: Int,
         savedHappeningIds: [String],
+        happeningTagCounts: [String: Int],
         savedSleep: Double,
         cachedSteps: Double,
         savedSteps: Int,
@@ -464,7 +465,9 @@ extension AppModel {
             steps: savedSteps,
             sleepHours: savedSleep,
             stepsTarget: savedStepsTarget,
-            sleepTargetHours: savedSleepTarget
+            sleepTargetHours: savedSleepTarget,
+            happeningTagCounts: happeningTagCounts,
+            dayTitle: HappeningDayTitle.releaseTitle(tagCounts: happeningTagCounts, dayKey: dayKey)
         )
     }
 

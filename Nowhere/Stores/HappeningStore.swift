@@ -39,7 +39,19 @@ final class HappeningStore {
         let missing = HappeningDefaults.builtIns.filter { !known.contains($0.id) }
         all = stored + missing
 
-        if !missing.isEmpty { persist() }
+        var metadataChanged = !missing.isEmpty
+        let builtInTags = Dictionary(HappeningDefaults.builtIns.map { ($0.id, $0.tags) }, uniquingKeysWith: { first, _ in first })
+        for index in all.indices {
+            let canonicalTags = all[index].isBuiltIn
+                ? builtInTags[all[index].id]
+                : HappeningEventTree.tags(forStoredHappeningID: all[index].id)
+            if let canonicalTags, !canonicalTags.isEmpty, all[index].tags != canonicalTags {
+                all[index].tags = canonicalTags
+                metadataChanged = true
+            }
+        }
+
+        if metadataChanged { persist() }
     }
 
     func happening(id: String) -> Happening? {
@@ -86,7 +98,12 @@ final class HappeningStore {
     /// duplicate rows for the same HealthKit workout type.
     @discardableResult
     func ensureExternalHappening(id: String, title: String) -> Happening {
+        let canonicalTags = HappeningEventTree.tags(forStoredHappeningID: id) ?? []
         if let index = all.firstIndex(where: { $0.id == id }) {
+            if !canonicalTags.isEmpty, all[index].tags != canonicalTags {
+                all[index].tags = canonicalTags
+                persist()
+            }
             // Repair older generic Health imports, while leaving deliberate
             // user renames untouched on every later HealthKit refresh.
             if id.hasPrefix("health_workout_"), all[index].title == "Workout", title != "Workout" {
@@ -96,7 +113,7 @@ final class HappeningStore {
             return all[index]
         }
 
-        let made = Happening(id: id, title: title, isBuiltIn: false)
+        let made = Happening(id: id, title: title, isBuiltIn: false, tags: canonicalTags)
         all.append(made)
         persist()
         return made
@@ -114,7 +131,11 @@ final class HappeningStore {
 
     func mergeRestored(_ happenings: [Happening]) {
         guard !happenings.isEmpty else { return }
-        for restored in happenings where !restored.isBuiltIn {
+        for source in happenings where !source.isBuiltIn {
+            var restored = source
+            if let canonicalTags = HappeningEventTree.tags(forStoredHappeningID: restored.id) {
+                restored.tags = canonicalTags
+            }
             if let index = all.firstIndex(where: { $0.id == restored.id }) {
                 all[index] = restored
             } else {

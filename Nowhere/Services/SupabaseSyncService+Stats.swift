@@ -158,7 +158,9 @@ extension SupabaseSyncService {
                 steps: snapshot.steps,
                 sleepHours: snapshot.sleepHours,
                 stepsTarget: snapshot.stepsTarget,
-                sleepTargetHours: snapshot.sleepTargetHours
+                sleepTargetHours: snapshot.sleepTargetHours,
+                happeningTagCounts: snapshot.happeningTagCounts,
+                dayTitle: snapshot.dayTitle
             )
             
             request.httpBody = try JSONEncoder().encode(row)
@@ -274,7 +276,9 @@ extension SupabaseSyncService {
                     steps: row.steps,
                     sleepHours: row.sleepHours,
                     stepsTarget: row.stepsTarget,
-                    sleepTargetHours: row.sleepTargetHours
+                    sleepTargetHours: row.sleepTargetHours,
+                    happeningTagCounts: row.happeningTagCounts,
+                    dayTitle: row.dayTitle
                 )
             }
             

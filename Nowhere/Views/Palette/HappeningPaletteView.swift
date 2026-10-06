@@ -519,7 +519,7 @@ private struct HappeningPaletteCountHub: View {
 
     var body: some View {
         Text(countLabel)
-            .font(.custom("NowhereDisplay091-Regular", size: 26))
+            .font(.custom("NowhereDisplay10-Regular", size: 26))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .foregroundStyle(ink)

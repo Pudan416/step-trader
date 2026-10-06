@@ -62,6 +62,7 @@ enum MetalShapeScenePlanner {
         var actors: [MetalShapeSceneActor] = []
         var morphologyCounts: [MetalShapeMorphology: Int] = [:]
         var presetCounts: [String: Int] = [:]
+        var familyCounts: [String: Int] = [:]
         var blurCount = 0
         var eclipseCount = 0
         var complexInteriorCount = 0
@@ -77,6 +78,7 @@ enum MetalShapeScenePlanner {
                     preset.compatibility.roles.contains(role)
                         && morphologyCounts[preset.morphology, default: 0] < 2
                         && presetCounts[preset.id, default: 0] < preset.compatibility.maxInstances
+                        && familyCounts[preset.familyID, default: 0] == 0
                         && (!requiredHollow || !preset.compatibility.allowed.isDisjoint(with: hollowMaterials))
                 }
                 guard !eligible.isEmpty else { continue }
@@ -101,12 +103,26 @@ enum MetalShapeScenePlanner {
             guard let (preset, role, material) = selection else {
                 throw MetalShapeScenePlannerError.insufficientCompatiblePresets
             }
-            let targetSize = min(max(targetSizes[index], preset.compatibility.minimumSize), preset.compatibility.maximumSize)
+            let targetSize: Float
+            if preset.usesExpandedRoundSizeRange {
+                let roll = Float(random.next() % 10_001) / 10_000
+                let range = preset.compatibility.maximumSize - preset.compatibility.minimumSize
+                targetSize = preset.compatibility.minimumSize + range * roll
+            } else {
+                targetSize = min(max(targetSizes[index], preset.compatibility.minimumSize), preset.compatibility.maximumSize)
+            }
+            let halo: Float = material == .eclipseGlow ? preset.compatibility.haloFootprint
+                : (material == .directionalBlur ? preset.compatibility.blurFootprint : 0.025)
+            let reach = targetSize * 0.5 + halo
+            let position = SIMD2(
+                min(max(positions[index].x, -1 + reach), 1 - reach),
+                min(max(positions[index].y, -1 + reach), 1 - reach)
+            )
             let actor = MetalShapeSceneActor(
                 preset: preset,
                 role: role,
                 material: material,
-                position: positions[index],
+                position: position,
                 size: targetSize,
                 seed: random.next()
             )
@@ -116,6 +132,7 @@ enum MetalShapeScenePlanner {
             actors.append(actor)
             morphologyCounts[preset.morphology, default: 0] += 1
             presetCounts[preset.id, default: 0] += 1
+            familyCounts[preset.familyID, default: 0] += 1
             if material == .directionalBlur { blurCount += 1 }
             if material == .eclipseGlow { eclipseCount += 1 }
             if actor.hasHighComplexityInterior { complexInteriorCount += 1 }

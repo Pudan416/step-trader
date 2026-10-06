@@ -87,6 +87,84 @@ enum HappeningEventTree {
         node.children.isEmpty ? [node] : node.children.flatMap(leaves)
     }
 
+    private static let sphereTags = [
+        "work": "work_study", "body": "body_wellbeing", "people": "people_connection",
+        "home": "home_everyday", "travel": "getting_around", "play": "rest_play",
+        "feelings": "feelings"
+    ]
+
+    private static let eventTags: [String: [String]] = [
+        "root_worked": ["work_activity"], "root_chilled": [], "root_home": [], "break": ["rest"],
+        "email": ["screen_use", "digital_admin"], "wrote": ["making"], "made": ["making"],
+        "meeting": ["meeting", "in_person"], "workcall": ["phone_call", "work_activity"],
+        "deadline": ["pressure", "stress"], "bored": ["boredom"], "avoidedwork": ["avoidance"],
+        "nothingwork": ["work_activity"], "study": ["learning"], "class": ["learning"],
+        "solo": ["learning", "alone"], "group": ["learning", "with_others"],
+        "job": ["job_search"], "listings": ["job_search", "screen_use"],
+        "application": ["job_search"], "interview": ["job_search", "conversation"],
+        "walk": ["movement", "outdoors"], "run": ["movement", "exercise"],
+        "workout": ["movement", "exercise"], "swam": ["movement", "exercise"],
+        "stretched": ["movement", "exercise"], "errands": ["errands"],
+        "snack": ["food_drink"], "meal_breakfast": ["food_drink", "meal"],
+        "meal_lunch": ["food_drink", "meal"], "meal_dinner": ["food_drink", "meal"],
+        "coffee": ["food_drink", "caffeine"], "tea": ["food_drink", "caffeine"],
+        "wasted": ["food_drink"], "hangover": ["tiredness"], "slept": ["sleep"],
+        "nap": ["sleep", "rest"], "bed": ["rest"], "shower": ["personal_care"],
+        "talk": ["conversation", "in_person"], "friend": ["social_context", "with_others"],
+        "family": ["social_context", "with_others"], "colleague": ["social_context", "with_others"],
+        "texted": ["communication"], "peoplecall": ["phone_call"], "snapped": ["anger"],
+        "avoidedpeople": ["avoidance"], "care": ["care"], "helped": ["care", "with_others"],
+        "askedhelp": ["care"], "saidno": ["boundaries"], "child": ["care", "childcare"],
+        "pet": ["care", "pet"], "alonepeople": ["alone"], "leftout": ["loneliness"],
+        "chores": ["domestic"], "cooked": ["cooking", "food_drink"], "cleaned": ["domestic"],
+        "laundry": ["domestic", "laundry"], "fixed": ["repair"], "plants": ["care", "plants"],
+        "ignored": ["domestic"], "shopping": ["shopping", "errands"], "paperwork": ["errands"],
+        "appointment": ["errands"], "guests": ["social_context", "with_others"],
+        "doomscroll": ["screen_use", "social_media", "time_slip"], "commute": ["commute"],
+        "transit": ["public_transit", "commute"], "train": ["public_transit", "commute"],
+        "car": ["car_travel", "commute"], "bike": ["movement", "commute"],
+        "walked": ["movement", "commute"], "cafe": ["cafe_or_bar"], "bar": ["cafe_or_bar"],
+        "nature": ["outdoors"], "lost": ["time_slip"], "detour": ["location_change"],
+        "new": ["location_change", "new_place"], "videos": ["screen_use", "media"],
+        "movie": ["screen_use", "media"], "show": ["screen_use", "media"],
+        "losttime": ["screen_use", "time_slip"], "book": ["reading"],
+        "news": ["reading", "news"], "articles": ["reading"], "videogame": ["screen_use", "play_or_hobby"],
+        "boardgame": ["play_or_hobby"], "withkid": ["play_or_hobby", "with_others"],
+        "music": ["music"], "hobby": ["play_or_hobby"], "drew": ["making"],
+        "sang": ["music", "making"], "danced": ["movement", "music"],
+        "photos": ["making"], "nothingplay": ["unstructured_time"],
+        "rage": ["anger"], "happy": ["happiness"], "tired": ["tiredness"],
+        "anxious": ["anxiety"], "angry": ["anger"], "calm": ["calm"],
+        "lonely": ["loneliness"], "curious": ["curiosity"], "okay": ["okayness"],
+        "mixed": ["mixed_emotions"]
+    ]
+
+    static func tags(for nodeID: String) -> [String] {
+        if let special = ["root_worked": "work_study", "root_chilled": "rest_play", "root_home": "home_everyday"][nodeID] {
+            return [special] + (eventTags[nodeID] ?? [])
+        }
+        func root(for nodes: [HappeningEventNode], trail: [String]) -> String? {
+            for node in nodes {
+                let next = trail + [node.id]
+                if node.id == nodeID { return next.first }
+                if let found = root(for: node.children, trail: next) { return found }
+            }
+            return nil
+        }
+        guard let rootID = root(for: spheres, trail: []), let sphere = sphereTags[rootID] else {
+            return eventTags[nodeID] ?? []
+        }
+        return Array(Set([sphere] + (eventTags[nodeID] ?? []))).sorted()
+    }
+
+    static func tags(forStoredHappeningID id: String) -> [String]? {
+        let canonical = HappeningDefaults.canonicalID(id)
+        guard canonical.hasPrefix("event_") else { return nil }
+        let eventID = String(canonical.dropFirst("event_".count))
+        guard event(eventID) != nil else { return nil }
+        return tags(for: eventID)
+    }
+
     static func suggestions(for selected: HappeningEventNode, alreadyVisible: Set<String>) -> [HappeningEventNode] {
         guard let route = routes.first(where: { $0.contains(selected.id) }),
               let index = route.firstIndex(of: selected.id) else { return [] }
@@ -341,17 +419,121 @@ enum PersonalHappeningRecommendations {
 }
 
 enum HappeningDayTitle {
+    private static let sphereOrder = [
+        "work_study", "body_wellbeing", "people_connection", "home_everyday",
+        "getting_around", "rest_play", "feelings"
+    ]
+
+    private static let sphereTitles: [String: [String]] = [
+        "work_study": ["Office Hours After Dark", "Fluorescent Reprise"],
+        "body_wellbeing": ["Body in Motion", "After the Long Walk"],
+        "people_connection": ["Kitchen Table Sessions", "Voices Through the Glass"],
+        "home_everyday": ["Domestic Frequencies", "The Long Version at Home"],
+        "getting_around": ["Rooms Between Stations", "Transit Interlude"],
+        "rest_play": ["One More Scroll", "Side B: No Plans"],
+        "feelings": ["Weather Inside", "Several Keys at Once"]
+    ]
+
+    private static let pairTitles: [String: [String]] = [
+        "body_wellbeing|work_study": ["Concrete & Open Air", "The Walk Between Shifts"],
+        "people_connection|work_study": ["Meeting Room Echoes", "Voices Through the Glass"],
+        "home_everyday|work_study": ["Inbox at the Kitchen Table", "Home Office, Side B"],
+        "getting_around|work_study": ["Rooms Between Stations", "Commute in Minor Keys"],
+        "rest_play|work_study": ["One More Tab", "Channels Changing"],
+        "feelings|work_study": ["Work and Weather Within", "Fluorescent Hours"],
+        "body_wellbeing|people_connection": ["Walks & Voices", "Movement and Company"],
+        "body_wellbeing|home_everyday": ["Home Body Sessions", "Body, Then Home"],
+        "body_wellbeing|getting_around": ["Footnotes in Transit", "A Day on Foot"],
+        "body_wellbeing|rest_play": ["After the Long Walk", "Out, Then In"],
+        "body_wellbeing|feelings": ["Pulse & Weather", "Moving Through Moods"],
+        "home_everyday|people_connection": ["Kitchen Table Sessions", "Dinner, Then the Long Version"],
+        "getting_around|people_connection": ["Calls Between Stations", "Passing Conversations"],
+        "people_connection|rest_play": ["Late Conversation, Side B", "People, Then Playback"],
+        "feelings|people_connection": ["Voices Under Weather", "Contact and Quiet"],
+        "getting_around|home_everyday": ["Leaving the Lights On", "Home with Detours"],
+        "home_everyday|rest_play": ["Domestic Frequencies", "Side B: No Plans"],
+        "feelings|home_everyday": ["Rooms with Weather", "Home and Inner Weather"],
+        "getting_around|rest_play": ["Interlude at the Last Stop", "Outings and Downtime"],
+        "feelings|getting_around": ["Passing Weather", "In Motion, A Mind Elsewhere"],
+        "feelings|rest_play": ["Restless, Side A", "Media and Moods"]
+    ]
+
+    private static let experienceTitles: [String: [String]] = [
+        "anger": ["Static in the Wires", "A Room Full of Feedback"],
+        "anxiety": ["Restless, Side A", "Quiet with the Lights On"],
+        "pressure": ["Fluorescent Hours", "Under a Tight Refrain"],
+        "stress": ["Fluorescent Hours", "Under a Tight Refrain"],
+        "boredom": ["Long Loop", "The Same Four Bars"],
+        "tiredness": ["Low Battery Reprise", "After the Last Note"],
+        "distraction": ["Channels Changing", "A Signal from Somewhere Else"],
+        "avoidance": ["Out of Range", "The Unanswered Side"],
+        "time_slip": ["One More Scroll", "The Loop Goes On"],
+        "loneliness": ["The Quiet Channel", "Room Tone"],
+        "mixed_emotions": ["Weather Inside", "Several Keys at Once"],
+        "calm": ["Room Tone", "Still Frequencies"],
+        "curiosity": ["Unknown Frequencies", "In Search of a New Sound"],
+        "happiness": ["Open Window Sessions", "A Brighter Room"],
+        "excitement": ["High Frequency", "A Live Signal"],
+        "okayness": ["No Major Changes", "Steady Frequencies"]
+    ]
+
+    /// Chooses a pre-authored release-style title from a stable day tag profile.
+    /// The key includes the day so a saved snapshot always resolves the same way.
+    static func releaseTitle(tagCounts: [String: Int], dayKey: String) -> String? {
+        let experiences = experienceTitles.keys
+            .filter { (tagCounts[$0] ?? 0) > 0 }
+            .sorted {
+                let left = tagCounts[$0] ?? 0
+                let right = tagCounts[$1] ?? 0
+                if left != right { return left > right }
+                return $0 < $1
+            }
+        if let experience = experiences.first, let options = experienceTitles[experience] {
+            return choose(options, seed: "\(dayKey)|\(experience)")
+        }
+
+        let rankedSpheres = sphereOrder
+            .filter { (tagCounts[$0] ?? 0) > 0 }
+            .sorted {
+                let left = tagCounts[$0] ?? 0
+                let right = tagCounts[$1] ?? 0
+                if left != right { return left > right }
+                return sphereOrder.firstIndex(of: $0)! < sphereOrder.firstIndex(of: $1)!
+            }
+        guard let primary = rankedSpheres.first else { return nil }
+        let signature: String
+        if rankedSpheres.count > 1 {
+            signature = [primary, rankedSpheres[1]].sorted().joined(separator: "|")
+            if let options = pairTitles[signature] {
+                return choose(options, seed: "\(dayKey)|\(signature)")
+            }
+        }
+        guard let options = sphereTitles[primary] else { return nil }
+        return choose(options, seed: "\(dayKey)|\(primary)")
+    }
+
+    private static func choose(_ options: [String], seed: String) -> String? {
+        guard !options.isEmpty else { return nil }
+        let hash = seed.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
+            ($0 ^ UInt64($1)) &* 1_099_511_628_211
+        }
+        return options[Int(hash % UInt64(options.count))]
+    }
+
     static func make(from titles: [String], dayKey: String) -> String {
-        let values = titles.map { $0.lowercased() }
-        let work = values.contains { $0.contains("work") || $0.contains("desk") }
-        let coffee = values.contains { $0.contains("coffee") }
-        let outside = values.contains { $0.contains("walk") || $0.contains("outside") || $0.contains("outdoors") }
-        let screen = values.contains { $0.contains("scroll") || $0.contains("videos") }
-        if work && coffee && outside { return "Coffee, Work & Air" }
-        if work && outside { return "Work, Then Outside" }
-        if work && screen { return "Work & Open Tabs" }
-        if coffee && screen { return "Coffee & Scrolling" }
-        if values.contains(where: { $0.contains("rage") || $0.contains("angry") }) { return "A Day with Edges" }
-        return "A Day in the Making"
+        let normalized = titles.map { $0.lowercased() }
+        guard normalized.count >= 2 else { return "A Day in the Making" }
+        let work = normalized.contains { $0.contains("work") || $0.contains("computer") }
+        let coffee = normalized.contains { $0.contains("coffee") || $0.contains("tea") }
+        let outside = normalized.contains { $0.contains("walk") || $0.contains("nature") || $0.contains("outside") }
+        let screen = normalized.contains { $0.contains("social media") || $0.contains("videos") || $0.contains("email") }
+        if work && coffee && outside { return "Coffee, Work, and Air" }
+        if work && outside { return "Between Work and Air" }
+        if coffee && screen { return "Between Tabs and Coffee" }
+        if work && screen { return "Between Tasks and Tabs" }
+        if outside && screen { return "Between Screens and Sky" }
+        if outside { return "A Little Room to Roam" }
+        let date = dayKey.split(separator: "-").suffix(2).joined(separator: ".")
+        return date.isEmpty ? "A Day in the Making" : "A Day in the Making · \(date)"
     }
 }

@@ -93,6 +93,17 @@ extension MetalShapeGenomeFrame {
                 metadata: SIMD4(5, UInt32(truncatingIfNeeded: seed), 4, 0),
                 reserved: .zero
             )
+        case .dimpledSphere:
+            return MetalShapeGenomeUniforms(
+                superformula: SIMD4(2, 2, 2, 2),
+                harmonic0: .zero,
+                harmonic1: .zero,
+                harmonic2: .zero,
+                anisotropyOffset: SIMD4(1, 1, 0, 0),
+                transform: SIMD4(0, 1, 1, 0),
+                metadata: SIMD4(6, 0, 0, 0),
+                reserved: .zero
+            )
         }
     }
 

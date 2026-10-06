@@ -85,7 +85,7 @@ enum HappeningDefaults {
 
     /// One catalog backs Personal, All, the old chooser and external suggestions.
     static let builtIns: [Happening] = HappeningEventTree.all.map {
-        Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: true)
+        Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: true, tags: HappeningEventTree.tags(for: $0.id))
     }
     static let builtInIds: Set<String> = Set(builtIns.map(\.id))
 

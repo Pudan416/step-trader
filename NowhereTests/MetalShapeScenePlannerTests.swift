@@ -18,6 +18,11 @@ final class MetalShapeScenePlannerTests: XCTestCase {
 
                 let morphologyCounts = Dictionary(grouping: scene.actors, by: \.preset.morphology).mapValues(\.count)
                 XCTAssertTrue(morphologyCounts.values.allSatisfy { $0 <= 2 })
+                XCTAssertEqual(
+                    Set(scene.actors.map(\.preset.familyID)).count,
+                    scene.actors.count,
+                    "a newly composed screen should not repeat a shape family (seed \(seed), count \(count))"
+                )
                 let presetCounts = Dictionary(grouping: scene.actors, by: \.preset.id).mapValues(\.count)
                 for actor in scene.actors {
                     XCTAssertLessThanOrEqual(presetCounts[actor.preset.id, default: 0], actor.preset.compatibility.maxInstances)

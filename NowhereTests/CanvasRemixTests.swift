@@ -110,6 +110,41 @@ final class CanvasRemixTests: XCTestCase {
         XCTAssertEqual(restored.resolvedMusicSelection, before.resolvedMusicSelection)
     }
 
+    func testLegacyDayEntersNativeAtlasOnExplicitRemix() throws {
+        var before = DayCanvas(dayKey: dayKey)
+        before.visualStyleRaw = CanvasVisualStyle.legacy.rawValue
+        before.elements = makeElements(count: 10)
+
+        let result = CanvasUnifiedRemix.next(canvas: before)
+        let recipe = try XCTUnwrap(result.canvas.artworkRecipe)
+        XCTAssertTrue(recipe.isSupported)
+        XCTAssertEqual(result.canvas.resolvedVisualStyle, .editorial)
+        XCTAssertEqual(Set(recipe.actors.map(\.eventID)), Set(before.elements.map { $0.id.uuidString.lowercased() }))
+        XCTAssertEqual(recipe.actors.count, 10)
+        let collection = try XCTUnwrap(recipe.dayCollection)
+        XCTAssertTrue(recipe.actors.allSatisfy(collection.contains))
+        XCTAssertEqual(CanvasUnifiedRemix.restore(result.previous, into: result.canvas).visualStyleRaw, before.visualStyleRaw)
+    }
+
+    func testActiveDayRepairKeepsEventsAndIsIdempotent() throws {
+        var canvas = DayCanvas(dayKey: dayKey)
+        canvas.elements = makeElements(count: 10)
+        canvas.inkEarned = 150
+        canvas.inkSpent = 20
+        let before = canvas.elements
+        var legacy = NativeAtlasRecipe.make(dayKey: dayKey).reconciled(eventIDs: before.map { $0.id.uuidString.lowercased() })
+        legacy.dayCollectionID = nil
+        canvas.artworkRecipe = legacy
+        XCTAssertTrue(canvas.repairNativeDayCollection(paletteCategories: ModernPaletteSelection.all))
+        XCTAssertEqual(try JSONEncoder().encode(canvas.elements), try JSONEncoder().encode(before))
+        XCTAssertEqual(canvas.inkEarned, 150)
+        XCTAssertEqual(canvas.inkSpent, 20)
+        let recipe = try XCTUnwrap(canvas.artworkRecipe)
+        XCTAssertTrue(recipe.actors.allSatisfy(try XCTUnwrap(recipe.dayCollection).contains))
+        XCTAssertFalse(canvas.repairNativeDayCollection(paletteCategories: ModernPaletteSelection.all))
+        XCTAssertEqual(canvas.artworkRecipe, recipe)
+    }
+
     func testRemixAndUndoEachPersistOneCompleteCanvasBeforeCommittingHistory() throws {
         var before = DayCanvas(dayKey: dayKey)
         before.elements = makeElements()

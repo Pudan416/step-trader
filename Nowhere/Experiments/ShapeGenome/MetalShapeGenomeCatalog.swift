@@ -3,7 +3,7 @@ import Foundation
 enum MetalShapeGenomeCatalog {
     static let presets: [MetalShapePreset] = genomePresets + legacyPresets
 
-    private static let broadMaterials = Set(MetalShapeMaterial.allCases).subtracting([.sunset])
+    private static let broadMaterials = Set(MetalShapeMaterial.allCases).subtracting([.sunset, .concentricRings, .spiralVariation])
     private static let lightMaterials: Set<MetalShapeMaterial> = [
         .sideLight, .contour, .radialTwo, .radialThree, .proceduralLight,
         .proceduralFlow, .proceduralContour, .eclipseGlow,
@@ -169,7 +169,7 @@ enum MetalShapeGenomeCatalog {
                 allowed: id == "legacy.circle" ? broadMaterials.union([.sunset]) : broadMaterials,
                 allowDirectionalBlur: true,
                 roles: roles,
-                size: roles.contains(.primary) ? 0.20...0.72 : 0.14...0.48,
+                size: id == "legacy.circle" ? 0.12...0.76 : (roles.contains(.primary) ? 0.20...0.72 : 0.14...0.48),
                 maxInstances: 2,
                 complexity: morphology == .legacyStar ? 0.58 : 0.30,
                 mass: morphology == .legacyRound ? 0.76 : 0.62
