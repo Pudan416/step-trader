@@ -35,16 +35,15 @@ final class CanvasRemixTests: XCTestCase {
             XCTAssertEqual(recipe, CanvasUnifiedRemix.next(canvas: canvas, at: date).canvas.artworkRecipe)
             XCTAssertEqual(result.canvas.elements.map(\.id), elementIDs)
             XCTAssertEqual(recipe.actors.map(\.eventID), elementIDs.map { $0.uuidString.lowercased() })
-            XCTAssertTrue(recipe.actors.allSatisfy { $0.presetID == style.presetID })
+            XCTAssertTrue(style.usesCatalogLookOrder)
+            XCTAssertEqual(Set(recipe.actors.map(\.presetID)).count, recipe.actors.count)
             for actor in recipe.actors {
-                XCTAssertFalse([MetalShapeMaterial.proceduralLight, .proceduralFlow, .sunset].contains(actor.materialID))
-                XCTAssertEqual(actor.materialID == .directionalBlur, style.resolvedCollection.isBlurred)
-                if style.family == .circles {
-                    XCTAssertEqual(actor.geometry.metadata, SIMD4<UInt32>(1, 0, 1, 0))
-                    XCTAssertEqual(actor.geometry.anisotropyOffset, SIMD4<Float>(1, 1, 0, 0))
+                XCTAssertFalse([MetalShapeMaterial.proceduralLight, .proceduralFlow, .proceduralContour, .sunset].contains(actor.materialID))
+                if actor.presetID == "legacy.rounded-triangle" {
+                    XCTAssertEqual(actor.materialID, .directionalBlur)
                 }
-                if style.collection == .blurredSquares {
-                    XCTAssertEqual(actor.presetID, "legacy.soft-square")
+                if ["legacy.circle", "reference.dimpled-sphere", "genome.concentric-ripple", "reference.spiral-rays"].contains(actor.presetID) {
+                    XCTAssertEqual(actor.geometry.anisotropyOffset, SIMD4<Float>(1, 1, 0, 0))
                 }
             }
             visited.insert(try XCTUnwrap(style.collection))
@@ -55,6 +54,37 @@ final class CanvasRemixTests: XCTestCase {
             XCTAssertEqual(canvas.artworkRecipe?.dailyStyle?.collection, style.collection)
         }
         XCTAssertEqual(visited, Set(NativeAtlasDailyStyle.Collection.allCases))
+    }
+
+    func testCatalogLooksReachEveryRequestedFamilyAndKeepExistingActorsFrozen() throws {
+        let required = Set([
+            "legacy.circle", "reference.dimpled-sphere", "genome.concentric-ripple",
+            "reference.spiral-rays", "legacy.rounded-triangle", "legacy.soft-square",
+            "genome.snowflake", "genome.windflower", "genome.soft-clover",
+            "genome.concave-square", "legacy.rounded-hexagon",
+        ])
+        var visited = Set<String>()
+        var visitedMaterials = Set<MetalShapeMaterial>()
+        for seed in 0..<256 {
+            let looks = NativeAtlasDailyStyle.catalogLooks(seed: UInt64(seed))
+            visited.formUnion(looks.map(\.presetID))
+            visitedMaterials.formUnion(looks.map(\.materialID))
+        }
+        XCTAssertEqual(visited, required)
+        XCTAssertTrue(Set([.solid, .sideLight, .contour, .directionalBlur, .radialTwo,
+                           .radialThree, .eclipseGlow, .concentricRings, .spiralVariation])
+            .isSubset(of: visitedMaterials))
+
+        var recipe = NativeAtlasRecipe.makeDaily(dayKey: "2026-10-06", paletteCategories: ModernPaletteSelection.all)
+            .reconciled(eventIDs: ["first", "second"])
+        let firstActors = recipe.actors
+        let extended = recipe.reconciled(eventIDs: ["first", "second"] + (3...10).map { "event-\($0)" })
+        for actor in firstActors {
+            XCTAssertEqual(extended.actors.first(where: { $0.eventID == actor.eventID }), actor)
+        }
+        recipe = recipe.remixed(seedKey: "987654321012345678", dayKey: "2026-10-06")
+        XCTAssertEqual(recipe.generatorVersion, "atlas-3")
+        XCTAssertTrue(recipe.dailyStyle?.usesCatalogLookOrder == true)
     }
 
     func testRemixPaletteSelectionKeepsNoirAndSinglePaletteScopes() throws {

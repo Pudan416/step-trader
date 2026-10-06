@@ -37,13 +37,18 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         }
     }
 
-    let family: Family
-    let presetID: String
-    let materialID: MetalShapeMaterial
+    struct CatalogLook: Codable, Equatable {
+        let presetID: String
+        let materialID: MetalShapeMaterial
+    }
+
+    var family: Family
+    var presetID: String
+    var materialID: MetalShapeMaterial
     var palette: [SIMD3<Float>]
-    let shape: MetalShapeGenomeUniforms
+    var shape: MetalShapeGenomeUniforms
     var material: MetalShapeMaterialUniforms
-    let orientation: Float
+    var orientation: Float
     /// Missing in saved atlas-2 artwork; preserve its original color policy.
     var sharesPaletteOrder: Bool? = nil
     /// Missing in historical artwork; opt in without changing its frozen policy.
@@ -59,6 +64,10 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// Only new/current editable artwork adopts the complete reference fills.
     var materialPolicyVersion: Int? = nil
     var materialOrder: [MetalShapeMaterial]? = nil
+    /// New recipes freeze a mixed, catalog-backed look order. Older atlas-2
+    /// saves omit it and keep their single-family appearance unchanged.
+    var catalogLookOrder: [CatalogLook]? = nil
+    var usesCatalogLookOrder: Bool { catalogLookOrder?.isEmpty == false }
     var usesReferenceMaterials: Bool { materialPolicyVersion == 1 }
     var neighboringPigments: [SIMD3<Float>]? = nil
     var neighboringPaletteCategories: [ModernPaletteCategory]? = nil
@@ -68,9 +77,50 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     var resolvedCollection: Collection { collection ?? .regular(for: family) }
 
     static func referenceMaterials(for preset: MetalShapePreset) -> [MetalShapeMaterial] {
-        MetalShapeMaterial.allCases.filter {
-            $0 != .proceduralLight && $0 != .proceduralFlow && $0 != .sunset
-                && preset.compatibility.allowed.contains($0)
+        let allowed: [MetalShapeMaterial]
+        switch preset.id {
+        case "genome.concentric-ripple": allowed = [.concentricRings]
+        case "reference.dimpled-sphere": allowed = [.radialTwo, .radialThree]
+        case "reference.spiral-rays": allowed = [.spiralVariation]
+        case "legacy.rounded-triangle": allowed = [.directionalBlur]
+        case "legacy.rounded-hexagon", "genome.concave-square":
+            allowed = [.contour, .radialTwo, .radialThree, .eclipseGlow]
+        default:
+            allowed = [.solid, .sideLight, .contour, .directionalBlur,
+                       .radialTwo, .radialThree, .eclipseGlow]
+        }
+        return allowed.filter { preset.compatibility.allowed.contains($0) }
+    }
+
+    /// One distinct silhouette per stable slot. A seeded shuffle makes each
+    /// daily composition varied while keeping every existing actor frozen.
+    static func catalogLooks(seed: UInt64) -> [CatalogLook] {
+        let presets = MetalShapeGenomeCatalog.presets.filter {
+            $0.id != "genome.soft-drift" && !referenceMaterials(for: $0).isEmpty
+        }
+        var rng = SeededRNG(seed: seed ^ 0x4341_5441_4C4F_4753)
+        var looks = presets.compactMap { preset -> CatalogLook? in
+            let materials = referenceMaterials(for: preset)
+            guard !materials.isEmpty else { return nil }
+            return CatalogLook(presetID: preset.id,
+                               materialID: materials[rng.nextInt(in: 0...(materials.count - 1))])
+        }
+        if looks.count > 1 {
+            for index in stride(from: looks.count - 1, through: 1, by: -1) {
+                looks.swapAt(index, rng.nextInt(in: 0...index))
+            }
+        }
+        return looks
+    }
+
+    static func family(forPresetID id: String) -> Family {
+        switch id {
+        case "legacy.circle", "reference.dimpled-sphere", "genome.concentric-ripple", "reference.spiral-rays": .circles
+        case "genome.soft-drift": .blobs
+        case "genome.soft-clover": .clovers
+        case "genome.snowflake", "genome.windflower": .flowers
+        case "legacy.rounded-triangle": .rays
+        default: .squares
         }
     }
 
@@ -447,8 +497,9 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         let mean = palette.reduce(Float(0)) { $0 + DayObjectRGB(linearRGB: $1).perceptualOKLab.x } / Float(max(1, palette.count))
         var rng = SeededRNG(seed: seed ^ 0x5049_474D_454E_5453)
         let variation = Float(rng.nextDouble(in: -0.012...0.012))
-        let referenceGradient = usesReferenceMaterials && [1, 5, 8, 9, 10].contains(source.materialIndex)
-        let isTwo = source.materialIndex == 4 || (source.materialIndex == 3 && source.metadata.y == 2) || referenceGradient
+        let referenceGradient = usesReferenceMaterials && [1, 5, 8, 9, 10, 11].contains(source.materialIndex)
+        let isTwo = source.materialIndex == 4 || source.materialIndex == 11
+            || (source.materialIndex == 3 && source.metadata.y == 2) || referenceGradient
         let contour = source.materialIndex == 2 || (usesReferenceMaterials && source.materialIndex == 8)
         let lightness: Float = contour ? (mean > 0.55 ? 0.49 : 0.76)
             : isTwo ? (mean > 0.78 ? 0.66 : 0.78)

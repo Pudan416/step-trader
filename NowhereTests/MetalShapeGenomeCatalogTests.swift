@@ -4,8 +4,9 @@ import XCTest
 final class MetalShapeGenomeCatalogTests: XCTestCase {
     func testCatalogKeepsOnlyDistinctFamiliesAndAddsTheSoftClover() {
         let presets = MetalShapeGenomeCatalog.presets
-        XCTAssertEqual(presets.count, 9)
-        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 5)
+        XCTAssertEqual(presets.count, 12)
+        XCTAssertEqual(presets.filter { $0.source == .genome }.count, 6)
+        XCTAssertEqual(presets.filter { $0.source == .reference }.count, 2)
         XCTAssertEqual(presets.filter { $0.source == .legacy }.count, 4)
         XCTAssertEqual(Set(presets.map(\.id)).count, presets.count)
 
@@ -14,9 +15,12 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             [
                 "genome.soft-drift", "genome.snowflake",
                 "genome.windflower", "genome.concave-square",
-                "genome.soft-clover",
+                "genome.soft-clover", "genome.concentric-ripple",
             ]
         )
+        XCTAssertEqual(Set(presets.filter { $0.source == .reference }.map(\.id)), [
+            "reference.dimpled-sphere", "reference.spiral-rays",
+        ])
         XCTAssertTrue(Set([
             "genome.lobed-triad", "legacy.rounded-pentagon", "legacy.star-3-shallow",
         ]).isDisjoint(with: presets.map(\.id)))
@@ -32,7 +36,6 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             "legacy.soft-square:6:17",
             "legacy.rounded-triangle:5:5",
             "legacy.rounded-hexagon:5:8",
-            "reference.spiral-rays:0:1",
         ])
     }
 
@@ -41,7 +44,7 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
             guard case let .genome(genome) = preset.contour else { return nil }
             return genome
         }
-        XCTAssertEqual(Set(genomes.map { $0.morphology }), [.concentricRipple])
+        XCTAssertEqual(Set(genomes.map { $0.morphology }), [.softRadial, .concentricRipple, .spiralRays])
         for genome in genomes {
             XCTAssertTrue((2...12).contains(Int(genome.superformula.x)))
             XCTAssertGreaterThan(genome.superformula.y, 0)
@@ -66,5 +69,6 @@ final class MetalShapeGenomeCatalogTests: XCTestCase {
         XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.sunset) }.map(\.id), ["legacy.circle"])
         XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.concentricRings) }.map(\.id), ["genome.concentric-ripple"])
         XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.spiralVariation) }.map(\.id), ["reference.spiral-rays"])
+        XCTAssertEqual(MetalShapeGenomeCatalog.presets.filter { $0.compatibility.allowed.contains(.directionalBlur) && $0.id == "legacy.rounded-triangle" }.map(\.id), ["legacy.rounded-triangle"])
     }
 }

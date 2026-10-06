@@ -58,7 +58,7 @@ final class NativeAtlasMetalRenderer {
             let pose = old.gpuActor
             let resonance = Float(DayObjectSoundResonance.scale(elapsedSinceAttack: elapsed - (soundPulses[old.eventID] ?? -100), depth: Double(pose.depth)))
             let ambient = recipe.dailyStyle.map {
-                NativeAtlasAmbientMotion.pose(actor: spec, family: $0.family,
+                NativeAtlasAmbientMotion.pose(actor: spec, family: NativeAtlasDailyStyle.family(forPresetID: spec.presetID),
                                               daySeed: UInt64(recipe.seedHex, radix: 16) ?? 0,
                                               elapsed: elapsed, weight: ambientWeight,
                                               livingVariation: $0.livingVariation == true,
@@ -81,11 +81,13 @@ final class NativeAtlasMetalRenderer {
     func encode(commandBuffer: MTLCommandBuffer, output: MTLTexture, recipe: NativeAtlasRecipe, frame: DayObjectRenderFrame, damage: Float, scene: DayObjectScene, elapsed: Double, pointToPixelScale: Float, isPalette: Bool, colorVariants: [String: Int] = [:]) -> Bool {
         let renderScale = min(1.0, 1536.0 / Double(max(output.width, output.height)))
         let w = max(1, Int(Double(output.width) * renderScale)), h = max(1, Int(Double(output.height) * renderScale))
-        if targets.first?.width != w || targets.first?.height != h {
+        if targets.first?.width != w || targets.first?.height != h || targets.count != 3 {
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: w, height: h, mipmapped: false)
             d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private
-            guard let first = device.makeTexture(descriptor: d), let second = device.makeTexture(descriptor: d) else { return false }
-            targets = [first, second]
+            guard let first = device.makeTexture(descriptor: d),
+                  let second = device.makeTexture(descriptor: d),
+                  let canvasBackground = device.makeTexture(descriptor: d) else { return false }
+            targets = [first, second, canvasBackground]
         }
         let clear = MTLRenderPassDescriptor()
         clear.colorAttachments[0].texture = targets[0]
@@ -101,6 +103,22 @@ final class NativeAtlasMetalRenderer {
             clearEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         }
         clearEncoder.endEncoding()
+        // Preserve a clean copy of the canvas background. The glowing-contour
+        // material uses it for its opaque inner cutout, even when another
+        // actor was composited underneath that figure.
+        let basePass = MTLRenderPassDescriptor()
+        basePass.colorAttachments[0].texture = targets[2]
+        basePass.colorAttachments[0].loadAction = .clear
+        basePass.colorAttachments[0].storeAction = .store
+        basePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        guard let baseEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: basePass) else { return false }
+        if !isPalette {
+            var background = DayObjectsMeshGradientUniforms(scene: scene, resolution: SIMD2(Float(w), Float(h)), elapsedTime: elapsed)
+            baseEncoder.setRenderPipelineState(gradient)
+            baseEncoder.setFragmentBytes(&background, length: DayObjectsMeshGradientUniforms.metalStride, index: 0)
+            baseEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        }
+        baseEncoder.endEncoding()
         let accent = CanvasChromePalette.resolve(backgroundColors: scene.meshGradientStyle.colors.map { DayObjectRGB(linearRGB: $0) }).accent.linearRGB
         var pickerAccent = SIMD4<Float>(accent.x, accent.y, accent.z, 1)
         var source = 0
@@ -113,6 +131,7 @@ final class NativeAtlasMetalRenderer {
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return false }
             encoder.setRenderPipelineState(composite)
             encoder.setFragmentTexture(targets[source], index: 0)
+            encoder.setFragmentTexture(targets[2], index: 1)
             var geometry = spec.geometry, material = spec.material.primaryCanvasMaterial
             if let variant = colorVariants[actor.eventID] {
                 if let style = recipe.dailyStyle {

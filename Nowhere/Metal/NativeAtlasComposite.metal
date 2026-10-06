@@ -9,7 +9,8 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
     constant MetalShapeMaterialUniforms &m [[buffer(1)]],
     constant NativeAtlasPlacement &placement [[buffer(2)]],
     constant float4 &pickerAccent [[buffer(3)]],
-    texture2d<float> previous [[texture(0)]]) {
+    texture2d<float> previous [[texture(0)]],
+    texture2d<float> canvasBackground [[texture(1)]]) {
     constexpr sampler linearSampler(coord::normalized, address::clamp_to_edge, filter::linear);
     const float2 resolution = placement.canvas.xy;
     float2 local = (in.uv - placement.pose.xy) * resolution / min(resolution.x, resolution.y) / max(placement.pose.z, 0.001);
@@ -18,6 +19,7 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
     local = float2(local.x * c + local.y * s, -local.x * s + local.y * c);
     const float morph = saturate(placement.presentation.x);
     const float4 background = previous.sample(linearSampler, in.uv);
+    const float4 cleanCanvas = canvasBackground.sample(linearSampler, in.uv);
     if (morph == 0.0) {
         // Available targets do not inherit the future figure's material or
         // intersection mask. The figure is evaluated only after selection.
@@ -98,14 +100,19 @@ fragment float4 nativeAtlasComposite(MetalShapeVertexOut in [[stage_in]],
         }
     }
     float3 combined = color * a + background.rgb * (1.0 - a);
+    const float2 shapePoint = local * 2.72;
+    const float shapeDistance = metalShapeDistance(shapePoint, g);
+    const float matteAA = max(fwidth(shapeDistance), 0.0025);
+    const float glowCutout = m.metadata.x == 9u && placement.presentation.y < 0.5
+        ? (1.0 - smoothstep(-matteAA, matteAA, shapeDistance)) * placement.canvas.z
+        : 0.0;
+    combined = mix(combined, cleanCanvas.rgb, glowCutout);
     if (placement.presentation.y > 0.5) {
         // Confirmation previews stay neutral even over saturated artwork. Keep
         // the outside background untouched and preserve the opacity transition.
         float neutral = (1.0 - placement.effects.z) * smoothstep(0.05, 0.9, a);
         combined = mix(combined, float3(dot(combined, float3(0.2126, 0.7152, 0.0722))), neutral);
     }
-    if (placement.presentation.y > 0.5) {
-        return float4(combined, a + background.a * (1.0 - a));
-    }
-    return float4(combined, eligible ? a + background.a * (1.0 - a) : background.a * (1.0 - a));
+    const float sceneAlpha = eligible ? a + background.a * (1.0 - a) : background.a * (1.0 - a);
+    return float4(combined, mix(sceneAlpha, 1.0, glowCutout));
 }
