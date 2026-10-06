@@ -113,6 +113,34 @@ struct DayObjectRGB: Equatable {
         return DayObjectRGB(linearRGB: candidate(chromaScale: lower))
     }
 
+    /// Fit the requested lightness without rotating hue. Only chroma is given
+    /// back at the display boundary, so a compressed lightness range stays soft.
+    func fittingPerceptualLightness(
+        to lightness: Float,
+        chromaFraction: Float
+    ) -> DayObjectRGB {
+        let source = DayObjectOKLab(linearRGB: linearRGB)
+        let target = lightness.isFinite ? min(max(lightness, 0.061), 0.939) : source.lightness
+        let fraction = chromaFraction.isFinite ? min(max(chromaFraction, 0), 1) : 0
+        func candidate(_ scale: Float) -> SIMD3<Float> {
+            DayObjectOKLab(lightness: target, a: source.a * scale, b: source.b * scale).linearRGB
+        }
+        if DayObjectOKLab.isInDisplayGamut(candidate(fraction)) {
+            return DayObjectRGB(linearRGB: candidate(fraction))
+        }
+        var lower: Float = 0
+        var upper = fraction
+        for _ in 0..<16 {
+            let midpoint = (lower + upper) * 0.5
+            if DayObjectOKLab.isInDisplayGamut(candidate(midpoint)) {
+                lower = midpoint
+            } else {
+                upper = midpoint
+            }
+        }
+        return DayObjectRGB(linearRGB: candidate(lower))
+    }
+
     private static func linearComponent(_ value: Float) -> Float {
         value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
     }

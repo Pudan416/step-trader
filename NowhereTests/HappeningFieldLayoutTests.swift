@@ -115,7 +115,7 @@ final class CanvasOverlayIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(persisted.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
         XCTAssertEqual(result.canvas.elements[0].basePosition, CGPoint(x: 0.82, y: 0.24))
         XCTAssertEqual(model.todayAdditions.map(\.id), [element.id.uuidString])
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), [element.optionId])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), [HappeningDefaults.canonicalID(element.optionId)])
     }
 
     func testAllTenDifferentPaletteHappeningsCanBeAddedToTheCanvas() throws {
@@ -1830,5 +1830,124 @@ final class HappeningFieldEdgeScaleTests: XCTestCase {
         XCTAssertEqual(result.sources[0].radius, 34 * 0.92, accuracy: 0.0001)
         XCTAssertEqual(result.sources[0].appearanceScale, 0.5 * 0.92, accuracy: 0.0001)
         XCTAssertEqual(HappeningFieldEdgeScale.factor(at: .zero, visibleRect: .zero), 1)
+    }
+}
+
+
+final class HappeningEventTreeRegressionTests: XCTestCase {
+    func testStartsWithSixCompleteEventsAndAnEmptyDateCell() {
+        let state = HappeningEventTreeState()
+        XCTAssertEqual(state.nodes.count, 6)
+        XCTAssertEqual(state.nodes.map(\.event.title), ["Worked", "Chilled", "Stayed home", "Ate", "Went out", "Saw people"])
+        XCTAssertTrue(state.nodes.allSatisfy { $0.cell.distanceSquared == 1 && $0.parentID == nil })
+        XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
+    }
+
+    func testEachClickOpensAtMostThreeAdjacentEventsWithoutMovingOldNodes() {
+        var state = HappeningEventTreeState()
+        let roots = state.nodes
+        XCTAssertEqual(state.expand("root_worked"), 3)
+        XCTAssertEqual(Array(state.nodes.prefix(6)), roots)
+        let parent = roots[0]
+        XCTAssertTrue(state.nodes.suffix(3).allSatisfy {
+            $0.parentID == parent.id && parent.cell.neighbors.contains($0.cell)
+        })
+        let firstBranch = state.nodes
+        XCTAssertGreaterThan(state.expand(state.nodes[6].id), 0)
+        XCTAssertEqual(Array(state.nodes.prefix(firstBranch.count)), firstBranch)
+        XCTAssertEqual(state.expand("root_worked"), 0)
+        XCTAssertEqual(state.expand("unknown"), 0)
+    }
+
+    func testSavedExpansionHistoryRebuildsExactlyTheSameTree() {
+        var state = HappeningEventTreeState()
+        state.expand("root_worked")
+        state.expand(state.nodes[6].id)
+        state.expand("root_chilled")
+        XCTAssertEqual(HappeningEventTreeState(expandedIDs: state.expandedIDs), state)
+    }
+
+    func testEveryEventIsReachableIncludingUnflatteringOnes() {
+        var state = HappeningEventTreeState()
+        var index = 0
+        while index < state.nodes.count {
+            XCTAssertLessThanOrEqual(state.expand(state.nodes[index].id), 3)
+            index += 1
+        }
+        XCTAssertEqual(Set(state.nodes.map(\.id)), Set(HappeningEventTree.all.map(\.id)))
+        XCTAssertEqual(Set(state.nodes.map(\.cell)).count, state.nodes.count)
+        XCTAssertEqual(Set(state.nodes.map(\.id)).count, state.nodes.count)
+        XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
+        XCTAssertTrue(state.nodes.contains { $0.event.title == "Raged" })
+        XCTAssertTrue(state.nodes.contains { $0.event.title == "Got wasted" })
+        XCTAssertTrue(HappeningEventTree.all.allSatisfy { !$0.title.isEmpty && $0.title.count <= 20 })
+    }
+
+    func testRootsFormAHexagonAndLeaveRoomForTheDateOnPhoneSizes() throws {
+        for size in [CGSize(width: 375, height: 812), CGSize(width: 393, height: 852), CGSize(width: 440, height: 956)] {
+            let state = HappeningEventTreeState()
+            let field = makeField(state, size: size)
+            let layout = field.layout
+            XCTAssertEqual(layout.sources.count, 6)
+            XCTAssertEqual(layout.contentSize, size)
+            XCTAssertEqual(layout.dateHubCenter, field.hubCenter)
+            let step = layout.sources[0].radius * 2 + 10
+            for source in layout.sources {
+                XCTAssertEqual(hypot(source.center.x - field.hubCenter.x, source.center.y - field.hubCenter.y), step, accuracy: 0.001)
+                XCTAssertFalse(CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius,
+                    width: source.radius * 2, height: source.radius * 2).intersects(
+                        CGRect(x: field.hubCenter.x - 50, y: field.hubCenter.y - 22, width: 100, height: 44)))
+                XCTAssertGreaterThanOrEqual(source.center.x - source.radius, 16 - 0.001)
+                XCTAssertLessThanOrEqual(source.center.x + source.radius, size.width - 16 + 0.001)
+            }
+        }
+    }
+
+    func testExpansionPreservesCoordinatesRelativeToDateAndRenderHitTargetAlignment() {
+        var state = HappeningEventTreeState()
+        let before = makeField(state)
+        state.expand("root_worked")
+        let after = makeField(state)
+        XCTAssertEqual(after.layout.sources.count, 9)
+        for (old, new) in zip(before.layout.sources, after.layout.sources) {
+            XCTAssertEqual(old.center.x - before.hubCenter.x, new.center.x - after.hubCenter.x, accuracy: 0.001)
+            XCTAssertEqual(old.center.y - before.hubCenter.y, new.center.y - after.hubCenter.y, accuracy: 0.001)
+            XCTAssertEqual(old.radius, new.radius)
+        }
+        for (source, hitFrame) in zip(after.layout.sources, after.layout.labelFrames) {
+            XCTAssertEqual(source.center.x, hitFrame.midX)
+            XCTAssertEqual(source.center.y, hitFrame.midY)
+            XCTAssertEqual(source.radius * 2, hitFrame.width)
+        }
+        let offset = CGPoint(x: 80, y: 120)
+        let translated = after.layout.translated(by: offset)
+        XCTAssertEqual(translated.dateHubCenter, CGPoint(x: after.hubCenter.x - 80, y: after.hubCenter.y - 120))
+    }
+
+    func testEveryRootAndItsFirstChildCanRevealNeighborsClearOfChrome() throws {
+        let viewport = CGSize(width: 393, height: 852)
+        for root in HappeningEventTree.startingEvents {
+            var state = HappeningEventTreeState()
+            for id in [root.id, HappeningEventTree.suggestions(for: root, alreadyVisible: Set(state.nodes.map(\.id)))[0].id] {
+                let oldCount = state.nodes.count
+                state.expand(id)
+                let field = makeField(state)
+                let parentIndex = try XCTUnwrap(state.nodes.firstIndex { $0.id == id })
+                let offset = HappeningEventTreeLayout.focusOffset(center: field.layout.sources[parentIndex].center,
+                    contentSize: field.layout.contentSize, viewportSize: viewport)
+                for source in field.layout.sources.dropFirst(oldCount) {
+                    XCTAssertGreaterThanOrEqual(source.center.x - source.radius - offset.x, 16 - 0.001)
+                    XCTAssertLessThanOrEqual(source.center.x + source.radius - offset.x, viewport.width - 16 + 0.001)
+                    XCTAssertGreaterThanOrEqual(source.center.y - source.radius - offset.y, 180, root.title)
+                    XCTAssertLessThanOrEqual(source.center.y + source.radius - offset.y, viewport.height - 180, root.title)
+                }
+            }
+        }
+    }
+
+    private func makeField(_ state: HappeningEventTreeState, size: CGSize = CGSize(width: 393, height: 852)) -> HappeningEventTreeLayout.Field {
+        HappeningEventTreeLayout.layout(nodes: state.nodes, in: size,
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 180, dockCenterY: size.height - 100)
     }
 }

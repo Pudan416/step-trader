@@ -15,6 +15,9 @@ enum MetalShapeMorphology: String, Codable, CaseIterable, Sendable {
     case softClover
     case foldedRosette
     case crystalline
+    case concentricRipple
+    case dimpledSphere
+    case spiralRays
     case legacyRound
     case legacyPolygon
     case legacyStar
@@ -41,6 +44,8 @@ enum MetalShapeMaterial: String, Codable, CaseIterable, Sendable {
     case proceduralContour
     case eclipseGlow
     case sunset
+    case concentricRings
+    case spiralVariation
 }
 
 enum MetalShapeRole: String, Codable, CaseIterable, Sendable {
@@ -52,6 +57,7 @@ enum MetalShapeRole: String, Codable, CaseIterable, Sendable {
 enum MetalShapeSource: String, Codable, Sendable {
     case genome
     case legacy
+    case reference
 }
 
 enum MetalShapeContourDescriptor: Codable, Equatable, Sendable {
@@ -60,6 +66,7 @@ enum MetalShapeContourDescriptor: Codable, Equatable, Sendable {
     case windflower
     case concaveSquare
     case softClover
+    case dimpledSphere
     case legacy(shape: UInt32, variant: UInt32)
 }
 
@@ -87,4 +94,21 @@ struct MetalShapePreset: Codable, Equatable, Sendable, Identifiable {
     let morphology: MetalShapeMorphology
     let contour: MetalShapeContourDescriptor
     let compatibility: MetalShapeCompatibility
+
+    /// A product family is the independently selectable shape collection.
+    /// Material variants stay inside this family and do not create duplicate
+    /// silhouettes on a newly composed screen.
+    var familyID: String {
+        switch id {
+        case "legacy.circle": "round.circle"
+        case "reference.dimpled-sphere": "round.volume"
+        case "genome.concentric-ripple": "round.ripples"
+        case "reference.spiral-rays": "round.spiral-rays"
+        default: id
+        }
+    }
+
+    var usesExpandedRoundSizeRange: Bool {
+        ["legacy.circle", "reference.dimpled-sphere", "genome.concentric-ripple", "reference.spiral-rays"].contains(id)
+    }
 }

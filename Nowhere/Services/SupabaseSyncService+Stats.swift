@@ -158,7 +158,9 @@ extension SupabaseSyncService {
                 steps: snapshot.steps,
                 sleepHours: snapshot.sleepHours,
                 stepsTarget: snapshot.stepsTarget,
-                sleepTargetHours: snapshot.sleepTargetHours
+                sleepTargetHours: snapshot.sleepTargetHours,
+                happeningTagCounts: snapshot.happeningTagCounts,
+                dayTitle: snapshot.dayTitle
             )
             
             request.httpBody = try JSONEncoder().encode(row)
@@ -234,11 +236,16 @@ extension SupabaseSyncService {
     
     /// Load day snapshots from Supabase (for restoring history on new device)
     func loadDaySnapshotsFromServer() async -> [String: PastDaySnapshot] {
-        guard let auth = await authenticatedContext() else { return [:] }
+        await loadDaySnapshotsForRestore() ?? [:]
+    }
+
+    /// Empty history is a successful read; nil keeps initial restore pending.
+    func loadDaySnapshotsForRestore() async -> [String: PastDaySnapshot]? {
+        guard let auth = await authenticatedContext() else { return nil }
         let token = auth.token
         let userId = auth.userId
         
-        guard let config = try? SupabaseConfig.load() else { return [:] }
+        guard let config = try? SupabaseConfig.load() else { return nil }
         
         let endpoint = config.baseURL.appendingPathComponent("rest/v1/user_day_snapshots")
         let baseQuery = [
@@ -269,7 +276,9 @@ extension SupabaseSyncService {
                     steps: row.steps,
                     sleepHours: row.sleepHours,
                     stepsTarget: row.stepsTarget,
-                    sleepTargetHours: row.sleepTargetHours
+                    sleepTargetHours: row.sleepTargetHours,
+                    happeningTagCounts: row.happeningTagCounts,
+                    dayTitle: row.dayTitle
                 )
             }
             
@@ -277,7 +286,7 @@ extension SupabaseSyncService {
             return result
         } catch {
             AppLogger.network.error("📡 Failed to load day snapshots: \(error.localizedDescription)")
-            return [:]
+            return nil
         }
     }
     

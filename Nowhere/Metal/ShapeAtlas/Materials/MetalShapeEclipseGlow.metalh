@@ -2,13 +2,36 @@
 #include "../MetalShapeUniforms.metalh"
 
 static void metalShapeShadeEclipseGlow(
+    float2 p,
     float distance,
     constant MetalShapeMaterialUniforms & m,
     thread float3 & color,
     thread float & alpha) {
     const float outside = max(distance, 0.0);
-    const float edge = exp(-distance * distance * 2100.0);
-    const float halo = exp(-outside * outside * 58.0) * smoothstep(0.30, 0.0, outside);
-    alpha = max(edge, halo * 0.72) * smoothstep(-0.10, -0.015, distance);
-    color = mix(m.color1.rgb, m.color0.rgb, smoothstep(0.0, 0.28, outside));
+    const float angle = atan2(p.y, p.x);
+    const float phase = m.params0.x * 2.0 * M_PI_F;
+    const float turn = fract((angle + M_PI_F) / (2.0 * M_PI_F) + m.params0.x);
+    const float irregularTurn = fract(turn + 0.035 * sin(angle * 3.0 + phase) + 0.018 * sin(angle * 7.0 - phase));
+    if (irregularTurn < 1.0 / 3.0) {
+        color = mix(m.color0.rgb, m.color1.rgb, smoothstep(0.0, 1.0 / 3.0, irregularTurn));
+    } else if (irregularTurn < 2.0 / 3.0) {
+        color = mix(m.color1.rgb, m.color2.rgb, smoothstep(1.0 / 3.0, 2.0 / 3.0, irregularTurn));
+    } else {
+        color = mix(m.color2.rgb, m.color0.rgb, smoothstep(2.0 / 3.0, 1.0, irregularTurn));
+    }
+    // Keep the shape interior fully transparent: the source silhouette is a
+    // crisp circular cutout, while the colored light lives only outside it.
+    const float outsideMask = smoothstep(-0.002, 0.002, distance);
+    const float unevenness = 0.66
+        + 0.21 * sin(angle * 2.0 + phase)
+        + 0.12 * sin(angle * 3.0 - phase * 1.3)
+        + 0.08 * cos(angle * 5.0 + phase * 0.6);
+    const float extent = clamp(0.30 * unevenness, 0.10, 0.44);
+    const float normalized = outside / extent;
+    const float halo = exp(-normalized * normalized * 1.85)
+        * (1.0 - smoothstep(0.9, 1.3, normalized));
+    const float edge = exp(-outside * outside * 1450.0) * 0.86;
+    const float angularStrength = clamp(0.56 + 0.28 * sin(angle * 3.0 + phase * 0.8)
+        + 0.16 * cos(angle * 5.0 - phase), 0.22, 1.0);
+    alpha = clamp(max(edge, halo * angularStrength) * outsideMask, 0.0, 1.0);
 }

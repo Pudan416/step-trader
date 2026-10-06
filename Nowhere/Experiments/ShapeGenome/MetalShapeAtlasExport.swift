@@ -252,6 +252,8 @@ extension MetalShapeMaterial {
         case .proceduralContour: "Procedural contour"
         case .eclipseGlow: "Glowing contour"
         case .sunset: "Sunset · circle only"
+        case .concentricRings: "Concentric rings"
+        case .spiralVariation: "Spiral variation"
         }
     }
 }

@@ -1,16 +1,38 @@
 import Foundation
 import os.log
 
-// MARK: - Custom Activities & Daily Selections
+/// Older queued batches can contain reconstructed system identities. Preserve
+/// genuine rows byte-for-value while excluding the global IDs that collide.
+enum CustomHappeningRetryPayload: Equatable {
+    case ready(Data)
+    case noUserRows
+    case differentOwner
+    case invalid
+
+    static func prepare(_ data: Data?, ownerID: String) -> Self {
+        guard let data,
+              let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]],
+              rows.allSatisfy({ $0["id"] is String && $0["user_id"] is String }) else { return .invalid }
+        let eligible = rows.filter { !HappeningDefaults.isSystemHappeningID($0["id"] as? String ?? "") }
+        guard !eligible.isEmpty else { return .noUserRows }
+        guard eligible.allSatisfy({ $0["user_id"] as? String == ownerID }) else { return .differentOwner }
+        guard let filtered = try? JSONSerialization.data(withJSONObject: eligible) else { return .invalid }
+        return .ready(filtered)
+    }
+}
+
+// MARK: - Historical Custom Activities & Daily Selections
 extension SupabaseSyncService {
     
     // MARK: - Public Sync Methods
 
     func syncCustomHappenings(_ happenings: [Happening]) async {
-        await performCustomHappeningsSync(happenings.filter { !$0.isBuiltIn })
+        await performCustomHappeningsSync(HappeningDefaults.customHappeningsForSync(happenings))
     }
 
     func performCustomHappeningsSync(_ happenings: [Happening]) async {
+        let happenings = HappeningDefaults.customHappeningsForSync(happenings)
+        guard !happenings.isEmpty else { return }
         guard let auth = await authenticatedContext() else { return }
         do {
             let cfg = try SupabaseConfig.load()
@@ -46,21 +68,29 @@ extension SupabaseSyncService {
         do {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
-            guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else { return nil }
-            comps.queryItems = [
-                URLQueryItem(name: "user_id", value: "eq.\(auth.userId)"),
-                URLQueryItem(name: "select", value: "*")
-            ]
-            guard let url = comps.url else { return nil }
-            var request = URLRequest(url: url)
-            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
-            request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
-            let (data, response) = try await network.data(for: request)
-            guard response.statusCode < 400 else { return nil }
-            return try JSONDecoder().decode([CustomHappeningRow].self, from: data).map(\.happening)
+            let rows: [CustomHappeningRow] = try await fetchPagedRows(
+                endpoint: endpoint, token: auth.token, anonKey: cfg.anonKey,
+                baseQuery: [
+                    URLQueryItem(name: "user_id", value: "eq.\(auth.userId)"),
+                    URLQueryItem(name: "select", value: "*"),
+                    URLQueryItem(name: "order", value: "id.asc")
+                ],
+                pageSize: historicalPageSize
+            )
+            return rows.map(\.happening)
         } catch {
             AppLogger.network.error("📡 Custom happenings restore error: \(error.localizedDescription)")
             return nil
+        }
+    }
+
+    /// Restores only the user's custom happening catalog. Existing installs
+    /// intentionally skip the destructive full restore on upgrade, but still
+    /// need current titles to resolve historical Canvas identifiers.
+    func restoreCustomHappeningsFromServer(model: AppModel) async {
+        guard let happenings = await loadCustomHappeningsFromServer(), !happenings.isEmpty else { return }
+        await MainActor.run {
+            model.mergeRestoredHappenings(happenings)
         }
     }
 
@@ -243,6 +273,7 @@ struct CustomHappeningRow: Codable {
     let title: String
     let useCount: Int
     let lastUsedAt: String?
+    let tags: [String]?
 
     init(happening: Happening, userId: String) {
         id = happening.id
@@ -250,6 +281,7 @@ struct CustomHappeningRow: Codable {
         title = happening.title
         useCount = happening.useCount
         lastUsedAt = happening.lastUsedAt.map { ISO8601DateFormatter().string(from: $0) }
+        tags = happening.tags
     }
 
     var happening: Happening {
@@ -257,8 +289,9 @@ struct CustomHappeningRow: Codable {
             id: id,
             title: title,
             isBuiltIn: false,
+            tags: tags ?? [],
             useCount: useCount,
-            lastUsedAt: lastUsedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+            lastUsedAt: lastUsedAt.flatMap(HappeningServerTimestamp.date)
         )
     }
 
@@ -268,5 +301,6 @@ struct CustomHappeningRow: Codable {
         case title = "title_en"
         case useCount = "use_count"
         case lastUsedAt = "last_used_at"
+        case tags
     }
 }

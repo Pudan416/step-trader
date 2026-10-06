@@ -1,7 +1,7 @@
 import Foundation
 
-/// Owns the happening catalog: the thirty built-ins plus everything the user has
-/// created or carried over from the old 31-option set.
+/// Owns fixed choices plus historical/imported records needed to resolve saved days.
+/// Only selectable exposes choices for new additions.
 ///
 /// Persisted as one JSON blob in the App Group so the widget and extensions can
 /// resolve labels. Deliberately not an `ObservableObject` — `AppModel` holds it
@@ -39,13 +39,41 @@ final class HappeningStore {
         let missing = HappeningDefaults.builtIns.filter { !known.contains($0.id) }
         all = stored + missing
 
-        if !missing.isEmpty { persist() }
+        var metadataChanged = !missing.isEmpty
+        let builtInTags = Dictionary(HappeningDefaults.builtIns.map { ($0.id, $0.tags) }, uniquingKeysWith: { first, _ in first })
+        for index in all.indices {
+            let canonicalTags = all[index].isBuiltIn
+                ? builtInTags[all[index].id]
+                : HappeningEventTree.tags(forStoredHappeningID: all[index].id)
+            if let canonicalTags, !canonicalTags.isEmpty, all[index].tags != canonicalTags {
+                all[index].tags = canonicalTags
+                metadataChanged = true
+            }
+        }
+
+        if metadataChanged { persist() }
     }
 
     func happening(id: String) -> Happening? {
         all.first { $0.id == id }
+            ?? HappeningDefaults.legacyBuiltIns.first { $0.id == id }
     }
 
+    /// Authoritative English copy and fixed order, with saved usage attached.
+    /// Historical/custom records stay in all but never become extra choices.
+    var selectable: [Happening] {
+        let groups = Dictionary(grouping: all) { HappeningDefaults.canonicalID($0.id) }
+        return HappeningDefaults.builtIns.map { choice in
+            var result = choice
+            let records = groups[choice.id] ?? []
+            result.useCount = records.reduce(0) { $0 + $1.useCount }
+            result.lastUsedAt = records.compactMap(\.lastUsedAt).max()
+            return result
+        }
+    }
+
+    /// Compatibility helper for legacy fixtures/import code; no product UI calls it.
+    /// New additions and palette edits reject IDs outside the fixed catalog.
     /// Creating a happening only adds it to the catalog. A later successful
     /// daily addition records its first use.
     ///
@@ -70,17 +98,44 @@ final class HappeningStore {
     /// duplicate rows for the same HealthKit workout type.
     @discardableResult
     func ensureExternalHappening(id: String, title: String) -> Happening {
-        if let existing = happening(id: id) { return existing }
+        let canonicalTags = HappeningEventTree.tags(forStoredHappeningID: id) ?? []
+        if let index = all.firstIndex(where: { $0.id == id }) {
+            if !canonicalTags.isEmpty, all[index].tags != canonicalTags {
+                all[index].tags = canonicalTags
+                persist()
+            }
+            // Repair older generic Health imports, while leaving deliberate
+            // user renames untouched on every later HealthKit refresh.
+            if id.hasPrefix("health_workout_"), all[index].title == "Workout", title != "Workout" {
+                all[index].title = Happening.limitedTitle(title)
+                persist()
+            }
+            return all[index]
+        }
 
-        let made = Happening(id: id, title: title, isBuiltIn: false)
+        let made = Happening(id: id, title: title, isBuiltIn: false, tags: canonicalTags)
         all.append(made)
         persist()
         return made
     }
 
+    @discardableResult
+    func renameHappening(id: String, title: String) -> Happening? {
+        guard let index = all.firstIndex(where: { $0.id == id && !$0.isBuiltIn }) else { return nil }
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTitle.isEmpty else { return nil }
+        all[index].title = Happening.limitedTitle(normalizedTitle)
+        persist()
+        return all[index]
+    }
+
     func mergeRestored(_ happenings: [Happening]) {
         guard !happenings.isEmpty else { return }
-        for restored in happenings where !restored.isBuiltIn {
+        for source in happenings where !source.isBuiltIn {
+            var restored = source
+            if let canonicalTags = HappeningEventTree.tags(forStoredHappeningID: restored.id) {
+                restored.tags = canonicalTags
+            }
             if let index = all.firstIndex(where: { $0.id == restored.id }) {
                 all[index] = restored
             } else {
@@ -90,8 +145,7 @@ final class HappeningStore {
         persist()
     }
 
-    /// Records one addition. Drives palette ordering, so it is stored rather
-    /// than derived from history.
+    /// Retains usage metadata for future adaptation. Current choices use fixed order.
     func recordUse(id: String, at date: Date = .now) {
         guard let index = all.firstIndex(where: { $0.id == id }) else {
             AppLogger.energy.error("recordUse for unknown happening: \(id, privacy: .public)")
@@ -101,9 +155,8 @@ final class HappeningStore {
         persist()
     }
 
-    /// Cutting 31 built-ins to 10 would orphan ids sitting in a user's saved
-    /// days, and those days would lose their labels. Bring each one back as a
-    /// user happening.
+    /// Recover retired IDs referenced by saved days as historical records.
+    /// They resolve labels but are excluded from selectable choices.
     ///
     /// Idempotent: ids already in the catalog are never touched, so counts
     /// accumulated after an earlier pass survive. Sorted so a launch-time run

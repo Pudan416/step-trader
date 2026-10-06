@@ -121,6 +121,17 @@ class AuthenticationService: NSObject, ObservableObject {
             }
         }
     }
+
+    /// Captures the account that owns a newly-created analytics event. The UID
+    /// is stored with the queued event so a later account switch cannot reassign it.
+    func analyticsIdentitySnapshot() async -> AnalyticsIdentitySnapshot? {
+        await waitForInitialization()
+        guard let userId = currentUser?.id else { return nil }
+        return AnalyticsIdentitySnapshot(
+            userId: userId,
+            accountType: isAnonymous ? "anonymous" : "registered"
+        )
+    }
     
     // MARK: - Public Methods
     

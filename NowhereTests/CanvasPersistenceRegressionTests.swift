@@ -507,7 +507,7 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             OptionEntry(
                 id: elementID.uuidString,
                 dayKey: dayKey,
-                optionId: "happening_walk",
+                optionId: "event_walk",
                 colorHex: canvas.elements[0].hexColor,
                 timestamp: now,
                 assetVariant: canvas.elements[0].assetVariant
@@ -757,7 +757,7 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
             readID.uuidString,
         ])
         XCTAssertEqual(reconciliation.entriesToAdd.map(\.optionId), [
-            "happening_walk",
+            "event_walk",
             "happening_read",
         ])
     }
@@ -777,7 +777,7 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         let canonical = OptionEntry(
             id: stableID.uuidString,
             dayKey: dayKey,
-            optionId: "happening_walk",
+            optionId: "event_walk",
             colorHex: "#A1B2C3",
             timestamp: now,
             assetVariant: 7
@@ -1041,23 +1041,19 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
     private func dayEndPairWithDifferentKeys(
         at date: Date
     ) -> (old: DayEnd, new: DayEnd)? {
-        var first: (end: DayEnd, key: String)?
-        for hour in 0..<24 {
-            for minute in 0..<60 {
-                let end = DayEnd(hour: hour, minute: minute)
-                let key = DayBoundary.dayKey(
-                    for: date,
-                    dayEndHour: hour,
-                    dayEndMinute: minute
-                )
-                guard let anchor = first else {
-                    first = (end, key)
-                    continue
-                }
-                if key != anchor.key { return (anchor.end, end) }
-            }
-        }
-        return nil
+        let old = DayEnd(hour: 0, minute: 0)
+        let new = DayEnd(hour: 23, minute: 59)
+        let oldKey = DayBoundary.dayKey(
+            for: date,
+            dayEndHour: old.hour,
+            dayEndMinute: old.minute
+        )
+        let newKey = DayBoundary.dayKey(
+            for: date,
+            dayEndHour: new.hour,
+            dayEndMinute: new.minute
+        )
+        return oldKey == newKey ? nil : (old, new)
     }
 
     private func makeModel() -> AppModel {
@@ -1711,7 +1707,7 @@ final class NativeAtlasRecipeTests: XCTestCase {
     func testAllNativeTraceTypesAreNoOpAtZeroAndChangeTheImageAtFullStrength() async throws {
         var recipe = NativeAtlasRecipe.make(dayKey: "trace-probe").reconciled(eventIDs: (0..<10).map(String.init))
         var pristine: Data?
-        for type in 0..<5 {
+        for type in 0..<9 {
             recipe.glitchType = type
             func render(_ strength: Float) async -> Data? {
                 var configured = recipe

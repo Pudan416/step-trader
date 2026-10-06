@@ -13,7 +13,8 @@ struct CanvasEditingDock: View {
     var automaticTraceStrength: Float = 0
 
     private let traceTitles: [LocalizedStringKey] = [
-        "Band shifts", "Color separation", "Pixel fragments", "Wave", "Repeated contours"
+        "Band shifts", "Color separation", "Pixel fragments", "Wave", "Repeated contours",
+        "Signal", "Fade", "Drift", "Erosion"
     ]
     private let intersectionTitles: [LocalizedStringKey] = [
         "Transparent blending", "Luminous seam", "Overlay"

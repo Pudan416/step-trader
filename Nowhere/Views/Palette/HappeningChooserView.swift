@@ -23,38 +23,33 @@ enum HappeningPanelAccessibilityOrder {
     }
 }
 
-/// Edits a fixed set of slots. Existing replacements remain a draft until Done;
-/// creating a new item commits the same draft into the explicitly chosen slot.
+/// Edits a fixed set of slots using only the reviewed catalog.
+/// Existing replacements remain a draft until Done.
 struct HappeningChooserView: View {
     let catalog: [Happening]
     let protectedIDs: Set<String>
     let healthIDs: Set<String>
-    let onCreateNew: (String, String, [String]) -> HappeningPaletteCreationOutcome
     let onSave: ([String]) -> Void
     let onCancel: () -> Void
 
     @State private var draft: HappeningPaletteSelectionDraft
     @State private var replacementID: String?
     @State private var query = ""
-    @State private var isCreating = false
-    @State private var name = ""
-    @State private var feedback: HappeningPaletteCreationFeedback?
     @State private var showsProtectedMessage = false
     @State private var protectedHealth = false
-    @FocusState private var nameFocused: Bool
 
     private let surface = Color(hex: "F4F5EF")
     private let ink = Color(hex: "24372B")
 
     init(
         catalog: [Happening], selected: [String], protectedIDs: Set<String> = [], healthIDs: Set<String> = [],
+        // Ignored compatibility argument for older callers; creation has no UI path.
         onCreateNew: @escaping (String, String, [String]) -> HappeningPaletteCreationOutcome = { _, _, _ in .failed },
         onSave: @escaping ([String]) -> Void, onCancel: @escaping () -> Void
     ) {
         self.catalog = catalog
         self.protectedIDs = protectedIDs
         self.healthIDs = healthIDs
-        self.onCreateNew = onCreateNew
         self.onSave = onSave
         self.onCancel = onCancel
         _draft = State(initialValue: HappeningPaletteSelectionDraft(
@@ -64,10 +59,6 @@ struct HappeningChooserView: View {
 
     private var selected: [Happening] {
         draft.ids.compactMap { id in catalog.first { $0.id == id } }
-    }
-
-    private var hasAlternatives: Bool {
-        !HappeningPaletteSelection.alternatives(catalog: catalog, selected: draft.ids).isEmpty
     }
 
     private var replacements: [Happening] {
@@ -82,9 +73,7 @@ struct HappeningChooserView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    if isCreating {
-                        creator
-                    } else if replacementID != nil {
+                    if replacementID != nil {
                         replacementList
                     } else {
                         currentList
@@ -97,9 +86,9 @@ struct HappeningChooserView: View {
             .scrollDismissesKeyboard(.interactively)
             .background(surface)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if replacementID == nil || isCreating {
+                if replacementID == nil {
                     Button {
-                        if isCreating { create() } else { onSave(draft.ids) }
+                        onSave(draft.ids)
                     } label: {
                         Text("Done")
                             .font(.geist(.body).weight(.semibold))
@@ -110,27 +99,21 @@ struct HappeningChooserView: View {
                             .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .disabled(isCreating ? name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty : !draft.canSave)
-                    .opacity(isCreating && name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                    .disabled(!draft.canSave)
                     .accessibilityIdentifier("happening_editor_done")
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                     .background(surface)
                 }
             }
-            .navigationTitle(isCreating ? String(localized: "New happening") : replacementID == nil ? String(localized: "Happenings") : String(localized: "Replace"))
+            .navigationTitle(replacementID == nil ? String(localized: "Happenings") : String(localized: "Replace"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(surface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
-                        nameFocused = false
-                        feedback = nil
-                        if isCreating {
-                            isCreating = false
-                            if !hasAlternatives { replacementID = nil }
-                        } else if replacementID != nil {
+                        if replacementID != nil {
                             replacementID = nil
                         } else {
                             onCancel()
@@ -148,8 +131,8 @@ struct HappeningChooserView: View {
         .foregroundStyle(ink)
         .tint(ink)
         .preferredColorScheme(.light)
-        .interactiveDismissDisabled(draft.hasChanges || !name.isEmpty)
-        .alert(protectedHealth ? String(localized: "Health happenings stay in Frequent") : String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
+        .interactiveDismissDisabled(draft.hasChanges)
+        .alert(protectedHealth ? "Health happenings stay in Personal" : String(localized: "Already on Canvas"), isPresented: $showsProtectedMessage) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(protectedHealth ? String(localized: "Health activities are always close at hand. You can replace another happening.") : String(localized: "Remove this happening from Canvas before replacing it."))
@@ -177,10 +160,6 @@ struct HappeningChooserView: View {
                         } else {
                             replacementID = happening.id
                             query = ""
-                            name = ""
-                            // With no saved alternatives, go straight to naming the replacement.
-                            isCreating = !hasAlternatives
-                            nameFocused = isCreating
                         }
                     } label: {
                         HStack(spacing: 16) {
@@ -231,19 +210,6 @@ struct HappeningChooserView: View {
             .frame(minHeight: 52)
             .background(ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
 
-            Button {
-                name = query.trimmingCharacters(in: .whitespacesAndNewlines)
-                isCreating = true
-                feedback = nil
-                nameFocused = true
-            } label: {
-                Label("New happening", systemImage: "plus")
-                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("happening_editor_new")
-
             if replacements.isEmpty {
                 Text("No matches")
                     .font(.geist(.subheadline))
@@ -267,42 +233,6 @@ struct HappeningChooserView: View {
                     }
                 }
             }
-        }
-    }
-
-    private var creator: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Replaces \(targetTitle)")
-                .font(.geist(.subheadline))
-                .foregroundStyle(ink.opacity(0.7))
-            TextField("Name", text: $name, prompt: Text("Name").foregroundStyle(ink.opacity(0.65)))
-                .padding(16)
-                .frame(minHeight: 56)
-                .background(ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
-                .focused($nameFocused)
-                .submitLabel(.done)
-                .onSubmit(create)
-                .onChange(of: name) { _, _ in feedback = nil }
-                .accessibilityIdentifier("happening_editor_name")
-            if let feedback {
-                Text(feedback.message)
-                    .font(.geist(.subheadline))
-                    .foregroundStyle(Color(red: 0.65, green: 0.12, blue: 0.08))
-                    .accessibilityIdentifier("happening_editor_error")
-            }
-        }
-    }
-
-    private func create() {
-        guard let replacementID else { return }
-        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            feedback = .invalidTitle
-            return
-        }
-        let outcome = onCreateNew(name, replacementID, draft.ids)
-        feedback = outcome.feedback
-        if let feedback {
-            UIAccessibility.post(notification: .announcement, argument: feedback.message)
         }
     }
 }

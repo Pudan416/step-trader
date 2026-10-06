@@ -27,7 +27,8 @@ struct HappeningPaletteSelectionDraft {
     var canSave: Bool {
         ids.count == HappeningPaletteSelection.slotCount
             && Set(ids).count == HappeningPaletteSelection.slotCount
-            && ids.allSatisfy(liveIDs.contains)
+            && ids.allSatisfy { liveIDs.contains(HappeningDefaults.canonicalID($0))
+                && HappeningDefaults.selectableHappening(id: $0) != nil }
     }
 
     var hasChanges: Bool { ids != originalIDs }
@@ -39,6 +40,16 @@ struct HappeningPaletteSelectionDraft {
               !protectedIDs.contains(id), liveIDs.contains(replacementID),
               !ids.contains(replacementID) else { return false }
         ids[index] = replacementID
+        return true
+    }
+
+    @discardableResult
+    mutating func move(id: String, to targetID: String) -> Bool {
+        guard let sourceIndex = ids.firstIndex(of: id),
+              let targetIndex = ids.firstIndex(of: targetID),
+              sourceIndex != targetIndex else { return false }
+        ids.remove(at: sourceIndex)
+        ids.insert(id, at: min(targetIndex, ids.count))
         return true
     }
 
@@ -124,7 +135,8 @@ final class HappeningPaletteSelectionStore {
         let liveIDs = Set(catalog.map(\.id))
         return ids.count == HappeningPaletteSelection.slotCount
             && Set(ids).count == HappeningPaletteSelection.slotCount
-            && ids.allSatisfy(liveIDs.contains)
+            && ids.allSatisfy { liveIDs.contains(HappeningDefaults.canonicalID($0))
+                && HappeningDefaults.selectableHappening(id: $0) != nil }
     }
 }
 
@@ -135,6 +147,22 @@ final class FrequentHappeningStore {
     private struct Snapshot: Codable, Equatable {
         let dayKey: String
         let ids: [String]
+        var isExplicit: Bool = false
+
+        private enum CodingKeys: String, CodingKey { case dayKey, ids, isExplicit }
+
+        init(dayKey: String, ids: [String], isExplicit: Bool = false) {
+            self.dayKey = dayKey
+            self.ids = ids
+            self.isExplicit = isExplicit
+        }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            dayKey = try values.decode(String.self, forKey: .dayKey)
+            ids = try values.decode([String].self, forKey: .ids)
+            isExplicit = try values.decodeIfPresent(Bool.self, forKey: .isExplicit) ?? false
+        }
     }
     private let defaults: UserDefaults
     private var snapshot: Snapshot?
@@ -147,6 +175,9 @@ final class FrequentHappeningStore {
     }
 
     func resolve(catalog: [Happening], healthIDs: [String], protectedIDs: Set<String>, dayKey: String, seedIDs: [String] = []) -> [String] {
+        if let snapshot, snapshot.dayKey == dayKey, snapshot.isExplicit {
+            return snapshot.ids
+        }
         let ids = FrequentHappeningSelection.resolve(catalog: catalog, previous: snapshot?.ids ?? seedIDs,
             healthIDs: healthIDs, protectedIDs: protectedIDs, allowsPromotion: snapshot?.dayKey != dayKey)
         let next = Snapshot(dayKey: dayKey, ids: ids)
@@ -159,7 +190,7 @@ final class FrequentHappeningStore {
         return ids
     }
     func saveExplicitSelection(_ ids: [String], dayKey: String) {
-        snapshot = Snapshot(dayKey: dayKey, ids: ids)
+        snapshot = Snapshot(dayKey: dayKey, ids: ids, isExplicit: true)
         if let data = try? JSONEncoder().encode(snapshot) {
             defaults.set(data, forKey: SharedKeys.happeningFrequentPalette)
         }

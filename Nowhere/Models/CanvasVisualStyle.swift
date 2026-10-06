@@ -17,7 +17,7 @@ enum CanvasVisualStyle: String, Codable, CaseIterable, Hashable, Identifiable {
 }
 
 enum CanvasVisualStyleMigration {
-    static let currentVersion = 1
+    static let currentVersion = 3
 
     enum Decision: Equatable {
         case use(CanvasVisualStyle)
@@ -31,7 +31,8 @@ enum CanvasVisualStyleMigration {
         completedVersion: Int
     ) -> Decision {
         #if !DEBUG
-        if dayKey == currentDayKey, storedStyleRaw != CanvasVisualStyle.editorial.rawValue {
+        if dayKey == currentDayKey,
+           (storedStyleRaw != CanvasVisualStyle.editorial.rawValue || completedVersion < currentVersion) {
             return .persist(.editorial, markVersion: currentVersion)
         }
         #endif

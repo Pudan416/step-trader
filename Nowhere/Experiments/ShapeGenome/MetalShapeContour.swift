@@ -19,6 +19,8 @@ enum MetalShapeContour {
             return point(concaveSquare: MetalShapeConcaveSquare.make(seed: seed), angle: angle)
         case .softClover:
             return point(softClover: MetalShapeSoftClover.make(seed: seed), angle: angle)
+        case .dimpledSphere:
+            return SIMD2(cos(angle), sin(angle))
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset
         }
@@ -56,6 +58,11 @@ enum MetalShapeContour {
             return (0..<count).map { index in
                 let angle = Float(index) * 2 * .pi / Float(count)
                 return point(softClover: form, angle: angle)
+            }
+        case .dimpledSphere:
+            return (0..<count).map { index in
+                let angle = Float(index) * 2 * .pi / Float(count)
+                return SIMD2(cos(angle), sin(angle))
             }
         case .legacy:
             throw MetalShapeContourError.unsupportedLegacyPreset

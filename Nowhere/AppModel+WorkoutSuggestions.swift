@@ -1,4 +1,5 @@
 import Foundation
+import HealthKit
 
 // MARK: - Proactive Activity Suggestions (HealthKit + behavioral signals → Canvas)
 extension AppModel {
@@ -7,7 +8,10 @@ extension AppModel {
     var pendingActivitySuggestions: [ActivitySuggestion] {
         get {
             let addedOptionIds = Set(todayAdditions.map(\.optionId))
-            return _pendingActivitySuggestions.filter { !$0.isSatisfied(by: addedOptionIds) }
+            return _pendingActivitySuggestions.filter {
+                HappeningDefaults.selectableHappening(id: $0.optionId) != nil
+                    && !$0.isSatisfied(by: addedOptionIds)
+            }
         }
         set {
             _pendingActivitySuggestions = newValue
@@ -50,6 +54,8 @@ extension AppModel {
             suggestions.append(.fromLowScreenTime())
         }
 
+        suggestions.removeAll { HappeningDefaults.selectableHappening(id: $0.optionId) == nil }
+
         let satisfiedSuggestionIds = suggestions
             .filter { $0.isSatisfied(by: alreadyAdded) }
             .map(\.id)
@@ -79,6 +85,10 @@ extension AppModel {
     func seedActivitySuggestionsForUITesting() {
         if let fixtures = activitySuggestionUITestFixtures {
             pendingActivitySuggestions = fixtures
+            _pendingWorkoutSuggestions = fixtures.compactMap {
+                if case .workout(let workout) = $0.source { return workout }
+                return nil
+            }
         }
     }
 
@@ -86,12 +96,20 @@ extension AppModel {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("ui-testing") else { return nil }
         if arguments.contains("ui-testing-suggestion-stack") {
-            return [.fromMindfulMinutes(12), .fromLowScreenTime()]
+            return [workoutUITestSuggestion(.running), workoutUITestSuggestion(.swimming)]
         }
         if arguments.contains("ui-testing-suggestion-single") {
-            return [.fromLowScreenTime()]
+            return [workoutUITestSuggestion(.swimming)]
         }
         return nil
+    }
+
+    private func workoutUITestSuggestion(_ type: HKWorkoutActivityType) -> ActivitySuggestion {
+        ActivitySuggestion.fromWorkout(DetectedWorkout(
+            id: UUID(), activityType: type.rawValue,
+            startDate: .now.addingTimeInterval(-1_800), endDate: .now,
+            durationMinutes: 30, caloriesBurned: nil, distance: nil
+        ))!
     }
     #endif
 

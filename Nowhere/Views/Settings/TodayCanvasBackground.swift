@@ -212,6 +212,9 @@ final class TodayCanvasBackdropStore: ObservableObject {
         let windowRect: CGRect
     }
     @Published private(set) var visibleFrame: VisibleFrame?
+    // Kept as an explicit opt-in capture hook for poster/backdrop clients and
+    // tests. The app's tab backgrounds do not register a live renderer, so
+    // normal navigation never triggers an extra Metal frame capture.
     private weak var sourceView: MTKView?
     private weak var sourceRenderer: DayObjectsRenderer?
 
@@ -240,9 +243,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
                 continuation.resume(returning: texture)
             }
         }
-        defer {
-            renderer.configureAnimation(view, requestsStaticFrame: false)
-        }
+        defer { renderer.configureAnimation(view, requestsStaticFrame: false) }
         guard !Task.isCancelled, sourceView === view, sourceRenderer === renderer,
               appearance == requested?.appearance, let texture,
               let image = DayObjectsImageRenderer.makeImage(texture: texture, scale: scale) else { return }
@@ -284,6 +285,12 @@ final class TodayCanvasBackdropStore: ObservableObject {
     }
 
     func refresh(_ appearance: TodayCanvasAppearance, reload: Bool = false) {
+        // The minute timer and unrelated model updates often deliver an
+        // identical appearance. Skip palette and JSON work when its image is
+        // already current (or a worker is already preparing it). A failed
+        // export remains retryable because completed still differs.
+        if !reload, requested?.appearance == appearance,
+           (worker != nil || requested == completed) { return }
         if requested?.appearance != appearance { visibleFrame = nil }
         if dayKey != appearance.dayKey || reload {
             if dayKey != appearance.dayKey {

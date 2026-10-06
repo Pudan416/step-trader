@@ -44,7 +44,8 @@ class UsageBudgetRecoveryTests(unittest.TestCase):
     def test_budget_transactions(self):
         for scenario in ["implausible_pause", "topup_during_callback",
                          "purchase_during_recovery", "failure_preserves_paid",
-                         "old_events_after_pause", "healthy_topup", "continuation",
+                         "old_events_after_pause", "recovery_without_overlapping_monitor",
+                         "failed_replacement_pauses_old_balance", "healthy_topup", "continuation",
                          "callback_during_registration", "rollback_projection", "first_purchase_failure",
                          "legacy_recovery_failure"]:
             with self.subTest(scenario=scenario):

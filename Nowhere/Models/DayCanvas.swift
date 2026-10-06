@@ -270,10 +270,106 @@ struct DayCanvas: Codable {
             paletteCategories: paletteCategories
         )
         guard recipe.backgroundStyle != background else { return false }
-        recipe.backgroundStyle = background
+        recipe = recipe.coordinated(with: background, paletteCategories: paletteCategories)
         artworkRecipe = recipe
         recordExplicitArtworkEdit()
         lastModified = .now
+        return true
+    }
+
+    /// Adopt the daily art direction at the editable-day boundary, including
+    /// after cloud recovery. Decoding and loading archived artwork stay exact.
+    @discardableResult
+    mutating func adoptDailyStyleForCurrentDay(
+        currentDayKey: String,
+        paletteCategories: Set<ModernPaletteCategory>,
+        at now: Date = .now
+    ) -> Bool {
+        guard dayKey == currentDayKey, resolvedVisualStyle == .editorial,
+              !needsRemoteHydration else { return false }
+        let previous = artworkRecipe
+        if let previous {
+            guard previous.isSupported, !previous.locks.contains("artwork") else { return false }
+            if previous.generatorVersion == "atlas-3", previous.dailyStyle?.usesCatalogLookOrder == true {
+                let eventIDs = Array(elements.prefix(10).map { $0.id.uuidString.lowercased() })
+                let reconciled = previous.reconciled(eventIDs: eventIDs)
+                guard reconciled != previous else { return false }
+                artworkRecipe = reconciled
+                recordExplicitArtworkEdit()
+                lastModified = now
+                return true
+            }
+        }
+        var recipe = previous ?? NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
+        if recipe.dailyStyle == nil {
+            recipe = NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
+        }
+        recipe.dailyStyle = recipe.dailyStyle?.adoptingLivingVariation(
+            seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
+        recipe.dailyStyle?.sharesPaletteOrder = true
+        recipe.dailyStyle?.softGradients = true
+        recipe.dailyStyle?.silhouettePolicyVersion = 1
+        if let previous {
+            recipe.locks = previous.locks
+            recipe.glitchType = previous.glitchType
+            recipe.glitchStrength = previous.glitchStrength
+            recipe.intersectionType = previous.intersectionType
+            recipe.intersectionStrength = previous.intersectionStrength
+        }
+        let background = previous?.resolvedBackgroundStyle(dayKey: dayKey)
+            ?? recipe.resolvedBackgroundStyle(dayKey: dayKey)
+        if recipe.dailyStyle?.usesApprovedAppearance != true {
+            recipe.dailyStyle?.palette = background.colors
+            recipe.dailyStyle?.freezeApprovedAppearance(background: background,
+                categories: paletteCategories, seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
+        }
+        recipe.dailyStyle?.adoptCollectionIfNeeded(seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
+        recipe.dailyStyle?.freezeReferenceMaterials(seed: UInt64(recipe.seedHex, radix: 16) ?? 0)
+        recipe = recipe.coordinated(with: background)
+        guard let style = recipe.dailyStyle else { return false }
+        let retained = Dictionary((previous?.actors ?? []).map { ($0.eventID, $0) },
+                                  uniquingKeysWith: { first, _ in first })
+        let eventIDs = Array(elements.prefix(10).map { $0.id.uuidString.lowercased() })
+        let hadApprovedAppearance = previous?.dailyStyle?.usesApprovedAppearance == true
+        // Derive each template from its saved slot. Event order can differ after
+        // cloud recovery, so a new enumeration must not choose its size tier.
+        recipe.actors = eventIDs.compactMap { eventID in
+            guard let old = retained[eventID],
+                  let actor = recipe.dailyActor(eventID: eventID, slot: old.slot) else { return nil }
+            // Recovery can import atlas-1 actors into an older atlas draft. Repair
+            // those visuals too, retaining event identity and saved placement.
+            let hasDailyShape = previous?.dailyStyle != nil && old.presetID == style.presetID
+            let hasDailyVisuals = hasDailyShape && old.materialID == actor.materialID
+            let keepsFrozenVisuals = hasDailyVisuals && hadApprovedAppearance
+            let keepsFrozenSize = hasDailyShape && hadApprovedAppearance
+            let correctsCircle = style.family == .circles && style.collection != nil
+                && (old.geometry.anisotropyOffset.x != 1 || old.geometry.anisotropyOffset.y != 1)
+            let keepsFrozenGeometry = hasDailyShape
+                && previous?.dailyStyle?.usesIndividualSilhouettes == true && !correctsCircle
+            let actorSeedHex = keepsFrozenVisuals ? old.seedHex : actor.seedHex
+            // Only replace an old automatically generated angle. A moved actor
+            // keeps its position; a deliberately rotated actor keeps its angle.
+            let previousActor = previous?.dailyActor(eventID: eventID, slot: old.slot)
+            let rotationDelta = previousActor.map { old.rotation - $0.rotation }
+            let hasAutomaticRotation = rotationDelta.map {
+                abs(atan2(sin($0), cos($0))) < 0.0001
+            } ?? false
+            let upgradesRotation = hasDailyVisuals && !keepsFrozenGeometry && hasAutomaticRotation
+            return NativeAtlasRecipe.Actor(
+                eventID: actor.eventID, presetID: style.presetID,
+                materialID: actor.materialID, seedHex: actorSeedHex,
+                geometry: keepsFrozenGeometry ? old.geometry : actor.geometry,
+                material: style.recolored(keepsFrozenVisuals ? old.material : actor.material,
+                    seed: UInt64(actorSeedHex, radix: 16) ?? 0, slot: old.slot),
+                position: old.position, size: keepsFrozenSize ? old.size : actor.size,
+                rotation: upgradesRotation ? actor.rotation : old.rotation, slot: old.slot
+            )
+        }
+        recipe = recipe.reconciled(eventIDs: eventIDs)
+        guard recipe != previous else { return false }
+        artworkRecipe = recipe
+        recordExplicitArtworkEdit()
+        lastModified = now
         return true
     }
 

@@ -125,13 +125,12 @@ extension SupabaseSyncService {
             let rows = try JSONDecoder().decode([RoutineRow].self, from: data)
             AppLogger.network.debug("📡 Loaded \(rows.count) routines from server")
 
-            let formatter = ISO8601DateFormatter()
             return rows.map { row in
                 EnergyRoutine(
                     id: row.routineId,
                     name: row.name,
                     happeningIds: row.happeningIds,
-                    lastUsed: row.lastUsed.flatMap { formatter.date(from: $0) }
+                    lastUsed: row.lastUsed.flatMap(HappeningServerTimestamp.date)
                 )
             }
         } catch {
@@ -161,7 +160,7 @@ private struct RoutineRow: Decodable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         routineId = try c.decode(String.self, forKey: .routineId)
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        if let flat = try c.decodeIfPresent([String].self, forKey: .happeningIds) {
+        if let flat = try c.decodeIfPresent([String].self, forKey: .happeningIds), !flat.isEmpty {
             happeningIds = flat
         } else {
             happeningIds = (try c.decodeIfPresent([String].self, forKey: .bodyIds) ?? [])

@@ -24,7 +24,7 @@ final class CanvasVisualStyleTests: XCTestCase {
             completedVersion: 0
         )
 
-        XCTAssertEqual(current, .persist(.editorial, markVersion: 1))
+        XCTAssertEqual(current, .persist(.editorial, markVersion: CanvasVisualStyleMigration.currentVersion))
         XCTAssertEqual(historical, .use(.legacy))
     }
 

@@ -3,6 +3,7 @@ import Foundation
 enum HappeningPaletteSelectionError: Error, Equatable {
     case requiresExactlyTen
     case noReplaceableSlot
+    case customCreationUnavailable
 }
 
 /// Pure rules for the user's fixed, ten-slot happening palette.
@@ -20,6 +21,7 @@ enum HappeningPaletteSelection {
 
         return catalog.compactMap { happening in
             let key = choiceID(happening.id)
+            guard HappeningDefaults.builtInIds.contains(key) else { return nil }
             guard !selectedChoices.contains(key), seen.insert(key).inserted,
                   let members = groups[key] else { return nil }
             // Keep imported titles searchable even when the row uses current copy.
@@ -32,24 +34,18 @@ enum HappeningPaletteSelection {
     }
 
     static func choiceID(_ id: String) -> String {
-        switch id {
-        // 52 is the persisted HKWorkoutActivityType.walking raw value.
-        // Other workout types can share a label while being distinct activities.
-        case "body_walking", "health_workout_52": "happening_walk"
-        case "body_resting": "happening_did_nothing"
-        default: id
-        }
+        HappeningDefaults.canonicalID(id)
     }
 
     /// Repairs saved slots using the current built-in for known aliases, then
     /// fills vacancies in default order. Historical catalog records are untouched.
     static func repaired(ids: [String], catalog: [Happening], defaults: [String]) -> [String] {
-        let liveIDs = Set(catalog.map(\.id))
+        let liveIDs = Set(catalog.map(\.id)).intersection(HappeningDefaults.builtInIds)
         var seen = Set<String>()
 
         return (ids + defaults + catalog.map(\.id)).reduce(into: []) { repaired, id in
             let key = choiceID(id)
-            let currentID = liveIDs.contains(key) ? key : id
+            let currentID = key
             guard repaired.count < slotCount, liveIDs.contains(currentID), seen.insert(key).inserted else {
                 return
             }
@@ -149,8 +145,8 @@ enum HappeningPaletteMode: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .frequent: String(localized: "Frequent", comment: "Happening chooser: automatic frequent set")
-        case .all: String(localized: "All", comment: "Happening chooser: full catalog")
+        case .frequent: "Personal"
+        case .all: "All"
         }
     }
 }

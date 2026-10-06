@@ -15,14 +15,54 @@ struct DetectedWorkout: Identifiable, Equatable {
     var activityName: String { Self.displayName(for: activityType) }
 
     private static func mapToOptionId(activityType: UInt) -> String? {
-        "health_workout_\(activityType)"
+        // NS_ENUM accepts unknown raw values too. Restrict new suggestions to
+        // documented HealthKit workout kinds; historical IDs still resolve separately.
+        guard (1...80).contains(activityType)
+                || (82...84).contains(activityType)
+                || activityType == HKWorkoutActivityType.other.rawValue else { return nil }
+        let id = HappeningDefaults.canonicalID("health_workout_\(activityType)")
+        return HappeningDefaults.selectableHappening(id: id)?.id
     }
 
     static func displayName(for activityType: UInt) -> String {
         switch HKWorkoutActivityType(rawValue: activityType) {
+        case .americanFootball: "Football"
+        case .archery: "Archery"
+        case .australianFootball: "Aussie Rules"
+        case .badminton: "Badminton"
+        case .baseball: "Baseball"
+        case .bowling: "Bowling"
         case .walking: "Walking"
         case .running: "Running"
         case .cycling: "Cycling"
+        case .elliptical: "Elliptical"
+        case .equestrianSports: "Horse Riding"
+        case .fencing: "Fencing"
+        case .fishing: "Fishing"
+        case .golf: "Golf"
+        case .gymnastics: "Gymnastics"
+        case .handball: "Handball"
+        case .hockey: "Hockey"
+        case .hunting: "Hunting"
+        case .lacrosse: "Lacrosse"
+        case .martialArts: "Martial Arts"
+        case .paddleSports: "Paddle Sports"
+        case .play: "Play"
+        case .preparationAndRecovery: "Recovery"
+        case .racquetball: "Racquetball"
+        case .rugby: "Rugby"
+        case .sailing: "Sailing"
+        case .skatingSports: "Skating"
+        case .snowSports: "Snow Sports"
+        case .softball: "Softball"
+        case .squash: "Squash"
+        case .surfingSports: "Surfing"
+        case .tableTennis: "Table Tennis"
+        case .volleyball: "Volleyball"
+        case .waterFitness: "Water Fitness"
+        case .waterPolo: "Water Polo"
+        case .waterSports: "Water Sports"
+        case .wrestling: "Wrestling"
         case .functionalStrengthTraining, .traditionalStrengthTraining: "Strength Training"
         case .crossTraining: "Cross Training"
         case .stairClimbing, .stairs, .stepTraining: "Stair Climbing"
@@ -43,8 +83,8 @@ struct DetectedWorkout: Identifiable, Equatable {
         case .soccer: "Soccer"
         case .basketball: "Basketball"
         case .cooldown: "Cooldown"
-        case .other: "Workout"
-        default: "Workout"
+        case .other: "Other Workout"
+        default: "Workout \(activityType)"
         }
     }
 }
@@ -79,7 +119,10 @@ struct ActivitySuggestion: Identifiable, Equatable {
 
         switch source {
         case .workout(let workout):
-            ids.formUnion(["happening_workout", "body_physical_effort"])
+            ids.insert("health_workout_\(workout.activityType)")
+            if HappeningDefaults.canonicalID(optionId) == "event_workout" {
+                ids.formUnion(["happening_workout", "body_physical_effort"])
+            }
             if HKWorkoutActivityType(rawValue: workout.activityType) == .walking {
                 ids.formUnion(["happening_walk", "body_walking"])
             }
@@ -93,7 +136,9 @@ struct ActivitySuggestion: Identifiable, Equatable {
     }
 
     func isSatisfied(by addedOptionIds: Set<String>) -> Bool {
-        !satisfyingOptionIds.isDisjoint(with: addedOptionIds)
+        let expected = Set(satisfyingOptionIds.map(HappeningDefaults.canonicalID))
+        let added = Set(addedOptionIds.map(HappeningDefaults.canonicalID))
+        return !expected.isDisjoint(with: added)
     }
 
     static func fromWorkout(_ workout: DetectedWorkout) -> ActivitySuggestion? {
@@ -129,7 +174,7 @@ struct ActivitySuggestion: Identifiable, Equatable {
             id: "low_screen_time",
             optionId: "happening_did_nothing",
             source: .lowScreenTime,
-            title: "Screen Detoxing",
+            title: "Low screen time",
             subtitle: "Low screen time today",
             icon: "iphone.slash"
         )

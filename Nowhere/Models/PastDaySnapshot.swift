@@ -10,6 +10,10 @@ struct PastDaySnapshot: Codable, Equatable {
     var sleepHours: Double
     var stepsTarget: Double
     var sleepTargetHours: Double
+    /// Per-day counts for sphere, context, and explicit-experience tags.
+    var happeningTagCounts: [String: Int]
+    /// Curated release-style title, frozen when the day snapshot is created.
+    var dayTitle: String?
 
     enum CodingKeys: String, CodingKey {
         case inkEarned
@@ -32,6 +36,8 @@ struct PastDaySnapshot: Codable, Equatable {
         case restIds
         case joysIds
         case moments
+        case happeningTagCounts
+        case dayTitle
     }
 
     init(
@@ -41,7 +47,9 @@ struct PastDaySnapshot: Codable, Equatable {
         steps: Int = 0,
         sleepHours: Double = 0,
         stepsTarget: Double = EnergyDefaults.stepsTarget,
-        sleepTargetHours: Double = EnergyDefaults.sleepTargetHours
+        sleepTargetHours: Double = EnergyDefaults.sleepTargetHours,
+        happeningTagCounts: [String: Int] = [:],
+        dayTitle: String? = nil
     ) {
         self.inkEarned = inkEarned
         self.inkSpent = inkSpent
@@ -50,6 +58,8 @@ struct PastDaySnapshot: Codable, Equatable {
         self.sleepHours = sleepHours
         self.stepsTarget = stepsTarget
         self.sleepTargetHours = sleepTargetHours
+        self.happeningTagCounts = happeningTagCounts
+        self.dayTitle = dayTitle
     }
 
     init(from decoder: Decoder) throws {
@@ -95,6 +105,8 @@ struct PastDaySnapshot: Codable, Equatable {
         sleepHours = try container.decodeIfPresent(Double.self, forKey: .sleepHours) ?? 0
         stepsTarget = try container.decodeIfPresent(Double.self, forKey: .stepsTarget) ?? EnergyDefaults.stepsTarget
         sleepTargetHours = try container.decodeIfPresent(Double.self, forKey: .sleepTargetHours) ?? EnergyDefaults.sleepTargetHours
+        happeningTagCounts = try container.decodeIfPresent([String: Int].self, forKey: .happeningTagCounts) ?? [:]
+        dayTitle = try container.decodeIfPresent(String.self, forKey: .dayTitle)
     }
 
     /// Writes only the flat key. The three category keys are read-only from
@@ -109,5 +121,7 @@ struct PastDaySnapshot: Codable, Equatable {
         try container.encode(sleepHours, forKey: .sleepHours)
         try container.encode(stepsTarget, forKey: .stepsTarget)
         try container.encode(sleepTargetHours, forKey: .sleepTargetHours)
+        try container.encode(happeningTagCounts, forKey: .happeningTagCounts)
+        try container.encodeIfPresent(dayTitle, forKey: .dayTitle)
     }
 }

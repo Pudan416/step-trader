@@ -7,10 +7,6 @@ final class CanvasOverlayStyleTests: XCTestCase {
         XCTAssertEqual(CanvasOverlayStyle.smudge.requiredResource, .smudge)
     }
 
-    func testCosmicRequiresOnlyTheCosmicRenderer() {
-        XCTAssertEqual(CanvasOverlayStyle.cosmic.requiredResource, .cosmic)
-    }
-
     func testNoneRequiresNoRendererAndDoesNotInterceptTouches() {
         XCTAssertEqual(CanvasOverlayStyle.none.requiredResource, .none)
         XCTAssertFalse(CanvasOverlayStyle.none.interceptsTouches)
@@ -23,11 +19,8 @@ final class CanvasOverlayStyleTests: XCTestCase {
         )
     }
 
-    func testCurrentCanvasAlwaysUsesSmudgeWhenLegacyPreferenceWasCosmic() {
-        XCTAssertEqual(
-            CanvasOverlayStyle.currentCanvasStyle(storedRaw: CanvasOverlayStyle.cosmic.rawValue),
-            .smudge
-        )
+    func testRemovedCosmicPreferenceFallsBackToSmudge() {
+        XCTAssertEqual(CanvasOverlayStyle(rawValue: "cosmic") ?? .smudge, .smudge)
     }
 
     func testCurrentCanvasIgnoresLegacyOverrideFromSavedRemix() {

@@ -25,14 +25,31 @@ struct MetalShapeGenomeFrame: Equatable, Sendable {
             }
         }
         var palette = palette(seed: seed, random: &random)
+        if material == .eclipseGlow {
+            palette = eclipseGlowPalette(seed: seed)
+        } else if material == .spiralVariation {
+            palette = spiralRaysPalette()
+        } else if preset.id == "reference.dimpled-sphere" {
+            palette = dimpledSpherePalette()
+        }
         if material == .sideLight { palette.2 = palette.1 }
         let materialIndex = UInt32(MetalShapeMaterial.allCases.firstIndex(of: material) ?? 0)
+        let radialDensity = material == .concentricRings
+            ? 0.08 + random.nextUnit() * 0.84
+            : 0.48 + random.nextUnit() * 0.42
+        var params0 = SIMD4(phase, radialDensity, 0.16 + random.nextUnit() * 0.18, 0.52)
+        var params1 = SIMD4(direction.x, direction.y, 0.34 + random.nextUnit() * 0.30, 0.68)
+        if material == .spiralVariation {
+            let angles: [Float] = [-80, -70, -55, -45, -35, -20, -10, -5, 5, 10, 20, 35, 45, 55, 70, 80]
+            params0 = SIMD4(phase, angles[Int(seed % UInt64(angles.count))], 0.0038, 0.92)
+            params1.z = 22
+        }
         let materialUniforms = MetalShapeMaterialUniforms(
             color0: palette.0,
             color1: palette.1,
             color2: palette.2,
-            params0: SIMD4(phase, 0.48 + random.nextUnit() * 0.42, 0.16 + random.nextUnit() * 0.18, 0.52),
-            params1: SIMD4(direction.x, direction.y, 0.34 + random.nextUnit() * 0.30, 0.68),
+            params0: params0,
+            params1: params1,
             params2: SIMD4(random.nextUnit(), random.nextUnit(), random.nextUnit(), random.nextUnit()),
             params3: SIMD4(0.018, 0.055, 0.16, 0.72),
             metadata: SIMD4(materialIndex, blurMode, UInt32(seed & 0xffff_ffff), UInt32(seed >> 32))

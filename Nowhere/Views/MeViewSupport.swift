@@ -241,6 +241,7 @@ final class MePosterSnapshotCache: ObservableObject {
     private var recency: [String] = []
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
     private var requestedKeys: [String: String] = [:]
+    private var diskWrites: [String: (id: UUID, task: Task<Void, Never>)] = [:]
 
     init(
         directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -268,23 +269,60 @@ final class MePosterSnapshotCache: ObservableObject {
         return image
     }
 
+    /// Calendar cells read this from body without touching the filesystem.
+    /// Their .task loads missing images through image(for:categories:).
+    func cachedImageInMemory(for dayKey: String) -> UIImage? {
+        entries[dayKey]?.image
+    }
+
+    private func loadCachedImage(for dayKey: String) async {
+        guard entries[dayKey] == nil else { return }
+        let url = fileURL(dayKey)
+        let stored: DiskEntry? = await Task.detached(priority: .utility) {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? PropertyListDecoder().decode(DiskEntry.self, from: data)
+        }.value
+        guard entries[dayKey] == nil, let stored,
+              let image = UIImage(data: stored.png) else { return }
+        remember(Entry(key: stored.key, image: image), for: dayKey)
+        revision &+= 1
+    }
+
     func image(for canvas: DayCanvas, categories: Set<ModernPaletteCategory>) async -> UIImage? {
         guard let key = contentKey(canvas, categories: categories) else { return nil }
         let dayKey = canvas.dayKey
         requestedKeys[dayKey] = key
-        _ = cachedImage(for: dayKey)
+        await loadCachedImage(for: dayKey)
         if let entry = entries[dayKey], entry.key == key { return entry.image }
         if let active = inFlight[key] { return await active.value }
         let task = Task { @MainActor in
             let image = await self.render(canvas, categories)
             if let image, self.requestedKeys[dayKey] == key {
                 self.remember(Entry(key: key, image: image), for: dayKey)
-                if let png = image.pngData(),
-                   let data = try? PropertyListEncoder().encode(DiskEntry(key: key, png: png)) {
-                    try? FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
-                    try? data.write(to: self.fileURL(dayKey), options: .atomic)
-                }
                 self.revision &+= 1
+                // PNG compression and the atomic disk write can take multiple
+                // frames for a full-size poster. Keep both off the UI actor.
+                // Chain writes for the same day so an older export cannot
+                // replace a newer one if their encodes finish out of order.
+                let previousWrite = self.diskWrites[dayKey]?.task
+                let directory = self.directory
+                let destination = self.fileURL(dayKey)
+                let writeID = UUID()
+                let write = Task.detached(priority: .utility) {
+                    await previousWrite?.value
+                    guard let png = image.pngData(),
+                          let data = try? PropertyListEncoder().encode(DiskEntry(key: key, png: png))
+                    else { return }
+                    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    try? data.write(to: destination, options: .atomic)
+                }
+                self.diskWrites[dayKey] = (writeID, write)
+                // Keep image(for:) durable on return, including for callers
+                // that reopen the cache immediately after awaiting it.
+                await write.value
+                if self.diskWrites[dayKey]?.id == writeID {
+                    self.diskWrites.removeValue(forKey: dayKey)
+                }
             }
             self.inFlight.removeValue(forKey: key)
             return image
@@ -376,7 +414,26 @@ struct MeDayHealth: Equatable {
 }
 
 enum MePosterEventLedger {
+    private static let unlockCache = MePosterUnlockCache()
+
     static func unlocks(
+        records: [MePosterUnlockRecord],
+        dayKey: String,
+        dayEndHour: Int,
+        dayEndMinute: Int,
+        calendar: Calendar = .current
+    ) -> [MePosterUnlock] {
+        let key = MePosterUnlockCache.Key(
+            records: records, dayKey: dayKey, dayEndHour: dayEndHour,
+            dayEndMinute: dayEndMinute, calendar: calendar
+        )
+        return unlockCache.value(for: key) {
+            buildUnlocks(records: records, dayKey: dayKey, dayEndHour: dayEndHour,
+                         dayEndMinute: dayEndMinute, calendar: calendar)
+        }
+    }
+
+    private static func buildUnlocks(
         records: [MePosterUnlockRecord],
         dayKey: String,
         dayEndHour: Int,
@@ -444,6 +501,66 @@ enum MePosterEventLedger {
 
         let lowercased = title.localizedLowercase
         return lowercased.prefix(1).localizedUppercase + lowercased.dropFirst()
+    }
+}
+
+/// SwiftUI can revisit the same poster on every live Canvas update. Keep only
+/// four immutable requests; compare the full ledger so hydration, edits and
+/// deletions invalidate the result even when record counts stay unchanged.
+final class MePosterUnlockCache: @unchecked Sendable {
+    struct Key: Equatable {
+        let records: [MePosterUnlockRecord]
+        let dayKey: String
+        let dayEndHour: Int
+        let dayEndMinute: Int
+        let calendar: Calendar
+        private let calendarTimeZone: String
+        private let calendarLocale: String?
+        private let formatterCalendar: Calendar?
+        private let formatterTimeZone: String?
+        private let formatterLocale: String?
+        private let formatterDateFormat: String?
+        private let currentLocale: String
+
+        init(records: [MePosterUnlockRecord], dayKey: String, dayEndHour: Int,
+             dayEndMinute: Int, calendar: Calendar) {
+            self.records = records
+            self.dayKey = dayKey
+            self.dayEndHour = dayEndHour
+            self.dayEndMinute = dayEndMinute
+            self.calendar = calendar
+            calendarTimeZone = calendar.timeZone.identifier
+            calendarLocale = calendar.locale?.identifier
+            let formatter = CachedFormatters.dayKey
+            formatterCalendar = formatter.calendar
+            formatterTimeZone = formatter.timeZone?.identifier
+            formatterLocale = formatter.locale?.identifier
+            formatterDateFormat = formatter.dateFormat
+            currentLocale = Locale.current.identifier
+        }
+    }
+
+    private let lock = NSLock()
+    private var entries: [(key: Key, value: [MePosterUnlock])] = []
+
+    func value(for key: Key, build: () -> [MePosterUnlock]) -> [MePosterUnlock] {
+        lock.lock()
+        if let value = take(key) { lock.unlock(); return value }
+        lock.unlock()
+        let result = build()
+        lock.lock()
+        defer { lock.unlock() }
+        if let value = take(key) { return value }
+        entries.append((key, result))
+        if entries.count > 4 { entries.removeFirst() }
+        return result
+    }
+
+    private func take(_ key: Key) -> [MePosterUnlock]? {
+        guard let index = entries.firstIndex(where: { $0.key == key }) else { return nil }
+        let entry = entries.remove(at: index)
+        entries.append(entry)
+        return entry.value
     }
 }
 

@@ -1,5 +1,55 @@
 import Foundation
 import os.log
+import CryptoKit
+
+/// Old rows have a composite key, not a client UUID. A stable, account-scoped
+/// UUID makes the bridge idempotent without changing the original option ID.
+enum LegacyHappeningEntryIdentity {
+    static func id(userID: String, dayKey: String, optionID: String) -> String {
+        let key = ["legacy-option-entry-v1", userID, dayKey, optionID]
+            .map { "\($0.utf8.count):\($0)" }.joined()
+        let data = Data(key.utf8)
+        var bytes = Array(SHA256.hash(data: data).prefix(16))
+        bytes[6] = (bytes[6] & 0x0f) | 0x80
+        bytes[8] = (bytes[8] & 0x3f) | 0x80
+        let hex = bytes.map { String(format: "%02x", $0) }.joined()
+        let characters = Array(hex)
+        let groups = [0..<8, 8..<12, 12..<16, 16..<20, 20..<32].map {
+            String(characters[$0])
+        }
+        return groups.joined(separator: "-")
+    }
+}
+
+enum HappeningServerTimestamp {
+    static func date(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+}
+
+struct LegacyHappeningEntryRow: Decodable {
+    let userID: String
+    let dayKey: String
+    let optionID: String
+    let colorHex: String
+    let assetVariant: Int?
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id", dayKey = "day_key", optionID = "option_id"
+        case colorHex = "color_hex", assetVariant = "asset_variant", createdAt = "created_at"
+    }
+
+    var entry: OptionEntry {
+        .init(id: LegacyHappeningEntryIdentity.id(userID: userID, dayKey: dayKey, optionID: optionID),
+              dayKey: dayKey, optionId: optionID, colorHex: colorHex,
+              timestamp: HappeningServerTimestamp.date(createdAt) ?? .now, assetVariant: assetVariant)
+    }
+}
 
 enum OptionEntryCanonicalIdentity {
     static func key(for id: String) -> String {
@@ -434,19 +484,86 @@ extension SupabaseSyncService {
             guard response.statusCode < 400 else { return nil }
             
             let rows = try JSONDecoder().decode([OptionEntryRow].self, from: data)
-            let formatter = ISO8601DateFormatter()
             return rows.map { row in
                 OptionEntry(
                     id: row.id,
                     dayKey: row.dayKey,
                     optionId: row.optionId,
                     colorHex: row.colorHex,
-                    timestamp: formatter.date(from: row.createdAt) ?? Date.now,
+                    timestamp: HappeningServerTimestamp.date(row.createdAt) ?? Date.now,
                     assetVariant: row.assetVariant
                 )
             }
         } catch {
             AppLogger.network.error("📡 Failed to load option entries: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// A failed modern read must not be treated as an empty modern day.
+    /// Legacy rows are read only after confirmed absence from the new table.
+    func loadRestorableOptionEntriesFromServer(dayKey: String) async -> [OptionEntry]? {
+        guard let current = await loadOptionEntriesFromServer(dayKey: dayKey) else { return nil }
+        guard current.isEmpty else { return current }
+        // A saved Canvas is authoritative, including an intentionally cleared
+        // day. Never resurrect stale category rows over that saved composition.
+        switch await fetchDayCanvas(for: dayKey) {
+        case .found(let canvas):
+            return canvas.elements.map {
+                OptionEntry(id: $0.id.uuidString, dayKey: canvas.dayKey, optionId: $0.optionId,
+                            colorHex: $0.hexColor, timestamp: $0.createdAt, assetVariant: $0.assetVariant)
+            }
+        case .failed: return nil
+        case .confirmedAbsent: break
+        }
+        guard let auth = await authenticatedContext(), let cfg = try? SupabaseConfig.load() else { return nil }
+        let query = [
+            URLQueryItem(name: "user_id", value: "eq.\(auth.userId)"),
+            URLQueryItem(name: "day_key", value: "eq.\(dayKey)"),
+            URLQueryItem(name: "select", value: "*")
+        ]
+        do {
+            // The old-only account bridge must not reintroduce stale rows for
+            // an account that has already used modern additions and removals.
+            let modernEndpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_happening_additions")
+            guard var probe = URLComponents(url: modernEndpoint, resolvingAgainstBaseURL: false) else { return nil }
+            probe.queryItems = [
+                URLQueryItem(name: "user_id", value: "eq.\(auth.userId)"),
+                URLQueryItem(name: "select", value: "id"), URLQueryItem(name: "limit", value: "1")
+            ]
+            guard let probeURL = probe.url else { return nil }
+            var request = URLRequest(url: probeURL)
+            request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
+            let (data, response) = try await network.data(for: request)
+            guard (200..<300).contains(response.statusCode),
+                  let modern = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+            if !modern.isEmpty { return [] }
+            let rows: [LegacyHappeningEntryRow] = try await fetchPagedRows(
+                endpoint: cfg.baseURL.appendingPathComponent("rest/v1/user_option_entries"),
+                token: auth.token, anonKey: cfg.anonKey,
+                baseQuery: query + [URLQueryItem(name: "order", value: "created_at.asc,option_id.asc")],
+                pageSize: historicalPageSize
+            )
+            if !rows.isEmpty { return rows.map(\.entry) }
+            let selections: [DailySelectionsRow] = try await fetchPagedRows(
+                endpoint: cfg.baseURL.appendingPathComponent("rest/v1/user_daily_selections"),
+                token: auth.token, anonKey: cfg.anonKey, baseQuery: query,
+                pageSize: historicalPageSize
+            )
+            guard let selected = selections.first else { return [] }
+            var seen = Set<String>()
+            return (selected.activityIds + selected.restIds + selected.joysIds)
+                .filter { seen.insert($0).inserted }.map { optionID in
+                    OptionEntry(
+                        id: LegacyHappeningEntryIdentity.id(userID: auth.userId, dayKey: dayKey, optionID: optionID),
+                        dayKey: dayKey, optionId: optionID, colorHex: "#888888",
+                        timestamp: selected.updatedAt.flatMap(HappeningServerTimestamp.date) ?? .now,
+                        assetVariant: nil
+                    )
+                }
+        } catch {
+            AppLogger.network.error("Legacy happening restore failed: \(error.localizedDescription)")
             return nil
         }
     }

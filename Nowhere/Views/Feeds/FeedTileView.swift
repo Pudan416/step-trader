@@ -370,10 +370,12 @@ struct FeedRowView: View {
                         alignment: .leading
                     )
 
-                Text(group.displayIdentity.detail)
-                    .font(.onest(12, relativeTo: .caption))
-                    .lineLimit(1)
-                    .opacity(0.8)
+                if group.displayIdentity.detail != String(localized: "1 app") {
+                    Text(group.displayIdentity.detail)
+                        .font(.onest(12, relativeTo: .caption))
+                        .lineLimit(1)
+                        .opacity(0.8)
+                }
 
                 HStack(spacing: 6) {
                     if remainingMinutes == nil && !showsUnlockOptions {

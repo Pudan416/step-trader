@@ -16,5 +16,9 @@ static void metalShapeShadeSunset(
         * (1.0 - smoothstep(-0.35, 0.55, sun.y)) * 0.30;
     alpha = max(disk * fade, halo) * (1.0 - smoothstep(1.35, 1.90, length(sun)));
     const float warmth = smoothstep(-0.88, 0.25, sun.y + (m.params0.x - 0.5) * 0.12);
-    color = mix(float3(1.0, 0.64, 0.008), float3(1.0, 0.025, 0.035), warmth);
+    // New daily sunset uses its frozen related pigments. Unflagged reference
+    // exports and archived payloads retain the original red/yellow shader.
+    color = (m.metadata.y & 0x40000000u) != 0u
+        ? mix(m.color0.rgb, m.color1.rgb, warmth)
+        : mix(float3(1.0, 0.64, 0.008), float3(1.0, 0.025, 0.035), warmth);
 }

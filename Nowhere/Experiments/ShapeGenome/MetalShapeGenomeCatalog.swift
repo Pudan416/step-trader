@@ -1,9 +1,9 @@
 import Foundation
 
 enum MetalShapeGenomeCatalog {
-    static let presets: [MetalShapePreset] = genomePresets + legacyPresets
+    static let presets: [MetalShapePreset] = genomePresets + referencePresets + legacyPresets
 
-    private static let broadMaterials = Set(MetalShapeMaterial.allCases).subtracting([.sunset])
+    private static let broadMaterials = Set(MetalShapeMaterial.allCases).subtracting([.sunset, .concentricRings, .spiralVariation])
     private static let lightMaterials: Set<MetalShapeMaterial> = [
         .sideLight, .contour, .radialTwo, .radialThree, .proceduralLight,
         .proceduralFlow, .proceduralContour, .eclipseGlow,
@@ -137,6 +137,57 @@ enum MetalShapeGenomeCatalog {
         )
     )
 
+    private static let concentricRipple = MetalShapePreset(
+        id: "genome.concentric-ripple",
+        title: "Concentric water ripples",
+        source: .genome,
+        morphology: .concentricRipple,
+        contour: .genome(MetalShapeGenome(
+            morphology: .concentricRipple,
+            superformula: SIMD4(2, 2, 2, 2),
+            harmonics: [], anisotropy: SIMD2(1, 1), centerOffset: .zero, rotation: 0
+        )),
+        compatibility: policy(
+            preferred: [.concentricRings], allowed: [.concentricRings],
+            roles: [.primary, .supporting], size: 0.14...0.76,
+            maxInstances: 2, complexity: 0.20, mass: 0.58, halo: 0.02
+        )
+    )
+
+    private static let dimpledSphere = MetalShapePreset(
+        id: "reference.dimpled-sphere",
+        title: "Dimpled sphere",
+        source: .reference,
+        morphology: .dimpledSphere,
+        contour: .dimpledSphere,
+        compatibility: policy(
+            preferred: [.radialTwo, .radialThree], allowed: [.radialTwo, .radialThree],
+            roles: [.primary, .supporting], size: 0.16...0.76,
+            maxInstances: 2, complexity: 0.30, mass: 0.72, halo: 0.02
+        )
+    )
+
+    private static let spiralRays = MetalShapePreset(
+        id: "reference.spiral-rays",
+        title: "Spiral rays",
+        source: .reference,
+        morphology: .spiralRays,
+        contour: .genome(MetalShapeGenome(
+            morphology: .spiralRays,
+            superformula: SIMD4(2, 2, 2, 2),
+            harmonics: [], anisotropy: SIMD2(1, 1), centerOffset: .zero, rotation: 0
+        )),
+        compatibility: policy(
+            preferred: [.spiralVariation], allowed: [.spiralVariation],
+            roles: [.primary, .supporting, .accent], size: 0.16...0.76,
+            maxInstances: 2, complexity: 0.52, mass: 0.42, halo: 0.02
+        )
+    )
+
+    private static let referencePresets: [MetalShapePreset] = [
+        concentricRipple, dimpledSphere, spiralRays,
+    ]
+
     private static let genomePresets: [MetalShapePreset] = [
         genome("genome.soft-drift", "Soft drift", morphology: .softRadial,
                m: 2, n: SIMD3(2.1, 2.5, 1.65),
@@ -169,7 +220,7 @@ enum MetalShapeGenomeCatalog {
                 allowed: id == "legacy.circle" ? broadMaterials.union([.sunset]) : broadMaterials,
                 allowDirectionalBlur: true,
                 roles: roles,
-                size: roles.contains(.primary) ? 0.20...0.72 : 0.14...0.48,
+                size: id == "legacy.circle" ? 0.12...0.76 : (roles.contains(.primary) ? 0.20...0.72 : 0.14...0.48),
                 maxInstances: 2,
                 complexity: morphology == .legacyStar ? 0.58 : 0.30,
                 mass: morphology == .legacyRound ? 0.76 : 0.62

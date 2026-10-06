@@ -54,11 +54,11 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
         self.usesOrderedColorStops = usesOrderedColorStops
     }
 
-    static func make(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
+    static func make(seed: UInt64, palette: DayObjectPalette,
+                     excluding previousArchetype: DayObjectMeshGradientArchetype? = nil) -> DayObjectMeshGradientStyle {
         var rng = SeededRNG.derived(from: seed, domain: "dayObjectMeshGradient")
-        let archetype = DayObjectMeshGradientArchetype.allCases[
-            rng.nextInt(in: 0...(DayObjectMeshGradientArchetype.allCases.count - 1))
-        ]
+        let archetypes = DayObjectMeshGradientArchetype.allCases.filter { $0 != previousArchetype }
+        let archetype = archetypes[rng.nextInt(in: 0...(archetypes.count - 1))]
         let direction = rng.nextInt(in: 0...1) == 0 ? -1.0 : 1.0
         let offset = SIMD2(
             rng.nextDouble(in: -0.18...0.18),
@@ -111,8 +111,9 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
     /// Preserve the most separated endpoint pair. Add palette colors between
     /// them, choosing the shortest perceptual path through the intermediate stops.
     /// Count selection is stable for a recipe: 30% two, 40% three, 30% four.
-    static func primaryCanvas(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
-        let base = legacyPrimaryCanvas(seed: seed, palette: palette)
+    static func primaryCanvas(seed: UInt64, palette: DayObjectPalette,
+                              excluding previousArchetype: DayObjectMeshGradientArchetype? = nil) -> DayObjectMeshGradientStyle {
+        let base = legacyPrimaryCanvas(seed: seed, palette: palette, excluding: previousArchetype)
         let start = base.colors[0], end = base.colors[1]
         let remaining = palette.colors.map(\.linearRGB).filter { $0 != start && $0 != end }
         var rng = SeededRNG.derived(from: seed, domain: "primary-background-stops")
@@ -146,8 +147,9 @@ struct DayObjectMeshGradientStyle: Codable, Equatable {
     }
 
     /// Original generator for archived recipes that never froze a background.
-    static func legacyPrimaryCanvas(seed: UInt64, palette: DayObjectPalette) -> DayObjectMeshGradientStyle {
-        let base = make(seed: seed, palette: palette)
+    static func legacyPrimaryCanvas(seed: UInt64, palette: DayObjectPalette,
+                                    excluding previousArchetype: DayObjectMeshGradientArchetype? = nil) -> DayObjectMeshGradientStyle {
+        let base = make(seed: seed, palette: palette, excluding: previousArchetype)
         let colors = palette.colors.map(\.linearRGB)
         var pair = (0, 1)
         var separation: Float = -1

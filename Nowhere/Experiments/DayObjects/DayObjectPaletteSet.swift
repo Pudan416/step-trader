@@ -7,6 +7,8 @@ enum DayObjectObjectPaletteSlot: UInt32, Equatable {
 }
 
 struct DayObjectPaletteSet: Equatable {
+    private static let cache = DayObjectPaletteSetCache()
+
     let background: ModernPalette
     let primaryObjects: ModernPalette
     let secondaryObjects: ModernPalette
@@ -33,6 +35,20 @@ struct DayObjectPaletteSet: Equatable {
         let normalizedCategories = categories.isEmpty
             ? ModernPaletteSelection.all
             : categories
+        let key = DayObjectPaletteSetCache.Key(rootSeed: rootSeed,
+            categories: normalizedCategories, dayKey: dayKey, identity: identity)
+        return cache.palette(for: key) {
+            build(rootSeed: rootSeed, categories: normalizedCategories,
+                dayKey: dayKey, identity: identity)
+        }
+    }
+
+    private static func build(
+        rootSeed: UInt64,
+        categories normalizedCategories: Set<ModernPaletteCategory>,
+        dayKey: String?,
+        identity: String
+    ) -> DayObjectPaletteSet {
         var candidates = ModernPaletteCatalog.palettes(matching: normalizedCategories)
         if candidates.count < 3 {
             for palette in ModernPaletteCatalog.all where
@@ -445,6 +461,53 @@ struct DayObjectPaletteSet: Equatable {
         }
         hash ^= hash >> 31
         return Double(hash & 0xFFFF) / Double(0xFFFF)
+    }
+}
+
+/// Scene candidates share the day's immutable palette. Keep this smaller than
+/// the full scene cache key so changing event IDs or energy does not repeat the
+/// contrast search. Never hold the lock during derivation or background exports.
+final class DayObjectPaletteSetCache: @unchecked Sendable {
+    struct Key: Hashable {
+        let rootSeed: UInt64
+        let categories: Set<ModernPaletteCategory>
+        let dayKey: String?
+        let identity: String
+    }
+
+    private let lock = NSLock()
+    private let capacity: Int
+    private var entries: [(key: Key, palette: DayObjectPaletteSet)] = []
+
+    init(capacity: Int = 16) {
+        precondition(capacity > 0)
+        self.capacity = capacity
+    }
+
+    func palette(for key: Key, build: () -> DayObjectPaletteSet) -> DayObjectPaletteSet {
+        lock.lock()
+        if let cached = take(key) {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        let palette = build()
+        lock.lock()
+        defer { lock.unlock() }
+        // Concurrent misses may derive the same immutable value. Reuse the first
+        // result instead of consuming another entry or blocking a cache hit.
+        if let cached = take(key) { return cached }
+        entries.append((key, palette))
+        if entries.count > capacity { entries.removeFirst() }
+        return palette
+    }
+
+    private func take(_ key: Key) -> DayObjectPaletteSet? {
+        guard let index = entries.firstIndex(where: { $0.key == key }) else { return nil }
+        let entry = entries.remove(at: index)
+        entries.append(entry)
+        return entry.palette
     }
 }
 

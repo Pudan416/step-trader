@@ -32,6 +32,10 @@ final class AppModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var localPurchaseStateTask: Task<Void, Never>?
+    private var hadLocalStateBeforeInitialization = false
+    // In-memory removals also protect an in-flight initial restore after a
+    // successful cloud delete has already left the durable retry queue.
+    var locallyRemovedAdditionIDs: Set<String> = []
     private var sleepRefetchTask: Task<Void, Never>?
     /// In-flight `recalculateDailyEnergy` Task spawned from the steps/sleep
     /// Combine sink (§3.5). Cancelled on next fire and on `deinit` so a stale
@@ -479,6 +483,10 @@ final class AppModel: ObservableObject {
             await task.value
             return
         }
+        hadLocalStateBeforeInitialization = InitialServerRestoreGate.capturePriorLocalState(
+            defaults: .nowhere(),
+            hasLiveLocalState: !todayAdditions.isEmpty || !ticketGroups.isEmpty
+        )
         let task = Task { @MainActor in
             await self.userEconomyStore.loadAppStepsSpentToday()
             await self.userEconomyStore.loadAppStepsSpentLifetime()
@@ -581,20 +589,20 @@ final class AppModel: ObservableObject {
         let g = UserDefaults.nowhere()
         let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
         if isAuthenticated && !hasCompletedInitialRestore {
-            let hasPriorLocalState = g.object(forKey: SharedKeys.dailyEnergyAnchor) != nil
-                || !todayAdditions.isEmpty
+            let hasPriorLocalState = hadLocalStateBeforeInitialization
                 || !ticketGroups.isEmpty
             if hasPriorLocalState {
                 // Existing install predating this flag — mark restored, don't clobber.
                 AppLogger.app.debug("🔄 Existing install detected — seeding initial-restore flag without restoring")
+                InitialServerRestoreGate.finish(defaults: g, preservedLocalState: true, didRestore: false)
             } else {
                 AppLogger.app.debug("🔄 Fresh install (authenticated) — restoring from Supabase")
                 let didRestore = await SupabaseSyncService.shared.restoreFromServer(model: self)
                 if didRestore {
                     AppLogger.app.debug("✅ Restored from Supabase")
                 }
+                InitialServerRestoreGate.finish(defaults: g, preservedLocalState: false, didRestore: didRestore)
             }
-            g.set(true, forKey: SharedKeys.hasCompletedInitialRestore)
         }
 
         // 4. Refresh data AFTER day boundary reset so fresh values aren't wiped
@@ -644,6 +652,25 @@ final class AppModel: ObservableObject {
             recalc?.cancel()
             dayEndCommit?.cancel()
         }
+    }
+}
+
+/// Classify the installation before startup seeds a day anchor. An explicit
+/// false completion marker keeps an unsuccessful restore pending across launches.
+enum InitialServerRestoreGate {
+    static func capturePriorLocalState(defaults: UserDefaults, hasLiveLocalState: Bool) -> Bool {
+        let key = SharedKeys.hasCompletedInitialRestore
+        let isPending = defaults.object(forKey: key) != nil && !defaults.bool(forKey: key)
+        let hasPriorState = hasLiveLocalState
+            || (!isPending && defaults.object(forKey: SharedKeys.dailyEnergyAnchor) != nil)
+        if !hasPriorState && !defaults.bool(forKey: key) {
+            defaults.set(false, forKey: key)
+        }
+        return hasPriorState
+    }
+
+    static func finish(defaults: UserDefaults, preservedLocalState: Bool, didRestore: Bool) {
+        defaults.set(preservedLocalState || didRestore, forKey: SharedKeys.hasCompletedInitialRestore)
     }
 }
 

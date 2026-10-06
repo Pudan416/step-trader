@@ -26,15 +26,89 @@ and `energy*` storage names are compatibility identifiers, not a second currency
 - **Settings** — permissions, appearance, goals, widgets/wallpaper, account and app information.
   Developer controls have separate build guards.
 
-When the Canvas is empty, one evening reflection question appears from 20:00 until
-midnight in local time. It offers three happenings and the full picker; adding a
-moment or dismissing the question hides it for that evening. Existing activity
-suggestions take priority. The optional 20:00 notification is off by default and
-is cancelled for the evening when the Canvas is filled or the question is dismissed.
+Canvas shows activity suggestions from Health when they are available. The
+optional 20:00 reminder is off by default and opens the ordinary Canvas; it is
+cancelled for the evening when the Canvas is filled. Canvas has no automatic
+evening reflection card.
 
 Onboarding introduces these surfaces in context. Its implementation lives in
 `Nowhere/Views/Onboarding/`; check the current coordinator and tour transitions
 when changing the sequence rather than using an old slide specification.
+
+## Happenings field
+
+New additions use one reviewed catalog of exactly **100** events. Labels are
+English, at most 20 characters, and describe complete events. Broad duplicate
+meal options are replaced by Had breakfast, Had lunch and Had dinner; Cooked
+means preparing food. Creating or naming custom happenings is unavailable,
+including in the old chooser and empty-search states. Health detections resolve
+existing catalog choices and do not add new options. Archived custom and retired
+records retain their IDs and titles; they
+remain renderable and removable from today's Canvas, but cannot be added again
+as new choices. Personal ranks familiar events from usage metadata and restored
+day history. A larger adaptive catalog remains a future step.
+
+Cloud compatibility is independent of the selectable catalog. Archived custom
+titles, including titles longer than 20 characters, and original event IDs remain
+unchanged. Custom metadata restores page by page; shared system identities are
+excluded from the globally keyed custom-activity table, including old retry
+batches. Initial restoration reads the catalog, additions, snapshots and routines
+successfully before applying history; an empty result succeeds, while a failed
+section remains pending. Local startup must classify the installation before
+seeding its day anchor. For a legacy-only account, today's additions can restore
+from a saved Canvas, old option entries or category selections. A saved empty
+Canvas is authoritative; upgraded accounts do not resurrect stale legacy entries.
+Old category arrays and fractional timestamps remain readable.
+
+The Canvas add control opens **Personal**: six complete events surround the current
+day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
+after additions and removals. The initial six are Worked, Chilled, Stayed home,
+Had breakfast, Went for a walk and Saw a friend. Each has one catalog identity,
+including those promoted from outer positions. The six roots remain fixed. At the intersections,
+the event fits both neighboring roots: Took a break connects Worked and Chilled,
+Took a nap connects Chilled and Stayed home, and Cooked connects Stayed home
+and Had breakfast. These are associations; revealing a meal does not log its
+neighbors or earlier meals. Adding an event reveals up to three adjacent whole events.
+Expansion history is retained for the day. **All** reveals the same complete map
+around the same count; it retains the six roots and every option's position.
+Switching modes preserves the open field and the day's additions. Direct All additions
+are also visible along their path when returning to Personal.
+Removing the last Canvas happening clears the day's expansion history and returns
+the field to Personal with only the six roots. This cleared empty state survives
+closing and reopening the field; familiar and Health recommendations resume after
+a new happening is added. All remains available with the complete catalog.
+
+Personal pre-reveals up to three familiar events beside the six roots. It ranks
+frequency with a 21-day recency half-life, requires two use days, and excludes
+the six roots from extra recommendations. Repeated additions on one custom day
+do not increase the usage counter. Restored snapshots canonicalize old IDs and
+count each event once per day; their count is combined with local counters by
+the maximum, avoiding double-counting overlapping history. Recommendations do
+not exclude uncomfortable events such as Raged or Got wasted.
+
+Current Health workout hints and today's additions are also visible. The first
+recommendation in each sector moves to that root's nearest outward position;
+remaining recommendations reveal their paths. Shared intersections remain
+anchored. The map is recomputed on opening and then stays fixed through taps
+and Personal/All switches. The radial field remains pannable.
+
+Health walking, running, swimming, dance and flexibility resolve to Went for a
+walk, Went for a run, Swam, Danced and Stretched. Other documented workouts use
+Worked out; cycling does not imply Biked to work. Unsupported workout raw values
+do not create suggestions. A generic Worked out addition does not satisfy a
+specific running or swimming suggestion. Accepting a suggestion logs its catalog
+ID and reveals that same choice in Personal. Mindful-minutes and low-screen-time
+signals currently have no honest matching event in the fixed catalog and are
+filtered out rather than inventing a feeling or another choice.
+
+Both modes use the same transparent field, figure assignments and interactions.
+While the picker is open, a light native blur and subtle white wash soften and
+lighten the Canvas artwork behind it, including in Dark Mode, so black picker
+labels remain readable. Closing it restores the clear Canvas.
+In both modes,
+one tap adds an available event, while an added event requires two taps to remove.
+New tree nodes and mode changes animate the figures, labels and hit targets together.
+Reduce Motion uses the settled layout without spatial animation.
 
 ## Screen Time accounting and recovery
 
@@ -56,6 +130,40 @@ valid delayed callback. Real-device testing remains necessary after iOS updates.
 ## Music and artwork
 
 The production Canvas uses native Metal artwork with versioned deterministic recipes.
+New days use a seeded mix of compatible Metal catalog families. Stable actor slots
+can show ordinary circles and squares, flower forms, the three directed-blur
+shapes, dimpled spheres, water ripples and spiral rays. A composition uses distinct
+silhouettes before repeating one. Each blur family keeps its own shape; water
+ripples, spiral rays and volume spheres keep their dedicated rendering behavior.
+The Soft Drift form and procedural light/flow/striped-contour fills are excluded
+from new scenes. Circles remain round. Figures share a related color group, with
+pigments borrowed from nearby palettes in the selected categories.
+With zero automatically spent colors, there is no global scene blur. Blur
+collections retain their own softness, and manual Trace overrides stay available.
+The numeric pigments and mixed look order are frozen with the day. Adding or
+removing an event preserves the other figures. A seeded Remix creates a new look
+order; saved days keep their prior recipe version. Today's unlocked Editorial
+canvas adopts the current policy after confirmed hydration, retaining event IDs,
+slots, placements and manual rotations. Figures vary size, color and orientation.
+Flowers retain their own contour parameters, and each material remains within its
+Metal compatibility rules. Circle size varies from small to large, including the
+water and spiral forms. Historical Sunset artwork remains decodable and unchanged.
+Gradient stops use nearby pigments for soft transitions; directed blur retains
+its corresponding silhouette and distinct color treatment.
+Independent drift and bounded turns take 12 seconds; breathing takes six.
+Large figures mainly drift, while smaller ones breathe more noticeably. Noir
+keeps a monochrome color group. Historical recipes retain their saved policy.
+An unlocked Remix changes the seeded mix of catalog looks. The background and
+color group change with it, using the enabled palette categories
+and coordinated figure pigments. The complete composition stays saved with the
+day; Undo restores the previous composition. With only one eligible color group,
+Remix keeps that group and changes its background mesh.
+
+While music is off, new Canvas figures gently drift, breathe or turn around their
+saved positions with independent phases. Idle motion pauses behind the Happenings
+picker and while the Canvas is inactive; Reduce Motion disables it. Playback
+smoothly hands placement to lunar physics and returns to the calm composition.
+
 Four sound worlds and their moods are selected from the bundled catalogs. Planners
 build music from the day's inputs; the playback engine owns audio execution.
 The same saved day must not change because a catalog was casually reordered.

@@ -113,11 +113,11 @@ final class AppTypographyTests: XCTestCase {
 
     func testRequiredNowhereDisplayFacesAreRegisteredInTheApplicationBundle() {
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay091-Regular", size: 24),
+            UIFont(name: "NowhereDisplay10-Regular", size: 24),
             "The regular Nowhere Display face must be bundled and registered by the app target."
         )
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay091-Bold", size: 24),
+            UIFont(name: "NowhereDisplay10-Bold", size: 24),
             "The exact static Nowhere Display Bold face used by posters must be registered by the app target."
         )
     }
@@ -125,7 +125,7 @@ final class AppTypographyTests: XCTestCase {
     func testDisplayFontIncludesRevisedCyrillicAndExtendedCharactersWithoutFallback() {
         let characters = Array("ЗзЖжBВ€$₽čćšžđČĆŠŽĐéüäöÉÜÄÖ".utf16)
         for style in ["Regular", "Bold"] {
-            let name = "NowhereDisplay091-\(style)"
+            let name = "NowhereDisplay10-\(style)"
             let font = CTFontCreateWithName(name as CFString, 24, nil)
             XCTAssertEqual(CTFontCopyPostScriptName(font) as String, name)
             var glyphs = [CGGlyph](repeating: 0, count: characters.count)
@@ -137,7 +137,7 @@ final class AppTypographyTests: XCTestCase {
     @MainActor
     func testAppBlackBrandFontRendersTheStaticNowhereDisplayBoldFace() throws {
         XCTAssertNotNil(
-            UIFont(name: "NowhereDisplay091-Bold", size: 80),
+            UIFont(name: "NowhereDisplay10-Bold", size: 80),
             "The static Nowhere Display Bold face must be available before SwiftUI can render it."
         )
 
@@ -147,7 +147,7 @@ final class AppTypographyTests: XCTestCase {
         )
         let expected = try renderedImage(
             Text("0")
-                .font(.custom("NowhereDisplay091-Bold", fixedSize: 80))
+                .font(.custom("NowhereDisplay10-Bold", fixedSize: 80))
         )
 
         let actualImage = try XCTUnwrap(actual.cgImage)
@@ -185,7 +185,7 @@ final class AppTypographyTests: XCTestCase {
 
         let referenceImage = try renderedImage(
             Text("22/08/26")
-                .font(.custom("NowhereDisplay091-Bold", fixedSize: 40))
+                .font(.custom("NowhereDisplay10-Bold", fixedSize: 40))
         )
         let expectedBounds = try darkPixelBounds(in: try XCTUnwrap(referenceImage.cgImage))
 
@@ -194,7 +194,7 @@ final class AppTypographyTests: XCTestCase {
     }
 
     @MainActor
-    func testMuseumPosterDateRendersTheBoldNowhereDisplayFace() throws {
+    func testMuseumPosterHeaderUsesTheDisplayTitleAndMetadataHierarchy() throws {
         let date = try XCTUnwrap(
             Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 8, day: 22))
         )
@@ -207,15 +207,17 @@ final class AppTypographyTests: XCTestCase {
         let posterHeader = try XCTUnwrap(
             posterImage.cgImage?.cropping(to: CGRect(x: 0, y: 0, width: 604, height: 96))
         )
-        let actualInk = try darkPixelCount(in: posterHeader)
+        let cgImage = posterHeader
+        let titleInk = try darkPixelCount(in: try XCTUnwrap(
+            cgImage.cropping(to: CGRect(x: 30, y: 0, width: 145, height: 96))
+        ))
+        let dateInk = try darkPixelCount(in: try XCTUnwrap(
+            cgImage.cropping(to: CGRect(x: 170, y: 0, width: 130, height: 96))
+        ))
 
-        let blackReference = try renderedImage(
-            Text("22/08/26")
-                .font(.custom("NowhereDisplay091-Bold", fixedSize: 48))
-        )
-        let expectedInk = try darkPixelCount(in: try XCTUnwrap(blackReference.cgImage))
-
-        XCTAssertEqual(actualInk, expectedInk, accuracy: 40)
+        XCTAssertGreaterThan(titleInk, 0, "The poster should show its display title.")
+        XCTAssertGreaterThan(dateInk, 0, "The poster should show its date metadata.")
+        XCTAssertGreaterThan(titleInk, dateInk, "The display title should carry more visual weight than the date.")
     }
 
     @MainActor

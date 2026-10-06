@@ -9,6 +9,48 @@
 #include "MetalShapeEclipseGlow.metalh"
 #include "MetalShapeSunset.metalh"
 
+static void metalShapeShadeConcentricRings(
+    float2 p,
+    float body,
+    constant MetalShapeMaterialUniforms &m,
+    thread float3 &color,
+    thread float &alpha) {
+    const float radius = length(p);
+    const float ringCount = mix(7.0, 15.0, m.params0.y);
+    const float phase = fract(radius * ringCount);
+    const float inwardFade = smoothstep(0.16, 0.78, phase);
+    const float crispOuterEdge = 1.0 - smoothstep(0.965, 1.0, phase);
+    const float transparentCenter = smoothstep(0.012, 0.035, radius);
+    const float ring = inwardFade * crispOuterEdge * transparentCenter;
+    const float ringIndex = floor(radius * ringCount);
+    const float opacity = min(0.20 + ringIndex * 0.032, 0.66);
+    const float gradient = smoothstep(0.28, 0.98, phase);
+
+    color = mix(m.color1.rgb, m.color0.rgb, gradient);
+    alpha = body * ring * opacity;
+}
+
+static void metalShapeShadeSpiralVariation(
+    float2 p,
+    constant MetalShapeMaterialUniforms &m,
+    thread float3 &color,
+    thread float &alpha) {
+    const float radius = length(p);
+    const float absAngle = clamp(abs(m.params0.y), 5.0, 80.0) * M_PI_F / 180.0;
+    const float pitch = copysign(0.20, m.params0.y) * (1.0 / tan(absAngle));
+    const float theta = atan2(p.y, p.x);
+    const float phase = theta - pitch * log(max(radius, 0.001) / 0.16) + m.params0.x * 2.0 * M_PI_F;
+    const float spacing = 2.0 * M_PI_F / max(m.params1.z, 1.0);
+    const float wrapped = phase - round(phase / spacing) * spacing;
+    const float distance = radius * abs(wrapped) / sqrt(1.0 + pitch * pitch);
+    const float aa = max(fwidth(distance), 0.0008);
+    const float line = 1.0 - smoothstep(m.params0.z, m.params0.z + aa * 1.4, distance);
+    const float inner = smoothstep(0.145, 0.17, radius);
+    const float outer = 1.0 - smoothstep(0.91, 0.96, radius);
+    color = m.color0.rgb;
+    alpha = line * inner * outer * m.params0.w;
+}
+
 static float4 metalShapeGenomeShade(
     MetalShapeVertexOut in,
     constant MetalShapeGenomeUniforms &g,
@@ -19,7 +61,7 @@ static float4 metalShapeGenomeShade(
     const float body = smoothstep(antialias, -antialias, distance);
     const float2 direction = normalize(m.params1.xy);
     const float materialPhase = m.params0.x * 2.0 * M_PI_F;
-    const uint material = min(m.metadata.x, 10u);
+    const uint material = min(m.metadata.x, 12u);
     float3 color = m.color0.rgb;
     float alpha = body;
 
@@ -30,7 +72,7 @@ static float4 metalShapeGenomeShade(
     } else if (material == 3u) {
         metalShapeShadeDirectionalBlur(p, direction, antialias, g, m, color, alpha);
     } else if (material == 4u || material == 5u) {
-        metalShapeShadeRadial(p, material, m, color);
+        metalShapeShadeRadial(p, material, g, m, color);
     } else if (material == 6u) {
         metalShapeShadeProceduralLight(p, m, color);
     } else if (material == 7u) {
@@ -38,11 +80,15 @@ static float4 metalShapeGenomeShade(
     } else if (material == 8u) {
         metalShapeShadeProceduralContour(distance, materialPhase, body, m, color, alpha);
     } else if (material == 9u) {
-        metalShapeShadeEclipseGlow(distance, m, color, alpha);
+        metalShapeShadeEclipseGlow(p, distance, m, color, alpha);
+    } else if (material == 12u) {
+        metalShapeShadeSpiralVariation(p, m, color, alpha);
     }
 
     if (material == 10u) {
         metalShapeShadeSunset(p, m, color, alpha);
+    } else if (material == 11u) {
+        metalShapeShadeConcentricRings(p, body, m, color, alpha);
     }
     return float4(color * alpha, alpha);
 }

@@ -9,6 +9,8 @@ final class NativeAtlasMetalRenderer {
     private let finish: MTLRenderPipelineState
     private var targets: [MTLTexture] = []
     private var descriptors: [String: NativeAtlasRecipe.Actor] = [:]
+    private var ambientBlend = NativeAtlasAmbientBlend()
+    private var ambientRecipeSeed: String?
 
     init?(device: MTLDevice) {
         self.device = device
@@ -36,21 +38,37 @@ final class NativeAtlasMetalRenderer {
         return atan2(-direction.y, direction.x)
     }
 
-    func adapt(_ frame: DayObjectRenderFrame, recipe: NativeAtlasRecipe, aspect: Float, elapsed: Double = 0, soundPulses: [String: Double] = [:], isPalette: Bool = false) -> DayObjectRenderFrame {
+    func adapt(_ frame: DayObjectRenderFrame, recipe: NativeAtlasRecipe, aspect: Float, elapsed: Double = 0, soundPulses: [String: Double] = [:], isPalette: Bool = false, ambientMotionIsEnabled: Bool = false, playbackIsActive: Bool = false) -> DayObjectRenderFrame {
         for actor in recipe.actors { descriptors[actor.eventID] = actor }
         let activeIDs = Set(frame.actors.map(\.eventID))
         descriptors = descriptors.filter { activeIDs.contains($0.key) }
         // The picker owns its slot positions and feedback envelopes; only its
         // actual contour/material come from the same event-bound atlas recipe.
         if isPalette { return frame }
+        if ambientRecipeSeed != recipe.seedHex {
+            ambientRecipeSeed = recipe.seedHex
+            ambientBlend = NativeAtlasAmbientBlend()
+        }
+        let ambientWeight = ambientBlend.update(
+            elapsed: elapsed, enabled: ambientMotionIsEnabled && recipe.dailyStyle != nil,
+            playbackIsActive: playbackIsActive
+        )
         let actors = frame.actors.map { old -> DayObjectRenderActor in
             guard let spec = descriptors[old.eventID] else { return old }
             let pose = old.gpuActor
             let resonance = Float(DayObjectSoundResonance.scale(elapsedSinceAttack: elapsed - (soundPulses[old.eventID] ?? -100), depth: Double(pose.depth)))
-            let size = spec.size / 2.72 * (0.7 + 0.3 * pose.opacity) * resonance
+            let ambient = recipe.dailyStyle.map {
+                NativeAtlasAmbientMotion.pose(actor: spec, family: NativeAtlasDailyStyle.family(forPresetID: spec.presetID),
+                                              daySeed: UInt64(recipe.seedHex, radix: 16) ?? 0,
+                                              elapsed: elapsed, weight: ambientWeight,
+                                              livingVariation: $0.livingVariation == true,
+                                              approvedAppearance: $0.usesApprovedAppearance)
+            } ?? NativeAtlasAmbientMotion.Pose()
+            let size = spec.size / 2.72 * (0.7 + 0.3 * pose.opacity) * resonance * ambient.scale
+            let rotation = spec.rotation + ambient.rotation
             let gpu = DayObjectGPUActor(
-                position: SIMD2((spec.position.x - 0.5) * max(aspect, 1), (0.5 - spec.position.y) * max(1 / aspect, 1)),
-                direction: SIMD2(cos(spec.rotation), -sin(spec.rotation)),
+                position: SIMD2((spec.position.x - 0.5) * max(aspect, 1), (0.5 - spec.position.y) * max(1 / aspect, 1)) + ambient.offset,
+                direction: SIMD2(cos(rotation), -sin(rotation)),
                 halfSize: SIMD2(repeating: size), opacity: pose.opacity, trailLength: 0,
                 shape: pose.shape, appearanceIndex: pose.appearanceIndex, depth: pose.depth,
                 materialPhase: pose.materialPhase, localDepthSoftness: 0
@@ -63,11 +81,13 @@ final class NativeAtlasMetalRenderer {
     func encode(commandBuffer: MTLCommandBuffer, output: MTLTexture, recipe: NativeAtlasRecipe, frame: DayObjectRenderFrame, damage: Float, scene: DayObjectScene, elapsed: Double, pointToPixelScale: Float, isPalette: Bool, colorVariants: [String: Int] = [:]) -> Bool {
         let renderScale = min(1.0, 1536.0 / Double(max(output.width, output.height)))
         let w = max(1, Int(Double(output.width) * renderScale)), h = max(1, Int(Double(output.height) * renderScale))
-        if targets.first?.width != w || targets.first?.height != h {
+        if targets.first?.width != w || targets.first?.height != h || targets.count != 3 {
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: w, height: h, mipmapped: false)
             d.usage = [.renderTarget, .shaderRead]; d.storageMode = .private
-            guard let first = device.makeTexture(descriptor: d), let second = device.makeTexture(descriptor: d) else { return false }
-            targets = [first, second]
+            guard let first = device.makeTexture(descriptor: d),
+                  let second = device.makeTexture(descriptor: d),
+                  let canvasBackground = device.makeTexture(descriptor: d) else { return false }
+            targets = [first, second, canvasBackground]
         }
         let clear = MTLRenderPassDescriptor()
         clear.colorAttachments[0].texture = targets[0]
@@ -83,6 +103,22 @@ final class NativeAtlasMetalRenderer {
             clearEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         }
         clearEncoder.endEncoding()
+        // Preserve a clean copy of the canvas background. The glowing-contour
+        // material uses it for its opaque inner cutout, even when another
+        // actor was composited underneath that figure.
+        let basePass = MTLRenderPassDescriptor()
+        basePass.colorAttachments[0].texture = targets[2]
+        basePass.colorAttachments[0].loadAction = .clear
+        basePass.colorAttachments[0].storeAction = .store
+        basePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        guard let baseEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: basePass) else { return false }
+        if !isPalette {
+            var background = DayObjectsMeshGradientUniforms(scene: scene, resolution: SIMD2(Float(w), Float(h)), elapsedTime: elapsed)
+            baseEncoder.setRenderPipelineState(gradient)
+            baseEncoder.setFragmentBytes(&background, length: DayObjectsMeshGradientUniforms.metalStride, index: 0)
+            baseEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        }
+        baseEncoder.endEncoding()
         let accent = CanvasChromePalette.resolve(backgroundColors: scene.meshGradientStyle.colors.map { DayObjectRGB(linearRGB: $0) }).accent.linearRGB
         var pickerAccent = SIMD4<Float>(accent.x, accent.y, accent.z, 1)
         var source = 0
@@ -95,9 +131,17 @@ final class NativeAtlasMetalRenderer {
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return false }
             encoder.setRenderPipelineState(composite)
             encoder.setFragmentTexture(targets[source], index: 0)
+            encoder.setFragmentTexture(targets[2], index: 1)
             var geometry = spec.geometry, material = spec.material.primaryCanvasMaterial
             if let variant = colorVariants[actor.eventID] {
-                material = material.withColorVariant(variant)
+                if let style = recipe.dailyStyle {
+                    // Existing color rerolls stay inside the chosen day palette.
+                    let seed = (UInt64(spec.seedHex, radix: 16) ?? 0)
+                        &+ UInt64(truncatingIfNeeded: variant)
+                    material = style.recolored(material, seed: seed, slot: spec.slot, colorVariant: variant)
+                } else {
+                    material = material.withColorVariant(variant)
+                }
             }
             // Use the effective shader after remapping retired saved fills.
             let eligible: Set<UInt32> = [0, 1, 4, 5, 6, 7]
@@ -105,11 +149,14 @@ final class NativeAtlasMetalRenderer {
             let center = SIMD2(0.5 + pose.position.x / max(aspect, 1), 0.5 - pose.position.y / max(1 / aspect, 1))
             let saturation: Float = scene.meshGradientStyle.isNoir == true ? 0 : pose.presentationSaturation
             let renderRotation = Self.renderRotation(for: pose.direction)
+            let actorSeed = UInt64(spec.seedHex, radix: 16) ?? 0
+            let traceStrength = isPalette ? 0 : min(max(damage, 0), 1)
             let placement: [SIMD4<Float>] = [
                 SIMD4(center.x, center.y, pose.halfSize.x * 2.72, renderRotation),
                 SIMD4(Float(w), Float(h), pose.opacity, eligible.contains(material.materialIndex) ? 1 : 0),
                 SIMD4(Float(recipe.intersectionType), recipe.intersectionStrength, saturation, pose.removalEmphasis),
-                SIMD4(pose.paletteMorph, isPalette ? 1 : 0, 0, 0)
+                SIMD4(pose.paletteMorph, isPalette ? 1 : 0, 0, 0),
+                SIMD4(Float(recipe.glitchType), traceStrength, Float(actorSeed & 65535) / 65535, Float((actorSeed >> 16) & 65535) / 65535)
             ]
             encoder.setFragmentBytes(&geometry, length: MetalShapeGenomeUniforms.metalStride, index: 0)
             encoder.setFragmentBytes(&material, length: MetalShapeMaterialUniforms.metalStride, index: 1)
@@ -128,7 +175,8 @@ final class NativeAtlasMetalRenderer {
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return false }
             encoder.setRenderPipelineState(display); encoder.setFragmentTexture(targets[source], index: 0)
             let seed = UInt64(recipe.seedHex, radix: 16) ?? 0
-            var effect = SIMD4<Float>(damage, Float(recipe.glitchType), Float(seed & 65535) / 65535, Float((seed >> 16) & 65535) / 65535)
+            let legacyTrace = recipe.glitchType < 5
+            var effect = SIMD4<Float>(legacyTrace ? damage : 0, Float(recipe.glitchType), Float(seed & 65535) / 65535, Float((seed >> 16) & 65535) / 65535)
             encoder.setFragmentBytes(&effect, length: 16, index: 0)
             var focus = SIMD4<Float>(post.blurRadiusPixels / Float(max(output.width, output.height)), scene.meshGradientStyle.isNoir == true ? 1 : 0, 0, 0)
             encoder.setFragmentBytes(&focus, length: 16, index: 1)

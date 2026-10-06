@@ -12,6 +12,7 @@ struct CanvasFrameView<Content: View>: View {
     let sleepHours: Double?
     let inkEarned: Int?
     var inkSpent: Int?
+    var dayTitle: String = ""
     var isCompact: Bool = false
 
     private let frameColor = Color(red: 0.969, green: 0.961, blue: 0.925) // #F7F5EC
@@ -23,6 +24,7 @@ struct CanvasFrameView<Content: View>: View {
         sleepHours: Double? = nil,
         inkEarned: Int? = nil,
         inkSpent: Int? = nil,
+        dayTitle: String = "",
         borderFraction: CGFloat = 0.065,
         isCompact: Bool = false,
         @ViewBuilder content: () -> Content
@@ -34,6 +36,7 @@ struct CanvasFrameView<Content: View>: View {
         self.sleepHours = sleepHours
         self.inkEarned = inkEarned
         self.inkSpent = inkSpent
+        self.dayTitle = dayTitle
         self.isCompact = isCompact
     }
 
@@ -84,13 +87,16 @@ struct CanvasFrameView<Content: View>: View {
                 frameColor
 
                 VStack(spacing: 0) {
-                    // Header: date (big) + user name (small italic)
+                    // Header: generated day title, date, and optional name.
                     HStack(alignment: .lastTextBaseline) {
-                        Text(formattedDate)
-                            .font(.unbounded(max(6, w * Self.brandSizeR), weight: .black))
-                            .fontDesign(nil)
+                        Text(dayTitle.isEmpty ? "NOWHERE" : dayTitle)
+                            .font(.unbounded(max(6, w * 0.044), weight: .black))
                             .foregroundStyle(Color.black)
-                            .lineLimit(1)
+                            .lineLimit(2).minimumScaleFactor(0.65)
+
+                        Text(formattedDate)
+                            .font(.unbounded(max(5, w * Self.dateSizeR), weight: .regular))
+                            .foregroundStyle(Color.black).lineLimit(1)
 
                         Spacer(minLength: 4)
 

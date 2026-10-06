@@ -11,6 +11,7 @@ struct HappeningShapeField: View {
     let onActivate: (Happening) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var labelInks: [String: HappeningPaletteLabelInk] = [:]
+    var fitsTreeLabels = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -40,8 +41,8 @@ struct HappeningShapeField: View {
                 Text(happening.localizedTitle())
                     .font(.onest(size: min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
                     .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .minimumScaleFactor(tourLabelScale)
+                    .lineLimit(fitsTreeLabels && !happening.localizedTitle().contains(" ") ? 1 : 3)
+                    .minimumScaleFactor(fitsTreeLabels ? 0.75 : tourLabelScale)
                     .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
                     // Preview actions never participate in the title's layout.
                     .overlay {
@@ -147,7 +148,7 @@ enum HappeningPaletteLabelInk: Equatable {
 }
 
 /// Matches the subtle superellipse used by both Metal picker renderers.
-private struct HappeningPickerShape: Shape {
+struct HappeningPickerShape: Shape {
     func path(in rect: CGRect) -> Path {
         Path { path in
             for step in 0...128 {

@@ -4,7 +4,6 @@ import SwiftUI
 enum CanvasOverlayResource: Equatable {
     case none
     case smudge
-    case cosmic
 }
 
 /// User-selectable interactive overlay rendered on top of the gallery canvas.
@@ -15,10 +14,6 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
     case none
     /// Original "fingerprint" smudge — paint-on-glass distortion + ripples.
     case smudge
-    /// Procedural raymarched shape (FBM-coloured torus⇌sphere with mirrored
-    /// inner frame) inspired by ShaderPark; see `ShaderParkShader.metal`.
-    case cosmic
-
     var id: String { rawValue }
 
     /// The current canvas no longer exposes an overlay picker, so values left
@@ -36,7 +31,6 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
         switch self {
         case .none: .none
         case .smudge: .smudge
-        case .cosmic: .cosmic
         }
     }
 
@@ -53,9 +47,6 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
         case .smudge:
             String(localized: "Smudge",
                    comment: "Canvas animation picker – smudge option")
-        case .cosmic:
-            String(localized: "Cosmic",
-                   comment: "Canvas animation picker – cosmic shader option")
         }
     }
 
@@ -67,9 +58,6 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
         case .smudge:
             String(localized: "Drag to smudge the canvas.",
                    comment: "Canvas animation picker – smudge subtitle")
-        case .cosmic:
-            String(localized: "Drifting field — tap and drag to morph it.",
-                   comment: "Canvas animation picker – cosmic subtitle")
         }
     }
 
@@ -77,7 +65,6 @@ enum CanvasOverlayStyle: String, CaseIterable, Identifiable {
         switch self {
         case .none:   "circle.slash"
         case .smudge: "hand.draw"
-        case .cosmic: "sparkles"
         }
     }
 }

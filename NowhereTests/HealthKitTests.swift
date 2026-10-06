@@ -92,15 +92,22 @@ final class HealthActivitySuggestionTests: XCTestCase {
         super.tearDown()
     }
 
-    func testHealthWorkoutTypesHaveDistinctStableActivitiesAndCorrectNames() {
-        let cases: [(HKWorkoutActivityType, String)] = [
-            (.walking, "Walking"),
-            (.running, "Running"),
-            (.swimming, "Swimming"),
-            (.yoga, "Yoga")
+    func testHealthWorkoutTypesResolveFixedCatalogEventsAndCorrectNames() {
+        let cases: [(HKWorkoutActivityType, String, String)] = [
+            (.walking, "Walking", "event_walk"),
+            (.running, "Running", "event_run"),
+            (.swimming, "Swimming", "event_swam"),
+            (.dance, "Dance", "event_danced"),
+            (.cardioDance, "Dance", "event_danced"),
+            (.socialDance, "Dance", "event_danced"),
+            (.flexibility, "Flexibility", "event_stretched"),
+            (.yoga, "Yoga", "event_workout"),
+            (.cycling, "Cycling", "event_workout"),
+            (.hiking, "Hiking", "event_workout"),
+            (.other, "Workout", "event_workout")
         ]
 
-        for (activityType, expectedName) in cases {
+        for (activityType, expectedName, expectedID) in cases {
             let workout = DetectedWorkout(
                 id: UUID(),
                 activityType: activityType.rawValue,
@@ -112,11 +119,37 @@ final class HealthActivitySuggestionTests: XCTestCase {
             )
 
             XCTAssertEqual(workout.activityName, expectedName)
-            XCTAssertEqual(workout.suggestedOptionId, "health_workout_\(activityType.rawValue)")
+            XCTAssertEqual(workout.suggestedOptionId, expectedID)
+            XCTAssertNotNil(HappeningDefaults.selectableHappening(id: expectedID))
         }
     }
 
-    func testRefreshSuggestsYogaAsItsOwnHealthActivity() async throws {
+    func testUnknownHealthWorkoutTypeDoesNotInventAnEvent() {
+        for type: UInt in [0, 81, 85, 999_999] {
+            let workout = DetectedWorkout(id: UUID(), activityType: type,
+                                          startDate: .now, endDate: .now, durationMinutes: 20,
+                                          caloriesBurned: nil, distance: nil)
+            XCTAssertNil(workout.suggestedOptionId)
+            XCTAssertNil(ActivitySuggestion.fromWorkout(workout))
+        }
+    }
+
+    func testGenericWorkoutDoesNotSatisfySpecificHealthEvents() throws {
+        for type in [HKWorkoutActivityType.walking, .running, .swimming, .dance,
+                     .cardioDance, .socialDance, .flexibility] {
+            let workout = DetectedWorkout(id: UUID(), activityType: type.rawValue,
+                                          startDate: .now, endDate: .now, durationMinutes: 20,
+                                          caloriesBurned: nil, distance: nil)
+            let suggestion = try XCTUnwrap(ActivitySuggestion.fromWorkout(workout))
+            XCTAssertFalse(suggestion.isSatisfied(by: ["event_workout"]))
+            XCTAssertFalse(suggestion.isSatisfied(by: ["happening_workout"]))
+            XCTAssertFalse(suggestion.isSatisfied(by: ["body_physical_effort"]))
+            XCTAssertTrue(suggestion.isSatisfied(by: [suggestion.optionId]))
+            XCTAssertTrue(suggestion.isSatisfied(by: ["health_workout_\(type.rawValue)"]))
+        }
+    }
+
+    func testRefreshSuggestsYogaEvidenceForExistingWorkoutEvent() async throws {
         let healthKit = ConfigurableHealthKitMock()
         healthKit.workoutsToReturn = [
             DetectedWorkout(
@@ -143,11 +176,11 @@ final class HealthActivitySuggestionTests: XCTestCase {
         let suggestion = try XCTUnwrap(
             model.pendingActivitySuggestions.first { $0.source.isWorkout }
         )
-        XCTAssertEqual(suggestion.optionId, "health_workout_57")
+        XCTAssertEqual(suggestion.optionId, "event_workout")
         XCTAssertEqual(suggestion.title, "Yoga")
     }
 
-    func testAcceptingYogaInstallsItInCatalogAndActivePalette() throws {
+    func testAcceptingYogaResolvesExistingWorkoutWithoutGrowingCatalog() throws {
         let defaults = UserDefaults.nowhere()
         let catalogBefore = defaults.data(forKey: SharedKeys.happeningCatalog)
         let selectionBefore = defaults.stringArray(forKey: SharedKeys.happeningPaletteSelection)
@@ -184,13 +217,11 @@ final class HealthActivitySuggestionTests: XCTestCase {
         )
         let suggestion = try XCTUnwrap(ActivitySuggestion.fromWorkout(workout))
 
-        model.acceptActivitySuggestion(suggestion)
-
-        XCTAssertEqual(
-            model.happeningStore.happening(id: "health_workout_57")?.title,
-            "Yoga"
-        )
-        XCTAssertTrue(model.selectedPaletteHappeningIDs().contains("health_workout_57"))
+        let catalogBeforeAccept = model.selectableHappenings
+        XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "event_workout")
+        XCTAssertEqual(model.selectableHappenings, catalogBeforeAccept)
+        XCTAssertEqual(model.selectableHappenings.count, 100)
+        XCTAssertFalse(model.selectedPaletteHappeningIDs().contains("health_workout_57"))
     }
 
     func testAcceptingWalkingReusesWalkWithoutReplacingAnotherPaletteSlot() throws {
@@ -235,9 +266,9 @@ final class HealthActivitySuggestionTests: XCTestCase {
             catalog: model.happeningStore.all
         )
         let original = model.selectedPaletteHappeningIDs()
-        XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "happening_walk")
+        XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "event_walk")
         XCTAssertEqual(model.selectedPaletteHappeningIDs(), original)
-        XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "happening_walk")
+        XCTAssertEqual(model.acceptActivitySuggestion(suggestion), "event_walk")
         XCTAssertEqual(model.selectedPaletteHappeningIDs(), original)
     }
 
@@ -265,7 +296,7 @@ final class HealthActivitySuggestionTests: XCTestCase {
         })
     }
 
-    func testRefreshDoesNotSuggestSpecificWorkoutWhenGenericWorkoutIsAlreadyOnCanvas() async {
+    func testRefreshDoesNotSuggestEquivalentGenericWorkoutWhenAlreadyOnCanvas() async {
         let healthKit = ConfigurableHealthKitMock()
         healthKit.workoutsToReturn = [
             DetectedWorkout(
@@ -304,6 +335,21 @@ final class HealthActivitySuggestionTests: XCTestCase {
         XCTAssertFalse(model.pendingActivitySuggestions.contains { $0.id == "morning_resting" })
     }
 
+    func testMindfulHealthEvidenceDoesNotInventAnUnsupportedCatalogEvent() async {
+        let healthKit = ConfigurableHealthKitMock()
+        healthKit.mindfulMinutesToReturn = 12
+        let model = makeModel(healthKit: healthKit)
+
+        await model.refreshActivitySuggestions()
+
+        XCTAssertFalse(model.pendingActivitySuggestions.contains { suggestion in
+            if case .mindfulSession = suggestion.source { return true }
+            return false
+        })
+        XCTAssertNil(HappeningDefaults.selectableHappening(id: ActivitySuggestion.fromMindfulMinutes(12).optionId))
+        XCTAssertNil(HappeningDefaults.selectableHappening(id: ActivitySuggestion.fromLowScreenTime().optionId))
+    }
+
     func testRefreshDoesNotSuggestMindfulSessionWhenIntentionalRestIsAlreadyOnCanvas() async {
         let healthKit = ConfigurableHealthKitMock()
         healthKit.mindfulMinutesToReturn = 12
@@ -320,10 +366,13 @@ final class HealthActivitySuggestionTests: XCTestCase {
 
     func testAddingMatchingHappeningRemovesAnAlreadyVisibleSuggestion() {
         let model = makeModel()
-        model.pendingActivitySuggestions = [.fromMindfulMinutes(12)]
+        let workout = DetectedWorkout(id: UUID(), activityType: HKWorkoutActivityType.running.rawValue,
+                                      startDate: .now, endDate: .now, durationMinutes: 20,
+                                      caloriesBurned: nil, distance: nil)
+        model.pendingActivitySuggestions = [ActivitySuggestion.fromWorkout(workout)!]
 
         let result = model.addHappening(
-            id: "happening_did_nothing",
+            id: "event_run",
             colorHex: "#AABBCC"
         )
 
@@ -333,9 +382,12 @@ final class HealthActivitySuggestionTests: XCTestCase {
 
     func testSyncedMatchingHappeningHidesAnAlreadyVisibleSuggestion() {
         let model = makeModel()
-        model.pendingActivitySuggestions = [.fromMindfulMinutes(12)]
+        let workout = DetectedWorkout(id: UUID(), activityType: HKWorkoutActivityType.running.rawValue,
+                                      startDate: .now, endDate: .now, durationMinutes: 20,
+                                      caloriesBurned: nil, distance: nil)
+        model.pendingActivitySuggestions = [ActivitySuggestion.fromWorkout(workout)!]
 
-        model.todayAdditions = [todayEntry(optionId: "happening_did_nothing")]
+        model.todayAdditions = [todayEntry(optionId: "event_run")]
 
         XCTAssertTrue(model.pendingActivitySuggestions.isEmpty)
     }

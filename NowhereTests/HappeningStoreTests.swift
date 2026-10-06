@@ -1,9 +1,7 @@
 import XCTest
 @testable import Nowhere
 
-/// The happening catalog's persistence: seeding, use counts, user-created
-/// happenings, and the orphan reconstitution that keeps past days labelled
-/// after 31 built-ins are cut to 10.
+/// Fixed choices and backward-compatible storage for archived/custom records.
 final class HappeningStoreTests: XCTestCase {
 
     private var defaults: UserDefaults!
@@ -45,31 +43,33 @@ final class HappeningStoreTests: XCTestCase {
 
     func testLoadAddsNewBuiltInsWithoutResettingCounts() throws {
         let store = makeStore()
-        store.recordUse(id: "happening_walk", at: Date(timeIntervalSince1970: 100))
+        store.recordUse(id: "event_walk", at: Date(timeIntervalSince1970: 100))
 
         // Simulate a catalog written by an older build that lacked one built-in.
-        let trimmed = store.all.filter { $0.id != "happening_laughed" }
+        let trimmed = store.all.filter { $0.id != "event_happy" }
         XCTAssertEqual(trimmed.count, HappeningDefaults.builtIns.count - 1)
         defaults.set(try JSONEncoder().encode(trimmed), forKey: SharedKeys.happeningCatalog)
 
         let reloaded = makeStore()
         XCTAssertEqual(reloaded.all.count, HappeningDefaults.builtIns.count)
-        XCTAssertNotNil(reloaded.happening(id: "happening_laughed"))
+        XCTAssertNotNil(reloaded.happening(id: "event_happy"))
         XCTAssertEqual(
-            reloaded.happening(id: "happening_walk")?.useCount, 1,
+            reloaded.happening(id: "event_walk")?.useCount, 1,
             "Existing counts must survive a built-in top-up"
         )
     }
 
     func testUpgradeFromTenExpandsCatalogAndKeepsCustomNamesAndUseHistory() throws {
-        var old = Array(HappeningDefaults.builtIns.prefix(10))
+        var old = Array(HappeningDefaults.legacyBuiltIns.prefix(10))
         old[0].useCount = 7
         old[0].lastUsedAt = Date(timeIntervalSince1970: 1234)
         old.append(Happening(id: "user_existing", title: "Coffee with my sister", isBuiltIn: false, useCount: 3))
         defaults.set(try JSONEncoder().encode(old), forKey: SharedKeys.happeningCatalog)
         let upgraded = makeStore()
-        XCTAssertEqual(upgraded.all.count, HappeningDefaults.builtIns.count + 1)
-        XCTAssertEqual(Set(upgraded.all.filter(\.isBuiltIn).map(\.id)), HappeningDefaults.builtInIds)
+        XCTAssertEqual(upgraded.all.count, HappeningDefaults.builtIns.count + old.count)
+        XCTAssertEqual(Set(upgraded.selectable.map(\.id)), HappeningDefaults.builtInIds)
+        XCTAssertEqual(upgraded.selectable.count, 100)
+        XCTAssertEqual(upgraded.selectable.first { $0.id == "event_walk" }?.useCount, 7)
         XCTAssertEqual(upgraded.happening(id: "happening_walk"), old[0])
         XCTAssertEqual(upgraded.happening(id: "user_existing"), old.last)
         XCTAssertEqual(makeStore().all, upgraded.all)
@@ -86,28 +86,28 @@ final class HappeningStoreTests: XCTestCase {
     func testRecordUseIncrementsAndStamps() {
         let store = makeStore()
         let when = Date(timeIntervalSince1970: 1_700_000_000)
-        store.recordUse(id: "happening_walk", at: when)
+        store.recordUse(id: "event_walk", at: when)
 
-        let walk = store.happening(id: "happening_walk")
+        let walk = store.happening(id: "event_walk")
         XCTAssertEqual(walk?.useCount, 1)
         XCTAssertEqual(walk?.lastUsedAt, when)
     }
 
     func testRepeatUsesAccumulate() {
         let store = makeStore()
-        store.recordUse(id: "happening_read", at: Date(timeIntervalSince1970: 100))
-        store.recordUse(id: "happening_read", at: Date(timeIntervalSince1970: 200))
+        store.recordUse(id: "event_book", at: Date(timeIntervalSince1970: 100))
+        store.recordUse(id: "event_book", at: Date(timeIntervalSince1970: 200))
 
-        XCTAssertEqual(store.happening(id: "happening_read")?.useCount, 2)
+        XCTAssertEqual(store.happening(id: "event_book")?.useCount, 2)
         XCTAssertEqual(
-            store.happening(id: "happening_read")?.lastUsedAt,
+            store.happening(id: "event_book")?.lastUsedAt,
             Date(timeIntervalSince1970: 200)
         )
     }
 
     func testRecordUsePersistsAcrossInstances() {
-        makeStore().recordUse(id: "happening_read", at: Date(timeIntervalSince1970: 100))
-        XCTAssertEqual(makeStore().happening(id: "happening_read")?.useCount, 1)
+        makeStore().recordUse(id: "event_book", at: Date(timeIntervalSince1970: 100))
+        XCTAssertEqual(makeStore().happening(id: "event_book")?.useCount, 1)
     }
 
     func testRecordUseForUnknownIdIsIgnored() {
@@ -135,17 +135,17 @@ final class HappeningStoreTests: XCTestCase {
         XCTAssertEqual(makeStore().create(title: "  Sauna \n", at: .now).title, "Sauna")
     }
 
-    func testCreateLimitsTitleToFifteenCharacters() {
-        let made = makeStore().create(title: "1234567890123456", at: .now)
+    func testLegacyCreateLimitsNewTitleToTwentyCharacters() {
+        let made = makeStore().create(title: "123456789012345678901", at: .now)
 
-        XCTAssertEqual(made.title, "123456789012345")
+        XCTAssertEqual(made.title, "12345678901234567890")
     }
 
     func testCreateCountsAnEmojiSequenceAsOneCharacter() {
-        let made = makeStore().create(title: "12345678901234👨‍👩‍👧‍👦Z", at: .now)
+        let made = makeStore().create(title: "1234567890123456789👨‍👩‍👧‍👦Z", at: .now)
 
-        XCTAssertEqual(made.title, "12345678901234👨‍👩‍👧‍👦")
-        XCTAssertEqual(made.title.count, 15)
+        XCTAssertEqual(made.title, "1234567890123456789👨‍👩‍👧‍👦")
+        XCTAssertEqual(made.title.count, 20)
     }
 
     func testCreatePersists() {
@@ -173,6 +173,70 @@ final class HappeningStoreTests: XCTestCase {
         XCTAssertEqual(decoded.happening.lastUsedAt, Date(timeIntervalSince1970: 500))
     }
 
+    func testHistoricalCustomNamesStayIntactAndSystemOrphansAreNotUploaded() {
+        let custom = Happening(id: "user_saved", title: "Coffee with my little sister", isBuiltIn: false, useCount: 7)
+        let system = ["event_ate", "happening_walk", "body_walking", "mind_writing", "heart_joy", "health_workout_37"]
+            .map { Happening(id: $0, title: $0, isBuiltIn: false) }
+        XCTAssertEqual(HappeningDefaults.customHappeningsForSync(system + [custom]), [custom])
+        let store = makeStore()
+        store.mergeRestored([custom] + system)
+        XCTAssertEqual(store.happening(id: custom.id), custom)
+        XCTAssertEqual(store.selectable.count, 100)
+        XCTAssertFalse(store.selectable.contains { $0.id == custom.id })
+        XCTAssertEqual(makeStore().happening(id: custom.id), custom)
+    }
+
+    func testLegacyRetryExcludesSharedIDsAndPreservesCustomFieldsAndOwner() throws {
+        let rows: [[String: Any]] = [
+            ["id": "body_walking", "user_id": "owner", "title_en": "Walking"],
+            ["id": "user_saved", "user_id": "owner", "title_en": "Coffee with my little sister", "title_ru": "Saved", "use_count": 7]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: rows)
+        guard case .ready(let filtered) = CustomHappeningRetryPayload.prepare(data, ownerID: "owner") else {
+            return XCTFail("A genuine row must survive a legacy mixed retry")
+        }
+        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: filtered) as? [[String: Any]])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0]["title_en"] as? String, rows[1]["title_en"] as? String)
+        XCTAssertEqual(result[0]["title_ru"] as? String, "Saved")
+        XCTAssertEqual(result[0]["use_count"] as? Int, 7)
+        XCTAssertEqual(CustomHappeningRetryPayload.prepare(data, ownerID: "another-owner"), .differentOwner)
+        XCTAssertEqual(CustomHappeningRetryPayload.prepare(try JSONSerialization.data(withJSONObject: [rows[0]]), ownerID: "owner"), .noUserRows)
+    }
+
+    func testLegacyEntriesKeepIdentityMetadataAndFractionalTime() throws {
+        let data = Data(##"{"user_id":"owner","day_key":"2026-01-02","option_id":"body_walking","color_hex":"#123456","asset_variant":3,"created_at":"2026-01-02T12:34:56.123Z"}"##.utf8)
+        let row = try JSONDecoder().decode(LegacyHappeningEntryRow.self, from: data)
+        XCTAssertEqual(row.entry.optionId, "body_walking")
+        XCTAssertEqual(row.entry.colorHex, "#123456")
+        XCTAssertEqual(row.entry.assetVariant, 3)
+        XCTAssertEqual(row.entry.timestamp, HappeningServerTimestamp.date("2026-01-02T12:34:56.123Z"))
+        XCTAssertEqual(row.entry.id, try JSONDecoder().decode(LegacyHappeningEntryRow.self, from: data).entry.id)
+        XCTAssertNotNil(UUID(uuidString: row.entry.id))
+        XCTAssertNotEqual(row.entry.id, LegacyHappeningEntryIdentity.id(userID: "other", dayKey: row.dayKey, optionID: row.optionID))
+    }
+
+    func testRestoreRequiresAllHistoryReadsAndAcceptsAnEmptyAccount() {
+        XCTAssertNotNil(HappeningHistoryRestorePayload(happenings: [], additions: [], snapshots: [:], routines: []))
+        XCTAssertNil(HappeningHistoryRestorePayload(happenings: nil, additions: [], snapshots: [:], routines: []))
+        XCTAssertNil(HappeningHistoryRestorePayload(happenings: [], additions: nil, snapshots: [:], routines: []))
+        XCTAssertNil(HappeningHistoryRestorePayload(happenings: [], additions: [], snapshots: nil, routines: []))
+        XCTAssertNil(HappeningHistoryRestorePayload(happenings: [], additions: [], snapshots: [:], routines: nil))
+    }
+
+    func testRestoreMergesLiveEditsAndDoesNotResurrectRemovals() {
+        let id = UUID().uuidString
+        let deletedID = UUID().uuidString
+        let server = OptionEntry(id: id.lowercased(), dayKey: "2026-01-02", optionId: "happening_walk", colorHex: "#123456", timestamp: .distantPast)
+        var edited = server
+        edited.colorHex = "#654321"
+        let deleted = OptionEntry(id: deletedID, dayKey: server.dayKey, optionId: "event_workout", colorHex: "#777777", timestamp: .distantPast)
+        let added = OptionEntry(id: UUID().uuidString, dayKey: server.dayKey, optionId: "event_chilled", colorHex: "#111111", timestamp: .now)
+        let merged = HappeningRestoreMerge.entries(server: [server, deleted], local: [edited, added], removedIDs: [deletedID.lowercased()])
+        XCTAssertEqual(merged, [edited, added])
+        XCTAssertEqual(HappeningRestoreMerge.entries(server: [server], local: [added], removedIDs: []), [server, added])
+    }
+
     func testCreateAllowsDuplicateTitles() {
         let store = makeStore()
         let first = store.create(title: "Sauna", at: .now)
@@ -184,16 +248,15 @@ final class HappeningStoreTests: XCTestCase {
 
     // MARK: - Orphan reconstitution
 
-    /// Cutting 31 built-ins to 10 would otherwise orphan ids sitting in a
-    /// user's saved days, and those days would lose their labels.
+    /// Retired and pre-happening identities must still resolve in saved days.
     func testReconstitutesOrphanedHistoryIds() {
         let store = makeStore()
         store.reconstituteOrphans(
             fromHistoryIds: ["body_walking", "heart_joy", "happening_walk"],
-            titleResolver: { $0 == "body_walking" ? "Walking" : "Joy" }
+            titleResolver: { HappeningDefaults.historicalTitle(for: $0) ?? ($0 == "body_walking" ? "Walking" : "Joy") }
         )
 
-        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count + 2, "Two orphans; happening_walk already present")
+        XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count + 3, "All three historical identities remain separate")
 
         let walking = store.happening(id: "body_walking")
         XCTAssertEqual(walking?.title, "Walking")
@@ -217,7 +280,7 @@ final class HappeningStoreTests: XCTestCase {
 
     func testReconstituteWithNoOrphansChangesNothing() {
         let store = makeStore()
-        store.reconstituteOrphans(fromHistoryIds: ["happening_walk"], titleResolver: { $0 })
+        store.reconstituteOrphans(fromHistoryIds: ["event_walk"], titleResolver: { $0 })
         XCTAssertEqual(store.all.count, HappeningDefaults.builtIns.count)
     }
 
@@ -255,14 +318,14 @@ final class FrequentHappeningSelectionTests: XCTestCase {
         let ids = FrequentHappeningSelection.resolve(catalog: catalog, previous: [],
             healthIDs: [running.id, "health_workout_52"], protectedIDs: [], allowsPromotion: true)
         XCTAssertEqual(ids.count, 10)
-        XCTAssertTrue(Set(FrequentHappeningSelection.healthCoreIDs + [running.id]).isSubset(of: Set(ids)))
-        XCTAssertEqual(ids.filter { HappeningPaletteSelection.choiceID($0) == "happening_walk" }.count, 1)
+        XCTAssertTrue(Set((FrequentHappeningSelection.healthCoreIDs + [running.id]).compactMap { HappeningDefaults.selectableHappening(id: $0)?.id }).isSubset(of: Set(ids)))
+        XCTAssertEqual(ids.filter { HappeningPaletteSelection.choiceID($0) == "event_walk" }.count, 1)
     }
 
     func testOnlyOneEstablishedFrequentChoiceEntersOnNextDayAndRetainsOtherPositions() {
         var catalog = HappeningDefaults.builtIns
         let initial = FrequentHappeningSelection.resolve(catalog: catalog, previous: [], healthIDs: [], protectedIDs: [], allowsPromotion: true)
-        for id in ["happening_danced", "happening_cooked"] {
+        for id in ["event_danced", "event_cooked"] {
             let index = catalog.firstIndex { $0.id == id }!
             catalog[index].useCount = 5
         }
@@ -270,7 +333,7 @@ final class FrequentHappeningSelectionTests: XCTestCase {
         XCTAssertEqual(sameDay, initial)
         let nextDay = FrequentHappeningSelection.resolve(catalog: catalog, previous: initial, healthIDs: [], protectedIDs: [], allowsPromotion: true)
         XCTAssertEqual(zip(initial, nextDay).filter { $0 != $1 }.count, 1)
-        XCTAssertTrue(Set(FrequentHappeningSelection.healthCoreIDs).isSubset(of: Set(nextDay)))
+        XCTAssertTrue(Set(FrequentHappeningSelection.healthCoreIDs.compactMap { HappeningDefaults.selectableHappening(id: $0)?.id }).isSubset(of: Set(nextDay)))
     }
 
     func testDailySelectionSurvivesRelaunchAndPromotesAtMostOncePerDay() {
@@ -280,12 +343,12 @@ final class FrequentHappeningSelectionTests: XCTestCase {
         var catalog = HappeningDefaults.builtIns
         let store = FrequentHappeningStore(defaults: defaults)
         let initial = store.resolve(catalog: catalog, healthIDs: [], protectedIDs: [], dayKey: "2026-09-15")
-        catalog[catalog.firstIndex { $0.id == "happening_danced" }!].useCount = 5
+        catalog[catalog.firstIndex { $0.id == "event_danced" }!].useCount = 5
         let relaunched = FrequentHappeningStore(defaults: defaults)
         XCTAssertEqual(relaunched.resolve(catalog: catalog, healthIDs: [], protectedIDs: [], dayKey: "2026-09-15"), initial)
         let nextDay = relaunched.resolve(catalog: catalog, healthIDs: [], protectedIDs: [], dayKey: "2026-09-16")
-        XCTAssertTrue(nextDay.contains("happening_danced"))
-        catalog[catalog.firstIndex { $0.id == "happening_cooked" }!].useCount = 10
+        XCTAssertTrue(nextDay.contains("event_danced"))
+        catalog[catalog.firstIndex { $0.id == "event_cooked" }!].useCount = 10
         XCTAssertEqual(relaunched.resolve(catalog: catalog, healthIDs: [], protectedIDs: [], dayKey: "2026-09-16"), nextDay)
     }
 
@@ -294,7 +357,7 @@ final class FrequentHappeningSelectionTests: XCTestCase {
         let running = Happening(id: "health_workout_37", title: "Running", isBuiltIn: false)
         let next = FrequentHappeningSelection.resolve(catalog: HappeningDefaults.builtIns + [running], previous: initial,
             healthIDs: [running.id], protectedIDs: [initial.last!], allowsPromotion: false)
-        XCTAssertTrue(next.contains(running.id))
+        XCTAssertTrue(next.contains("event_run"))
         XCTAssertTrue(next.contains(initial.last!))
         for id in FrequentHappeningSelection.healthCoreIDs { XCTAssertEqual(initial.firstIndex(of: id), next.firstIndex(of: id)) }
     }
@@ -313,5 +376,98 @@ final class FrequentHappeningSelectionTests: XCTestCase {
             previous: initial, healthIDs: external.map(\.id), protectedIDs: Set(initial), allowsPromotion: true)
         XCTAssertEqual(ids, initial)
         XCTAssertEqual(ids.count, 10)
+    }
+}
+
+final class PersonalHappeningRecommendationsTests: XCTestCase {
+    private let now = ISO8601DateFormatter().date(from: "2026-10-04T12:00:00Z")!
+
+    func testEmptyHistoryKeepsExactlySixDefaultEvents() {
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: HappeningDefaults.builtIns, at: now), [])
+        let state = HappeningEventTreeState()
+        XCTAssertEqual(state.nodes.map(\.id), HappeningEventTree.startingEvents.map(\.id))
+        XCTAssertEqual(state.atlasNodes, HappeningEventTreeState.allNodes)
+    }
+
+    func testFrequencyRecencyAndUnflatteringEventsAffectRecommendations() {
+        let catalog = [
+            Happening(id: "event_rage", title: "Raged", isBuiltIn: true, useCount: 4, lastUsedAt: now),
+            Happening(id: "event_doomscroll", title: "Doomscrolled", isBuiltIn: true, useCount: 100, lastUsedAt: now.addingTimeInterval(-90 * 86_400)),
+            Happening(id: "event_coffee", title: "Had coffee", isBuiltIn: true, useCount: 1, lastUsedAt: now),
+            Happening(id: "event_root_worked", title: "Worked", isBuiltIn: true, useCount: 200, lastUsedAt: now),
+            Happening(id: "user_saved", title: "Saved", isBuiltIn: false, useCount: 200, lastUsedAt: now)
+        ]
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: catalog, at: now), ["event_rage", "event_doomscroll"])
+    }
+
+    func testRestoredDayHistoryLearnsCanonicalEventsWithoutUsageMetadata() {
+        let history = ["2026-10-01": ["happening_danced"], "2026-10-02": ["health_workout_14"]]
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: HappeningDefaults.builtIns, historyByDay: history, at: now), ["event_danced"])
+    }
+
+    func testRepeatedAddsAndAliasesCountOnlyOncePerDay() {
+        let history = ["2026-10-02": ["event_danced", "happening_danced", "health_workout_14"]]
+        XCTAssertEqual(PersonalHappeningRecommendations.ranked(catalog: HappeningDefaults.builtIns, historyByDay: history,
+            todayIDs: ["event_danced"], dayKey: "2026-10-02", at: now), [])
+    }
+
+    func testPersonalPromotionsPreserveRootsIntersectionsAndCompleteCatalog() {
+        let state = HappeningEventTreeState(recommendedHappeningIDs: ["event_rage", "event_danced", "event_swam"])
+        XCTAssertEqual(Array(state.atlasNodes.prefix(6)), Array(HappeningEventTreeState.allNodes.prefix(6)))
+        for id in ["break", "nap", "cooked", "cafe", "peoplecall", "workcall"] {
+            XCTAssertEqual(state.atlasNodes.first { $0.id == id }?.cell, HappeningEventTreeState.allNodes.first { $0.id == id }?.cell)
+        }
+        XCTAssertEqual(state.atlasNodes.count, 100)
+        XCTAssertEqual(Set(state.atlasNodes.map(\.id)).count, 100)
+        XCTAssertEqual(Set(state.atlasNodes.map(\.cell)).count, 100)
+        XCTAssertFalse(state.atlasNodes.contains { $0.cell == .origin })
+        for id in ["rage", "danced", "swam"] { XCTAssertEqual(state.nodes.first { $0.id == id }?.cell.ring, 2) }
+    }
+
+    func testPromotedHealthHappeningIsVisibleAndRemainsInItsOwnSector() {
+        var state = HappeningEventTreeState(recommendedHappeningIDs: ["health_workout_46"])
+        state.revealHappenings(["event_swam", "health_workout_46"])
+        XCTAssertEqual(state.nodes.filter { $0.id == "swam" }.count, 1)
+        XCTAssertEqual(state.nodes.first { $0.id == "swam" }?.parentID, "walk")
+        state.expand("walk")
+        XCTAssertEqual(HappeningEventTreeState(expandedIDs: state.expandedIDs, recommendedHappeningIDs: ["health_workout_46"]), state)
+    }
+
+    func testEveryPromotionStaysBesideItsEditorialRoot() {
+        let anchored = Set(HappeningEventTree.startingEvents.map(\.id)
+            + ["break", "nap", "cooked", "cafe", "peoplecall", "workcall"])
+        for event in HappeningEventTree.all where !anchored.contains(event.id) {
+            let expectedRoot = HappeningEventTree.routes.first { $0.contains(event.id) }?.first
+            let state = HappeningEventTreeState(recommendedHappeningIDs: ["event_" + event.id])
+            XCTAssertEqual(state.nodes.first { $0.id == event.id }?.parentID, expectedRoot, event.id)
+            XCTAssertEqual(state.nodes.first { $0.id == event.id }?.cell.ring, 2, event.id)
+        }
+    }
+
+    func testMapAndParentsRemainStableAndEveryChoiceRemainsReachable() {
+        var state = HappeningEventTreeState(recommendedHappeningIDs: ["event_rage", "event_danced", "event_swam"])
+        let atlas = state.atlasNodes
+        let byID = Dictionary(uniqueKeysWithValues: atlas.map { ($0.id, $0) })
+        for item in atlas {
+            if let parentID = item.parentID, let parent = byID[parentID] {
+                XCTAssertLessThan(parent.cell.ring, item.cell.ring)
+                XCTAssertTrue(parent.cell.neighbors.contains(item.cell))
+            }
+        }
+        var index = 0
+        while index < state.nodes.count {
+            XCTAssertLessThanOrEqual(state.expand(state.nodes[index].id), 3)
+            index += 1
+        }
+        XCTAssertEqual(Set(state.nodes.map(\.id)), Set(atlas.map(\.id)))
+        XCTAssertEqual(state.atlasNodes, atlas)
+        XCTAssertEqual(HappeningEventTreeState(expandedIDs: state.expandedIDs,
+            recommendedHappeningIDs: ["event_rage", "event_danced", "event_swam"]), state)
+    }
+
+    func testModesUsePersonalAndAllWhileRetainingPersistedRawValue() {
+        XCTAssertEqual(HappeningPaletteMode.frequent.title, "Personal")
+        XCTAssertEqual(HappeningPaletteMode.all.title, "All")
+        XCTAssertEqual(HappeningPaletteMode.frequent.rawValue, "frequent")
     }
 }

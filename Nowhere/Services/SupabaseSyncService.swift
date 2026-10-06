@@ -412,8 +412,7 @@ actor SupabaseSyncService {
         defer { if ownsRetryDrain { canvasUploadOrdering.endRetryDrain() } }
         migrateLegacyOptionEntryIntents()
         await drainPendingOptionEntryIntents()
-        await AuthenticationService.shared.waitForInitialization()
-        guard let freshToken = await AuthenticationService.shared.accessToken else {
+        guard let retryAuth = await authenticatedContext() else {
             AppLogger.network.debug("📡 Retry queue drain skipped: no auth token")
             return
         }
@@ -453,13 +452,22 @@ actor SupabaseSyncService {
             }
             var request = URLRequest(url: url)
             request.httpMethod = entry.method
-            request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(retryAuth.token)", forHTTPHeaderField: "Authorization")
             request.setValue(anonKey, forHTTPHeaderField: "apikey")
             request.setValue("application/json", forHTTPHeaderField: "content-type")
             if let prefer = entry.preferHeader {
                 request.setValue(prefer, forHTTPHeaderField: "prefer")
             }
             request.httpBody = entry.body
+            if entry.method == "POST", url.path.hasSuffix("/user_custom_activities") {
+                switch CustomHappeningRetryPayload.prepare(entry.body, ownerID: retryAuth.userId) {
+                case .ready(let body): request.httpBody = body
+                case .noUserRows, .invalid:
+                    acknowledgedQueueIDs.insert(entry.queueID)
+                    continue
+                case .differentOwner: continue
+                }
+            }
             
             do {
                 let (_, response) = try await network.data(for: request)
@@ -475,7 +483,7 @@ actor SupabaseSyncService {
                     // Telemetry: a permanently-failed sync is otherwise invisible
                     // (the user just silently stops syncing). Emit the endpoint
                     // path only (no query string) to avoid leaking identifiers.
-                    trackAnalyticsEvent(
+                    await trackAnalyticsEvent(
                         name: "sync_failed",
                         properties: [
                             "endpoint": url.path,
@@ -695,7 +703,8 @@ actor SupabaseSyncService {
     
     // MARK: - Full Restore (Orchestrator)
     
-    /// Full restore - load all data from Supabase and apply to AppModel
+    /// Apply available data; return true only after every happening-history
+    /// section was read successfully, including confirmed empty sections.
     func restoreFromServer(model: AppModel) async -> Bool {
         AppLogger.network.debug("📡 Starting restore from Supabase...")
         
@@ -707,22 +716,46 @@ actor SupabaseSyncService {
             return false
         }
         
-        var didRestore = false
-        
+        // Read all happening history before applying any of it. A partial
+        // network failure must not create local additions that make a pending
+        // restore look like an existing installation on the next launch.
         let today = AppModel.dayKey(for: .now)
-        if let happenings = await loadCustomHappeningsFromServer(), !happenings.isEmpty {
-            await MainActor.run { model.happeningStore.mergeRestored(happenings) }
+        let catalog = await loadCustomHappeningsFromServer()
+        let additions = await loadRestorableOptionEntriesFromServer(dayKey: today)
+        let snapshots = await loadDaySnapshotsForRestore()
+        let routines = await loadSavedRoutinesFromServer()
+        guard let history = HappeningHistoryRestorePayload(
+            happenings: catalog, additions: additions, snapshots: snapshots, routines: routines
+        ) else {
+            AppLogger.network.error("📡 Happening history restore incomplete — will retry")
+            return false
+        }
+        guard await AuthenticationService.shared.currentUser?.id == currentUser?.id else { return false }
+        var didRestore = false
+        if !history.happenings.isEmpty {
+            await MainActor.run { model.happeningStore.mergeRestored(history.happenings) }
             didRestore = true
         }
-        if let additions = await loadOptionEntriesFromServer(dayKey: today), !additions.isEmpty {
+        if !history.additions.isEmpty {
+            let pendingRemovalIDs = Set(optionEntryIntentStore.load().values.compactMap { intent -> String? in
+                guard intent.ownerUserID == nil || intent.ownerUserID == currentUser?.id,
+                      case .delete(let id)? = intent.savedOperation else { return nil }
+                return id
+            })
             await MainActor.run {
-                model.todayAdditions = additions
+                // Canvas becomes editable before cloud work completes. Retain
+                // both fetched history and edits made while it was loading.
+                model.todayAdditions = HappeningRestoreMerge.entries(
+                    server: history.additions.filter { $0.dayKey == AppModel.dayKey(for: .now) },
+                    local: model.todayAdditions,
+                    removedIDs: pendingRemovalIDs.union(model.locallyRemovedAdditionIDs)
+                )
                 model.removeSatisfiedActivitySuggestions()
                 model.persistDailyEnergyState()
             }
             didRestore = true
         }
-        
+
         if let spent = await loadTodaySpentFromServer() {
             if spent.totalSpent > 0 {
                 await MainActor.run {
@@ -780,11 +813,10 @@ actor SupabaseSyncService {
             AppLogger.network.debug("📡 Restored user preferences (including theme + notification settings)")
         }
         
-        let serverSnapshots = await loadDaySnapshotsFromServer()
-        if !serverSnapshots.isEmpty {
+        if !history.snapshots.isEmpty {
             await MainActor.run {
                 var local = model.loadPastDaySnapshots()
-                for (dayKey, serverSnapshot) in serverSnapshots {
+                for (dayKey, serverSnapshot) in history.snapshots {
                     local[dayKey] = serverSnapshot
                 }
                 let url = PersistenceManager.pastDaySnapshotsFileURL
@@ -793,31 +825,65 @@ actor SupabaseSyncService {
                 }
             }
             didRestore = true
-            AppLogger.network.debug("📡 Merged \(serverSnapshots.count) day snapshots from server")
+            AppLogger.network.debug("📡 Merged \(history.snapshots.count) day snapshots from server")
         }
 
-        // Restore saved routines
-        if let routines = await loadSavedRoutinesFromServer(), !routines.isEmpty {
+        if !history.routines.isEmpty {
             await MainActor.run {
-                model.savedRoutines = routines
+                model.savedRoutines = history.routines
                 let g = UserDefaults.nowhere()
-                if let data = try? JSONEncoder().encode(routines) {
+                if let data = try? JSONEncoder().encode(history.routines) {
                     g.set(data, forKey: SharedKeys.savedRoutines)
                 }
             }
             didRestore = true
-            AppLogger.network.debug("📡 Restored \(routines.count) saved routines from server")
+            AppLogger.network.debug("📡 Restored \(history.routines.count) saved routines from server")
         }
-        
+
         if didRestore {
             AppLogger.network.debug("📡 Restore completed, recalculating energy...")
             await MainActor.run {
+                model.reconstituteHappeningsFromHistory()
                 model.recalculateDailyEnergy()
             }
         } else {
             AppLogger.network.debug("📡 No data to restore from server (or all empty)")
         }
         
-        return didRestore
+        return true
+    }
+}
+
+/// A successful empty read differs from a failed section. The payload is only
+/// applicable once every history section has completed, preventing partial
+/// persisted data from suppressing the next initial-restore attempt.
+struct HappeningHistoryRestorePayload {
+    let happenings: [Happening]
+    let additions: [OptionEntry]
+    let snapshots: [String: PastDaySnapshot]
+    let routines: [EnergyRoutine]
+
+    init?(happenings: [Happening]?, additions: [OptionEntry]?,
+          snapshots: [String: PastDaySnapshot]?, routines: [EnergyRoutine]?) {
+        guard let happenings, let additions, let snapshots, let routines else { return nil }
+        self.happenings = happenings
+        self.additions = additions
+        self.snapshots = snapshots
+        self.routines = routines
+    }
+}
+
+enum HappeningRestoreMerge {
+    static func entries(server: [OptionEntry], local: [OptionEntry], removedIDs: Set<String>) -> [OptionEntry] {
+        let key = OptionEntryCanonicalIdentity.key
+        let removed = Set(removedIDs.map(key))
+        let localByID = Dictionary(local.map { (key($0.id), $0) }, uniquingKeysWith: { _, latest in latest })
+        var seen = Set<String>()
+        return (server + local).compactMap { entry in
+            let id = key(entry.id)
+            guard seen.insert(id).inserted else { return nil }
+            if let latest = localByID[id] { return latest }
+            return removed.contains(id) ? nil : entry
+        }
     }
 }

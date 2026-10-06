@@ -4,6 +4,8 @@ import simd
 @_alignment(16)
 struct MetalShapeMaterialUniforms: Codable, Equatable, Sendable {
     static let metalStride = 128
+    /// Opt-in only on contour/sunset payloads; blur mode bits stay untouched.
+    static let referenceMaterialFlag: UInt32 = 0x4000_0000
 
     let color0: SIMD4<Float>
     let color1: SIMD4<Float>
@@ -29,6 +31,7 @@ struct MetalShapeMaterialUniforms: Codable, Equatable, Sendable {
     /// Replace retired Canvas fills at render time, keeping saved parameters
     /// readable and retaining the figure's frozen colors and geometry.
     var primaryCanvasMaterial: Self {
+        if metadata.y & Self.referenceMaterialFlag != 0 { return self }
         var safeMetadata = metadata
         switch materialIndex {
         case 8: safeMetadata.x = 2 // Dense nested contour -> simple outline.
