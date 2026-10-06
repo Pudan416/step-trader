@@ -290,9 +290,33 @@ struct DayCanvas: Codable {
         let previous = artworkRecipe
         if let previous {
             guard previous.isSupported, !previous.locks.contains("artwork") else { return false }
-            if previous.generatorVersion == "atlas-3", previous.dailyStyle?.usesCatalogLookOrder == true {
+            if previous.generatorVersion == "atlas-3", var style = previous.dailyStyle,
+               style.usesCatalogLookOrder {
                 let eventIDs = Array(elements.prefix(10).map { $0.id.uuidString.lowercased() })
-                let reconciled = previous.reconciled(eventIDs: eventIDs)
+                // atlas-3 mistakenly replaced each stable slot with a random
+                // catalog silhouette. Repair only today's editable artwork;
+                // archived recipes keep their frozen historical appearance.
+                style.catalogLookOrder = nil
+                var repaired = NativeAtlasRecipe(
+                    schemaVersion: previous.schemaVersion,
+                    generatorVersion: "atlas-4",
+                    catalogVersion: previous.catalogVersion,
+                    seedHex: previous.seedHex,
+                    trajectory: previous.trajectory,
+                    sizeRhythm: previous.sizeRhythm,
+                    spacing: previous.spacing,
+                    background: previous.background,
+                    glitchType: previous.glitchType,
+                    intersectionType: previous.intersectionType,
+                    intersectionStrength: previous.intersectionStrength,
+                    actors: [],
+                    backgroundStyle: previous.backgroundStyle,
+                    dailyStyle: style
+                )
+                repaired.glitchStrength = previous.glitchStrength
+                repaired.locks = previous.locks
+                repaired = repaired.reconciled(eventIDs: eventIDs)
+                let reconciled = repaired
                 guard reconciled != previous else { return false }
                 artworkRecipe = reconciled
                 recordExplicitArtworkEdit()

@@ -3,7 +3,7 @@ import Foundation
 /// Stable event slots and placement. Keep RNG consumption order compatible with atlas-1.
 extension NativeAtlasRecipe {
     func reconciled(eventIDs: [String], addingEventIDs: Set<String> = []) -> Self {
-        if generatorVersion == "atlas-2" || generatorVersion == "atlas-3" { return reconciledDaily(eventIDs: eventIDs) }
+        if generatorVersion == "atlas-2" || generatorVersion == "atlas-3" || generatorVersion == "atlas-4" { return reconciledDaily(eventIDs: eventIDs) }
         guard isSupported, let rootSeed = UInt64(seedHex, radix: 16) else { return self }
         var result = self, seen = Set<String>()
         let ids = Array(eventIDs.filter { seen.insert($0).inserted }.prefix(10))

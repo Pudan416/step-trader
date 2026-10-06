@@ -10,16 +10,23 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// A collection owns both the silhouette family and its allowed fills.
     /// Keep the saved Family vocabulary unchanged for geometry and motion.
     enum Collection: String, Codable, CaseIterable {
+        // Keep the archived `blobs` case decodable, but don't offer it to new
+        // days: Soft Drift was removed from the approved visual library.
         case circles, blurredCircles, blobs, squares, blurredSquares, clovers, flowers, rays
+        case waterRipples, dimpledSpheres, spiralRays
+
+        static var selectableCases: [Self] {
+            allCases.filter { $0 != .blobs }
+        }
 
         var family: Family {
             switch self {
-            case .circles, .blurredCircles: return .circles
+            case .circles, .blurredCircles, .waterRipples, .dimpledSpheres: return .circles
             case .squares, .blurredSquares: return .squares
             case .blobs: return .blobs
             case .clovers: return .clovers
             case .flowers: return .flowers
-            case .rays: return .rays
+            case .rays, .spiralRays: return .rays
             }
         }
 
@@ -64,8 +71,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// Only new/current editable artwork adopts the complete reference fills.
     var materialPolicyVersion: Int? = nil
     var materialOrder: [MetalShapeMaterial]? = nil
-    /// New recipes freeze a mixed, catalog-backed look order. Older atlas-2
-    /// saves omit it and keep their single-family appearance unchanged.
+    /// Decodes the atlas-3 mixed-look policy for historical artwork only.
     var catalogLookOrder: [CatalogLook]? = nil
     var usesCatalogLookOrder: Bool { catalogLookOrder?.isEmpty == false }
     var usesReferenceMaterials: Bool { materialPolicyVersion == 1 }
@@ -351,11 +357,11 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         } else {
             ordinal = Int(CanvasElement.makeSeed(optionId: "daily-collection", dayKey: dayKey, index: 0) % 100_000)
         }
-        let count = Collection.allCases.count
+        let count = Collection.selectableCases.count
         let block = Int(floor(Double(ordinal) / Double(count)))
         let offset = ordinal - block * count
         func shuffled(_ cycle: Int) -> [Collection] {
-            var values = Collection.allCases
+            var values = Collection.selectableCases
             var rng = SeededRNG(seed: CanvasElement.makeSeed(optionId: "daily-collection-cycle", dayKey: String(cycle), index: 0))
             for i in stride(from: values.count - 1, through: 1, by: -1) {
                 values.swapAt(i, rng.nextInt(in: 0...i))
@@ -370,7 +376,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// Explicit Remix consumes the entire seed, independent of the calendar.
     /// Exclude the previous collection, allowing other looks of the same form.
     static func remixCollection(seedKey: String, excluding previous: Collection?) -> Collection {
-        let candidates = Collection.allCases.filter { $0 != previous }
+        let candidates = Collection.selectableCases.filter { $0 != previous }
         var rng = SeededRNG(seed: CanvasElement.makeSeed(
             optionId: "remix-collection", dayKey: seedKey, index: 0
         ))

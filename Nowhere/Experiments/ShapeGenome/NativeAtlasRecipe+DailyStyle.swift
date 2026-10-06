@@ -22,6 +22,9 @@ extension NativeAtlasRecipe {
         case .clovers: presetID = "genome.soft-clover"
         case .flowers: presetID = rng.nextInt(in: 0...1) == 0 ? "genome.windflower" : "genome.snowflake"
         case .rays: presetID = "legacy.rounded-triangle"
+        case .waterRipples: presetID = "genome.concentric-ripple"
+        case .dimpledSpheres: presetID = "reference.dimpled-sphere"
+        case .spiralRays: presetID = "reference.spiral-rays"
         }
         // Stable IDs, never global catalog order, define the v2 family mapping.
         guard let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == presetID }) else { return recipe }
@@ -38,9 +41,8 @@ extension NativeAtlasRecipe {
         style.silhouettePolicyVersion = 1
         style.collection = collection
         style.freezeReferenceMaterials(seed: seed)
-        style.catalogLookOrder = NativeAtlasDailyStyle.catalogLooks(seed: seed)
         style.material = style.recolored(frame.material, seed: seed)
-        recipe = Self(schemaVersion: 1, generatorVersion: "atlas-3", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
+        recipe = Self(schemaVersion: 1, generatorVersion: "atlas-4", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
         return recipe
     }
 
@@ -49,7 +51,7 @@ extension NativeAtlasRecipe {
     func coordinated(with background: DayObjectMeshGradientStyle, paletteCategories: Set<ModernPaletteCategory>? = nil) -> Self {
         var result = self
         result.backgroundStyle = background
-        guard var style = dailyStyle, generatorVersion == "atlas-2" || generatorVersion == "atlas-3" else { return result }
+        guard var style = dailyStyle, generatorVersion == "atlas-2" || generatorVersion == "atlas-3" || generatorVersion == "atlas-4" else { return result }
         let paletteChanged = style.palette != background.colors || backgroundStyle?.isNoir != background.isNoir
         style.palette = background.colors
         if style.usesApprovedAppearance, paletteChanged {

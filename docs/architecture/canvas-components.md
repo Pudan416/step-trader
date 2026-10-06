@@ -18,16 +18,19 @@ All paths below are relative to `Nowhere/`.
 
 The daily canvas remains driven by events, capped at ten. Removing or adding an event must retain the frozen actors belonging to other events. Random-number consumption order is part of `atlas-1`: changing it requires a deliberate version/compatibility decision, not an incidental cleanup.
 
-New days use `atlas-3`, which keeps the versioned `dailyStyle` palette/motion
-payload and adds a frozen, seed-shuffled `catalogLookOrder`. Each stable actor
-slot receives one compatible preset/material pair; a scene uses distinct
-silhouettes until the ten-actor cap. The order covers ordinary shapes, the three
-directed-blur shapes, dimpled spheres, water ripples and spiral rays across seeds.
-The removed Soft Drift look and procedural light/flow/contour, sunset and striped
-fills are excluded from new scenes. `atlas-1` and `atlas-2` recipes without this
-optional look order retain their saved single-family appearance exactly.
-Explicit Remix creates a fresh look order from its full seed. Actors already
-saved in a recipe remain frozen when events are added or removed.
+New days use `atlas-4`, which keeps one selected shape collection for the whole
+day. Stable actors vary in size, placement, orientation and compatible material,
+but never switch to unrelated catalog silhouettes. Ordinary circles, directed
+blur circles, directed blur squares, directed blur triangles, clovers, flowers,
+squares, concentric water ripples, dimpled spheres and spiral rays are selectable
+collections. Soft Drift remains decodable for old recipes but is not selectable.
+The erroneous `atlas-3` per-slot catalog look order remains decodable for archives;
+opening today's unlocked canvas upgrades it once by rebuilding actors inside its
+already selected collection. Historical canvases keep their saved appearance.
+`atlas-1` and `atlas-2` recipes retain their frozen single-family appearance.
+Explicit Remix chooses another compatible collection and freezes it into the new
+recipe. Actors already saved in a recipe remain frozen when events are added or
+removed.
 Explicit palette changes coordinate current and future actors with the background.
 The selected A policy uses optional `appearancePolicyVersion = 1`, frozen
 `neighboringPigments` and `neighboringPaletteCategories`. Three nearby catalog
