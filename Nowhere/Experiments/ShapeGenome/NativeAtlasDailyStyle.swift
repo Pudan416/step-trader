@@ -32,6 +32,14 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
         var isBlurred: Bool { self == .blurredCircles || self == .blurredSquares || self == .rays }
         var isGlowingContour: Bool { self == .glowingContours }
+        var usesRoundScale: Bool {
+            switch self {
+            case .circles, .blurredCircles, .waterRipples, .dimpledSpheres, .spiralRays, .glowingContours:
+                return true
+            case .blobs, .squares, .blurredSquares, .clovers, .flowers, .rays:
+                return false
+            }
+        }
 
         static func regular(for family: Family) -> Self {
             switch family {
@@ -71,6 +79,8 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     var usesIndividualSilhouettes: Bool { silhouettePolicyVersion == 1 }
     /// Only new/current editable artwork adopts the complete reference fills.
     var materialPolicyVersion: Int? = nil
+    /// Current editable days adopt the expanded footprint and contrast rules once.
+    var roundScalePolicyVersion: Int? = nil
     var materialOrder: [MetalShapeMaterial]? = nil
     /// Decodes the atlas-3 mixed-look policy for historical artwork only.
     var catalogLookOrder: [CatalogLook]? = nil
@@ -482,12 +492,12 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
             // Give round collections a broader, stable size rhythm. This also
             // covers ripples and spiral rays while preserving their geometry.
-            if collection?.family == .circles {
+            if collection?.usesRoundScale == true {
                 if collection?.isGlowingContour == true {
                     let glowSizes: [Float] = [0.58, 0.22, 0.48, 0.32, 0.56, 0.19, 0.54, 0.24, 0.44, 0.36]
                     return glowSizes[min(max(slot, 0), glowSizes.count - 1)]
                 }
-                let roundSizes: [Float] = [0.44, 0.16, 0.30, 0.21, 0.41, 0.18, 0.46, 0.17, 0.34, 0.25]
+                let roundSizes: [Float] = [0.62, 0.30, 0.50, 0.38, 0.68, 0.28, 0.72, 0.32, 0.56, 0.44]
                 return roundSizes[min(max(slot, 0), roundSizes.count - 1)]
             }
 
@@ -530,7 +540,12 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             : isTwo ? (mean > 0.78 ? 0.66 : 0.78)
             : family == .rays ? (role == 1 ? 0.70 : 0.79)
             : min(max(pigment.perceptualOKLab.x + (mean > 0.65 ? -0.035 : 0.07), 0.48), 0.84)
-        let first = SIMD4(pigment.fittingPerceptualLightness(to: lightness + variation, chromaFraction: 0.92).linearRGB, 1)
+        let usesVividRoundContrast = collection.map { $0.usesRoundScale && !$0.isGlowingContour } ?? false
+        let resolvedLightness: Float = usesVividRoundContrast
+            ? (mean > 0.58 ? 0.42 : 0.82)
+            : lightness
+        let first = SIMD4(pigment.fittingPerceptualLightness(to: resolvedLightness + variation,
+            chromaFraction: usesVividRoundContrast ? 1 : 0.92).linearRGB, 1)
         if usesReferenceMaterials {
             if source.materialIndex == 9 {
                 // Eclipse glow needs three clearly separated hue stops. Keep
@@ -553,8 +568,8 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
                 let neighbor = colors[(max(0, slot) + offset) % colors.count]
                 let mixed = pigment.linearRGB + (neighbor - pigment.linearRGB) * 0.16
                 return SIMD4(DayObjectRGB(linearRGB: mixed).fittingPerceptualLightness(
-                    to: min(max(lightness + lightnessShift + variation, 0.42), 0.88),
-                    chromaFraction: 0.78).linearRGB, 1)
+                    to: min(max(resolvedLightness + lightnessShift + variation, 0.36), 0.88),
+                    chromaFraction: usesVividRoundContrast ? 1 : 0.78).linearRGB, 1)
             }
             let second = isTwo ? relatedColor(offset: 1, lightnessShift: 0.055) : first
             let third = source.materialIndex == 5 ? relatedColor(offset: 2, lightnessShift: -0.035) : second

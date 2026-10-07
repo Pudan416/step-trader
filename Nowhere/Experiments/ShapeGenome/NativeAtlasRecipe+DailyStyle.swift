@@ -41,6 +41,7 @@ extension NativeAtlasRecipe {
         }
         style.silhouettePolicyVersion = 1
         style.collection = collection
+        style.roundScalePolicyVersion = 2
         style.freezeReferenceMaterials(seed: seed)
         style.material = style.recolored(frame.material, seed: seed)
         recipe = Self(schemaVersion: 1, generatorVersion: "atlas-4", catalogVersion: recipe.catalogVersion, seedHex: recipe.seedHex, trajectory: recipe.trajectory, sizeRhythm: recipe.sizeRhythm, spacing: recipe.spacing, background: recipe.background, glitchType: recipe.glitchType, intersectionType: recipe.intersectionType, intersectionStrength: recipe.intersectionStrength, actors: [], backgroundStyle: recipe.backgroundStyle, dailyStyle: style)
