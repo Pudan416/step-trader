@@ -83,7 +83,7 @@ struct DetectedWorkout: Identifiable, Equatable {
         case .soccer: "Soccer"
         case .basketball: "Basketball"
         case .cooldown: "Cooldown"
-        case .other: "Other Workout"
+        case .other: "Workout"
         default: "Workout \(activityType)"
         }
     }

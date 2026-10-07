@@ -40,6 +40,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
             + Array(HappeningDefaults.builtIns.prefix(8)).map(\.id)
         for key in [SharedKeys.happeningPaletteSelection, SharedKeys.legacyHappeningPaletteOrderIds] {
             defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            defaults.removeObject(forKey: SharedKeys.legacyHappeningPaletteOrderIds)
             defaults.set(selected, forKey: key)
             let selectionStore = HappeningPaletteSelectionStore(defaults: defaults)
             selectionStore.load(catalog: catalogStore.all)

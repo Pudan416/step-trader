@@ -100,12 +100,11 @@ enum HappeningDefaults {
             case 46: return "event_swam"
             case 14, 77, 78: return "event_danced"
             case 62: return "event_stretched"
-            default: return id
+            default: return "event_workout"
             }
         }
         switch id {
         case "happening_walk", "body_walking": return "event_walk"
-        case "happening_read": return "event_book"
         case "happening_workout", "body_physical_effort": return "event_workout"
         case "happening_did_nothing", "body_resting": return "event_root_chilled"
         case "event_computer", "event_tasks": return "event_root_worked"
@@ -128,7 +127,14 @@ enum HappeningDefaults {
     }
 
     static func selectableHappening(id: String) -> Happening? {
-        let canonical = canonicalID(id)
+        // Retired labels remain resolvable for new choices. Suggestions whose
+        // legacy ID is intentionally unsupported still return nil here.
+        let canonical: String
+        switch id {
+        case "happening_read": canonical = "event_book"
+        case "happening_did_nothing", "body_resting": return nil
+        default: canonical = canonicalID(id)
+        }
         return builtIns.first { $0.id == canonical }
     }
 }

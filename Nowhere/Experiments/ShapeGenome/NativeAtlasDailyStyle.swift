@@ -545,7 +545,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             ? (mean > 0.58 ? 0.42 : 0.82)
             : lightness
         let first = SIMD4(pigment.fittingPerceptualLightness(to: resolvedLightness + variation,
-            chromaFraction: usesVividRoundContrast ? 1 : 0.92).linearRGB, 1)
+            chromaFraction: 1).linearRGB, 1)
         if usesReferenceMaterials {
             if source.materialIndex == 9 {
                 // Eclipse glow needs three clearly separated hue stops. Keep

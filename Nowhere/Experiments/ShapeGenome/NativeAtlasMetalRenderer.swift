@@ -144,7 +144,6 @@ final class NativeAtlasMetalRenderer {
                 }
             }
             // Use the effective shader after remapping retired saved fills.
-            let eligible: Set<UInt32> = [0, 1, 4, 5, 6, 7]
             let aspect = Float(w) / Float(h), pose = actor.gpuActor
             let center = SIMD2(0.5 + pose.position.x / max(aspect, 1), 0.5 - pose.position.y / max(1 / aspect, 1))
             let saturation: Float = scene.meshGradientStyle.isNoir == true ? 0 : pose.presentationSaturation
@@ -153,7 +152,7 @@ final class NativeAtlasMetalRenderer {
             let traceStrength = isPalette ? 0 : min(max(damage, 0), 1)
             let placement: [SIMD4<Float>] = [
                 SIMD4(center.x, center.y, pose.halfSize.x * 2.72, renderRotation),
-                SIMD4(Float(w), Float(h), pose.opacity, eligible.contains(material.materialIndex) ? 1 : 0),
+                SIMD4(Float(w), Float(h), pose.opacity, 1),
                 SIMD4(Float(recipe.intersectionType), recipe.intersectionStrength, saturation, pose.removalEmphasis),
                 SIMD4(pose.paletteMorph, isPalette ? 1 : 0, 0, 0),
                 SIMD4(Float(recipe.glitchType), traceStrength, Float(actorSeed & 65535) / 65535, Float((actorSeed >> 16) & 65535) / 65535)
