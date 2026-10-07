@@ -115,14 +115,17 @@ struct HappeningChooserView: View {
                     Button {
                         if replacementID != nil {
                             replacementID = nil
+                        } else if draft.hasChanges {
+                            guard draft.canSave else { return }
+                            onSave(draft.ids)
                         } else {
                             onCancel()
                         }
                     } label: {
-                        Image(systemName: replacementID == nil ? "xmark" : "chevron.left")
+                        Image(systemName: toolbarSymbol)
                             .frame(minWidth: 44, minHeight: 44)
                     }
-                    .accessibilityLabel(replacementID == nil ? String(localized: "Cancel") : String(localized: "Back"))
+                    .accessibilityLabel(toolbarAccessibilityLabel)
                     .accessibilityIdentifier("happening_editor_back")
                 }
             }
@@ -137,6 +140,16 @@ struct HappeningChooserView: View {
         } message: {
             Text(protectedHealth ? String(localized: "Health activities are always close at hand. You can replace another happening.") : String(localized: "Remove this happening from Canvas before replacing it."))
         }
+    }
+
+    private var toolbarSymbol: String {
+        if replacementID != nil { return "chevron.left" }
+        return draft.hasChanges ? "checkmark" : "xmark"
+    }
+
+    private var toolbarAccessibilityLabel: String {
+        if replacementID != nil { return String(localized: "Back") }
+        return draft.hasChanges ? String(localized: "Save changes") : String(localized: "Cancel")
     }
 
     private var currentList: some View {

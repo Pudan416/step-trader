@@ -472,9 +472,20 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
     func actorSize(base: Float, slot: Int, seed: UInt64, legacyScale: Float) -> Float {
         if usesApprovedAppearance {
+            // Directional blur is read as one coherent collection, so every
+            // silhouette in that collection keeps the same footprint.
+            if collection?.isBlurred == true { return base }
+
+            // Give round collections a broader, stable size rhythm. This also
+            // covers ripples and spiral rays while preserving their geometry.
+            if collection?.family == .circles {
+                let roundSizes: [Float] = [0.44, 0.16, 0.30, 0.21, 0.41, 0.18, 0.46, 0.17, 0.34, 0.25]
+                return roundSizes[min(max(slot, 0), roundSizes.count - 1)]
+            }
+
             let sizes: [Float] = [0.41, 0.15, 0.27, 0.22, 0.35, 0.19, 0.38, 0.16, 0.29, 0.24]
             let size = sizes[min(max(slot, 0), sizes.count - 1)]
-            return family == .rays ? max(0.30, size * 1.80) : size
+            return size
         }
         guard livingVariation == true else { return base * legacyScale }
         // Stable slots alternate large, small and medium figures immediately,
