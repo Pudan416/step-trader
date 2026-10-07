@@ -58,6 +58,20 @@ enum MetalShapeScenePlanner {
     static func make(seed: UInt64, count: Int) throws -> MetalShapeScene {
         guard (1...6).contains(count) else { throw MetalShapeScenePlannerError.invalidCount }
 
+        // Candidate choices are randomized, but each choice also consumes a
+        // limited family/material budget. Retry deterministic streams when a
+        // greedy path spends a family needed by a later actor.
+        for attempt in 0..<128 {
+            let attemptSeed = seed &+ UInt64(attempt) &* 0x9E37_79B9_7F4A_7C15
+            if let scene = try? makeAttempt(seed: attemptSeed, sceneSeed: seed, count: count) {
+                return scene
+            }
+        }
+        throw MetalShapeScenePlannerError.insufficientCompatiblePresets
+    }
+
+    private static func makeAttempt(seed: UInt64, sceneSeed: UInt64, count: Int) throws -> MetalShapeScene {
+
         var random = SplitMix64(state: seed ^ 0xD1B5_4A32_D192_ED03)
         var actors: [MetalShapeSceneActor] = []
         var morphologyCounts: [MetalShapeMorphology: Int] = [:]
@@ -137,7 +151,7 @@ enum MetalShapeScenePlanner {
             if material == .eclipseGlow { eclipseCount += 1 }
             if actor.hasHighComplexityInterior { complexInteriorCount += 1 }
         }
-        return MetalShapeScene(seed: seed, actors: actors)
+        return MetalShapeScene(seed: sceneSeed, actors: actors)
     }
 
     private static func materialCandidates(

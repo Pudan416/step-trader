@@ -100,12 +100,14 @@ enum HappeningDefaults {
             case 46: return "event_swam"
             case 14, 77, 78: return "event_danced"
             case 62: return "event_stretched"
-            default: return "event_workout"
+            default: return id
             }
         }
         switch id {
         case "happening_walk", "body_walking": return "event_walk"
+        case "happening_read": return "event_book"
         case "happening_workout", "body_physical_effort": return "event_workout"
+        case "happening_did_nothing", "body_resting": return "event_root_chilled"
         case "event_computer", "event_tasks": return "event_root_worked"
         case "event_relaxed": return "event_root_chilled"
         case "happening_made_something": return "event_made"

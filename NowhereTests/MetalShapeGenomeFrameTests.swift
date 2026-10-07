@@ -1,5 +1,6 @@
 import XCTest
 import simd
+import UIKit
 @testable import Nowhere
 
 final class MetalShapeGenomeFrameTests: XCTestCase {
@@ -117,6 +118,27 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
         XCTAssertEqual(image.cgImage?.height, 96)
     }
 
+    func testCatalogOnlyFamiliesRenderInTheirDedicatedMetalMaterials() async throws {
+        let previews: [(String, MetalShapeMaterial, UInt64)] = [
+            ("genome.concentric-ripple", .concentricRings, 61),
+            ("reference.dimpled-sphere", .radialTwo, 62),
+            ("reference.dimpled-sphere", .radialThree, 63),
+            ("reference.spiral-rays", .spiralVariation, 64),
+            ("legacy.rounded-triangle", .directionalBlur, 65),
+        ]
+        var images: [Data] = []
+        for (presetID, material, seed) in previews {
+            let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == presetID })
+            let image = try await MetalShapeGenomeRenderer.image(
+                preset: preset, material: material, seed: seed,
+                size: CGSize(width: 128, height: 128), scale: 1
+            )
+            XCTAssertEqual(image.cgImage?.width, 128, "\(presetID) / \(material)")
+            XCTAssertEqual(image.cgImage?.height, 128, "\(presetID) / \(material)")
+            images.append(try XCTUnwrap(image.pngData()))
+        }
+        XCTAssertEqual(Set(images).count, images.count, "Each curated special family should produce its own Metal render")
+    }
 
     func testProceduralFlowKeepsTheShapeCenterOpaque() async throws {
         let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "genome.soft-drift" })
@@ -184,6 +206,11 @@ final class MetalShapeGenomeFrameTests: XCTestCase {
               let data = cgImage.dataProvider?.data,
               let bytes = CFDataGetBytePtr(data) else { return 0 }
         return bytes[y * cgImage.bytesPerRow + x * 4 + 3]
+    }
+
+    private func pixels(_ image: UIImage) throws -> [UInt8] {
+        let data = try XCTUnwrap(image.cgImage?.dataProvider?.data)
+        return Array(data as Data)
     }
 
     private func pixel(for point: SIMD2<Float>, size: Int) -> (x: Int, y: Int) {

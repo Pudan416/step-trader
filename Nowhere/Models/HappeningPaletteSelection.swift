@@ -23,7 +23,8 @@ enum HappeningPaletteSelection {
             let key = choiceID(happening.id)
             guard HappeningDefaults.builtInIds.contains(key) else { return nil }
             guard !selectedChoices.contains(key), seen.insert(key).inserted,
-                  let members = groups[key] else { return nil }
+                  let members = groups[key],
+                  members.contains(where: { $0.id == key && $0.isBuiltIn }) else { return nil }
             // Keep imported titles searchable even when the row uses current copy.
             guard search.isEmpty || members.contains(where: {
                 $0.localizedTitle().localizedCaseInsensitiveContains(search)

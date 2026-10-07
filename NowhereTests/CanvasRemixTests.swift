@@ -4,6 +4,51 @@ import XCTest
 /// Unified Remix rerolls art and music while preserving the recorded day.
 /// The older element-only restyling API retains its positional compatibility.
 final class CanvasRemixTests: XCTestCase {
+    func testNewDailyRecipesKeepEveryActorInsideTheirSelectedFamily() throws {
+        for collection in NativeAtlasDailyStyle.Collection.selectableCases {
+            for seed in 0..<8 {
+                var recipe = NativeAtlasRecipe.makeDaily(
+                    dayKey: "family-coherence-\(collection.rawValue)-\(seed)",
+                    paletteCategories: ModernPaletteSelection.all,
+                    collection: collection
+                )
+                let eventIDs = (0..<8).map { "\(collection.rawValue)-event-\($0)" }
+                recipe = recipe.reconciled(eventIDs: eventIDs)
+                let style = try XCTUnwrap(recipe.dailyStyle)
+                XCTAssertEqual(Set(recipe.actors.map(\.presetID)), [style.presetID],
+                    "\(collection.rawValue) day \(seed) mixed preset families: \(recipe.actors.map(\.presetID))")
+            }
+        }
+    }
+
+    func testCurrentDayAdoptionRepairsSavedAtlas3CatalogMix() throws {
+        var canvas = DayCanvas.newDailyCanvas(dayKey: dayKey)
+        canvas.elements = makeElements(count: 6)
+        let original = NativeAtlasRecipe.makeDaily(dayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.all, collection: .circles)
+        var style = try XCTUnwrap(original.dailyStyle)
+        style.catalogLookOrder = NativeAtlasDailyStyle.catalogLooks(seed: UInt64(original.seedHex, radix: 16) ?? 0)
+        var legacyMixed = NativeAtlasRecipe(schemaVersion: original.schemaVersion,
+            generatorVersion: "atlas-3", catalogVersion: original.catalogVersion,
+            seedHex: original.seedHex, trajectory: original.trajectory,
+            sizeRhythm: original.sizeRhythm, spacing: original.spacing,
+            background: original.background, glitchType: original.glitchType,
+            intersectionType: original.intersectionType,
+            intersectionStrength: original.intersectionStrength,
+            actors: [], backgroundStyle: original.backgroundStyle, dailyStyle: style)
+        legacyMixed = legacyMixed.reconciled(eventIDs: canvas.elements.map { $0.id.uuidString.lowercased() })
+        XCTAssertGreaterThan(Set(legacyMixed.actors.map(\.presetID)).count, 1)
+        canvas.artworkRecipe = legacyMixed
+
+        XCTAssertTrue(canvas.adoptDailyStyleForCurrentDay(currentDayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.all))
+        let repaired = try XCTUnwrap(canvas.artworkRecipe)
+        XCTAssertEqual(repaired.generatorVersion, "atlas-4")
+        XCTAssertEqual(Set(repaired.actors.map(\.presetID)), ["legacy.circle"])
+        XCTAssertEqual(Set(repaired.actors.map(\.eventID)), Set(canvas.elements.map { $0.id.uuidString.lowercased() }))
+        XCTAssertFalse(repaired.dailyStyle?.usesCatalogLookOrder == true)
+    }
+
     func testSequentialNativeRemixesChangeCollectionAndRetainItThroughAdoption() throws {
         var canvas = DayCanvas.newDailyCanvas(dayKey: dayKey)
         canvas.elements = makeElements()
@@ -35,16 +80,15 @@ final class CanvasRemixTests: XCTestCase {
             XCTAssertEqual(recipe, CanvasUnifiedRemix.next(canvas: canvas, at: date).canvas.artworkRecipe)
             XCTAssertEqual(result.canvas.elements.map(\.id), elementIDs)
             XCTAssertEqual(recipe.actors.map(\.eventID), elementIDs.map { $0.uuidString.lowercased() })
-            XCTAssertTrue(recipe.actors.allSatisfy { $0.presetID == style.presetID })
+            XCTAssertFalse(style.usesCatalogLookOrder)
+            XCTAssertEqual(Set(recipe.actors.map(\.presetID)), [style.presetID])
             for actor in recipe.actors {
-                XCTAssertFalse([MetalShapeMaterial.proceduralLight, .proceduralFlow, .sunset].contains(actor.materialID))
-                XCTAssertEqual(actor.materialID == .directionalBlur, style.resolvedCollection.isBlurred)
-                if style.family == .circles {
-                    XCTAssertEqual(actor.geometry.metadata, SIMD4<UInt32>(1, 0, 1, 0))
-                    XCTAssertEqual(actor.geometry.anisotropyOffset, SIMD4<Float>(1, 1, 0, 0))
+                XCTAssertFalse([MetalShapeMaterial.proceduralLight, .proceduralFlow, .proceduralContour, .sunset].contains(actor.materialID))
+                if actor.presetID == "legacy.rounded-triangle" {
+                    XCTAssertEqual(actor.materialID, .directionalBlur)
                 }
-                if style.collection == .blurredSquares {
-                    XCTAssertEqual(actor.presetID, "legacy.soft-square")
+                if ["legacy.circle", "reference.dimpled-sphere", "genome.concentric-ripple", "reference.spiral-rays"].contains(actor.presetID) {
+                    XCTAssertEqual(actor.geometry.anisotropyOffset, SIMD4<Float>(1, 1, 0, 0))
                 }
             }
             visited.insert(try XCTUnwrap(style.collection))
@@ -54,7 +98,37 @@ final class CanvasRemixTests: XCTestCase {
             canvas.adoptDailyStyleForCurrentDay(currentDayKey: dayKey, paletteCategories: ModernPaletteSelection.all, at: date)
             XCTAssertEqual(canvas.artworkRecipe?.dailyStyle?.collection, style.collection)
         }
-        XCTAssertEqual(visited, Set(NativeAtlasDailyStyle.Collection.allCases))
+        XCTAssertEqual(visited, Set(NativeAtlasDailyStyle.Collection.selectableCases))
+    }
+
+    func testDistinctReferenceCollectionsStaySeparateAndAreReachable() throws {
+        let expected: [NativeAtlasDailyStyle.Collection: (String, Set<MetalShapeMaterial>)] = [
+            .waterRipples: ("genome.concentric-ripple", [.concentricRings]),
+            .dimpledSpheres: ("reference.dimpled-sphere", [.radialTwo, .radialThree]),
+            .spiralRays: ("reference.spiral-rays", [.spiralVariation]),
+            .blurredCircles: ("legacy.circle", [.directionalBlur]),
+            .blurredSquares: ("legacy.soft-square", [.directionalBlur]),
+            .rays: ("legacy.rounded-triangle", [.directionalBlur]),
+        ]
+        for (collection, (presetID, materials)) in expected {
+            let recipe = NativeAtlasRecipe.makeDaily(dayKey: "2026-10-06", paletteCategories: ModernPaletteSelection.all,
+                collection: collection).reconciled(eventIDs: ["one", "two", "three"])
+            XCTAssertEqual(recipe.generatorVersion, "atlas-4")
+            XCTAssertEqual(Set(recipe.actors.map(\.presetID)), [presetID])
+            XCTAssertTrue(Set(recipe.actors.map(\.materialID)).isSubset(of: materials))
+        }
+        XCTAssertFalse(NativeAtlasDailyStyle.Collection.selectableCases.contains(.blobs))
+
+        var recipe = NativeAtlasRecipe.makeDaily(dayKey: "2026-10-06", paletteCategories: ModernPaletteSelection.all)
+            .reconciled(eventIDs: ["first", "second"])
+        let firstActors = recipe.actors
+        let extended = recipe.reconciled(eventIDs: ["first", "second"] + (3...10).map { "event-\($0)" })
+        for actor in firstActors {
+            XCTAssertEqual(extended.actors.first(where: { $0.eventID == actor.eventID }), actor)
+        }
+        recipe = recipe.remixed(seedKey: "987654321012345678", dayKey: "2026-10-06")
+        XCTAssertEqual(recipe.generatorVersion, "atlas-4")
+        XCTAssertFalse(recipe.dailyStyle?.usesCatalogLookOrder == true)
     }
 
     func testRemixPaletteSelectionKeepsNoirAndSinglePaletteScopes() throws {
@@ -80,14 +154,14 @@ final class CanvasRemixTests: XCTestCase {
     }
 
     func testNativeRemixCollectionSelectionUsesFullSeedAndHonorsArtworkLock() throws {
-        for previous in NativeAtlasDailyStyle.Collection.allCases {
+        for previous in NativeAtlasDailyStyle.Collection.selectableCases {
             let choices = (0..<128).map { offset in
                 NativeAtlasDailyStyle.remixCollection(
                     seedKey: String(1_234_567_890_123_456_789 + UInt64(offset)), excluding: previous
                 )
             }
             XCTAssertFalse(choices.contains(previous))
-            XCTAssertEqual(Set(choices), Set(NativeAtlasDailyStyle.Collection.allCases.filter { $0 != previous }))
+            XCTAssertEqual(Set(choices), Set(NativeAtlasDailyStyle.Collection.selectableCases.filter { $0 != previous }))
         }
         var recipe = NativeAtlasRecipe.make(dayKey: dayKey).reconciled(eventIDs: ["one", "two"])
         recipe.locks = ["artwork"]

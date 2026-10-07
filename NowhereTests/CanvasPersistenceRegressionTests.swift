@@ -1127,13 +1127,13 @@ final class NativeAtlasRecipeTests: XCTestCase {
 
     /// Exercise the actual menu UUID -> append -> frozen atlas path across days.
     @MainActor
-    func testSequentialHappeningsUseDistinctNativeSilhouettesAcrossDays() async throws {
+    func testSequentialHappeningsUseOneCoherentNativeCollectionAcrossDays() async throws {
         let happenings = ["walk", "workout", "slept_well", "called_someone", "drinks",
                           "read", "laughed", "made_something", "outside", "did_nothing"].map {
             Happening(id: "happening_\($0)", title: $0, isBuiltIn: true)
         }
         var report = [String]()
-        var counts = [Int]()
+        var presetCounts = [Int]()
         for day in 10...12 {
             var canvas = DayCanvas.newDailyCanvas(dayKey: "2026-09-\(day)")
             for happening in happenings {
@@ -1156,15 +1156,15 @@ final class NativeAtlasRecipeTests: XCTestCase {
                 XCTAssertEqual(restored.artworkRecipe, canvas.artworkRecipe)
             }
             let actors = try XCTUnwrap(canvas.artworkRecipe?.actors)
-            counts.append(Set(actors.prefix(9).map(\.presetID)).count)
+            let uniquePresets = Set(actors.map(\.presetID))
+            presetCounts.append(uniquePresets.count)
             report.append("\(canvas.dayKey): " + actors.map { "\($0.presetID) [\($0.materialID.rawValue)]" }.joined(separator: ", "))
-            XCTAssertGreaterThanOrEqual(actors.filter { $0.materialID == .directionalBlur }.count, 1,
-                "A full day should retain a blurred accent among its compatible shapes")
+            XCTAssertEqual(uniquePresets, [try XCTUnwrap(canvas.artworkRecipe?.dailyStyle?.presetID)])
             try await attachNativeSilhouettes(canvas: canvas, happenings: happenings)
         }
         let attachment = XCTAttachment(string: report.joined(separator: "\n"))
         attachment.name = "native-distribution"; attachment.lifetime = .keepAlways; add(attachment)
-        XCTAssertEqual(counts, [9, 9, 9], report.joined(separator: "\n"))
+        XCTAssertEqual(presetCounts, [1, 1, 1], report.joined(separator: "\n"))
     }
 
     @MainActor

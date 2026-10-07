@@ -18,8 +18,12 @@ extension AppModel {
             dayEndHour: dayEndHour,
             dayEndMinute: dayEndMinute
         )
-        guard HappeningDefaults.selectableHappening(id: id) != nil else { return false }
-        return todayAdditions.filter { $0.dayKey == dayKey }.count < HappeningDefaults.maximumDailyAdditions
+        guard let choice = HappeningDefaults.selectableHappening(id: id) else { return false }
+        let additions = todayAdditions.filter { $0.dayKey == dayKey }
+        guard additions.count < HappeningDefaults.maximumDailyAdditions else { return false }
+        return !additions.contains {
+            HappeningDefaults.canonicalID($0.optionId) == choice.id
+        }
     }
 
     @discardableResult

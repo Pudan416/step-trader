@@ -39,7 +39,7 @@ struct NativeAtlasRecipe: Codable, Equatable {
 
     var isSupported: Bool {
         schemaVersion == 1 && catalogVersion == "2026-09-09"
-            && (generatorVersion == "atlas-1" || (generatorVersion == "atlas-2" && dailyStyle != nil))
+            && (generatorVersion == "atlas-1" || ((generatorVersion == "atlas-2" || generatorVersion == "atlas-3" || generatorVersion == "atlas-4") && dailyStyle != nil))
     }
 }
 

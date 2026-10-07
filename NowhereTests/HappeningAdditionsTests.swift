@@ -127,7 +127,7 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(decoded, original)
     }
 
-    func testDuplicateHappeningIsRejectedWithinCustomDay() {
+    func testDuplicateCanonicalHappeningIsRejectedWithinCustomDay() {
         let model = makeModel()
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         model.loadDailyEnergyState()
@@ -141,12 +141,12 @@ final class HappeningAdditionsTests: XCTestCase {
 
         XCTAssertNotNil(first)
         XCTAssertNil(second)
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["event_walk"])
         XCTAssertEqual(model.happeningStore.happening(id: "happening_walk")?.useCount, 1)
         XCTAssertEqual(model.happeningPointsToday, 6)
 
         XCTAssertNotNil(model.addHappening(id: "happening_read", colorHex: "#DDEEFF", at: date))
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk", "happening_read"])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["event_walk", "event_book"])
     }
 
     func testRestedCannotBeAddedAgainAfterLegacyRestingOnTheSameDay() {
@@ -157,10 +157,11 @@ final class HappeningAdditionsTests: XCTestCase {
             id: "legacy-rest", dayKey: AppModel.dayKey(for: now), optionId: "body_resting",
             colorHex: "#AABBCC", timestamp: now, assetVariant: nil
         )]
-        XCTAssertFalse(model.canAddHappening(id: "happening_did_nothing", on: now))
-        XCTAssertFalse(model.availablePaletteHappenings(on: now).contains { $0.id == "happening_did_nothing" })
-        XCTAssertTrue(model.canAddHappening(id: "happening_did_nothing", on: now.addingTimeInterval(86_400)))
-        XCTAssertNil(model.addHappening(id: "happening_did_nothing", colorHex: "#DDEEFF", at: now, syncToCloud: false))
+        let restedID = "event_root_chilled"
+        XCTAssertFalse(model.canAddHappening(id: restedID, on: now))
+        XCTAssertFalse(model.availablePaletteHappenings(on: now).contains { $0.id == restedID })
+        XCTAssertTrue(model.canAddHappening(id: restedID, on: now.addingTimeInterval(86_400)))
+        XCTAssertNil(model.addHappening(id: restedID, colorHex: "#DDEEFF", at: now, syncToCloud: false))
         XCTAssertEqual(model.todayAdditions.map(\.id), ["legacy-rest"])
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["body_resting"])
         XCTAssertEqual(model.happeningPointsToday, 6)
@@ -174,9 +175,9 @@ final class HappeningAdditionsTests: XCTestCase {
 
         model.removeAddition(entryId: model.todayAdditions[0].id)
 
-        XCTAssertTrue(model.availablePaletteHappenings(on: date).contains { $0.id == "happening_walk" })
+        XCTAssertTrue(model.availablePaletteHappenings(on: date).contains { $0.id == "event_walk" })
         XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#DDEEFF", at: date))
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["event_walk"])
     }
 
     func testRemoveAndReAddOnSameDayRecordsOneUse() throws {
@@ -206,7 +207,7 @@ final class HappeningAdditionsTests: XCTestCase {
         ])
     }
 
-    func testCreateIsCatalogOnlyUntilSuccessfulAdditionRecordsUse() {
+    func testLegacyCreationApiCannotAddOutsideTheFixedCatalog() {
         let model = makeModel()
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         model.loadDailyEnergyState()
@@ -214,28 +215,26 @@ final class HappeningAdditionsTests: XCTestCase {
 
         XCTAssertEqual(happening.useCount, 0)
         XCTAssertNil(happening.lastUsedAt)
-
-        _ = model.addHappening(id: happening.id, colorHex: "#AABBCC", at: date)
-        XCTAssertEqual(model.happeningStore.happening(id: happening.id)?.useCount, 1)
-        XCTAssertEqual(model.happeningStore.happening(id: happening.id)?.lastUsedAt, date)
+        XCTAssertNil(model.addHappening(id: happening.id, colorHex: "#AABBCC", at: date))
+        XCTAssertEqual(model.todayAdditions.count, 0)
+        XCTAssertEqual(model.paletteHappeningCatalog().count, 100)
     }
 
-    func testExplicitCreationPreservesDraftEditsAndChosenSlot() throws {
+    func testLegacyPaletteCreationApiRejectsCustomChoicesWithoutChangingSelection() throws {
         let model = makeModel()
         model.loadDailyEnergyState()
         let selected = model.selectedPaletteHappeningIDs()
-        let existing = model.createHappening(title: "Tea")
-        var draft = selected
-        draft[2] = existing.id
-        var synced: [[Happening]] = []
-        let created = try model.createPaletteHappening(
-            title: "Coffee", protectedIDs: [selected[0]], selection: draft,
-            replacingID: selected[6], syncCustomHappenings: { synced.append($0) }
-        )
-        draft[6] = created.id
-        XCTAssertEqual(model.selectedPaletteHappeningIDs(), draft)
-        XCTAssertEqual(synced.count, 1)
-        XCTAssertTrue(synced[0].contains { $0.id == created.id })
+        let catalogCount = model.paletteHappeningCatalog().count
+        var synced = false
+        XCTAssertThrowsError(try model.createPaletteHappening(
+            title: "Coffee", selection: selected, replacingID: selected[6],
+            syncCustomHappenings: { _ in synced = true }
+        )) {
+            XCTAssertEqual($0 as? HappeningPaletteSelectionError, .customCreationUnavailable)
+        }
+        XCTAssertFalse(synced)
+        XCTAssertEqual(model.selectedPaletteHappeningIDs(), selected)
+        XCTAssertEqual(model.paletteHappeningCatalog().count, catalogCount)
         XCTAssertTrue(model.todayAdditions.isEmpty)
     }
 
@@ -258,43 +257,6 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertEqual(model.paletteHappeningCatalog().count, count)
     }
 
-    func testPaletteCreationReplacesAConfiguredSlotWithoutLoggingToday() throws {
-        let model = makeModel()
-        model.loadDailyEnergyState()
-        let date = Date(timeIntervalSince1970: 1_786_176_000)
-        let replacedID = try XCTUnwrap(model.configuredPaletteHappenings().first?.id)
-
-        let created = try model.createPaletteHappening(title: "Sauna", at: date)
-
-        XCTAssertTrue(model.todayAdditions.isEmpty)
-        XCTAssertEqual(model.configuredPaletteHappenings().count, 10)
-        XCTAssertEqual(model.configuredPaletteHappenings().first?.id, created.id)
-        XCTAssertEqual(model.happeningStore.happening(id: created.id)?.useCount, 0)
-        XCTAssertNil(model.happeningStore.happening(id: created.id)?.lastUsedAt)
-        XCTAssertNotNil(
-            model.happeningStore.happening(id: replacedID),
-            "replacement removes a slot, not the catalog item"
-        )
-    }
-
-    func testPaletteCreationSynchronizesCustomCatalogImmediatelyAfterSelectionSucceeds() throws {
-        let model = makeModel()
-        model.loadDailyEnergyState()
-        let date = Date(timeIntervalSince1970: 1_786_176_000)
-        var synchronizedSnapshots: [[Happening]] = []
-
-        let created = try model.createPaletteHappening(
-            title: "Sauna",
-            at: date,
-            syncCustomHappenings: { synchronizedSnapshots.append($0) }
-        )
-
-        XCTAssertEqual(synchronizedSnapshots.count, 1)
-        XCTAssertTrue(synchronizedSnapshots[0].contains { $0.id == created.id })
-        XCTAssertEqual(model.selectedPaletteHappeningIDs().first, created.id)
-        XCTAssertTrue(model.todayAdditions.isEmpty)
-    }
-
     func testPaletteCreationReportsNoReplaceableSlotWhenEverySelectedHappeningIsOnCanvas() throws {
         let model = makeModel()
         model.loadDailyEnergyState()
@@ -307,19 +269,17 @@ final class HappeningAdditionsTests: XCTestCase {
                 protectedIDs: Set(selected)
             )
         ) {
-            XCTAssertEqual($0 as? HappeningPaletteSelectionError, .noReplaceableSlot)
+            XCTAssertEqual($0 as? HappeningPaletteSelectionError, .customCreationUnavailable)
         }
         XCTAssertEqual(model.selectedPaletteHappeningIDs(), selected)
         XCTAssertEqual(model.paletteHappeningCatalog().count, catalogCount)
     }
 
-    func testSavingPaletteSelectionUsesTheFullCatalogAndRefreshesAvailability() throws {
+    func testSavingPaletteSelectionUsesOnlyFixedCatalogChoices() throws {
         let model = makeModel()
         model.loadDailyEnergyState()
         let date = Date(timeIntervalSince1970: 1_786_176_000)
-        let custom = model.createHappening(title: "Sauna", at: date)
         var selectedIDs = model.configuredPaletteHappenings().map(\.id)
-        selectedIDs[1] = custom.id
         XCTAssertNotNil(
             model.addHappening(
                 id: selectedIDs[0],
@@ -330,14 +290,12 @@ final class HappeningAdditionsTests: XCTestCase {
 
         try model.savePaletteHappeningSelection(selectedIDs)
 
-        XCTAssertEqual(model.paletteHappeningCatalog().count, HappeningDefaults.builtIns.count + 1)
+        XCTAssertEqual(model.paletteHappeningCatalog().count, HappeningDefaults.builtIns.count)
         XCTAssertEqual(model.selectedPaletteHappeningIDs(), selectedIDs)
         XCTAssertFalse(
             model.availablePaletteHappenings(on: date).contains { $0.id == selectedIDs[0] }
         )
-        XCTAssertTrue(
-            model.availablePaletteHappenings(on: date).contains { $0.id == custom.id }
-        )
+        XCTAssertFalse(model.paletteHappeningCatalog().contains { !$0.id.hasPrefix("event_") })
     }
 
     func testConfiguredPaletteHappeningsUsesPersistedSelection() {
@@ -361,7 +319,7 @@ final class HappeningAdditionsTests: XCTestCase {
                 colorHex: "#AABBCC", timestamp: date, assetVariant: nil
             )]
             XCTAssertFalse(model.canAddHappening(id: "happening_walk", on: date))
-            XCTAssertFalse(model.availablePaletteHappenings(on: date).contains { $0.id == "happening_walk" })
+            XCTAssertFalse(model.availablePaletteHappenings(on: date).contains { $0.id == "event_walk" })
             XCTAssertTrue(model.canAddHappening(id: "happening_walk", on: date.addingTimeInterval(86_400)))
             XCTAssertEqual(model.todayAdditions.first?.optionId, id)
         }
@@ -377,10 +335,10 @@ final class HappeningAdditionsTests: XCTestCase {
             HappeningDefaults.builtIns.prefix(10).map(\.id)
         )
         XCTAssertNotNil(model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date))
-        XCTAssertFalse(model.availablePaletteHappenings(on: date).contains { $0.id == "happening_walk" })
+        XCTAssertFalse(model.availablePaletteHappenings(on: date).contains { $0.id == "event_walk" })
         XCTAssertTrue(
             model.availablePaletteHappenings(on: date.addingTimeInterval(24 * 60 * 60))
-                .contains { $0.id == "happening_walk" }
+                .contains { $0.id == "event_walk" }
         )
     }
 

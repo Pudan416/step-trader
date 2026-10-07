@@ -130,37 +130,31 @@ valid delayed callback. Real-device testing remains necessary after iOS updates.
 ## Music and artwork
 
 The production Canvas uses native Metal artwork with versioned deterministic recipes.
-New days choose one of eight coherent collections: circles, blurred circles,
-organic blobs, squares, blurred squares, four-lobe clovers, flowers or directed
-light beams. A calendar shuffle avoids consecutive collection repeats. Blurred
-circles, blurred squares and rays are separate collections: every figure in each
-uses its own silhouette and directional blur. Ordinary collections exclude blur.
-Circles remain round with no elliptical stretching. Figures share a related color
-group, with pigments borrowed from nearby palettes in the selected categories.
+New days use a seeded mix of compatible Metal catalog families. Stable actor slots
+can show ordinary circles and squares, flower forms, the three directed-blur
+shapes, dimpled spheres, water ripples and spiral rays. A composition uses distinct
+silhouettes before repeating one. Each blur family keeps its own shape; water
+ripples, spiral rays and volume spheres keep their dedicated rendering behavior.
+The Soft Drift form and procedural light/flow/striped-contour fills are excluded
+from new scenes. Circles remain round. Figures share a related color group, with
+pigments borrowed from nearby palettes in the selected categories.
 With zero automatically spent colors, there is no global scene blur. Blur
 collections retain their own softness, and manual Trace overrides stay available.
-The numeric pigments are frozen with the day. Adding or removing an event
-preserves the other figures. Triangle and hexagon days are excluded from new
-generation, while historical artwork retains its saved appearance.
-Today's unlocked Editorial canvas adopts this collection policy after confirmed
-hydration, retaining its events, sizes, slots, placements and manual rotations.
-Figures vary sizes, colors and orientations within their collection; non-circle
-families also vary contours. Flowers keep one petal/fold count and squares keep
-one daily mode. Flowers can use Windflower or Snowflake; ordinary squares can
-use the soft or concave contour, while blurred squares use only the soft square.
-Each ordinary collection freezes a shuffled order of compatible fills: solid,
-side light, outline, soft two/three-color radial shading, procedural contour and
-glow where supported. Procedural Light, Procedural Flow and Sunset are excluded
-from new generation. Every eligible fill is represented by ten events. Historical
-Sunset artwork remains decodable and unchanged. Gradient stops use nearby
-pigments for soft transitions. Figures retain approximately a 2.7-fold diameter
-range. Directed beams retain their diffuse silhouette and a larger size floor.
+The numeric pigments and mixed look order are frozen with the day. Adding or
+removing an event preserves the other figures. A seeded Remix creates a new look
+order; saved days keep their prior recipe version. Today's unlocked Editorial
+canvas adopts the current policy after confirmed hydration, retaining event IDs,
+slots, placements and manual rotations. Figures vary size, color and orientation.
+Flowers retain their own contour parameters, and each material remains within its
+Metal compatibility rules. Circle size varies from small to large, including the
+water and spiral forms. Historical Sunset artwork remains decodable and unchanged.
+Gradient stops use nearby pigments for soft transitions; directed blur retains
+its corresponding silhouette and distinct color treatment.
 Independent drift and bounded turns take 12 seconds; breathing takes six.
 Large figures mainly drift, while smaller ones breathe more noticeably. Noir
 keeps a monochrome color group. Historical recipes retain their saved policy.
-An unlocked Remix selects a different collection from the previous composition.
-All eight remain available, including another look of the same shape family. The
-background and color group change with it, using the enabled palette categories
+An unlocked Remix changes the seeded mix of catalog looks. The background and
+color group change with it, using the enabled palette categories
 and coordinated figure pigments. The complete composition stays saved with the
 day; Undo restores the previous composition. With only one eligible color group,
 Remix keeps that group and changes its background mesh.

@@ -10,16 +10,23 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// A collection owns both the silhouette family and its allowed fills.
     /// Keep the saved Family vocabulary unchanged for geometry and motion.
     enum Collection: String, Codable, CaseIterable {
+        // Keep the archived `blobs` case decodable, but don't offer it to new
+        // days: Soft Drift was removed from the approved visual library.
         case circles, blurredCircles, blobs, squares, blurredSquares, clovers, flowers, rays
+        case waterRipples, dimpledSpheres, spiralRays
+
+        static var selectableCases: [Self] {
+            allCases.filter { $0 != .blobs }
+        }
 
         var family: Family {
             switch self {
-            case .circles, .blurredCircles: return .circles
+            case .circles, .blurredCircles, .waterRipples, .dimpledSpheres: return .circles
             case .squares, .blurredSquares: return .squares
             case .blobs: return .blobs
             case .clovers: return .clovers
             case .flowers: return .flowers
-            case .rays: return .rays
+            case .rays, .spiralRays: return .rays
             }
         }
 
@@ -37,13 +44,18 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         }
     }
 
-    let family: Family
-    let presetID: String
-    let materialID: MetalShapeMaterial
+    struct CatalogLook: Codable, Equatable {
+        let presetID: String
+        let materialID: MetalShapeMaterial
+    }
+
+    var family: Family
+    var presetID: String
+    var materialID: MetalShapeMaterial
     var palette: [SIMD3<Float>]
-    let shape: MetalShapeGenomeUniforms
+    var shape: MetalShapeGenomeUniforms
     var material: MetalShapeMaterialUniforms
-    let orientation: Float
+    var orientation: Float
     /// Missing in saved atlas-2 artwork; preserve its original color policy.
     var sharesPaletteOrder: Bool? = nil
     /// Missing in historical artwork; opt in without changing its frozen policy.
@@ -59,6 +71,9 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// Only new/current editable artwork adopts the complete reference fills.
     var materialPolicyVersion: Int? = nil
     var materialOrder: [MetalShapeMaterial]? = nil
+    /// Decodes the atlas-3 mixed-look policy for historical artwork only.
+    var catalogLookOrder: [CatalogLook]? = nil
+    var usesCatalogLookOrder: Bool { catalogLookOrder?.isEmpty == false }
     var usesReferenceMaterials: Bool { materialPolicyVersion == 1 }
     var neighboringPigments: [SIMD3<Float>]? = nil
     var neighboringPaletteCategories: [ModernPaletteCategory]? = nil
@@ -68,9 +83,50 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     var resolvedCollection: Collection { collection ?? .regular(for: family) }
 
     static func referenceMaterials(for preset: MetalShapePreset) -> [MetalShapeMaterial] {
-        MetalShapeMaterial.allCases.filter {
-            $0 != .proceduralLight && $0 != .proceduralFlow && $0 != .sunset
-                && preset.compatibility.allowed.contains($0)
+        let allowed: [MetalShapeMaterial]
+        switch preset.id {
+        case "genome.concentric-ripple": allowed = [.concentricRings]
+        case "reference.dimpled-sphere": allowed = [.radialTwo, .radialThree]
+        case "reference.spiral-rays": allowed = [.spiralVariation]
+        case "legacy.rounded-triangle": allowed = [.directionalBlur]
+        case "legacy.rounded-hexagon", "genome.concave-square":
+            allowed = [.contour, .radialTwo, .radialThree, .eclipseGlow]
+        default:
+            allowed = [.solid, .sideLight, .contour, .directionalBlur,
+                       .radialTwo, .radialThree, .eclipseGlow]
+        }
+        return allowed.filter { preset.compatibility.allowed.contains($0) }
+    }
+
+    /// One distinct silhouette per stable slot. A seeded shuffle makes each
+    /// daily composition varied while keeping every existing actor frozen.
+    static func catalogLooks(seed: UInt64) -> [CatalogLook] {
+        let presets = MetalShapeGenomeCatalog.presets.filter {
+            $0.id != "genome.soft-drift" && !referenceMaterials(for: $0).isEmpty
+        }
+        var rng = SeededRNG(seed: seed ^ 0x4341_5441_4C4F_4753)
+        var looks = presets.compactMap { preset -> CatalogLook? in
+            let materials = referenceMaterials(for: preset)
+            guard !materials.isEmpty else { return nil }
+            return CatalogLook(presetID: preset.id,
+                               materialID: materials[rng.nextInt(in: 0...(materials.count - 1))])
+        }
+        if looks.count > 1 {
+            for index in stride(from: looks.count - 1, through: 1, by: -1) {
+                looks.swapAt(index, rng.nextInt(in: 0...index))
+            }
+        }
+        return looks
+    }
+
+    static func family(forPresetID id: String) -> Family {
+        switch id {
+        case "legacy.circle", "reference.dimpled-sphere", "genome.concentric-ripple", "reference.spiral-rays": .circles
+        case "genome.soft-drift": .blobs
+        case "genome.soft-clover": .clovers
+        case "genome.snowflake", "genome.windflower": .flowers
+        case "legacy.rounded-triangle": .rays
+        default: .squares
         }
     }
 
@@ -301,11 +357,11 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         } else {
             ordinal = Int(CanvasElement.makeSeed(optionId: "daily-collection", dayKey: dayKey, index: 0) % 100_000)
         }
-        let count = Collection.allCases.count
+        let count = Collection.selectableCases.count
         let block = Int(floor(Double(ordinal) / Double(count)))
         let offset = ordinal - block * count
         func shuffled(_ cycle: Int) -> [Collection] {
-            var values = Collection.allCases
+            var values = Collection.selectableCases
             var rng = SeededRNG(seed: CanvasElement.makeSeed(optionId: "daily-collection-cycle", dayKey: String(cycle), index: 0))
             for i in stride(from: values.count - 1, through: 1, by: -1) {
                 values.swapAt(i, rng.nextInt(in: 0...i))
@@ -320,7 +376,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     /// Explicit Remix consumes the entire seed, independent of the calendar.
     /// Exclude the previous collection, allowing other looks of the same form.
     static func remixCollection(seedKey: String, excluding previous: Collection?) -> Collection {
-        let candidates = Collection.allCases.filter { $0 != previous }
+        let candidates = Collection.selectableCases.filter { $0 != previous }
         var rng = SeededRNG(seed: CanvasElement.makeSeed(
             optionId: "remix-collection", dayKey: seedKey, index: 0
         ))
@@ -447,8 +503,9 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         let mean = palette.reduce(Float(0)) { $0 + DayObjectRGB(linearRGB: $1).perceptualOKLab.x } / Float(max(1, palette.count))
         var rng = SeededRNG(seed: seed ^ 0x5049_474D_454E_5453)
         let variation = Float(rng.nextDouble(in: -0.012...0.012))
-        let referenceGradient = usesReferenceMaterials && [1, 5, 8, 9, 10].contains(source.materialIndex)
-        let isTwo = source.materialIndex == 4 || (source.materialIndex == 3 && source.metadata.y == 2) || referenceGradient
+        let referenceGradient = usesReferenceMaterials && [1, 5, 8, 9, 10, 11].contains(source.materialIndex)
+        let isTwo = source.materialIndex == 4 || source.materialIndex == 11
+            || (source.materialIndex == 3 && source.metadata.y == 2) || referenceGradient
         let contour = source.materialIndex == 2 || (usesReferenceMaterials && source.materialIndex == 8)
         let lightness: Float = contour ? (mean > 0.55 ? 0.49 : 0.76)
             : isTwo ? (mean > 0.78 ? 0.66 : 0.78)

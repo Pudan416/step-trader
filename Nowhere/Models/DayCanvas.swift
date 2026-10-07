@@ -290,6 +290,39 @@ struct DayCanvas: Codable {
         let previous = artworkRecipe
         if let previous {
             guard previous.isSupported, !previous.locks.contains("artwork") else { return false }
+            if previous.generatorVersion == "atlas-3", var style = previous.dailyStyle,
+               style.usesCatalogLookOrder {
+                let eventIDs = Array(elements.prefix(10).map { $0.id.uuidString.lowercased() })
+                // atlas-3 mistakenly replaced each stable slot with a random
+                // catalog silhouette. Repair only today's editable artwork;
+                // archived recipes keep their frozen historical appearance.
+                style.catalogLookOrder = nil
+                var repaired = NativeAtlasRecipe(
+                    schemaVersion: previous.schemaVersion,
+                    generatorVersion: "atlas-4",
+                    catalogVersion: previous.catalogVersion,
+                    seedHex: previous.seedHex,
+                    trajectory: previous.trajectory,
+                    sizeRhythm: previous.sizeRhythm,
+                    spacing: previous.spacing,
+                    background: previous.background,
+                    glitchType: previous.glitchType,
+                    intersectionType: previous.intersectionType,
+                    intersectionStrength: previous.intersectionStrength,
+                    actors: [],
+                    backgroundStyle: previous.backgroundStyle,
+                    dailyStyle: style
+                )
+                repaired.glitchStrength = previous.glitchStrength
+                repaired.locks = previous.locks
+                repaired = repaired.reconciled(eventIDs: eventIDs)
+                let reconciled = repaired
+                guard reconciled != previous else { return false }
+                artworkRecipe = reconciled
+                recordExplicitArtworkEdit()
+                lastModified = now
+                return true
+            }
         }
         var recipe = previous ?? NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
         if recipe.dailyStyle == nil {
@@ -327,7 +360,7 @@ struct DayCanvas: Codable {
         recipe.actors = eventIDs.compactMap { eventID in
             guard let old = retained[eventID],
                   let actor = recipe.dailyActor(eventID: eventID, slot: old.slot) else { return nil }
-            // Recovery can import atlas-1 actors into an atlas-2 draft. Repair
+            // Recovery can import atlas-1 actors into an older atlas draft. Repair
             // those visuals too, retaining event identity and saved placement.
             let hasDailyShape = previous?.dailyStyle != nil && old.presetID == style.presetID
             let hasDailyVisuals = hasDailyShape && old.materialID == actor.materialID

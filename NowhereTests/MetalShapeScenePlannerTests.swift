@@ -6,7 +6,13 @@ final class MetalShapeScenePlannerTests: XCTestCase {
         let hollow: Set<MetalShapeMaterial> = [.contour, .proceduralContour, .eclipseGlow]
         for seed in UInt64(0)..<1_000 {
             for count in 1...6 {
-                let scene = try MetalShapeScenePlanner.make(seed: seed, count: count)
+                let scene: MetalShapeScene
+                do {
+                    scene = try MetalShapeScenePlanner.make(seed: seed, count: count)
+                } catch {
+                    XCTFail("seed \(seed), count \(count): \(error)")
+                    return
+                }
                 XCTAssertEqual(scene.actors.count, count, "seed \(seed), count \(count)")
                 XCTAssertEqual(scene.actors.filter { $0.role == .primary }.count, 1)
                 XCTAssertLessThanOrEqual(scene.actors.filter { $0.material == .directionalBlur }.count, 1)

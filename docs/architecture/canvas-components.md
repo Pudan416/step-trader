@@ -18,20 +18,19 @@ All paths below are relative to `Nowhere/`.
 
 The daily canvas remains driven by events, capped at ten. Removing or adding an event must retain the frozen actors belonging to other events. Random-number consumption order is part of `atlas-1`: changing it requires a deliberate version/compatibility decision, not an incidental cleanup.
 
-New days use `atlas-2`, with an optional frozen `dailyStyle` payload. Its optional
-`collection` selects eight looks in a shuffled eight-day cycle without adjacent
-repeats: circles, blurred circles, blobs, squares, blurred squares, clovers,
-flowers and rays. The saved six-case `Family` remains the geometry/motion identity;
-blurred circles and squares map to their existing families. Selection uses the
-collection count, and explicit Remix excludes only the previous collection.
-Squares choose one contour for the day; flowers choose Windflower or Snowflake
-and share their petal/fold count. Each blur collection freezes only
-`directionalBlur`. Blurred circles use `legacy.circle`; blurred squares use only
-`legacy.soft-square`. Rays use `legacy.rounded-triangle` (source kind 1, shape 5,
-variant 5), whose material replaces the triangle body with a tapered diffuse cone.
-Ordinary collections never include directional blur. Triangle and hexagon
-outlines remain decodable but are excluded from new daily collections.
-The collection template is frozen once; actors occupy independent stable slots.
+New days use `atlas-4`, which keeps one selected shape collection for the whole
+day. Stable actors vary in size, placement, orientation and compatible material,
+but never switch to unrelated catalog silhouettes. Ordinary circles, directed
+blur circles, directed blur squares, directed blur triangles, clovers, flowers,
+squares, concentric water ripples, dimpled spheres and spiral rays are selectable
+collections. Soft Drift remains decodable for old recipes but is not selectable.
+The erroneous `atlas-3` per-slot catalog look order remains decodable for archives;
+opening today's unlocked canvas upgrades it once by rebuilding actors inside its
+already selected collection. Historical canvases keep their saved appearance.
+`atlas-1` and `atlas-2` recipes retain their frozen single-family appearance.
+Explicit Remix chooses another compatible collection and freezes it into the new
+recipe. Actors already saved in a recipe remain frozen when events are added or
+removed.
 Explicit palette changes coordinate current and future actors with the background.
 The selected A policy uses optional `appearancePolicyVersion = 1`, frozen
 `neighboringPigments` and `neighboringPaletteCategories`. Three nearby catalog
@@ -41,12 +40,12 @@ farthest-point ordering gives sparse days distinct leading pigments. Noir uses
 only its monochrome anchors. The pool is generated at creation, first current-day
 upgrade or an explicit background palette change, never during ordinary rendering.
 
-New/current artwork opts into `materialPolicyVersion = 1` and freezes
-`materialOrder` from the collection's compatible fills using a separate seed
-stream. Procedural Light, Procedural Flow and Sunset are excluded from fresh
-selection. Ordinary collections additionally exclude blur; the three blur looks
-retain only their own directed blur. Ten saved slots cover each ordinary look's
-eligible fills. Additions, removals and palette edits retain this order.
+New/current artwork opts into `materialPolicyVersion = 1` and freezes compatible
+look choices from the Metal catalog. Directed blur remains exclusive to its
+circle, square or triangle shape; water ripples and spiral rays use their
+dedicated materials, while volume spheres use radial two/three-color fills.
+Ordinary fills exclude procedural light, flow, contour and Sunset. Historical
+recipes retain those decoders and shader branches.
 Snowflake preserves its packed harmonic count and normalized contour rather than
 using Windflower's parameters. Side-light, radial and procedural contour stops
 use nearby frozen pigments with lightness offsets of +0.055 and -0.035.
@@ -126,10 +125,9 @@ poses, rather than resetting them to the daily template. Further A adoption
 retains the frozen sizes, per-actor materials and pigment pool. Missing optional flags preserve
 historical generation and motion. Pending drafts wait for the confirmed merge;
 artwork locks and historical days remain frozen. Decoding never upgrades a recipe.
-An unlocked Remix generates a new coherent collection from the full Remix seed,
-excluding the previously saved collection. All eight collections remain eligible;
-a geometry sibling can follow its regular/blurred counterpart. The calendar
-shuffle only selects the initial collection. Explicit Remix
+An unlocked Remix generates a new mixed look order from the full Remix seed.
+Every catalog family remains reachable over the seeded order; each saved actor
+keeps its preset, material, size and placement when the day changes. Explicit Remix
 also selects a native palette from enabled categories using the full recipe seed,
 excluding the previous numerical swatches regardless of their order when an
 alternative exists. Its mesh selects a different archetype and rerolls its parameters. The new
@@ -229,7 +227,7 @@ Only coordination methods/types needed across the extracted files become interna
 ## Adding or retiring a component safely
 
 1. Add geometry parameters and the corresponding GPU function, then register the preset in `MetalShapeGenomeCatalog`. Preserve the ordering of existing presets for existing generator versions.
-2. Declare compatible materials in the preset policy, then constrain the daily collection selector. Sunset remains decodable but is excluded from new collections; Procedural Light and Flow are also excluded. Approved procedural contours use their opt-in renderer marker.
+2. Declare compatible materials in the preset policy, then constrain the versioned catalog-look selector. Sunset and the retired procedural materials remain decodable but are excluded from new scenes.
 3. To retire a shape from **new generation**, change the versioned selection policy. Do not delete a decoder, shader branch or enum value still referenced by saved canvases.
 4. Material indices come from `MetalShapeMaterial` order. Never reorder/remove old cases as a shortcut; new meanings must not reinterpret old saved uniforms.
 5. Audio worlds are validated as a complete compatible catalog. Removing a world is a coordinated change to selection, recipe/group validation and fallback behavior, not just deleting a sample file.
