@@ -158,7 +158,10 @@ enum HappeningEventTree {
     }
 
     static func tags(forStoredHappeningID id: String) -> [String]? {
-        let canonical = HappeningDefaults.canonicalID(id)
+        // Tags enrich current event records. Legacy IDs remain historical
+        // records and must not be rewritten when the catalog is reloaded.
+        guard id.hasPrefix("event_") else { return nil }
+        let canonical = id
         guard canonical.hasPrefix("event_") else { return nil }
         let eventID = String(canonical.dropFirst("event_".count))
         guard event(eventID) != nil else { return nil }

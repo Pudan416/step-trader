@@ -1,15 +1,13 @@
 import XCTest
 @testable import Nowhere
 
-/// The `Happening` model and the ten built-ins that replace the 31-option,
-/// three-category set. Purely additive at this stage — `EnergyOption` and
-/// friends still exist and still compile; Task 5 cuts them over.
+/// The fixed catalog and durable behavior for current and historical events.
 final class HappeningModelTests: XCTestCase {
 
     // MARK: - Built-in set
 
-    func testBuiltInSetIsExactlyThirtyOne() {
-        XCTAssertEqual(HappeningDefaults.builtIns.count, 31)
+    func testBuiltInSetIsExactlyOneHundred() {
+        XCTAssertEqual(HappeningDefaults.builtIns.count, 100)
     }
 
     func testBuiltInIdsAreUnique() {
@@ -18,15 +16,10 @@ final class HappeningModelTests: XCTestCase {
     }
 
     func testBuiltInCopyIsCompleteDistinctAndFitsTheField() throws {
-        let path = try XCTUnwrap(Bundle.main.path(forResource: "en", ofType: "lproj"))
-        let bundle = try XCTUnwrap(Bundle(path: path))
-        let titles = HappeningDefaults.builtIns.map {
-            bundle.localizedString(forKey: "option.title.\($0.id)", value: "MISSING", table: nil)
-        }
-        XCTAssertFalse(titles.contains("MISSING"), "Incomplete happening catalog")
+        let titles = HappeningDefaults.builtIns.map { $0.localizedTitle() }
         XCTAssertTrue(titles.allSatisfy { !$0.isEmpty && $0.count <= Happening.titleCharacterLimit })
         XCTAssertEqual(Set(titles.map { $0.lowercased() }).count, titles.count, "Duplicate titles")
-        XCTAssertEqual(titles, HappeningDefaults.builtIns.map(\.title), "Fallback copy must match English localization")
+        XCTAssertEqual(titles, HappeningDefaults.builtIns.map(\.title), "Fixed catalog copy is English")
     }
 
     func testRestoredCustomNamesKeepTheirDistinctLongSuffixes() throws {
@@ -52,14 +45,12 @@ final class HappeningModelTests: XCTestCase {
         )
     }
 
-    /// Built-in ids must not collide with the old `body_`/`mind_`/`heart_`
-    /// namespace — those ids still live in users' saved days and get
-    /// reconstituted as user happenings.
-    func testBuiltInIdsDoNotCollideWithLegacyNamespace() {
+    /// Current choices use event IDs; legacy category IDs remain historical.
+    func testBuiltInIdsUseTheEventNamespace() {
         for id in HappeningDefaults.builtInIds {
             XCTAssertTrue(
-                id.hasPrefix("happening_"),
-                "\(id) must use the happening_ namespace"
+                id.hasPrefix("event_"),
+                "\(id) must use the event_ namespace"
             )
         }
     }

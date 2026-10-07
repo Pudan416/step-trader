@@ -337,16 +337,16 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(model.happeningPointsToday, 18, "Three additions total")
     }
 
-    /// Distinct additions past the tenth still land on the canvas and still
-    /// increment `useCount` — they just stop earning.
-    func testHappeningPoints_capAtSixtyRegardlessOfCount() {
+    /// The tenth distinct addition reaches the cap; duplicates and an eleventh
+    /// addition do not create another entry.
+    func testHappeningPoints_capAtSixtyAndRejectsEleventhAddition() {
         let model = makeModel()
         addAdditions(to: model, count: 10)
         XCTAssertEqual(model.happeningPointsToday, 60)
 
         addAdditions(to: model, count: 1)
-        XCTAssertEqual(model.happeningPointsToday, 60, "Eleventh addition earns nothing")
-        XCTAssertEqual(model.todayAdditions.count, 11, "But it is still recorded")
+        XCTAssertEqual(model.happeningPointsToday, 60)
+        XCTAssertEqual(model.todayAdditions.count, 10, "Only ten additions fit on a custom day")
 
         addAdditions(to: model, count: 50)
         XCTAssertEqual(model.happeningPointsToday, 60)
@@ -397,11 +397,9 @@ final class EnergyRecalcTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Appends `count` distinct catalog additions so the economy tests exercise
-    /// the one-happening-per-custom-day rule as well as its points cap.
+    /// Adds fixed catalog choices so the economy tests exercise the daily limit.
     private func addAdditions(to model: AppModel, count: Int) {
-        for index in 0..<count {
-            let happening = model.createHappening(title: "Test happening \(index)")
+        for happening in HappeningDefaults.builtIns.dropFirst(model.todayAdditions.count).prefix(count) {
             model.addHappening(id: happening.id, colorHex: "#CC5050")
         }
     }

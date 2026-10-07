@@ -48,7 +48,10 @@ struct MetalShapeMaterialUniforms: Codable, Equatable, Sendable {
         let axis = SIMD3<Float>(repeating: 1 / sqrt(3))
         func rotate(_ c: SIMD4<Float>) -> SIMD4<Float> {
             let rgb = SIMD3(c.x, c.y, c.z)
-            let value = simd_clamp(rgb * cos(angle) + simd_cross(axis, rgb) * sin(angle) + axis * simd_dot(axis, rgb) * (1 - cos(angle)), SIMD3(repeating: 0), SIMD3(repeating: 1))
+            let rotated = rgb * cos(angle) + simd_cross(axis, rgb) * sin(angle) + axis * simd_dot(axis, rgb) * (1 - cos(angle))
+            let luminance = simd_dot(rotated, SIMD3<Float>(0.2126, 0.7152, 0.0722))
+            let value = simd_clamp(SIMD3(repeating: luminance) + (rotated - SIMD3(repeating: luminance)) * 1.25,
+                                   SIMD3(repeating: 0), SIMD3(repeating: 1))
             return SIMD4(value, c.w)
         }
         return Self(color0: rotate(color0), color1: rotate(color1), color2: rotate(color2), params0: params0, params1: params1, params2: params2, params3: params3, metadata: metadata)

@@ -55,7 +55,14 @@ final class HappeningStore {
     }
 
     func happening(id: String) -> Happening? {
-        all.first { $0.id == id }
+        if let restored = all.first(where: { $0.id == id }) { return restored }
+
+        let canonicalID = HappeningDefaults.canonicalID(id)
+        if let selectable = selectable.first(where: { $0.id == canonicalID }) {
+            return selectable
+        }
+
+        return all.first { $0.id == id }
             ?? HappeningDefaults.legacyBuiltIns.first { $0.id == id }
     }
 

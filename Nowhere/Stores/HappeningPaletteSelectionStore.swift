@@ -27,8 +27,11 @@ struct HappeningPaletteSelectionDraft {
     var canSave: Bool {
         ids.count == HappeningPaletteSelection.slotCount
             && Set(ids).count == HappeningPaletteSelection.slotCount
-            && ids.allSatisfy { liveIDs.contains(HappeningDefaults.canonicalID($0))
-                && HappeningDefaults.selectableHappening(id: $0) != nil }
+            && ids.allSatisfy {
+                let canonical = HappeningPaletteSelection.choiceID($0)
+                return liveIDs.contains(canonical)
+                    && HappeningDefaults.selectableHappening(id: canonical) != nil
+            }
     }
 
     var hasChanges: Bool { ids != originalIDs }
@@ -135,8 +138,11 @@ final class HappeningPaletteSelectionStore {
         let liveIDs = Set(catalog.map(\.id))
         return ids.count == HappeningPaletteSelection.slotCount
             && Set(ids).count == HappeningPaletteSelection.slotCount
-            && ids.allSatisfy { liveIDs.contains(HappeningDefaults.canonicalID($0))
-                && HappeningDefaults.selectableHappening(id: $0) != nil }
+            && ids.allSatisfy {
+                let canonical = HappeningPaletteSelection.choiceID($0)
+                return liveIDs.contains(canonical)
+                    && HappeningDefaults.selectableHappening(id: canonical) != nil
+            }
     }
 }
 

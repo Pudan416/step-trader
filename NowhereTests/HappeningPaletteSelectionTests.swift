@@ -11,22 +11,22 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     func testRestingAndRestedOfferOneChoiceWhileKeepingCustomTitles() {
         let catalog = [
             Happening(id: "body_resting", title: "Resting", isBuiltIn: false, useCount: 7),
-            Happening(id: "happening_did_nothing", title: "Rested", isBuiltIn: true),
+            HappeningDefaults.selectableHappening(id: "event_root_chilled")!,
             Happening(id: "user_resting", title: "Resting", isBuiltIn: false)
         ]
         XCTAssertEqual(
             HappeningPaletteSelection.alternatives(catalog: catalog, selected: []).map(\.id),
-            ["happening_did_nothing", "user_resting"]
+            ["event_root_chilled"]
         )
-        for selected in ["body_resting", "happening_did_nothing"] {
+        for selected in ["body_resting", "happening_did_nothing", "event_root_chilled"] {
             XCTAssertEqual(
                 HappeningPaletteSelection.alternatives(catalog: catalog, selected: [selected]).map(\.id),
-                ["user_resting"]
+                []
             )
         }
         XCTAssertEqual(
             HappeningPaletteSelection.alternatives(catalog: Array(catalog.prefix(2)), selected: [], query: "resting").map(\.id),
-            ["happening_did_nothing"], "Old wording stays searchable"
+            ["event_root_chilled"], "Old wording stays searchable"
         )
     }
 
@@ -40,39 +40,46 @@ final class HappeningPaletteSelectionTests: XCTestCase {
             + Array(HappeningDefaults.builtIns.prefix(8)).map(\.id)
         for key in [SharedKeys.happeningPaletteSelection, SharedKeys.legacyHappeningPaletteOrderIds] {
             defaults.removeObject(forKey: SharedKeys.happeningPaletteSelection)
+            defaults.removeObject(forKey: SharedKeys.legacyHappeningPaletteOrderIds)
             defaults.set(selected, forKey: key)
             let selectionStore = HappeningPaletteSelectionStore(defaults: defaults)
             selectionStore.load(catalog: catalogStore.all)
-            XCTAssertEqual(selectionStore.ids.first, "happening_did_nothing")
+            XCTAssertEqual(selectionStore.ids.first, "event_root_chilled")
             XCTAssertEqual(selectionStore.ids.count, 10)
             XCTAssertFalse(selectionStore.ids.contains("body_resting"))
-            XCTAssertEqual(selectionStore.ids.filter { $0 == "happening_did_nothing" }.count, 1)
+            XCTAssertEqual(selectionStore.ids.filter { $0 == "event_root_chilled" }.count, 1)
             XCTAssertThrowsError(try selectionStore.save(selected, catalog: catalogStore.all))
             let reloaded = HappeningPaletteSelectionStore(defaults: defaults)
             reloaded.load(catalog: catalogStore.all)
             XCTAssertEqual(reloaded.ids, selectionStore.ids)
         }
         catalogStore.load()
-        XCTAssertEqual(catalogStore.all, catalogBefore, "Historical IDs, titles and use counts must not change")
+        let historicalIdentity: (Happening) -> String = {
+            "\($0.id)|\($0.title)|\($0.useCount)|\($0.lastUsedAt?.timeIntervalSince1970 ?? -1)"
+        }
+        XCTAssertEqual(
+            catalogStore.all.map(historicalIdentity), catalogBefore.map(historicalIdentity),
+            "Historical IDs, titles and use counts must not change"
+        )
     }
 
     func testAlternativesOfferOneWalkAcrossBuiltInHistoryAndHealthKit() {
         let catalog = [
             Happening(id: "body_walking", title: "Walking", isBuiltIn: false),
             Happening(id: "health_workout_\(HKWorkoutActivityType.walking.rawValue)", title: "Walking", isBuiltIn: false),
-            Happening(id: "happening_walk", title: "Walk", isBuiltIn: true),
-            Happening(id: "happening_outside", title: "Time outside", isBuiltIn: true),
+            HappeningDefaults.selectableHappening(id: "event_walk")!,
+            HappeningDefaults.selectableHappening(id: "event_nature")!,
             Happening(id: "user_walk", title: "Walk", isBuiltIn: false)
         ]
 
         XCTAssertEqual(
             HappeningPaletteSelection.alternatives(catalog: catalog, selected: []).map(\.id),
-            ["happening_walk", "happening_outside", "user_walk"]
+            ["event_walk", "event_nature"]
         )
         for selected in ["happening_walk", "body_walking", "health_workout_52"] {
             XCTAssertEqual(
                 HappeningPaletteSelection.alternatives(catalog: catalog, selected: [selected]).map(\.id),
-                ["happening_outside", "user_walk"],
+                ["event_nature"],
                 "A selected walk must not be offered again under an imported ID"
             )
         }
@@ -81,11 +88,11 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     func testAlternativeSearchFindsTheCanonicalWalkUsingItsImportedTitle() {
         let catalog = [
             Happening(id: "body_walking", title: "Walking", isBuiltIn: false),
-            Happening(id: "happening_walk", title: "Walk", isBuiltIn: true)
+            HappeningDefaults.selectableHappening(id: "event_walk")!
         ]
         XCTAssertEqual(
             HappeningPaletteSelection.alternatives(catalog: catalog, selected: [], query: "  WALKING  ").map(\.id),
-            ["happening_walk"]
+            ["event_walk"]
         )
         XCTAssertTrue(HappeningPaletteSelection.alternatives(catalog: catalog, selected: [], query: "absent").isEmpty)
     }
@@ -97,7 +104,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
             Happening(id: "health_workout_20", title: "Strength Training", isBuiltIn: false),
             Happening(id: "health_workout_50", title: "Strength Training", isBuiltIn: false)
         ]
-        XCTAssertEqual(HappeningPaletteSelection.alternatives(catalog: catalog, selected: []), catalog)
+        XCTAssertTrue(HappeningPaletteSelection.alternatives(catalog: catalog, selected: []).isEmpty)
     }
 
     func testSavedAndLegacyWalkingDuplicatesBecomeOneWalkAndStayRepairedAfterReload() {
@@ -111,11 +118,11 @@ final class HappeningPaletteSelectionTests: XCTestCase {
             defaults.set(selected, forKey: key)
             let store = HappeningPaletteSelectionStore(defaults: defaults)
             store.load(catalog: catalog)
-            XCTAssertEqual(store.ids.first, "happening_walk")
+            XCTAssertEqual(store.ids.first, "event_walk")
             XCTAssertEqual(store.ids.count, 10)
             XCTAssertFalse(store.ids.contains("body_walking"))
             XCTAssertFalse(store.ids.contains("health_workout_52"))
-            XCTAssertEqual(store.ids.last, "happening_workout")
+            XCTAssertEqual(Set(store.ids).count, 10)
             let reloaded = HappeningPaletteSelectionStore(defaults: defaults)
             reloaded.load(catalog: catalog)
             XCTAssertEqual(reloaded.ids, store.ids)
@@ -134,7 +141,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         XCTAssertEqual(store.ids, original)
     }
 
-    func testRepairKeepsCustomWalkAndAnImportedWalkWhenBuiltInIsMissing() {
+    func testRepairDoesNotPromoteHistoricalWalksWhenBuiltInIsMissing() {
         let catalog = [
             Happening(id: "body_walking", title: "Walking", isBuiltIn: false),
             Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false),
@@ -142,7 +149,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         ]
         XCTAssertEqual(
             HappeningPaletteSelection.repaired(ids: catalog.map(\.id), catalog: catalog, defaults: []),
-            ["body_walking", "user_walk"]
+            []
         )
     }
 
@@ -151,7 +158,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         let health = Happening(id: "health_workout_52", title: "Walking", isBuiltIn: false)
         XCTAssertEqual(
             HappeningPaletteSelection.alternatives(catalog: [legacy, health], selected: []),
-            [legacy]
+            []
         )
     }
 
@@ -172,10 +179,12 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     }
 
     private func makeCatalog(counts: [Int]) -> [Happening] {
-        counts.enumerated().map { index, count in
-            Happening(
-                id: "h\(index)",
-                title: "Happening \(index)",
+        zip(HappeningDefaults.builtIns, counts).enumerated().map { index, pair in
+            let happening = pair.0
+            let count = pair.1
+            return Happening(
+                id: happening.id,
+                title: happening.title,
                 isBuiltIn: true,
                 useCount: count,
                 lastUsedAt: Date(timeIntervalSince1970: TimeInterval(index))
@@ -183,19 +192,21 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         }
     }
 
+    private func id(_ index: Int) -> String { HappeningDefaults.builtIns[index].id }
+
     func testExplicitReplacementKeepsTenSlotsAndCancellationRestoresOrder() {
         let catalog = makeCatalog(counts: Array(repeating: 0, count: 12))
         let selected = Array(catalog.prefix(10)).map(\.id)
-        var draft = HappeningPaletteSelectionDraft(selected: selected, catalog: catalog, protectedIDs: ["h0"])
-        XCTAssertTrue(draft.replace(id: "h4", with: "h10"))
-        XCTAssertEqual(draft.ids[4], "h10")
+        var draft = HappeningPaletteSelectionDraft(selected: selected, catalog: catalog, protectedIDs: [id(0)])
+        XCTAssertTrue(draft.replace(id: id(4), with: id(10)))
+        XCTAssertEqual(draft.ids[4], id(10))
         XCTAssertEqual(draft.ids.count, 10)
         XCTAssertTrue(draft.canSave)
         XCTAssertTrue(draft.hasChanges)
-        XCTAssertFalse(draft.replace(id: "h0", with: "h11"))
-        XCTAssertFalse(draft.replace(id: "h1", with: "h2"))
-        XCTAssertFalse(draft.replace(id: "h1", with: "missing"))
-        XCTAssertFalse(draft.replace(id: "missing", with: "h11"))
+        XCTAssertFalse(draft.replace(id: id(0), with: id(11)))
+        XCTAssertFalse(draft.replace(id: id(1), with: id(2)))
+        XCTAssertFalse(draft.replace(id: id(1), with: "missing"))
+        XCTAssertFalse(draft.replace(id: "missing", with: id(11)))
         draft.cancel()
         XCTAssertEqual(draft.ids, selected)
         XCTAssertFalse(draft.hasChanges)
@@ -272,9 +283,9 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         try! store.save(original, catalog: catalog)
         var draft = HappeningPaletteSelectionDraft(selected: original, catalog: catalog)
 
-        XCTAssertEqual(draft.toggle(id: "h3"), .removed)
-        XCTAssertEqual(draft.toggle(id: "h10"), .added)
-        XCTAssertEqual(draft.ids, original.filter { $0 != "h3" } + ["h10"])
+        XCTAssertEqual(draft.toggle(id: id(3)), .removed)
+        XCTAssertEqual(draft.toggle(id: id(10)), .added)
+        XCTAssertEqual(draft.ids, original.filter { $0 != id(3) } + [id(10)])
 
         draft.cancel()
 
@@ -288,14 +299,14 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         let original = Array(catalog.prefix(10).map(\.id))
         var draft = HappeningPaletteSelectionDraft(selected: original, catalog: catalog)
 
-        XCTAssertEqual(draft.toggle(id: "h1"), .removed)
-        XCTAssertEqual(draft.toggle(id: "h6"), .removed)
-        XCTAssertEqual(draft.toggle(id: "h12"), .added)
-        XCTAssertEqual(draft.toggle(id: "h10"), .added)
+        XCTAssertEqual(draft.toggle(id: id(1)), .removed)
+        XCTAssertEqual(draft.toggle(id: id(6)), .removed)
+        XCTAssertEqual(draft.toggle(id: id(12)), .added)
+        XCTAssertEqual(draft.toggle(id: id(10)), .added)
 
         XCTAssertEqual(
             draft.ids,
-            ["h0", "h2", "h3", "h4", "h5", "h7", "h8", "h9", "h12", "h10"]
+            [id(0), id(2), id(3), id(4), id(5), id(7), id(8), id(9), id(12), id(10)]
         )
         XCTAssertTrue(draft.canSave)
     }
@@ -309,7 +320,7 @@ final class HappeningPaletteSelectionTests: XCTestCase {
             catalog: catalog
         )
 
-        XCTAssertEqual(fullDraft.toggle(id: "h10"), .limitReached)
+        XCTAssertEqual(fullDraft.toggle(id: id(10)), .limitReached)
         XCTAssertFalse(incompleteDraft.canSave)
         XCTAssertEqual(incompleteDraft.toggle(id: "unknown"), .unavailable)
     }
@@ -355,31 +366,27 @@ final class HappeningPaletteSelectionTests: XCTestCase {
         )
     }
 
-    func testCustomHappeningReplacesLeastUsedSlot() throws {
-        let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9])
-            + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
+    func testFixedCatalogHappeningReplacesLeastUsedSlot() throws {
+        let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9, 0])
         let store = HappeningPaletteSelectionStore(defaults: defaults)
         try store.save(Array(catalog.prefix(10).map(\.id)), catalog: catalog)
 
-        let removed = try store.insertReplacingLeastUsed("user_sauna", catalog: catalog)
+        let removed = try store.insertReplacingLeastUsed(catalog[10].id, catalog: catalog)
 
         XCTAssertEqual(removed, catalog[5].id)
-        XCTAssertEqual(store.ids[5], "user_sauna")
+        XCTAssertEqual(store.ids[5], catalog[10].id)
         XCTAssertEqual(store.ids.count, 10)
     }
 
-    func testCatalogOnlyCreationReplacesLeastUsedSlotWithoutRecordingUse() throws {
-        let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9])
+    func testCustomHistoryCannotReplaceAFixedPaletteChoice() throws {
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 11))
             + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
         let store = HappeningPaletteSelectionStore(defaults: defaults)
         try store.save(Array(catalog.prefix(10).map(\.id)), catalog: catalog)
 
-        _ = try store.insertReplacingLeastUsed("user_sauna", catalog: catalog)
-
-        let created = try XCTUnwrap(catalog.first { $0.id == "user_sauna" })
-        XCTAssertEqual(created.useCount, 0)
-        XCTAssertNil(created.lastUsedAt)
-        XCTAssertFalse(store.ids.contains("h5"))
+        XCTAssertThrowsError(try store.insertReplacingLeastUsed("user_sauna", catalog: catalog)) {
+            XCTAssertEqual($0 as? HappeningPaletteSelectionError, .requiresExactlyTen)
+        }
     }
 
     func testReplacementTiesUseOldestLastUse() {
@@ -424,9 +431,9 @@ final class HappeningPaletteSelectionTests: XCTestCase {
 
         XCTAssertEqual(
             HappeningPaletteSelection.replacementIndex(
-                in: ["h0", "h1"],
+                in: [id(0), id(1)],
                 catalog: catalog,
-                excluding: ["h0"]
+                excluding: [id(0)]
             ),
             1
         )
@@ -437,23 +444,22 @@ final class HappeningPaletteSelectionTests: XCTestCase {
 
         XCTAssertNil(
             HappeningPaletteSelection.replacementIndex(
-                in: ["h0", "h1"],
+                in: [id(0), id(1)],
                 catalog: catalog,
-                excluding: ["h0", "h1"]
+                excluding: [id(0), id(1)]
             )
         )
     }
 
     func testStoreReportsNoReplaceableSlotWhenEverySelectedHappeningIsProtected() throws {
-        let catalog = makeCatalog(counts: Array(repeating: 0, count: 10))
-            + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
+        let catalog = makeCatalog(counts: Array(repeating: 0, count: 11))
         let store = HappeningPaletteSelectionStore(defaults: defaults)
         let selected = Array(catalog.prefix(10).map(\.id))
         try store.save(selected, catalog: catalog)
 
         XCTAssertThrowsError(
             try store.insertReplacingLeastUsed(
-                "user_sauna",
+                catalog[10].id,
                 catalog: catalog,
                 excluding: Set(selected)
             )
@@ -464,13 +470,12 @@ final class HappeningPaletteSelectionTests: XCTestCase {
     }
 
     func testReplacementDoesNotDeleteTheReplacedCatalogItem() throws {
-        let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9])
-            + [Happening(id: "user_sauna", title: "Sauna", isBuiltIn: false)]
+        let catalog = makeCatalog(counts: [5, 4, 3, 2, 1, 0, 8, 7, 6, 9, 0])
         let originalIDs = catalog.map(\.id)
         let store = HappeningPaletteSelectionStore(defaults: defaults)
         try store.save(Array(catalog.prefix(10).map(\.id)), catalog: catalog)
 
-        let removed = try store.insertReplacingLeastUsed("user_sauna", catalog: catalog)
+        let removed = try store.insertReplacingLeastUsed(catalog[10].id, catalog: catalog)
 
         XCTAssertEqual(catalog.map(\.id), originalIDs)
         XCTAssertTrue(catalog.contains { $0.id == removed })

@@ -450,7 +450,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         populatedCanvas.elements = [element]
         XCTAssertNotNil(
             model.addHappening(
-                id: "walk",
+                id: "event_walk",
                 colorHex: element.hexColor,
                 at: date,
                 recordUse: false,
@@ -462,14 +462,14 @@ final class HappeningFieldLayoutTests: XCTestCase {
             canvasLoaded: true,
             canvas: populatedCanvas,
             model: model,
-            happeningID: "walk",
+            happeningID: "event_walk",
             at: date,
             persist: { _ in false }
         )
 
         XCTAssertNil(failed)
         XCTAssertEqual(populatedCanvas.elements.count, 1)
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["walk"])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["event_walk"])
     }
 
     func testSuccessfulRemovalPersistsEmptyCanonicalCanvasAndRemovesMatchingDomainAddition() throws {
@@ -482,7 +482,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         populatedCanvas.elements = [element]
         XCTAssertNotNil(
             model.addHappening(
-                id: "walk",
+                id: "event_walk",
                 colorHex: element.hexColor,
                 at: date,
                 recordUse: false,
@@ -496,7 +496,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
                 canvasLoaded: true,
                 canvas: populatedCanvas,
                 model: model,
-                happeningID: "walk",
+                happeningID: "event_walk",
                 at: date,
                 persist: {
                     persistedCanvas = $0
@@ -520,7 +520,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         canvas.elements = [element]
         let lowercasedEntryID = element.id.uuidString.lowercased()
         XCTAssertNotNil(model.addHappening(
-            id: "walk",
+            id: "event_walk",
             colorHex: element.hexColor,
             at: date,
             recordUse: false,
@@ -531,7 +531,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
             canvasLoaded: true,
             canvas: canvas,
             model: model,
-            happeningID: "walk",
+            happeningID: "event_walk",
             at: date,
             persist: { _ in true }
         ))
@@ -572,7 +572,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         let element = fixedRemovalElement(on: canvas)
         canvas.elements = [element]
         XCTAssertNotNil(model.addHappening(
-            id: "walk",
+            id: "event_walk",
             colorHex: element.hexColor,
             at: date,
             recordUse: false,
@@ -583,13 +583,13 @@ final class HappeningFieldLayoutTests: XCTestCase {
             canvasLoaded: true,
             canvas: canvas,
             model: model,
-            happeningID: "walk",
+            happeningID: "event_walk",
             at: date,
             persist: { _ in true }
         ))
         XCTAssertTrue(model.todayAdditions.isEmpty)
         XCTAssertNotNil(model.addHappening(
-            id: "walk",
+            id: "event_walk",
             colorHex: element.hexColor,
             at: date.addingTimeInterval(1),
             recordUse: false,
@@ -623,7 +623,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
         populatedCanvas.elements = [element]
         XCTAssertNotNil(
             model.addHappening(
-                id: "walk",
+                id: "event_walk",
                 colorHex: element.hexColor,
                 at: date,
                 recordUse: false,
@@ -636,7 +636,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
             canvasLoaded: true,
             canvas: populatedCanvas,
             model: model,
-            happeningID: "walk",
+            happeningID: "event_walk",
             at: date,
             persist: { canonical in
                 CanvasHappeningRemovalPersistence.persist(
@@ -651,7 +651,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
 
         XCTAssertNil(failed)
         XCTAssertEqual(populatedCanvas.elements.map(\.id), [element.id])
-        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["walk"])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["event_walk"])
         XCTAssertEqual(savedCanvases.count, 1)
         guard let savedCanvas = savedCanvases.first else {
             XCTFail("The empty canonical canvas should reach persistence")
@@ -676,7 +676,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
             canvasLoaded: true,
             canvas: staleCanvas,
             model: model,
-            happeningID: "walk",
+            happeningID: "event_walk",
             at: date,
             persist: {
                 persistedCanvases.append($0)
@@ -905,7 +905,7 @@ final class HappeningFieldLayoutTests: XCTestCase {
     private func fixedRemovalElement(on canvas: DayCanvas) -> CanvasElement {
         var element = CanvasElement.spawn(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
-            optionId: "walk",
+            optionId: "event_walk",
             label: "Walk",
             existingElements: canvas.elements,
             dayKey: canvas.dayKey,
@@ -1838,7 +1838,9 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
     func testStartsWithSixCompleteEventsAndAnEmptyDateCell() {
         let state = HappeningEventTreeState()
         XCTAssertEqual(state.nodes.count, 6)
-        XCTAssertEqual(state.nodes.map(\.event.title), ["Worked", "Chilled", "Stayed home", "Ate", "Went out", "Saw people"])
+        XCTAssertEqual(state.nodes.map(\.event.title), [
+            "Worked", "Chilled", "Stayed home", "Had breakfast", "Went for a walk", "Saw a friend"
+        ])
         XCTAssertTrue(state.nodes.allSatisfy { $0.cell.distanceSquared == 1 && $0.parentID == nil })
         XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
     }
