@@ -13,7 +13,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         // Keep the archived `blobs` case decodable, but don't offer it to new
         // days: Soft Drift was removed from the approved visual library.
         case circles, blurredCircles, blobs, squares, blurredSquares, clovers, flowers, rays
-        case waterRipples, dimpledSpheres, spiralRays
+        case waterRipples, dimpledSpheres, spiralRays, glowingContours
 
         static var selectableCases: [Self] {
             allCases.filter { $0 != .blobs }
@@ -21,7 +21,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
         var family: Family {
             switch self {
-            case .circles, .blurredCircles, .waterRipples, .dimpledSpheres: return .circles
+            case .circles, .blurredCircles, .waterRipples, .dimpledSpheres, .glowingContours: return .circles
             case .squares, .blurredSquares: return .squares
             case .blobs: return .blobs
             case .clovers: return .clovers
@@ -31,6 +31,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         }
 
         var isBlurred: Bool { self == .blurredCircles || self == .blurredSquares || self == .rays }
+        var isGlowingContour: Bool { self == .glowingContours }
 
         static func regular(for family: Family) -> Self {
             switch family {
@@ -85,6 +86,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
     static func referenceMaterials(for preset: MetalShapePreset) -> [MetalShapeMaterial] {
         let allowed: [MetalShapeMaterial]
         switch preset.id {
+        case "legacy.circle": allowed = [.solid, .sideLight, .contour, .radialTwo, .radialThree]
         case "genome.concentric-ripple": allowed = [.concentricRings]
         case "reference.dimpled-sphere": allowed = [.radialTwo, .radialThree]
         case "reference.spiral-rays": allowed = [.spiralVariation]
@@ -134,7 +136,9 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         guard !usesReferenceMaterials,
               let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == presetID }) else { return }
         var materials: [MetalShapeMaterial]
-        if resolvedCollection.isBlurred {
+        if resolvedCollection.isGlowingContour {
+            materials = [.eclipseGlow]
+        } else if resolvedCollection.isBlurred {
             materials = [.directionalBlur]
         } else {
             materials = Self.referenceMaterials(for: preset).filter { $0 != .directionalBlur }
@@ -479,6 +483,10 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             // Give round collections a broader, stable size rhythm. This also
             // covers ripples and spiral rays while preserving their geometry.
             if collection?.family == .circles {
+                if collection?.isGlowingContour == true {
+                    let glowSizes: [Float] = [0.58, 0.22, 0.48, 0.32, 0.56, 0.19, 0.54, 0.24, 0.44, 0.36]
+                    return glowSizes[min(max(slot, 0), glowSizes.count - 1)]
+                }
                 let roundSizes: [Float] = [0.44, 0.16, 0.30, 0.21, 0.41, 0.18, 0.46, 0.17, 0.34, 0.25]
                 return roundSizes[min(max(slot, 0), roundSizes.count - 1)]
             }
@@ -524,6 +532,23 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             : min(max(pigment.perceptualOKLab.x + (mean > 0.65 ? -0.035 : 0.07), 0.48), 0.84)
         let first = SIMD4(pigment.fittingPerceptualLightness(to: lightness + variation, chromaFraction: 0.92).linearRGB, 1)
         if usesReferenceMaterials {
+            if source.materialIndex == 9 {
+                // Eclipse glow needs three clearly separated hue stops. Keep
+                // them anchored to this day's palette while retaining enough
+                // chroma for the halo to read as multicolored on muted days.
+                func glowColor(offset: Int, lightness: Float) -> SIMD4<Float> {
+                    let anchor = colors[(max(0, slot) + offset) % colors.count]
+                    return SIMD4(DayObjectRGB(linearRGB: anchor).fittingPerceptualLightness(
+                        to: lightness, chromaFraction: 1).linearRGB, 1)
+                }
+                var metadata = source.metadata
+                metadata.y |= MetalShapeMaterialUniforms.referenceMaterialFlag
+                return .init(color0: glowColor(offset: 0, lightness: 0.70),
+                             color1: glowColor(offset: max(1, colors.count / 3), lightness: 0.77),
+                             color2: glowColor(offset: max(2, (colors.count * 2) / 3), lightness: 0.73),
+                             params0: source.params0, params1: source.params1, params2: source.params2,
+                             params3: source.params3, metadata: metadata)
+            }
             func relatedColor(offset: Int, lightnessShift: Float) -> SIMD4<Float> {
                 let neighbor = colors[(max(0, slot) + offset) % colors.count]
                 let mixed = pigment.linearRGB + (neighbor - pigment.linearRGB) * 0.16

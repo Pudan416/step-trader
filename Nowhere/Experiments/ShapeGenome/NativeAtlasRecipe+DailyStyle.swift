@@ -15,7 +15,7 @@ extension NativeAtlasRecipe {
         let family = collection.family
         let presetID: String
         switch collection {
-        case .circles, .blurredCircles: presetID = "legacy.circle"
+        case .circles, .blurredCircles, .glowingContours: presetID = "legacy.circle"
         case .blobs: presetID = "genome.soft-drift"
         case .squares: presetID = rng.nextInt(in: 0...1) == 0 ? "legacy.soft-square" : "genome.concave-square"
         case .blurredSquares: presetID = "legacy.soft-square"
@@ -29,7 +29,8 @@ extension NativeAtlasRecipe {
         // Stable IDs, never global catalog order, define the v2 family mapping.
         guard let preset = MetalShapeGenomeCatalog.presets.first(where: { $0.id == presetID }) else { return recipe }
         // Blur is a complete collection, never a fill mixed into another look.
-        let candidates: [MetalShapeMaterial] = collection.isBlurred ? [.directionalBlur]
+        let candidates: [MetalShapeMaterial] = collection.isGlowingContour ? [.eclipseGlow]
+            : collection.isBlurred ? [.directionalBlur]
             : NativeAtlasDailyStyle.referenceMaterials(for: preset).filter { $0 != .directionalBlur }
         let allowed = candidates.filter { preset.compatibility.allowed.contains($0) }
         let materialID = allowed[rng.nextInt(in: 0...(allowed.count - 1))]

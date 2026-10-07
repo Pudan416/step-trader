@@ -325,6 +325,10 @@ struct DayCanvas: Codable {
             }
         }
         var recipe = previous ?? NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
+        let migratesMixedGlowCircles = previous?.dailyStyle.map { style in
+            style.family == .circles && style.resolvedCollection == .circles
+                && style.presetID == "legacy.circle" && style.materialOrder?.contains(.eclipseGlow) == true
+        } ?? false
         if recipe.dailyStyle == nil {
             recipe = NativeAtlasRecipe.makeDaily(dayKey: dayKey, paletteCategories: paletteCategories)
         }
@@ -333,6 +337,12 @@ struct DayCanvas: Codable {
         recipe.dailyStyle?.sharesPaletteOrder = true
         recipe.dailyStyle?.softGradients = true
         recipe.dailyStyle?.silhouettePolicyVersion = 1
+        if migratesMixedGlowCircles {
+            recipe.dailyStyle?.collection = .glowingContours
+            recipe.dailyStyle?.materialID = .eclipseGlow
+            recipe.dailyStyle?.materialPolicyVersion = nil
+            recipe.dailyStyle?.materialOrder = nil
+        }
         if let previous {
             recipe.locks = previous.locks
             recipe.glitchType = previous.glitchType
@@ -362,7 +372,8 @@ struct DayCanvas: Codable {
                   let actor = recipe.dailyActor(eventID: eventID, slot: old.slot) else { return nil }
             // Recovery can import atlas-1 actors into an older atlas draft. Repair
             // those visuals too, retaining event identity and saved placement.
-            let hasDailyShape = previous?.dailyStyle != nil && old.presetID == style.presetID
+            let hasDailyShape = !migratesMixedGlowCircles
+                && previous?.dailyStyle != nil && old.presetID == style.presetID
             let hasDailyVisuals = hasDailyShape && old.materialID == actor.materialID
             let keepsFrozenVisuals = hasDailyVisuals && hadApprovedAppearance
             let keepsFrozenSize = hasDailyShape && hadApprovedAppearance
