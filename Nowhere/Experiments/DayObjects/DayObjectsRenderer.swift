@@ -1133,6 +1133,10 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             return nil
         }
 
+        // Prewarm native PSOs with the legacy resources, so the view's
+        // existing preparation queue also prepares them before its first frame.
+        _ = NativeAtlasMetalRenderer.resources(for: device)
+
         let meshGradientDescriptor = MTLRenderPipelineDescriptor()
         meshGradientDescriptor.label = "Day Objects Mesh Gradient pipeline"
         meshGradientDescriptor.vertexFunction = fullscreenVertex

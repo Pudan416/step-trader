@@ -26,7 +26,12 @@ squares, concentric water ripples, dimpled spheres and spiral rays are selectabl
 collections. Soft Drift remains decodable for old recipes but is not selectable.
 The erroneous `atlas-3` per-slot catalog look order remains decodable for archives;
 opening today's unlocked canvas upgrades it once by rebuilding actors inside its
-already selected collection. Historical canvases keep their saved appearance.
+already selected collection. The repair derives each survivor from its saved
+slot and retains its position; only an angle matching the previous generated
+pose is updated, while manual rotations survive. Missing events reconcile after
+survivors, retaining sparse slot occupancy. Historical circle styles whose old mixed order included glow normalize to the
+dedicated glow collection in this same repair, making adoption idempotent.
+Historical canvases keep their saved appearance.
 `atlas-1` and `atlas-2` recipes retain their frozen single-family appearance.
 Explicit Remix chooses another compatible collection and freezes it into the new
 recipe. Actors already saved in a recipe remain frozen when events are added or
@@ -50,7 +55,14 @@ Snowflake preserves its packed harmonic count and normalized contour rather than
 using Windflower's parameters. Side-light, radial and procedural contour stops
 use nearby frozen pigments with lightness offsets of +0.055 and -0.035.
 Flagged procedural contours and saved sunsets bypass the old renderer fallback.
-The marker is `0x40000000` in material `metadata.y`, only on those two materials;
+Round visual revision 2 is separately selected by saved
+`roundScalePolicyVersion = 2`. Earlier styles retain their previous pigment
+lightness/chroma, actor size derivation, glow colors and atlas-1 color rotation.
+Glow and ripple shader changes use `0x20000000` in material `metadata.y`;
+unflagged shaders retain their earlier output. Newly frozen materials carry this
+bit, and rendering also selects it from version-2 styles already saved before
+the flag existed. It is never applied to directional blur.
+The reference material marker is `0x40000000` in material `metadata.y`, only on those two materials;
 directional blur mode bits and the 128-byte uniform layout stay unchanged.
 The Sunset enum, shader and saved payloads remain intact for historical artwork.
 An absent `collection` retains the old saved material order on decode/render.
@@ -61,9 +73,12 @@ sizes, slots and manual rotations. Repeated adoption is idempotent.
 Styles without this policy keep one-tone, one-tone, `radialTwo`, then contour
 roles and their previous two-color pigments. Color variants tint the slot's leading pigment by
 10–18% toward another frozen member; default picker identity hashes therefore
-do not replace the assigned leading hue. Non-beam sizes range from 0.15 to 0.41.
-Beams use `directionalBlur` mode 0 or gentle two-color mode 2, sizes multiplied
-by 1.8 with a 0.30 floor. Each actor freezes its own material and size, so
+do not replace the assigned leading hue. Under the earlier policy, non-beam
+sizes range from 0.15 to 0.41 and beams multiply that rhythm by 1.8 with a 0.30
+floor. Revision 2 keeps blur collections at their carrier baseline, freezes
+ordinary round sizes from 0.28 to 0.72, and glow sizes from 0.19 to 0.58.
+Beams use `directionalBlur` mode 0 or gentle two-color mode 2.
+Each actor freezes its own material and size, so
 additions and removals do not reroll survivors.
 
 The separate optional `silhouettePolicyVersion = 1` freezes a distinct contour
@@ -204,6 +219,21 @@ before Metal is ready and does not replay it when preparation finishes.
 ## Rendering ownership
 
 `Experiments/ShapeGenome/NativeAtlasMetalRenderer.swift` owns the native live/export pipelines and reusable textures. `MetalShapeGenomeRenderer.swift` is the separate atlas-preview renderer. `Experiments/DayObjects/DayObjectsRenderer.swift` remains the higher-level host for the native and existing editorial paths.
+
+The four immutable native pipeline states are cached per Metal device with
+locked creation/publication. The existing `DayObjectsRenderer.prepareResources`
+path prepares them before first rendering; renderer targets, descriptors and
+motion state remain independent.
+
+For supported native recipes, `HappeningEditorialAssignmentResolver` obtains the
+prospective native actor directly and derives presentation metadata through
+`DayObjectSceneRecipeV1.paletteAppearance`, shared with legacy preview/Lab
+material generation. Root seed, palette and art direction are resolved once per
+snapshot. It does not build discarded legacy scene trees for the 100 choices.
+Committed UUIDs and optional variants retain priority; native actor parameters,
+legacy shape/material/silhouette metadata and the ten-actor admission rule stay
+consistent with the original picker. Legacy/unsupported inputs retain the
+existing scene factory fallback.
 
 Do not put UI state, event persistence, or recipe generation inside a fragment shader or the GPU resource owner. Do not create per-frame pipelines/engines to make source files independent.
 

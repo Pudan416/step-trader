@@ -488,11 +488,11 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         if usesApprovedAppearance {
             // Directional blur is read as one coherent collection, so every
             // silhouette in that collection keeps the same footprint.
-            if collection?.isBlurred == true { return base }
+            if roundScalePolicyVersion == 2, collection?.isBlurred == true { return base }
 
             // Give round collections a broader, stable size rhythm. This also
             // covers ripples and spiral rays while preserving their geometry.
-            if collection?.usesRoundScale == true {
+            if roundScalePolicyVersion == 2, collection?.usesRoundScale == true {
                 if collection?.isGlowingContour == true {
                     let glowSizes: [Float] = [0.58, 0.22, 0.48, 0.32, 0.56, 0.19, 0.54, 0.24, 0.44, 0.36]
                     return glowSizes[min(max(slot, 0), glowSizes.count - 1)]
@@ -503,7 +503,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
             let sizes: [Float] = [0.41, 0.15, 0.27, 0.22, 0.35, 0.19, 0.38, 0.16, 0.29, 0.24]
             let size = sizes[min(max(slot, 0), sizes.count - 1)]
-            return size
+            return roundScalePolicyVersion == 2 ? size : (family == .rays ? max(0.30, size * 1.80) : size)
         }
         guard livingVariation == true else { return base * legacyScale }
         // Stable slots alternate large, small and medium figures immediately,
@@ -540,14 +540,15 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             : isTwo ? (mean > 0.78 ? 0.66 : 0.78)
             : family == .rays ? (role == 1 ? 0.70 : 0.79)
             : min(max(pigment.perceptualOKLab.x + (mean > 0.65 ? -0.035 : 0.07), 0.48), 0.84)
-        let usesVividRoundContrast = collection.map { $0.usesRoundScale && !$0.isGlowingContour } ?? false
+        let usesRoundVisuals = roundScalePolicyVersion == 2
+        let usesVividRoundContrast = usesRoundVisuals && (collection.map { $0.usesRoundScale && !$0.isGlowingContour } ?? false)
         let resolvedLightness: Float = usesVividRoundContrast
             ? (mean > 0.58 ? 0.42 : 0.82)
             : lightness
         let first = SIMD4(pigment.fittingPerceptualLightness(to: resolvedLightness + variation,
-            chromaFraction: 1).linearRGB, 1)
+            chromaFraction: usesRoundVisuals ? 1 : 0.92).linearRGB, 1)
         if usesReferenceMaterials {
-            if source.materialIndex == 9 {
+            if usesRoundVisuals, source.materialIndex == 9 {
                 // Eclipse glow needs three clearly separated hue stops. Keep
                 // them anchored to this day's palette while retaining enough
                 // chroma for the halo to read as multicolored on muted days.
@@ -557,7 +558,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
                         to: lightness, chromaFraction: 1).linearRGB, 1)
                 }
                 var metadata = source.metadata
-                metadata.y |= MetalShapeMaterialUniforms.referenceMaterialFlag
+                metadata.y |= MetalShapeMaterialUniforms.referenceMaterialFlag | MetalShapeMaterialUniforms.roundVisualFlag
                 return .init(color0: glowColor(offset: 0, lightness: 0.70),
                              color1: glowColor(offset: max(1, colors.count / 3), lightness: 0.77),
                              color2: glowColor(offset: max(2, (colors.count * 2) / 3), lightness: 0.73),
@@ -568,12 +569,15 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
                 let neighbor = colors[(max(0, slot) + offset) % colors.count]
                 let mixed = pigment.linearRGB + (neighbor - pigment.linearRGB) * 0.16
                 return SIMD4(DayObjectRGB(linearRGB: mixed).fittingPerceptualLightness(
-                    to: min(max(resolvedLightness + lightnessShift + variation, 0.36), 0.88),
+                    to: min(max(resolvedLightness + lightnessShift + variation, usesRoundVisuals ? 0.36 : 0.42), 0.88),
                     chromaFraction: usesVividRoundContrast ? 1 : 0.78).linearRGB, 1)
             }
             let second = isTwo ? relatedColor(offset: 1, lightnessShift: 0.055) : first
             let third = source.materialIndex == 5 ? relatedColor(offset: 2, lightnessShift: -0.035) : second
             var metadata = source.metadata
+            if usesRoundVisuals, source.materialIndex == 11 {
+                metadata.y |= MetalShapeMaterialUniforms.roundVisualFlag
+            }
             if source.materialIndex == 8 || source.materialIndex == 10 {
                 metadata.y |= MetalShapeMaterialUniforms.referenceMaterialFlag
             }

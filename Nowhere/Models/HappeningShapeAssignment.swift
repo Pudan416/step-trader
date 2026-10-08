@@ -81,11 +81,27 @@ enum HappeningEditorialAssignmentResolver {
     }
 
     static func snapshot(
-        request: HappeningEditorialAssignmentRequest
+        request: HappeningEditorialAssignmentRequest,
+        legacySceneFactory: (DayObjectSceneInput) -> DayObjectScene = DayObjectScene.make
     ) -> HappeningEditorialAssignmentSnapshot {
         let direction = request.baseInput.nativeAtlasRecipe?.isSupported != true
             && request.baseInput.editorialLabConfiguration?.materialMode == .generativeDNA
             ? DayObjectArtDirectionScheduler.make(dayKey: request.baseInput.dayKey, identity: request.baseInput.identity)
+            : nil
+        let nativeRecipe = request.baseInput.nativeAtlasRecipe.flatMap {
+            $0.isSupported && request.baseInput.usesEditorialField ? $0 : nil
+        }
+        let identity = request.baseInput.identity.isEmpty ? "anonymous" : request.baseInput.identity
+        let rootSeed = CanvasElement.makeSeed(optionId: "dayObjects:\(identity)",
+            dayKey: request.baseInput.dayKey, index: 0)
+        let nativePalette = nativeRecipe.map { _ in
+            DayObjectPaletteSet.make(rootSeed: rootSeed,
+                categories: request.baseInput.paletteCategories,
+                dayKey: request.baseInput.dayKey, identity: identity)
+        }
+        let nativeDirection = nativeRecipe != nil
+            && request.baseInput.editorialLabConfiguration?.materialMode == .generativeDNA
+            ? DayObjectArtDirectionScheduler.make(dayKey: request.baseInput.dayKey, identity: identity)
             : nil
         let assignments: [String: HappeningEditorialAssignment] = request.happenings.reduce(into: [:]) { result, happening in
             let committedElement = request.committedElements.first {
@@ -111,7 +127,23 @@ enum HappeningEditorialAssignmentResolver {
                 eventID: eventID,
                 colorVariant: colorVariant
             )
-            guard let actor = DayObjectScene.make(input: input).sceneRecipeV1?.actor(eventID) else {
+            if let recipe = nativeRecipe, let palette = nativePalette,
+               let nativeActor = recipe.prospectiveActor(eventID: eventID) {
+                var seen = Set<String>()
+                let admittedIDs = Array(input.eventIDs.filter { seen.insert($0).inserted }.prefix(DayObjectScene.maxActors))
+                guard let slot = admittedIDs.firstIndex(of: eventID) else { return }
+                let appearance = DayObjectSceneRecipeV1.paletteAppearance(
+                    rootSeed: rootSeed, eventID: eventID, slot: slot,
+                    paletteSet: palette, preview: input.editorialPreview,
+                    configuration: input.editorialLabConfiguration,
+                    artDirection: nativeDirection, colorVariant: colorVariant ?? 0)
+                result[happening.id] = HappeningEditorialAssignment(
+                    elementID: elementID, shape: appearance.shape,
+                    material: appearance.material, colorVariant: colorVariant,
+                    silhouette: appearance.silhouette, nativeActor: nativeActor)
+                return
+            }
+            guard let actor = legacySceneFactory(input).sceneRecipeV1?.actor(eventID) else {
                 return
             }
             result[happening.id] = HappeningEditorialAssignment(

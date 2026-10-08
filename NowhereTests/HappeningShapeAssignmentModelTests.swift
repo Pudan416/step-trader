@@ -4,6 +4,80 @@ import XCTest
 @MainActor
 final class HappeningShapeAssignmentModelTests: XCTestCase {
 
+    func testNativeCatalogSnapshotAvoidsLegacySceneConstruction() throws {
+        let happenings = HappeningDefaults.builtIns
+        XCTAssertEqual(happenings.count, 100)
+        let day = "2026-10-08"
+        let baseRecipe = NativeAtlasRecipe.makeDaily(dayKey: day, paletteCategories: ModernPaletteSelection.all, collection: .circles)
+        for nonce: UInt64 in [19, 20, 21] {
+            let count = nonce == 19 ? 0 : (nonce == 20 ? 3 : 10)
+            let retainedIDs = (0..<count).map { "retained-\($0)" }
+            let recipe = baseRecipe.reconciled(eventIDs: retainedIDs)
+            let input = DayObjectSceneInput(dayKey: day, identity: "primary-canvas", eventIDs: retainedIDs, motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe)
+            let request = HappeningEditorialAssignmentRequest(happenings: happenings, baseInput: input, committedElements: [], colorNonce: nonce)
+            var builds = 0
+            let started = DispatchTime.now().uptimeNanoseconds
+            let snapshot = HappeningEditorialAssignmentResolver.snapshot(request: request, legacySceneFactory: { input in
+                builds += 1
+                return DayObjectScene.make(input: input)
+            })
+            let milliseconds = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
+            print("Native snapshot nonce=\(nonce) legacyScenes=\(builds) elapsedMs=\(milliseconds)")
+            XCTAssertEqual(snapshot.assignments.count, 100)
+            XCTAssertEqual(builds, 0, "Native candidates must not construct discarded legacy scene trees")
+            for assignment in snapshot.assignments.values {
+                XCTAssertEqual(assignment.nativeActor, recipe.prospectiveActor(eventID: assignment.elementID.uuidString.lowercased()))
+            }
+        }
+        let legacy = DayObjectSceneInput(dayKey: day, identity: "primary-canvas", eventIDs: [], motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true)
+        var legacyBuilds = 0
+        let fallback = HappeningEditorialAssignmentResolver.snapshot(request: .init(happenings: happenings, baseInput: legacy, committedElements: [], colorNonce: 19), legacySceneFactory: { input in
+            legacyBuilds += 1
+            return DayObjectScene.make(input: input)
+        })
+        XCTAssertEqual(legacyBuilds, 100)
+        XCTAssertEqual(fallback.assignments.count, 100)
+    }
+
+    func testNativeSnapshotKeepsLegacyPresentationMetadataAndCommittedIdentity() throws {
+        let day = "2026-10-08"
+        var element = CanvasElement.spawn(optionId: "happening_walk", label: "Walk", existingElements: [], dayKey: day, composition: DayComposition.forDay(dayKey: day, happeningCount: 0))
+        let happenings: [Happening] = [.init(id: "event_walk", title: "Walk", isBuiltIn: true), .init(id: "event_read", title: "Read", isBuiltIn: true)]
+        let configurations: [DayObjectEditorialLabConfiguration?] = [nil, .init(materialMode: .generativeDNA, placement: .depthField)]
+        for collection in NativeAtlasDailyStyle.Collection.selectableCases {
+            for configuration in configurations {
+                for preview in [nil, DayObjectEditorialPreviewCatalog.all.first] {
+                    for variant: Int? in [nil, 7] {
+                        element.editorialColorVariant = variant
+                        for occupancy in [1, 10] {
+                            let retainedID = element.id.uuidString.lowercased()
+                            let retainedIDs = [retainedID] + (1..<occupancy).map { "retained-other-\($0)" }
+                            let recipe = NativeAtlasRecipe.makeDaily(dayKey: day, paletteCategories: ModernPaletteSelection.all, collection: collection).reconciled(eventIDs: retainedIDs)
+                            let input = DayObjectSceneInput(dayKey: day, identity: "primary-canvas", eventIDs: retainedIDs, motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true, editorialPreview: preview, editorialLabConfiguration: configuration, nativeAtlasRecipe: recipe)
+                            let request = HappeningEditorialAssignmentRequest(happenings: happenings, baseInput: input, committedElements: [element], colorNonce: 5)
+                            let snapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+                            let committed = try XCTUnwrap(snapshot.assignments["event_walk"])
+                            XCTAssertEqual(committed.elementID, element.id)
+                            XCTAssertEqual(committed.colorVariant, element.editorialColorVariant)
+                            for assignment in snapshot.assignments.values {
+                                let id = assignment.elementID.uuidString.lowercased()
+                                let ids = input.eventIDs.contains(id) ? input.eventIDs : Array(input.eventIDs.prefix(9)) + [id]
+                                var variants = input.actorColorVariants
+                                variants[id] = assignment.colorVariant
+                                let referenceInput = DayObjectSceneInput(dayKey: day, identity: input.identity, eventIDs: ids, motionEnergy: input.motionEnergy, visualClarity: input.visualClarity, usesEditorialField: true, editorialPreview: preview, editorialLabConfiguration: configuration, actorColorVariants: variants)
+                                let expected = try XCTUnwrap(DayObjectScene.make(input: referenceInput).sceneRecipeV1?.actor(id))
+                                XCTAssertEqual(assignment.shape, expected.shape)
+                                XCTAssertEqual(assignment.material, expected.material)
+                                XCTAssertEqual(assignment.silhouette, expected.silhouette)
+                                XCTAssertEqual(assignment.nativeActor, recipe.prospectiveActor(eventID: id))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var storageDirectory: URL!
 
     override func setUp() {

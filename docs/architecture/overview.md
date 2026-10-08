@@ -30,6 +30,8 @@ Test names live in `NowhereTests/` unless stated otherwise.
   `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
   `all` also contains historical/imported records and must not feed new-choice UI.
   Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
+  Removal resolves the current-day entry by UUID, then exact option ID, then
+  canonical alias, and deletes using the entry's original durable ID.
 - `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
   it does not mutate the catalog. `GalleryView` combines familiar, Health and added
   IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared

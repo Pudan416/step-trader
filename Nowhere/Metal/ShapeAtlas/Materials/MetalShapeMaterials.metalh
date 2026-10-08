@@ -26,12 +26,14 @@ static void metalShapeShadeConcentricRings(
     // Each line grows quieter toward the centre: inner rings lose opacity and
     // saturation while the outer edge keeps a clear, water-ripple accent.
     const float ringProgress = saturate(ringIndex / max(ceil(ringCount) - 1.0, 1.0));
-    const float opacity = mix(0.055, 0.64, pow(ringProgress, 1.12));
+    const bool roundVisuals = (m.metadata.y & 0x20000000u) != 0u;
+    const float opacity = roundVisuals ? mix(0.055, 0.64, pow(ringProgress, 1.12))
+        : min(0.20 + ringIndex * 0.032, 0.66);
     const float gradient = smoothstep(0.28, 0.98, phase);
 
     color = mix(m.color1.rgb, m.color0.rgb, gradient);
     const float luminance = dot(color, float3(0.2126, 0.7152, 0.0722));
-    color = mix(float3(luminance), color, mix(0.24, 1.0, ringProgress));
+    if (roundVisuals) color = mix(float3(luminance), color, mix(0.24, 1.0, ringProgress));
     alpha = body * ring * opacity;
 }
 
