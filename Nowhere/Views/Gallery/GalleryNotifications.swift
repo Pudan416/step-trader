@@ -337,7 +337,13 @@ enum CanvasHappeningEntryResolver {
         }) {
             return stable.id
         }
-        return currentDayEntries.first(where: { $0.optionId == element.optionId })?.id
+        if let exact = currentDayEntries.first(where: { $0.optionId == element.optionId }) {
+            return exact.id
+        }
+        let canonicalID = HappeningDefaults.canonicalID(element.optionId)
+        return currentDayEntries.first(where: {
+            HappeningDefaults.canonicalID($0.optionId) == canonicalID
+        })?.id
     }
 }
 

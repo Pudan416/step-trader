@@ -436,6 +436,10 @@ struct DayObjectSceneRecipeV1: Equatable {
         }
         let recipeActors = Array(actors.prefix(geometries.count)).enumerated().map { index, actor in
             let geometry = geometries[index]
+            let appearance = paletteAppearance(rootSeed: rootSeed, eventID: actor.eventID,
+                slot: index, paletteSet: paletteSet, preview: preview,
+                configuration: nil, artDirection: nil,
+                colorVariant: actorColorVariants[actor.eventID] ?? 0)
             return DayObjectSceneRecipeActorV1(
                 eventID: actor.eventID,
                 slot: index,
@@ -447,14 +451,7 @@ struct DayObjectSceneRecipeV1: Equatable {
                 localBlur: geometry.localBlur,
                 cropAllowance: geometry.cropAllowance,
                 drawOrder: geometry.drawOrder,
-                material: makePreviewMaterial(
-                    daySeed: rootSeed,
-                    eventID: actor.eventID,
-                    slot: index,
-                    material: preview.material,
-                    paletteSet: paletteSet,
-                    colorVariant: actorColorVariants[actor.eventID] ?? 0
-                ),
+                material: appearance.material,
                 motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID)
             )
         }
@@ -475,6 +472,48 @@ struct DayObjectSceneRecipeV1: Equatable {
             artDirection: nil,
             actorColorVariants: actorColorVariants
         )
+    }
+
+    /// Palette presentation needs these exact values but no choreography,
+    /// CompositionPlanner, background or complete legacy scene tree.
+    struct PaletteAppearance {
+        let shape: DayObjectShape
+        let geometryRegion: DayObjectGeometryRegion
+        let material: DayObjectEditorialMaterialV1
+        let silhouette: DayObjectSilhouette
+    }
+
+    static func paletteAppearance(
+        rootSeed: UInt64, eventID: String, slot: Int,
+        paletteSet: DayObjectPaletteSet,
+        preview: DayObjectEditorialPreviewSpec?,
+        configuration: DayObjectEditorialLabConfiguration?,
+        artDirection: DayObjectArtDirection?, colorVariant: Int
+    ) -> PaletteAppearance {
+        if let preview {
+            return PaletteAppearance(shape: .sphere, geometryRegion: .circle,
+                material: makePreviewMaterial(daySeed: rootSeed, eventID: eventID,
+                    slot: slot, material: preview.material, paletteSet: paletteSet,
+                    colorVariant: colorVariant), silhouette: .legacy)
+        }
+        if let configuration {
+            let resolution = artDirection?.resolution(eventID: eventID)
+            let material = resolution.map {
+                makeGenerativeMaterial(daySeed: rootSeed, eventID: eventID,
+                    mechanism: $0.material, direction: artDirection!,
+                    paletteSet: paletteSet, colorVariant: colorVariant)
+            } ?? makePreviewMaterial(daySeed: rootSeed, eventID: eventID,
+                slot: slot, material: configuration.materialMode.singleMaterial
+                    ?? mixedMaterial(eventID: eventID),
+                paletteSet: paletteSet, colorVariant: colorVariant)
+            let region = resolution?.geometry ?? .circle
+            return PaletteAppearance(shape: region.shape(actorSeed: stableHash(eventID)),
+                geometryRegion: region, material: material,
+                silhouette: artDirection == nil ? .legacy : .make(eventID: eventID))
+        }
+        let seed = approvedMaterialSeeds[Int(rootSeed % UInt64(approvedMaterialSeeds.count))]
+        return PaletteAppearance(shape: .sphere, geometryRegion: .circle,
+            material: makeMaterial(daySeed: seed, eventID: eventID), silhouette: .legacy)
     }
 
     private static func makeEditorialLabVariant(
@@ -509,41 +548,24 @@ struct DayObjectSceneRecipeV1: Equatable {
         }
         let recipeActors = Array(actors.prefix(geometries.count)).enumerated().map { index, actor in
             let geometry = geometries[index]
-            let resolution = artDirection?.resolution(eventID: actor.eventID)
-            let previewMaterial = configuration.materialMode.singleMaterial
-                ?? mixedMaterial(eventID: actor.eventID)
-            let material = resolution.map {
-                makeGenerativeMaterial(
-                    daySeed: rootSeed,
-                    eventID: actor.eventID,
-                    mechanism: $0.material,
-                    direction: artDirection!,
-                    paletteSet: paletteSet,
-                    colorVariant: actorColorVariants[actor.eventID] ?? 0
-                )
-            } ?? makePreviewMaterial(
-                daySeed: rootSeed,
-                eventID: actor.eventID,
-                slot: index,
-                material: previewMaterial,
-                paletteSet: paletteSet,
-                colorVariant: actorColorVariants[actor.eventID] ?? 0
-            )
-            let geometryRegion = resolution?.geometry ?? .circle
+            let appearance = paletteAppearance(rootSeed: rootSeed, eventID: actor.eventID,
+                slot: index, paletteSet: paletteSet, preview: nil,
+                configuration: configuration, artDirection: artDirection,
+                colorVariant: actorColorVariants[actor.eventID] ?? 0)
             return DayObjectSceneRecipeActorV1(
                 eventID: actor.eventID,
                 slot: index,
-                shape: geometryRegion.shape(actorSeed: stableHash(actor.eventID)),
-                geometryRegion: geometryRegion,
+                shape: appearance.shape,
+                geometryRegion: appearance.geometryRegion,
                 position: geometry.position,
                 diameter: geometry.diameter,
                 depth: geometry.depth,
                 localBlur: geometry.localBlur,
                 cropAllowance: geometry.cropAllowance,
                 drawOrder: geometry.drawOrder,
-                material: material,
+                material: appearance.material,
                 motion: makeMotion(daySeed: rootSeed, eventID: actor.eventID),
-                silhouette: artDirection == nil ? .legacy : .make(eventID: actor.eventID)
+                silhouette: appearance.silhouette
             )
         }
         return DayObjectSceneRecipeV1(

@@ -12,24 +12,58 @@ final class NativeAtlasMetalRenderer {
     private var ambientBlend = NativeAtlasAmbientBlend()
     private var ambientRecipeSeed: String?
 
+    /// Immutable functions/PSOs are separate from a renderer's mutable targets.
+    final class Pipelines {
+        let composite: MTLRenderPipelineState
+        let display: MTLRenderPipelineState
+        let gradient: MTLRenderPipelineState
+        let finish: MTLRenderPipelineState
+
+        init?(device: MTLDevice) {
+            guard let library = device.makeDefaultLibrary(),
+                  let vertex = library.makeFunction(name: "metalShapeGenomeVertex") else { return nil }
+            func pipeline(_ name: String, _ format: MTLPixelFormat, fullscreen: Bool = false, mask: MTLColorWriteMask = .all) -> MTLRenderPipelineState? {
+                let d = MTLRenderPipelineDescriptor()
+                d.vertexFunction = fullscreen ? library.makeFunction(name: "dayObjectsFullscreenVertex") : vertex
+                d.fragmentFunction = library.makeFunction(name: name)
+                d.colorAttachments[0].pixelFormat = format
+                d.colorAttachments[0].writeMask = mask
+                return try? device.makeRenderPipelineState(descriptor: d)
+            }
+            guard let composite = pipeline("nativeAtlasComposite", .rgba16Float),
+                  let display = pipeline("nativeAtlasDisplay", .rgba16Float),
+                  let gradient = pipeline("dayObjectsMeshGradientFragment", .rgba16Float, fullscreen: true, mask: [.red, .green, .blue]),
+                  let finish = pipeline("nativeAtlasFinishFragment", .bgra8Unorm_srgb, fullscreen: true) else { return nil }
+            self.composite = composite; self.display = display
+            self.gradient = gradient; self.finish = finish
+        }
+    }
+
+    private final class PipelineCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var devices: [UInt64: Pipelines] = [:]
+
+        func resources(for device: MTLDevice) -> Pipelines? {
+            lock.lock()
+            defer { lock.unlock() }
+            if let existing = devices[device.registryID] { return existing }
+            guard let pipelines = Pipelines(device: device) else { return nil }
+            devices[device.registryID] = pipelines
+            return pipelines
+        }
+    }
+
+    private static let pipelineCache = PipelineCache()
+
+    static func resources(for device: MTLDevice) -> Pipelines? {
+        pipelineCache.resources(for: device)
+    }
+
     init?(device: MTLDevice) {
         self.device = device
-        guard let library = device.makeDefaultLibrary(),
-              let vertex = library.makeFunction(name: "metalShapeGenomeVertex") else { return nil }
-        func pipeline(_ name: String, _ format: MTLPixelFormat, fullscreen: Bool = false, mask: MTLColorWriteMask = .all) -> MTLRenderPipelineState? {
-            let d = MTLRenderPipelineDescriptor()
-            d.vertexFunction = fullscreen ? library.makeFunction(name: "dayObjectsFullscreenVertex") : vertex
-            d.fragmentFunction = library.makeFunction(name: name)
-            d.colorAttachments[0].pixelFormat = format
-            d.colorAttachments[0].writeMask = mask
-            return try? device.makeRenderPipelineState(descriptor: d)
-        }
-        guard let composite = pipeline("nativeAtlasComposite", .rgba16Float),
-              let display = pipeline("nativeAtlasDisplay", .rgba16Float),
-              let gradient = pipeline("dayObjectsMeshGradientFragment", .rgba16Float, fullscreen: true, mask: [.red, .green, .blue]),
-              let finish = pipeline("nativeAtlasFinishFragment", .bgra8Unorm_srgb, fullscreen: true) else { return nil }
-        self.composite = composite; self.display = display
-        self.gradient = gradient; self.finish = finish
+        guard let resources = Self.resources(for: device) else { return nil }
+        self.composite = resources.composite; self.display = resources.display
+        self.gradient = resources.gradient; self.finish = resources.finish
     }
 
     static func renderRotation(for direction: SIMD2<Float>) -> Float {
@@ -143,6 +177,7 @@ final class NativeAtlasMetalRenderer {
                     material = material.withColorVariant(variant)
                 }
             }
+            material = material.applyingRoundVisualPolicy(recipe.dailyStyle?.roundScalePolicyVersion)
             // Use the effective shader after remapping retired saved fills.
             let aspect = Float(w) / Float(h), pose = actor.gpuActor
             let center = SIMD2(0.5 + pose.position.x / max(aspect, 1), 0.5 - pose.position.y / max(1 / aspect, 1))

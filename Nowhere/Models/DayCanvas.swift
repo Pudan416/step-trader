@@ -298,6 +298,19 @@ struct DayCanvas: Codable {
                 // archived recipes keep their frozen historical appearance.
                 style.catalogLookOrder = nil
                 style.roundScalePolicyVersion = 2
+                // Normalize the historical circle/glow order in this same
+                // adoption, before freezing repaired actors. Otherwise the
+                // following opening would run a second collection migration.
+                if style.family == .circles, style.resolvedCollection == .circles,
+                   style.presetID == "legacy.circle",
+                   style.materialOrder?.contains(.eclipseGlow) == true {
+                    style.collection = .glowingContours
+                    style.materialID = .eclipseGlow
+                    style.materialPolicyVersion = nil
+                    style.materialOrder = nil
+                    style.freezeReferenceMaterials(seed: UInt64(previous.seedHex, radix: 16) ?? 0)
+                }
+
                 var repaired = NativeAtlasRecipe(
                     schemaVersion: previous.schemaVersion,
                     generatorVersion: "atlas-4",
@@ -316,6 +329,22 @@ struct DayCanvas: Codable {
                 )
                 repaired.glitchStrength = previous.glitchStrength
                 repaired.locks = previous.locks
+                repaired = repaired.coordinated(with: previous.resolvedBackgroundStyle(dayKey: dayKey),
+                    paletteCategories: paletteCategories)
+                repaired.actors = previous.actors.compactMap { old in
+                    guard eventIDs.contains(old.eventID),
+                          let actor = repaired.dailyActor(eventID: old.eventID, slot: old.slot) else { return nil }
+                    let generated = previous.dailyActor(eventID: old.eventID, slot: old.slot)
+                    let automatic = generated.map {
+                        let delta = old.rotation - $0.rotation
+                        return abs(atan2(sin(delta), cos(delta))) < 0.0001
+                    } ?? false
+                    return NativeAtlasRecipe.Actor(eventID: old.eventID, presetID: actor.presetID,
+                        materialID: actor.materialID, seedHex: actor.seedHex,
+                        geometry: actor.geometry, material: actor.material,
+                        position: old.position, size: actor.size,
+                        rotation: automatic ? actor.rotation : old.rotation, slot: old.slot)
+                }
                 repaired = repaired.reconciled(eventIDs: eventIDs)
                 let reconciled = repaired
                 guard reconciled != previous else { return false }

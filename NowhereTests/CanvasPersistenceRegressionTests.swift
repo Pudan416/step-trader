@@ -1,4 +1,5 @@
 import XCTest
+import simd
 import HealthKit
 import Metal
 import UIKit
@@ -478,6 +479,16 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
         model.loadDailyEnergyState()
 
         XCTAssertEqual(model.todayAdditions.map(\.optionId), ["happening_walk"])
+    }
+
+    func testRemovalResolvesCanonicalAliasAndPrefersExactIdentity() {
+        let day = "2026-10-08"
+        let element = CanvasElement.spawn(optionId: "happening_walk", label: "Walk", existingElements: [], dayKey: day, composition: DayComposition.forDay(dayKey: day, happeningCount: 0))
+        let alias = OptionEntry(id: UUID().uuidString, dayKey: day, optionId: "event_walk", colorHex: "#ABCDEF", timestamp: .now)
+        XCTAssertEqual(CanvasHappeningEntryResolver.entryID(for: element, entries: [alias], dayKey: day), alias.id)
+        let exact = OptionEntry(id: UUID().uuidString, dayKey: day, optionId: element.optionId, colorHex: "#ABCDEF", timestamp: .now)
+        XCTAssertEqual(CanvasHappeningEntryResolver.entryID(for: element, entries: [alias, exact], dayKey: day), exact.id)
+        XCTAssertNil(CanvasHappeningEntryResolver.entryID(for: element, entries: [alias], dayKey: "2026-10-07"))
     }
 
     func testCanvasReconciliationCreatesMissingEntryWithoutRecordingAnotherUse() throws {
@@ -1067,6 +1078,78 @@ final class CanvasPersistenceRegressionTests: XCTestCase {
     }
 }
 final class NativeAtlasRecipeTests: XCTestCase {
+    func testArchivedActorSizeDerivationRetainsItsPolicy() throws {
+        let cases: [(NativeAtlasDailyStyle.Collection, Float, Float)] = [
+            (.circles, 0.41, 0.62), (.rays, 0.738, 0.34), (.blurredSquares, 0.41, 0.34)
+        ]
+        for (collection, oldSize, currentSize) in cases {
+            var style = try XCTUnwrap(NativeAtlasRecipe.makeDaily(dayKey: "size-policy",
+                paletteCategories: ModernPaletteSelection.all, collection: collection).dailyStyle)
+            style.roundScalePolicyVersion = nil
+            XCTAssertEqual(style.actorSize(base: 0.34, slot: 0, seed: 71, legacyScale: 1), oldSize, accuracy: 0.00001)
+            style.roundScalePolicyVersion = 2
+            XCTAssertEqual(style.actorSize(base: 0.34, slot: 0, seed: 71, legacyScale: 1), currentSize, accuracy: 0.00001)
+        }
+    }
+
+    func testRoundVisualFlagPreservesBlurModesAndUniformLayout() throws {
+        XCTAssertEqual(MemoryLayout<MetalShapeMaterialUniforms>.stride, 128)
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.circle" })
+        for material: MetalShapeMaterial in [.directionalBlur, .eclipseGlow, .concentricRings] {
+            let source = MetalShapeGenomeFrame.make(preset: preset, material: material, seed: 71, blurMode: 2).material
+            XCTAssertEqual(source.applyingRoundVisualPolicy(nil), source)
+            let revised = source.applyingRoundVisualPolicy(2)
+            if material == .directionalBlur {
+                XCTAssertEqual(revised, source)
+                XCTAssertEqual(revised.metadata.y, 2)
+            } else {
+                XCTAssertNotEqual(revised.metadata.y & MetalShapeMaterialUniforms.roundVisualFlag, 0)
+                XCTAssertEqual(revised.color0, source.color0)
+                XCTAssertEqual(revised.params0, source.params0)
+            }
+        }
+    }
+
+    func testArchivedRoundVariantRetainsPreviousPigmentLightness() throws {
+        let recipe = NativeAtlasRecipe.makeDaily(dayKey: "archived-round", paletteCategories: ModernPaletteSelection.all, collection: .circles)
+        var style = try XCTUnwrap(recipe.dailyStyle)
+        style.roundScalePolicyVersion = nil
+        style.palette = [SIMD3<Float>(repeating: 0.343)] // OKLab L = 0.70
+        style.neighboringPigments = style.palette
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.circle" })
+        let source = MetalShapeGenomeFrame.make(preset: preset, material: .radialTwo, seed: 71).material
+        let old = style.recolored(source, seed: 71, slot: 0, colorVariant: 3)
+        XCTAssertGreaterThan(DayObjectRGB(linearRGB: SIMD3(old.color0.x, old.color0.y, old.color0.z)).perceptualOKLab.x, 0.75)
+        style.roundScalePolicyVersion = 2
+        let current = style.recolored(source, seed: 71, slot: 0, colorVariant: 3)
+        XCTAssertLessThan(DayObjectRGB(linearRGB: SIMD3(current.color0.x, current.color0.y, current.color0.z)).perceptualOKLab.x, 0.45)
+    }
+
+    func testArchivedAtlas1VariantRetainsOriginalRotation() throws {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.circle" })
+        let source = MetalShapeGenomeFrame.make(preset: preset, material: .radialTwo, seed: 71).material
+        let variant = 3
+        let angle = Float(variant % 97 + 1) * 2.3999632
+        let axis = SIMD3<Float>(repeating: 1 / sqrt(3))
+        let rgb = SIMD3(source.color0.x, source.color0.y, source.color0.z)
+        let expected = simd_clamp(rgb * cos(angle) + simd_cross(axis, rgb) * sin(angle) + axis * simd_dot(axis, rgb) * (1 - cos(angle)), SIMD3(repeating: 0), SIMD3(repeating: 1))
+        let result = source.withColorVariant(variant)
+        XCTAssertEqual(SIMD3(result.color0.x, result.color0.y, result.color0.z), expected)
+    }
+
+    @MainActor
+    func testSelectedNativePickerMaterialsKeepVisibleCoverage() async throws {
+        for material in MetalShapeMaterial.allCases {
+            for state: HappeningPaletteSlotVisualState in [.additionPreview, .added, .removalPreview] {
+                let image = try await pickerImage(presetID: "legacy.soft-square", state: state, material: material)
+                let data = try pixels(image)
+                let visible = stride(from: 3, to: data.count, by: 4).filter { data[$0] > 0.05 }.count
+                XCTAssertGreaterThan(visible, 50, "Selected \(material) \(state) lost its alpha coverage")
+                XCTAssertEqual(data[3], 0, accuracy: 0.001)
+            }
+        }
+    }
+
     @MainActor
     func testNoirNativeCanvasRendersFourMonochromeVariations() async throws {
         for (day, damage) in (15...18).flatMap({ day in [Float(0), 1].map { (day, $0) } }) {
@@ -1610,7 +1693,8 @@ final class NativeAtlasRecipeTests: XCTestCase {
                     XCTAssertEqual(data[i + 3], 0, accuracy: 0.001, "Canvas must show through outside targets: native=\(native), \(state)")
                     XCTAssertEqual(data[i] + data[i + 1] + data[i + 2], 0, accuracy: 0.001)
                 }
-                let alpha = data[(100 * 200 + 100) * 4 + 3]
+                let centerAlphaIndex: Int = 80_403
+                let alpha = data[centerAlphaIndex]
                 XCTAssertGreaterThan(alpha, 0.3, "Target must remain visible")
                 if state == .available { XCTAssertLessThan(alpha, 0.95, "Day tint must remain translucent") }
             }

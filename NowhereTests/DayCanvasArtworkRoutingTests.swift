@@ -1,9 +1,19 @@
 import XCTest
+import Metal
 import SwiftUI
 import MetalKit
 @testable import Nowhere
 
 final class DayCanvasArtworkRoutingTests: XCTestCase {
+    func testNativeImmutablePipelinesAreReusedAcrossRenderers() throws {
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let first = try XCTUnwrap(NativeAtlasMetalRenderer.resources(for: device))
+        let second = try XCTUnwrap(NativeAtlasMetalRenderer.resources(for: device))
+        XCTAssertTrue(first === second, "The four native PSOs must be shared by live/export/picker renderers")
+        XCTAssertNotNil(NativeAtlasMetalRenderer(device: device))
+        XCTAssertTrue(first === NativeAtlasMetalRenderer.resources(for: device))
+    }
+
     @MainActor
     func testPaletteAndCanvasKeepOneEditorialMetalViewAndRenderer() async throws {
         let input = EditorialCanvasRenderInput(

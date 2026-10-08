@@ -38,6 +38,15 @@ final class CanvasRemixTests: XCTestCase {
             actors: [], backgroundStyle: original.backgroundStyle, dailyStyle: style)
         legacyMixed = legacyMixed.reconciled(eventIDs: canvas.elements.map { $0.id.uuidString.lowercased() })
         XCTAssertGreaterThan(Set(legacyMixed.actors.map(\.presetID)).count, 1)
+        // Removal leaves gaps; manual gestures must survive the visual repair.
+        legacyMixed.actors.remove(at: 1)
+        canvas.elements.remove(at: 1)
+        legacyMixed.actors = legacyMixed.actors.map { old in
+            NativeAtlasRecipe.Actor(eventID: old.eventID, presetID: old.presetID,
+                materialID: old.materialID, seedHex: old.seedHex, geometry: old.geometry,
+                material: old.material, position: SIMD2(0.13, 0.87), size: old.size,
+                rotation: old.rotation + 0.37, slot: old.slot)
+        }
         canvas.artworkRecipe = legacyMixed
 
         XCTAssertTrue(canvas.adoptDailyStyleForCurrentDay(currentDayKey: dayKey,
@@ -47,6 +56,67 @@ final class CanvasRemixTests: XCTestCase {
         XCTAssertEqual(Set(repaired.actors.map(\.presetID)), ["legacy.circle"])
         XCTAssertEqual(Set(repaired.actors.map(\.eventID)), Set(canvas.elements.map { $0.id.uuidString.lowercased() }))
         XCTAssertFalse(repaired.dailyStyle?.usesCatalogLookOrder == true)
+        for old in legacyMixed.actors {
+            let survivor = try XCTUnwrap(repaired.actors.first { $0.eventID == old.eventID })
+            XCTAssertEqual(survivor.slot, old.slot)
+            XCTAssertEqual(survivor.position, old.position)
+            XCTAssertEqual(survivor.rotation, old.rotation)
+        }
+        XCTAssertFalse(canvas.adoptDailyStyleForCurrentDay(currentDayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.all))
+
+    }
+
+    func testCurrentDayAdoptionRepairsSavedAtlas3MixedGlowInOnePass() throws {
+        var canvas = DayCanvas.newDailyCanvas(dayKey: dayKey)
+        canvas.elements = makeElements(count: 6)
+        let original = NativeAtlasRecipe.makeDaily(dayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.all, collection: .circles)
+        var style = try XCTUnwrap(original.dailyStyle)
+        style.roundScalePolicyVersion = nil
+        // Historical referenceMaterials(for: circle) before PR52 included glow.
+        style.materialPolicyVersion = 1
+        style.materialOrder = [.solid, .sideLight, .contour, .radialTwo, .radialThree, .eclipseGlow]
+        style.catalogLookOrder = NativeAtlasDailyStyle.catalogLooks(seed: UInt64(original.seedHex, radix: 16) ?? 0)
+        var legacyMixed = NativeAtlasRecipe(schemaVersion: original.schemaVersion,
+            generatorVersion: "atlas-3", catalogVersion: original.catalogVersion,
+            seedHex: original.seedHex, trajectory: original.trajectory,
+            sizeRhythm: original.sizeRhythm, spacing: original.spacing,
+            background: original.background, glitchType: original.glitchType,
+            intersectionType: original.intersectionType,
+            intersectionStrength: original.intersectionStrength,
+            actors: [], backgroundStyle: original.backgroundStyle, dailyStyle: style)
+        legacyMixed = legacyMixed.reconciled(eventIDs: canvas.elements.map { $0.id.uuidString.lowercased() })
+        XCTAssertGreaterThan(Set(legacyMixed.actors.map(\.presetID)).count, 1)
+        // Removal leaves gaps; manual gestures must survive the visual repair.
+        legacyMixed.actors.remove(at: 1)
+        canvas.elements.remove(at: 1)
+        legacyMixed.actors = legacyMixed.actors.map { old in
+            NativeAtlasRecipe.Actor(eventID: old.eventID, presetID: old.presetID,
+                materialID: old.materialID, seedHex: old.seedHex, geometry: old.geometry,
+                material: old.material, position: SIMD2(0.13, 0.87), size: old.size,
+                rotation: old.rotation + 0.37, slot: old.slot)
+        }
+        canvas.artworkRecipe = legacyMixed
+
+        XCTAssertTrue(canvas.adoptDailyStyleForCurrentDay(currentDayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.all))
+        let repaired = try XCTUnwrap(canvas.artworkRecipe)
+        XCTAssertEqual(repaired.generatorVersion, "atlas-4")
+        XCTAssertEqual(Set(repaired.actors.map(\.presetID)), ["legacy.circle"])
+        XCTAssertEqual(Set(repaired.actors.map(\.eventID)), Set(canvas.elements.map { $0.id.uuidString.lowercased() }))
+        XCTAssertFalse(repaired.dailyStyle?.usesCatalogLookOrder == true)
+        XCTAssertEqual(repaired.dailyStyle?.collection, .glowingContours)
+        XCTAssertEqual(Set(repaired.actors.map(\.materialID)), [.eclipseGlow])
+        for old in legacyMixed.actors {
+            let survivor = try XCTUnwrap(repaired.actors.first { $0.eventID == old.eventID })
+            XCTAssertEqual(survivor.slot, old.slot)
+            XCTAssertEqual(survivor.position, old.position)
+            XCTAssertEqual(survivor.rotation, old.rotation)
+        }
+        XCTAssertFalse(canvas.adoptDailyStyleForCurrentDay(currentDayKey: dayKey,
+            paletteCategories: ModernPaletteSelection.all))
+
     }
 
     func testSequentialNativeRemixesChangeCollectionAndRetainItThroughAdoption() throws {
