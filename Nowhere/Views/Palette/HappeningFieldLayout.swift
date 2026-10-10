@@ -168,9 +168,9 @@ enum HappeningFieldLayout {
         )
     }
 
-    /// A complete catalog field. Alternating four and five item rows keep the
-    /// familiar staggered, checkerboard packing while allowing the catalog to
-    /// grow without a fixed atlas.
+    /// A catalog constellation: the first items stay near the day centre and
+    /// the rest spiral outward across a pannable two-dimensional field.
+    /// Unlike the legacy event tree, it has no fixed node count or atlas.
     static func catalogLayout(
         count: Int,
         in size: CGSize,
@@ -192,39 +192,29 @@ enum HappeningFieldLayout {
                    max(safeBounds.midY, dockCenterY ?? defaultDockY))
         )
         let typeScale = HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize / 14
-        let radius = max(68, min(96, 68 * typeScale))
-        let gap: CGFloat = 8
-        let step = radius * 2 + gap
-        var rows: [Int] = []
-        var remaining = count
-        while remaining > 0 {
-            let rowCount = min(remaining, rows.count.isMultiple(of: 2) ? 4 : 5)
-            rows.append(rowCount)
-            remaining -= rowCount
-        }
-        let width = max(size.width, edgeClearance * 2 + radius * 10 + gap * 4)
-        let rowSteps = zip(rows, rows.dropFirst()).map { previous, next in
-            previous.isMultiple(of: 2) == next.isMultiple(of: 2) ? step : step * sqrt(3) / 2
-        }
-        let clusterHeight = radius * 2 + rowSteps.reduce(0, +)
-        let topPadding = max(safeBounds.minY + radius + edgeClearance, 112)
-        let bottomPadding = max(size.height - dockAnchor.y + radius + edgeClearance, edgeClearance)
-        let height = max(size.height, topPadding + clusterHeight + bottomPadding)
-        var sources: [Source] = []
-        var centerY = topPadding + radius
-        for (rowIndex, rowCount) in rows.enumerated() {
-            let firstX = width / 2 - CGFloat(rowCount - 1) * step / 2
-            for column in 0..<rowCount {
-                sources.append(Source(index: sources.count, center: CGPoint(
-                    x: firstX + CGFloat(column) * step,
-                    y: centerY
-                ), radius: radius))
-            }
-            if rowIndex < rowSteps.count { centerY += rowSteps[rowIndex] }
+        let radius = min(78, max(60, targetRadius * typeScale))
+        let step = radius * 2 + contactGap
+        // Reserve the origin for the day-count hub; event one begins on the
+        // first ring and the six roots naturally gather around it.
+        let coordinates = Array(spiralCoordinates(count: count + 1).dropFirst())
+        let minX = coordinates.map(\.x).min() ?? 0
+        let maxX = coordinates.map(\.x).max() ?? 0
+        let minY = coordinates.map(\.y).min() ?? 0
+        let maxY = coordinates.map(\.y).max() ?? 0
+        let padding = radius + edgeClearance
+        let width = max(size.width, CGFloat(maxX - minX) * step + padding * 2)
+        let height = max(size.height, CGFloat(maxY - minY) * step + padding * 2)
+        let middleX = CGFloat(minX + maxX) / 2
+        let middleY = CGFloat(minY + maxY) / 2
+        let sources = coordinates.enumerated().map { index, point in
+            Source(index: index, center: CGPoint(
+                x: width / 2 + (CGFloat(point.x) - middleX) * step,
+                y: height / 2 + (CGFloat(point.y) - middleY) * step
+            ), radius: radius)
         }
         var result = makeLayout(sources: sources, dockAnchor: dockAnchor)
         result.contentSize = CGSize(width: width, height: height)
-        result.dateHubCenter = CGPoint(x: width / 2, y: topPadding - 36)
+        result.dateHubCenter = CGPoint(x: width / 2, y: height / 2)
         return result
     }
 
