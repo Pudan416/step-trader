@@ -23,7 +23,7 @@ struct CanvasBottomActionRow: View {
     let onOpenHappeningList: () -> Void
     let onToggleHappeningPalette: () -> Void
     var happeningMode: HappeningPaletteMode? = nil
-    var usesEventTree = false
+    var usesCatalogField = false
     var onSelectHappeningMode: (HappeningPaletteMode) -> Void = { _ in }
 
     @Environment(\.canvasChromePalette) private var palette
@@ -158,7 +158,7 @@ struct CanvasBottomActionRow: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(usesEventTree ? "Personal and catalog" : String(localized: "Choose happenings"))
+        .accessibilityLabel(usesCatalogField ? "Personal and All" : String(localized: "Choose happenings"))
         .accessibilityIdentifier("canvas_happening_list_button")
         .canvasTourControl("canvas.paletteEditor")
     }
