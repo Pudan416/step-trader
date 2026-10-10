@@ -617,6 +617,12 @@ struct GalleryView: View {
             expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
             recommendedHappeningIDs: personalHealthRecommendationIDs + Array(familiar) + paletteAddedIDs.sorted()
         )
+        if let lastAddedID = model.todayAdditions.last.map({
+            HappeningDefaults.canonicalID($0.optionId)
+        }), let eventID = HappeningEventTree.eventID(forHappeningID: lastAddedID) {
+            eventTree.expand(eventID)
+            eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
+        }
     }
 
     private func snapshotPersonalRecommendations() {
@@ -649,10 +655,84 @@ struct GalleryView: View {
     private var personalConstellationIDs: Set<String> {
         let recommendations = personalEventFieldWasCleared ? [] : personalRecommendations.map(\.id)
         let health = personalEventFieldWasCleared ? [] : personalHealthRecommendationIDs
+        let expanded = personalEventFieldWasCleared ? [] : eventTree.nodes.map { "event_" + $0.id }
         return Set(HappeningEventTree.startingEvents.map { "event_" + $0.id }
             + recommendations
             + health
+            + expanded
+            + personalSemanticSuggestionIDs
             + paletteAddedIDs.sorted())
+    }
+
+    /// Extend Personal around today's added events. Existing events use their
+    /// reviewed route; newer catalog entries use the closest available event
+    /// in the same category or with overlapping tags.
+    private var personalSemanticSuggestionIDs: [String] {
+        guard !personalEventFieldWasCleared else { return [] }
+        var revealed = personalConstellationBaseIDs
+        var suggestions: [String] = []
+
+        let additions = model.todayAdditions.map { HappeningDefaults.canonicalID($0.optionId) }
+        for id in additions where paletteAddedIDs.contains(id) {
+            if let nextID = semanticSuggestion(after: id, excluding: revealed),
+               revealed.insert(nextID).inserted {
+                suggestions.append(nextID)
+            }
+        }
+        return suggestions
+    }
+
+    private var personalLatestAddedID: String? {
+        model.todayAdditions.last.map { HappeningDefaults.canonicalID($0.optionId) }
+    }
+
+    private var personalNearbySuggestionIDs: [String] {
+        guard !personalEventFieldWasCleared, let id = personalLatestAddedID else { return [] }
+        if let eventID = HappeningEventTree.eventID(forHappeningID: id) {
+            return eventTree.nodes.filter { $0.parentID == eventID }
+                .map { "event_" + $0.id }
+                .filter { !personalProfileStore.profile.hiddenIDs.contains($0) }
+        }
+        guard let suggestion = semanticSuggestion(after: id, excluding: personalConstellationBaseIDs)
+        else { return [] }
+        return [suggestion]
+    }
+
+    private func semanticSuggestion(after id: String, excluding visibleIDs: Set<String>) -> String? {
+        let profile = personalProfileStore.profile
+        if let eventID = HappeningEventTree.eventID(forHappeningID: id),
+           let event = HappeningEventTree.event(eventID) {
+            let visibleEventIDs = Set(visibleIDs.compactMap { candidate -> String? in
+                guard candidate.hasPrefix("event_") else { return nil }
+                return String(candidate.dropFirst("event_".count))
+            })
+            return HappeningEventTree.suggestions(for: event, alreadyVisible: visibleEventIDs)
+                .lazy.map { "event_" + $0.id }
+                .first(where: { !visibleIDs.contains($0) && !profile.hiddenIDs.contains($0) })
+        }
+
+        guard let selected = HappeningCatalog.byID[id] else { return nil }
+        let ranked = HappeningCatalog.definitions.enumerated().filter { _, candidate in
+            candidate.id != id && candidate.isSelectable && candidate.discoveryEligible
+                && !visibleIDs.contains(candidate.id)
+                && !profile.hiddenIDs.contains(candidate.id)
+        }.sorted { lhs, rhs in
+            let lhsScore = (lhs.element.category == selected.category ? 100 : 0)
+                + lhs.element.tags.filter(selected.tags.contains).count * 10
+            let rhsScore = (rhs.element.category == selected.category ? 100 : 0)
+                + rhs.element.tags.filter(selected.tags.contains).count * 10
+            return lhsScore == rhsScore ? lhs.offset < rhs.offset : lhsScore > rhsScore
+        }
+        return ranked.first?.element.id
+    }
+
+    private var personalConstellationBaseIDs: Set<String> {
+        guard !personalEventFieldWasCleared else { return [] }
+        return Set(HappeningEventTree.startingEvents.map { "event_" + $0.id }
+            + personalRecommendations.map(\.id)
+            + personalHealthRecommendationIDs
+            + eventTree.nodes.map { "event_" + $0.id }
+            + paletteAddedIDs)
     }
 
     private var personalEventFieldWasCleared: Bool {
@@ -806,6 +886,41 @@ struct GalleryView: View {
             )
             let profile = personalProfileStore.profile
             let personalIDs = personalConstellationIDs
+            var centers = constellation.sources.map(\.center)
+            if paletteMode == .frequent,
+               let latestID = personalLatestAddedID,
+               let anchorIndex = paletteHappenings.firstIndex(where: { $0.id == latestID }) {
+                let nearbyIDs = personalNearbySuggestionIDs
+                let movingIndices = Set(nearbyIDs.compactMap { id in
+                    paletteHappenings.firstIndex(where: { $0.id == id })
+                })
+                var occupiedIndices = Set(paletteHappenings.enumerated().compactMap { index, happening -> Int? in
+                    let added = paletteAddedIDs.contains(happening.id)
+                    let visible = personalIDs.contains(happening.id)
+                        && (!profile.hiddenIDs.contains(happening.id) || added)
+                    return visible && !movingIndices.contains(index) ? index : nil
+                })
+                var claimedDestinations = Set<Int>()
+                let anchor = constellation.sources[anchorIndex].center
+                for id in nearbyIDs {
+                    guard let targetIndex = paletteHappenings.firstIndex(where: { $0.id == id }) else { continue }
+                    let destination = constellation.sources.indices
+                        .filter { !occupiedIndices.contains($0) && !claimedDestinations.contains($0) }
+                        .min { lhs, rhs in
+                            let lhsCenter = constellation.sources[lhs].center
+                            let rhsCenter = constellation.sources[rhs].center
+                            let lhsX = lhsCenter.x - anchor.x, lhsY = lhsCenter.y - anchor.y
+                            let rhsX = rhsCenter.x - anchor.x, rhsY = rhsCenter.y - anchor.y
+                            let lhsDistance = lhsX * lhsX + lhsY * lhsY
+                            let rhsDistance = rhsX * rhsX + rhsY * rhsY
+                            return lhsDistance == rhsDistance ? lhs < rhs : lhsDistance < rhsDistance
+                        }
+                    guard let destination else { continue }
+                    centers[targetIndex] = constellation.sources[destination].center
+                    occupiedIndices.insert(destination)
+                    claimedDestinations.insert(destination)
+                }
+            }
             let sources = constellation.sources.map { source in
                 let happening = paletteHappenings[source.index]
                 let id = happening.id
@@ -820,7 +935,7 @@ struct GalleryView: View {
                 else if available || added { scale = 1 }
                 else { scale = 0.58 }
                 return HappeningFieldLayout.Source(index: source.index,
-                    center: source.center, radius: source.radius * scale, appearanceScale: scale)
+                    center: centers[source.index], radius: source.radius * scale, appearanceScale: scale)
             }
             var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: constellation.dockAnchor)
             result.contentSize = constellation.contentSize

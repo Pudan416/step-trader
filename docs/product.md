@@ -68,10 +68,11 @@ day's count, such as **3 / 10**, in the Nowhere font. Worked, Chilled, Stayed ho
 Had breakfast, Went for a walk and Saw a friend anchor the center. Personal choices
 appear nearby. **All** expands into a pannable two-dimensional constellation of all
 278 definitions. The first six roots, personal recommendations and today's events
-stay close to the center; the remaining events fill a deterministic day-specific
-spiral, so a new day offers fresh things to discover. Positions stay fixed while
-the field is open. The former 100-node event tree remains a source of historical
-relationships, not a limit on the field.
+stay close to the center; the rest fill a centered, staggered spiral in a
+checkerboard-like pattern. Circle size and the day-count hub stay fixed as the
+catalog grows. Existing visible positions stay fixed while the field is open;
+new semantic suggestions appear in nearby empty cells. The former 100-node event
+tree remains a source of semantic relationships, not a limit on the field.
 
 Recommendations are local and deterministic. Personal shows up to eight choices,
 ranked by explicit intentions and pins, recorded distinct days with a 21-day recency

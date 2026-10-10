@@ -194,22 +194,28 @@ enum HappeningFieldLayout {
         let typeScale = HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize / 14
         let radius = min(78, max(60, targetRadius * typeScale))
         let step = radius * 2 + contactGap
-        // Reserve the origin for the day-count hub; event one begins on the
-        // first ring and the six roots naturally gather around it.
+        // Keep the same centered spiral order and circle size, but skew its
+        // square coordinates into a staggered lattice. Each row is offset by
+        // half a cell, restoring the checkerboard packing without moving the
+        // day-count hub or changing the field's scale.
         let coordinates = Array(spiralCoordinates(count: count + 1).dropFirst())
-        let minX = coordinates.map(\.x).min() ?? 0
-        let maxX = coordinates.map(\.x).max() ?? 0
-        let minY = coordinates.map(\.y).min() ?? 0
-        let maxY = coordinates.map(\.y).max() ?? 0
+        let staggered = coordinates.map { point in
+            CGPoint(x: CGFloat(point.x) + CGFloat(point.y) / 2,
+                    y: CGFloat(point.y) * sqrt(3) / 2)
+        }
+        let minX = staggered.map(\.x).min() ?? 0
+        let maxX = staggered.map(\.x).max() ?? 0
+        let minY = staggered.map(\.y).min() ?? 0
+        let maxY = staggered.map(\.y).max() ?? 0
         let padding = radius + edgeClearance
         let width = max(size.width, CGFloat(maxX - minX) * step + padding * 2)
         let height = max(size.height, CGFloat(maxY - minY) * step + padding * 2)
-        let middleX = CGFloat(minX + maxX) / 2
-        let middleY = CGFloat(minY + maxY) / 2
-        let sources = coordinates.enumerated().map { index, point in
+        let middleX = (minX + maxX) / 2
+        let middleY = (minY + maxY) / 2
+        let sources = staggered.enumerated().map { index, point in
             Source(index: index, center: CGPoint(
-                x: width / 2 + (CGFloat(point.x) - middleX) * step,
-                y: height / 2 + (CGFloat(point.y) - middleY) * step
+                x: width / 2 + (point.x - middleX) * step,
+                y: height / 2 + (point.y - middleY) * step
             ), radius: radius)
         }
         var result = makeLayout(sources: sources, dockAnchor: dockAnchor)
