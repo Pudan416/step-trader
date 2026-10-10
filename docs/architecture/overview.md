@@ -42,7 +42,9 @@ Test names live in `NowhereTests/` unless stated otherwise.
   app-private standard defaults, outside shared storage and sync models. Reset saves
   a custom-day cutoff and disables pre-reset counter fallback without editing history.
 - `GalleryView` snapshots recommendations on field/browser opening. The Personal
-  constellation places six roots and the current recommendations near its center;
+  field and browser keep separate snapshots, so opening the browser cannot change
+  the active constellation. The constellation places six roots and the current
+  recommendations near its center;
   All lays out every catalog definition in a deterministic, day-specific two-dimensional
   spiral. Positions remain fixed while open; hidden Personal choices have no hit area,
   unavailable choices are visible but locked, and already-added events remain removable.
@@ -58,8 +60,11 @@ Test names live in `NowhereTests/` unless stated otherwise.
   compatibility, but it does not cap the full field. `HappeningFieldLayout.catalogLayout`
   creates centered staggered positions for the complete editorial catalog without
   changing its circle scale or day-count hub; renderer slots are culled to the visible
-  world rect. Personal reveals expanded tree nodes and places newly revealed semantic
-  neighbors in nearby empty cells. Successful removal of the final Canvas element resets
+  world rect. Personal records an append-only reveal sequence with semantic parent
+  IDs for the open field. It allocates every reveal to a free cell near its parent
+  and retains earlier allocations when later activities are added or removed;
+  selection and placement share the same recorded IDs. Reopening rebuilds the
+  sequence from the current day. Successful removal of the final Canvas element resets
   expansion IDs; a local cleared-day marker suppresses Personal prereveals while empty.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks

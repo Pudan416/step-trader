@@ -105,9 +105,18 @@ struct GalleryView: View {
     @State private var showCatalogField = false
     @StateObject private var personalProfileStore = PersonalHappeningProfileStore()
     @State private var personalRecommendations: [PersonalHappeningRecommendation] = []
+    @State private var catalogRecommendations: [PersonalHappeningRecommendation] = []
     @State private var showsHappeningCatalog = false
     @State private var catalogInitialMode: HappeningPaletteMode = .frequent
     @State private var catalogFieldDayKey: String?
+    /// Append-only for an open field: newly visible choices keep their semantic
+    /// parent and their placement order even after another activity is added.
+    private struct PersonalFieldReveal: Equatable {
+        let id: String
+        let parentID: String?
+    }
+    @State private var personalFieldReveals: [PersonalFieldReveal] = []
+    @State private var personalExpandedAdditionIDs: Set<String> = []
     @State private var eventTree = HappeningEventTreeState()
     @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
     @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
@@ -556,12 +565,14 @@ struct GalleryView: View {
                                     tags: restored.tags, useCount: restored.useCount, lastUsedAt: restored.lastUsedAt)
         }
         let orderedIDs: [String]
+        let resetsPersonalField: Bool
         if catalogFieldDayKey == dayCanvas.dayKey,
            paletteHappenings.count == allByID.count,
            Set(paletteHappenings.map(\.id)) == Set(allByID.keys) {
             // Keep the open constellation fixed while additions update their
             // usage metadata and Canvas state.
             orderedIDs = paletteHappenings.map(\.id)
+            resetsPersonalField = false
         } else {
             let roots = HappeningEventTree.startingEvents.map { "event_" + $0.id }
             let personal = personalRecommendations.map(\.id)
@@ -576,8 +587,10 @@ struct GalleryView: View {
             }
             orderedIDs = priority + discoveries
             catalogFieldDayKey = dayCanvas.dayKey
+            resetsPersonalField = true
         }
         paletteHappenings = orderedIDs.compactMap { allByID[$0] }
+        refreshPersonalFieldReveals(reset: resetsPersonalField)
         let request = HappeningEditorialAssignmentRequest(
             happenings: paletteHappenings,
             baseInput: editorialRenderInput.sceneInput,
@@ -626,7 +639,11 @@ struct GalleryView: View {
     }
 
     private func snapshotPersonalRecommendations() {
-        personalRecommendations = AdaptiveHappeningRecommendations.ranked(
+        personalRecommendations = makePersonalRecommendations()
+    }
+
+    private func makePersonalRecommendations() -> [PersonalHappeningRecommendation] {
+        AdaptiveHappeningRecommendations.ranked(
             catalog: model.selectableHappenings, profile: personalProfileStore.profile,
             historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
             todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now
@@ -635,7 +652,9 @@ struct GalleryView: View {
 
     private func openHappeningCatalog(mode: HappeningPaletteMode) {
         cancelPaletteInteraction()
-        snapshotPersonalRecommendations()
+        // The browser can refresh its list without replacing the snapshot that
+        // keeps the underlying open field stable.
+        catalogRecommendations = makePersonalRecommendations()
         catalogInitialMode = mode
         showsHappeningCatalog = true
     }
@@ -653,53 +672,75 @@ struct GalleryView: View {
     }
 
     private var personalConstellationIDs: Set<String> {
-        let recommendations = personalEventFieldWasCleared ? [] : personalRecommendations.map(\.id)
-        let health = personalEventFieldWasCleared ? [] : personalHealthRecommendationIDs
-        let expanded = personalEventFieldWasCleared ? [] : eventTree.nodes.map { "event_" + $0.id }
-        return Set(HappeningEventTree.startingEvents.map { "event_" + $0.id }
-            + recommendations
-            + health
-            + expanded
-            + personalSemanticSuggestionIDs
-            + paletteAddedIDs.sorted())
-    }
-
-    /// Extend Personal around today's added events. Existing events use their
-    /// reviewed route; newer catalog entries use the closest available event
-    /// in the same category or with overlapping tags.
-    private var personalSemanticSuggestionIDs: [String] {
-        guard !personalEventFieldWasCleared else { return [] }
-        var revealed = personalConstellationBaseIDs
-        var suggestions: [String] = []
-
-        let additions = model.todayAdditions.map { HappeningDefaults.canonicalID($0.optionId) }
-        for id in additions where paletteAddedIDs.contains(id) {
-            if let nextID = semanticSuggestion(after: id, excluding: revealed),
-               revealed.insert(nextID).inserted {
-                suggestions.append(nextID)
-            }
-        }
-        return suggestions
+        Set(personalFieldReveals.map(\.id))
     }
 
     private var personalLatestAddedID: String? {
         model.todayAdditions.last.map { HappeningDefaults.canonicalID($0.optionId) }
     }
 
-    private var personalNearbySuggestionIDs: [String] {
-        guard !personalEventFieldWasCleared, let id = personalLatestAddedID else { return [] }
-        if let eventID = HappeningEventTree.eventID(forHappeningID: id) {
-            return eventTree.nodes.filter { $0.parentID == eventID }
-                .map { "event_" + $0.id }
-                .filter { !personalProfileStore.profile.hiddenIDs.contains($0) }
+    private func refreshPersonalFieldReveals(reset: Bool) {
+        var reveals = reset || personalEventFieldWasCleared ? [] : personalFieldReveals
+        var expanded = reset || personalEventFieldWasCleared ? Set<String>() : personalExpandedAdditionIDs
+        var visible = Set(reveals.map(\.id))
+        let catalogIDs = Set(paletteHappenings.map(\.id))
+        let addedIDs = paletteAddedIDs
+        let profile = personalProfileStore.profile
+        func reveal(_ id: String, near parentID: String? = nil) {
+            guard catalogIDs.contains(id),
+                  !profile.hiddenIDs.contains(id) || addedIDs.contains(id),
+                  visible.insert(id).inserted else { return }
+            reveals.append(PersonalFieldReveal(id: id, parentID: parentID))
         }
-        guard let suggestion = semanticSuggestion(after: id, excluding: personalConstellationBaseIDs)
-        else { return [] }
-        return [suggestion]
+        for root in HappeningEventTree.startingEvents { reveal("event_" + root.id) }
+        if !personalEventFieldWasCleared {
+            for id in personalRecommendations.map(\.id) + personalHealthRecommendationIDs {
+                reveal(id)
+            }
+            let additions = model.todayAdditions.map { HappeningDefaults.canonicalID($0.optionId) }
+                .filter { addedIDs.contains($0) }
+            // Already visible choices retain their placement when selected.
+            // Events added from All or restored history get their own anchor.
+            for id in additions + addedIDs.sorted() { reveal(id) }
+            for id in additions {
+                if let eventID = HappeningEventTree.eventID(forHappeningID: id) {
+                    eventTree.expand(eventID)
+                }
+            }
+            let expansionIDs = eventTree.expandedIDs.joined(separator: ",")
+            if eventTreeExpandedIDs != expansionIDs { eventTreeExpandedIDs = expansionIDs }
+            for node in eventTree.nodes {
+                let id = "event_" + node.id
+                guard allowsPersonalSuggestion(id) else { continue }
+                let parentID = node.parentID.map { "event_" + $0 }
+                let rootID = HappeningEventTree.routes.first(where: { $0.contains(node.id) })?
+                    .first.map { "event_" + $0 }
+                reveal(id, near: parentID.flatMap { visible.contains($0) ? $0 : nil } ?? rootID)
+            }
+            // Select once per added activity. Re-evaluating every render made
+            // older suggestions disappear or change as later additions arrived.
+            for id in additions where expanded.insert(id).inserted {
+                if let nextID = semanticSuggestion(after: id, excluding: visible) {
+                    reveal(nextID, near: id)
+                }
+            }
+        }
+        if personalFieldReveals != reveals { personalFieldReveals = reveals }
+        if personalExpandedAdditionIDs != expanded { personalExpandedAdditionIDs = expanded }
+    }
+
+    private func allowsPersonalSuggestion(_ id: String) -> Bool {
+        guard let definition = HappeningCatalog.byID[id], definition.isSelectable,
+              !personalProfileStore.profile.hiddenIDs.contains(id) else { return false }
+        let profile = personalProfileStore.profile
+        return definition.discoveryEligible || paletteAddedIDs.contains(id)
+            || profile.pinnedIDs.contains(id) || profile.intentions[id] != nil
+            || personalRecommendations.contains(where: { $0.id == id })
+            || (profile.historyStartsAt == nil && profile.historyStartsAfterDayKey == nil
+                && paletteCatalog.contains(where: { $0.id == id && $0.useCount > 0 }))
     }
 
     private func semanticSuggestion(after id: String, excluding visibleIDs: Set<String>) -> String? {
-        let profile = personalProfileStore.profile
         if let eventID = HappeningEventTree.eventID(forHappeningID: id),
            let event = HappeningEventTree.event(eventID) {
             let visibleEventIDs = Set(visibleIDs.compactMap { candidate -> String? in
@@ -708,14 +749,15 @@ struct GalleryView: View {
             })
             return HappeningEventTree.suggestions(for: event, alreadyVisible: visibleEventIDs)
                 .lazy.map { "event_" + $0.id }
-                .first(where: { !visibleIDs.contains($0) && !profile.hiddenIDs.contains($0) })
+                .first(where: { !visibleIDs.contains($0) && allowsPersonalSuggestion($0) })
         }
 
         guard let selected = HappeningCatalog.byID[id] else { return nil }
         let ranked = HappeningCatalog.definitions.enumerated().filter { _, candidate in
-            candidate.id != id && candidate.isSelectable && candidate.discoveryEligible
-                && !visibleIDs.contains(candidate.id)
-                && !profile.hiddenIDs.contains(candidate.id)
+            candidate.id != id && !visibleIDs.contains(candidate.id)
+                && allowsPersonalSuggestion(candidate.id)
+                && (candidate.category == selected.category
+                    || candidate.tags.contains(where: selected.tags.contains))
         }.sorted { lhs, rhs in
             let lhsScore = (lhs.element.category == selected.category ? 100 : 0)
                 + lhs.element.tags.filter(selected.tags.contains).count * 10
@@ -724,15 +766,6 @@ struct GalleryView: View {
             return lhsScore == rhsScore ? lhs.offset < rhs.offset : lhsScore > rhsScore
         }
         return ranked.first?.element.id
-    }
-
-    private var personalConstellationBaseIDs: Set<String> {
-        guard !personalEventFieldWasCleared else { return [] }
-        return Set(HappeningEventTree.startingEvents.map { "event_" + $0.id }
-            + personalRecommendations.map(\.id)
-            + personalHealthRecommendationIDs
-            + eventTree.nodes.map { "event_" + $0.id }
-            + paletteAddedIDs)
     }
 
     private var personalEventFieldWasCleared: Bool {
@@ -798,7 +831,7 @@ struct GalleryView: View {
                 },
                 dateHubCenter: treeHubCenter,
                 treeFocusID: showCatalogField && paletteMode == .frequent
-                    ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
+                    ? personalLatestAddedID : nil,
                 dateHubInk: .resolve(state: .available,
                     background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
                     material: nil),
@@ -887,38 +920,38 @@ struct GalleryView: View {
             let profile = personalProfileStore.profile
             let personalIDs = personalConstellationIDs
             var centers = constellation.sources.map(\.center)
-            if paletteMode == .frequent,
-               let latestID = personalLatestAddedID,
-               let anchorIndex = paletteHappenings.firstIndex(where: { $0.id == latestID }) {
-                let nearbyIDs = personalNearbySuggestionIDs
-                let movingIndices = Set(nearbyIDs.compactMap { id in
-                    paletteHappenings.firstIndex(where: { $0.id == id })
+            if paletteMode == .frequent {
+                let indices = Dictionary(uniqueKeysWithValues: paletteHappenings.enumerated().map {
+                    ($0.element.id, $0.offset)
                 })
-                var occupiedIndices = Set(paletteHappenings.enumerated().compactMap { index, happening -> Int? in
-                    let added = paletteAddedIDs.contains(happening.id)
-                    let visible = personalIDs.contains(happening.id)
-                        && (!profile.hiddenIDs.contains(happening.id) || added)
-                    return visible && !movingIndices.contains(index) ? index : nil
-                })
-                var claimedDestinations = Set<Int>()
-                let anchor = constellation.sources[anchorIndex].center
-                for id in nearbyIDs {
-                    guard let targetIndex = paletteHappenings.firstIndex(where: { $0.id == id }) else { continue }
-                    let destination = constellation.sources.indices
-                        .filter { !occupiedIndices.contains($0) && !claimedDestinations.contains($0) }
-                        .min { lhs, rhs in
-                            let lhsCenter = constellation.sources[lhs].center
-                            let rhsCenter = constellation.sources[rhs].center
-                            let lhsX = lhsCenter.x - anchor.x, lhsY = lhsCenter.y - anchor.y
-                            let rhsX = rhsCenter.x - anchor.x, rhsY = rhsCenter.y - anchor.y
-                            let lhsDistance = lhsX * lhsX + lhsY * lhsY
-                            let rhsDistance = rhsX * rhsX + rhsY * rhsY
-                            return lhsDistance == rhsDistance ? lhs < rhs : lhsDistance < rhsDistance
-                        }
+                var occupied = Set<Int>()
+                var placed = Set<String>()
+                // Replay the append-only reveal order. An existing choice never
+                // moves when the next choice or recommendation is appended.
+                for reveal in personalFieldReveals {
+                    guard let index = indices[reveal.id], centers.indices.contains(index) else { continue }
+                    let anchor = reveal.parentID.flatMap { parentID -> CGPoint? in
+                        guard placed.contains(parentID), let parentIndex = indices[parentID] else { return nil }
+                        return centers[parentIndex]
+                    } ?? constellation.sources[index].center
+                    let destination: Int?
+                    if reveal.parentID == nil && !occupied.contains(index) {
+                        destination = index
+                    } else {
+                        destination = constellation.sources.indices.filter { !occupied.contains($0) }
+                            .min { lhs, rhs in
+                                let a = constellation.sources[lhs].center
+                                let b = constellation.sources[rhs].center
+                                let ax = a.x - anchor.x, ay = a.y - anchor.y
+                                let bx = b.x - anchor.x, by = b.y - anchor.y
+                                let ad = ax * ax + ay * ay, bd = bx * bx + by * by
+                                return ad == bd ? lhs < rhs : ad < bd
+                            }
+                    }
                     guard let destination else { continue }
-                    centers[targetIndex] = constellation.sources[destination].center
-                    occupiedIndices.insert(destination)
-                    claimedDestinations.insert(destination)
+                    centers[index] = constellation.sources[destination].center
+                    occupied.insert(destination)
+                    placed.insert(reveal.id)
                 }
             }
             let sources = constellation.sources.map { source in
@@ -1751,7 +1784,7 @@ struct GalleryView: View {
         .sheet(isPresented: $showsHappeningCatalog) {
             HappeningCatalogBrowser(
                 catalog: HappeningCatalog.definitions.map(\.happening),
-                recommendations: personalRecommendations,
+                recommendations: catalogRecommendations,
                 addedIDs: paletteAddedIDs, addedCount: todayEventCount,
                 profileStore: personalProfileStore, initialMode: catalogInitialMode,
                 onAdd: addCatalogHappening,

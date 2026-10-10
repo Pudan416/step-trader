@@ -71,8 +71,12 @@ appear nearby. **All** expands into a pannable two-dimensional constellation of 
 stay close to the center; the rest fill a centered, staggered spiral in a
 checkerboard-like pattern. Circle size and the day-count hub stay fixed as the
 catalog grows. Existing visible positions stay fixed while the field is open;
-new semantic suggestions appear in nearby empty cells. The former 100-node event
-tree remains a source of semantic relationships, not a limit on the field.
+new semantic suggestions appear in nearby empty cells around their own activity.
+Each reveal retains its parent and place for the open session, including after
+another event is selected or removed; selecting a recommendation keeps its circle
+in place and reveals its own neighbors. Reopening rebuilds these groups from the
+current day. The former 100-node event tree remains a source of semantic
+relationships, not a limit on the field.
 
 Recommendations are local and deterministic. Personal shows up to eight choices,
 ranked by explicit intentions and pins, recorded distinct days with a 21-day recency
