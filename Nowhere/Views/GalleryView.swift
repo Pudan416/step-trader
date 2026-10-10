@@ -569,10 +569,10 @@ struct GalleryView: View {
             let health = personalHealthRecommendationIDs
             var seen = Set<String>()
             let priority = (roots + personal + health + current).filter { allByID[$0] != nil && seen.insert($0).inserted }
-            let discoveries = allByID.keys.filter { !seen.contains($0) }.sorted {
-                let lhs = stableCatalogOrderHash(dayCanvas.dayKey + "|" + $0)
-                let rhs = stableCatalogOrderHash(dayCanvas.dayKey + "|" + $1)
-                return lhs == rhs ? $0 < $1 : lhs < rhs
+            // Keep the editorial catalog order stable. A day-seeded shuffle
+            // made neighboring events jump to unrelated places between days.
+            let discoveries = HappeningCatalog.definitions.map(\.id).filter {
+                allByID[$0] != nil && !seen.contains($0)
             }
             orderedIDs = priority + discoveries
             catalogFieldDayKey = dayCanvas.dayKey
@@ -594,12 +594,6 @@ struct GalleryView: View {
         }
     }
 
-    private func stableCatalogOrderHash(_ value: String) -> UInt64 {
-        value.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
-            ($0 ^ UInt64($1)) &* 1_099_511_628_211
-        }
-    }
-
     private func rebuildPersonalEventField() {
         snapshotPersonalRecommendations()
         if personalEventFieldWasCleared {
@@ -617,6 +611,14 @@ struct GalleryView: View {
             expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
             recommendedHappeningIDs: personalHealthRecommendationIDs + Array(familiar) + paletteAddedIDs.sorted()
         )
+        // Reopening Personal keeps the semantic branch around the last event
+        // already added today, just as adding it while the field is open does.
+        if let lastAddedID = dayCanvas.elements.last.map({
+            HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID($0.optionId))
+        }), let eventID = HappeningEventTree.eventID(forHappeningID: lastAddedID) {
+            eventTree.expand(eventID)
+            eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
+        }
     }
 
     private func snapshotPersonalRecommendations() {
@@ -649,10 +651,38 @@ struct GalleryView: View {
     private var personalConstellationIDs: Set<String> {
         let recommendations = personalEventFieldWasCleared ? [] : personalRecommendations.map(\.id)
         let health = personalEventFieldWasCleared ? [] : personalHealthRecommendationIDs
+        let expanded = personalEventFieldWasCleared ? [] : eventTree.nodes.map { "event_" + $0.id }
         return Set(HappeningEventTree.startingEvents.map { "event_" + $0.id }
             + recommendations
             + health
+            + expanded
+            + personalSemanticSuggestionIDs
             + paletteAddedIDs.sorted())
+    }
+
+    /// The legacy tree has authored semantic routes. New catalog entries use
+    /// the closest selectable event by category first, then shared tags.
+    private var personalSemanticSuggestionIDs: [String] {
+        guard !personalEventFieldWasCleared,
+              let lastAddedID = dayCanvas.elements.last.map({
+                  HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID($0.optionId))
+              }), HappeningEventTree.eventID(forHappeningID: lastAddedID) == nil,
+              let selected = HappeningCatalog.byID[lastAddedID] else { return [] }
+        let profile = personalProfileStore.profile
+        let alreadyVisible = Set(personalRecommendations.map(\.id)
+            + personalHealthRecommendationIDs + paletteAddedIDs + [lastAddedID])
+        let candidates = HappeningCatalog.definitions.enumerated().filter { _, candidate in
+            candidate.id != lastAddedID && candidate.isSelectable && candidate.discoveryEligible
+                && !alreadyVisible.contains(candidate.id) && !profile.hiddenIDs.contains(candidate.id)
+        }
+        let nearest = candidates.max { lhs, rhs in
+            let lhsScore = (lhs.element.category == selected.category ? 100 : 0)
+                + lhs.element.tags.filter(selected.tags.contains).count * 10
+            let rhsScore = (rhs.element.category == selected.category ? 100 : 0)
+                + rhs.element.tags.filter(selected.tags.contains).count * 10
+            return lhsScore == rhsScore ? lhs.offset > rhs.offset : lhsScore < rhsScore
+        }
+        return nearest.map { [$0.element.id] } ?? []
     }
 
     private var personalEventFieldWasCleared: Bool {

@@ -56,9 +56,11 @@ Test names live in `NowhereTests/` unless stated otherwise.
   The existing slot chooser also searches and filters the complete selectable catalog.
 - `HappeningEventTreeState.atlasNodes` retains its historical 100-position map for
   compatibility, but it does not cap the full field. `HappeningFieldLayout.catalogLayout`
-  creates positions for the complete editorial catalog; renderer slots are culled to the
-  visible world rect. Successful removal of the final Canvas element resets expansion
-  IDs; a local cleared-day marker suppresses Personal prereveals while the Canvas is empty.
+  packs the complete editorial catalog in alternating four- and five-item rows; renderer
+  slots are culled to the visible world rect. Personal includes expanded tree nodes and
+  reveals one category/tag neighbor for newly added catalog events outside the legacy
+  tree. Successful removal of the final Canvas element resets expansion IDs; a local
+  cleared-day marker suppresses Personal prereveals while the Canvas is empty.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
   must not rebuild all 100 candidates. `DayObjectPaletteSet.make` shares a bounded

@@ -66,12 +66,11 @@ Old category arrays and fractional timestamps remain readable.
 The Canvas add control opens the compact **Personal** field around the current
 day's count, such as **3 / 10**, in the Nowhere font. Worked, Chilled, Stayed home,
 Had breakfast, Went for a walk and Saw a friend anchor the center. Personal choices
-appear nearby. **All** expands into a pannable two-dimensional constellation of all
-278 definitions. The first six roots, personal recommendations and today's events
-stay close to the center; the remaining events fill a deterministic day-specific
-spiral, so a new day offers fresh things to discover. Positions stay fixed while
-the field is open. The former 100-node event tree remains a source of historical
-relationships, not a limit on the field.
+appear nearby. **All** expands into a pannable field of all 278 definitions, packed
+in alternating four- and five-event rows. The editorial order stays stable between
+days, and the field keeps the familiar staggered, checkerboard arrangement. In
+Personal, adding an event reveals its existing semantic neighbors; new catalog
+events reveal the closest selectable event by category and shared tags.
 
 Recommendations are local and deterministic. Personal shows up to eight choices,
 ranked by explicit intentions and pins, recorded distinct days with a 21-day recency
