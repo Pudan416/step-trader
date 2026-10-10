@@ -1,6 +1,6 @@
 import Foundation
 
-/// The reviewed fixed catalog and the addition economy. Historical identities
+/// The reviewed editorial catalog and the addition economy. Historical identities
 /// remain resolvable separately; they are not additional selectable choices.
 enum HappeningDefaults {
 
@@ -53,7 +53,7 @@ enum HappeningDefaults {
         Happening(id: "happening_listened", title: "Listened", isBuiltIn: true)
     ]
 
-    static let maximumCatalogCount = 100
+    static var maximumCatalogCount: Int { builtIns.count }
     static let allowsCustomCreation = false
 
     // Retired choices still resolve in archived days and restored entries.
@@ -62,12 +62,14 @@ enum HappeningDefaults {
         "event_alonefood": "Ate alone", "event_root_wentout": "Went out",
         "event_root_people": "Saw people", "event_computer": "Worked at a desk",
         "event_tasks": "Did my tasks", "event_stayedin": "Stayed indoors",
+        "event_masturbated": "Masturbated",
         "event_relaxed": "Chilled at home", "event_gym": "Went to the gym",
         "event_store": "Went to a store", "event_scroll": "Scrolled for hours"
     ]
 
     static func historicalTitle(for id: String) -> String? {
         retiredEventTitles[id] ?? legacyBuiltIns.first { $0.id == id }?.title
+            ?? HappeningCatalog.byID[id]?.title
     }
 
     /// System identities are shared between accounts. The legacy custom table
@@ -84,9 +86,8 @@ enum HappeningDefaults {
     }
 
     /// One catalog backs Personal, All, the old chooser and external suggestions.
-    static let builtIns: [Happening] = HappeningEventTree.all.map {
-        Happening(id: "event_\($0.id)", title: $0.title, isBuiltIn: true, tags: HappeningEventTree.tags(for: $0.id))
-    }
+    static let builtIns: [Happening] = HappeningCatalog.definitions
+        .filter(\.isSelectable).map(\.happening)
     static let builtInIds: Set<String> = Set(builtIns.map(\.id))
 
     /// Known equivalents affect new-choice selection only, never saved history.

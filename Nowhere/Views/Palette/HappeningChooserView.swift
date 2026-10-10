@@ -35,6 +35,7 @@ struct HappeningChooserView: View {
     @State private var draft: HappeningPaletteSelectionDraft
     @State private var replacementID: String?
     @State private var query = ""
+    @State private var category: HappeningCatalogCategory?
     @State private var showsProtectedMessage = false
     @State private var protectedHealth = false
 
@@ -63,6 +64,7 @@ struct HappeningChooserView: View {
 
     private var replacements: [Happening] {
         HappeningPaletteSelection.alternatives(catalog: catalog, selected: draft.ids, query: query)
+            .filter { HappeningCatalog.matches($0, query: "", category: category) }
     }
 
     private var targetTitle: String {
@@ -173,6 +175,7 @@ struct HappeningChooserView: View {
                         } else {
                             replacementID = happening.id
                             query = ""
+                            category = nil
                         }
                     } label: {
                         HStack(spacing: 16) {
@@ -222,6 +225,16 @@ struct HappeningChooserView: View {
             .padding(.horizontal, 14)
             .frame(minHeight: 52)
             .background(ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+
+            Menu {
+                Button("All categories") { category = nil }
+                ForEach(HappeningCatalogCategory.allCases) { item in
+                    Button(item.title) { category = item }
+                }
+            } label: {
+                Label(category?.title ?? "All categories", systemImage: "line.3.horizontal.decrease")
+                    .frame(minHeight: 44)
+            }
 
             if replacements.isEmpty {
                 Text("No matches")

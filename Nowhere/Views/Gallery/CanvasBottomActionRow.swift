@@ -56,14 +56,7 @@ struct CanvasBottomActionRow: View {
         HStack(alignment: .center, spacing: 0) {
             if !isDataPanelOpen {
                 if isHappeningPalettePresented {
-                    if usesEventTree {
-                        // Keep the mode selector and close control in place.
-                        Color.clear.frame(width: 52, height: 52)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-                    } else {
-                        listControl
-                    }
+                    listControl
                 } else {
                     soundControl
                 }
@@ -165,7 +158,7 @@ struct CanvasBottomActionRow: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "Choose happenings"))
+        .accessibilityLabel(usesEventTree ? "Personal and catalog" : String(localized: "Choose happenings"))
         .accessibilityIdentifier("canvas_happening_list_button")
         .canvasTourControl("canvas.paletteEditor")
     }

@@ -8,8 +8,8 @@ and primary scheme are named Nowhere. Energy and steps remain domain concepts.
 | Startup, dependency wiring, app lifecycle | `Nowhere/NowhereApp.swift`, `DIContainer.swift`, `AppModel.swift` | `AuthSessionRestoreTests`, `AuthSignInLoadingStateTests` |
 | Tabs and navigation | `Views/MainTabView.swift`, `Views/GalleryView.swift`, `Views/MeView.swift`, `Views/AppsPageSimplified.swift` | `MainTabSelectionTests`, `CanvasPresentationStateTests` |
 | Onboarding and tours | `Views/Onboarding/`, `Views/CoachMark/` | `CanvasOnboardingStateTests` |
-| Happenings, Personal recommendations, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/ActivitySuggestion.swift`, `Models/HappeningDefaults.swift`, `Models/HappeningEventTree.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `PersonalHappeningRecommendationsTests`, `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
-| Palette selection and adding/removing objects | `Views/Palette/`, `Models/CanvasElement.swift`, `Models/DayCanvas.swift` | `HappeningPaletteSelectionTests`, `CanvasPersistenceRegressionTests` |
+| Happenings, Personal recommendations, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/ActivitySuggestion.swift`, `Models/HappeningDefaults.swift`, `Models/HappeningCatalog.swift`, `Models/AdaptiveHappeningRecommendations.swift`, `Models/PersonalHappeningProfile.swift`, `Stores/PersonalHappeningProfileStore.swift`, `Models/HappeningEventTree.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `PersonalHappeningRecommendationsTests`, `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
+| Palette selection and adding/removing objects | `Views/Palette/` (including `HappeningCatalogBrowser.swift`), `Models/CanvasElement.swift`, `Models/DayCanvas.swift` | `HappeningPaletteSelectionTests`, `CanvasPersistenceRegressionTests` |
 | Canvas rendering, gestures, saved artwork | `Views/GalleryView.swift`, `Views/Gallery/`, `Experiments/DayObjects/`, `Experiments/ShapeGenome/`, `Metal/` | `DayCanvasArtworkRoutingTests`, `MetalShapeCompatibilityTests`, `CanvasRemixTests` |
 | Music | `Experiments/DayObjects/Sound/` — Director, Domain, Engine, Playback, Lab, Diagnostics | `DeterministicMusicDirectorTests`, `DayObjectsMusicPlaybackEngineTests`, `DayObjectsAudioResourceTests` |
 | Feed groups and purchases | `Views/Feeds/`, `Views/PayGateView.swift`, `AppModel+TicketManagement.swift`, `Stores/BlockingStore.swift`, `Stores/UserEconomyStore.swift` | `PaymentTests`, `BudgetEngineTests`, `TicketGroupCostTests` |
@@ -26,20 +26,39 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
-- `HappeningDefaults.builtIns` derives the fixed 100 choices from `HappeningEventTree.all`.
-  `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
-  `all` also contains historical/imported records and must not feed new-choice UI.
-  Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
-  Removal resolves the current-day entry by UUID, then exact option ID, then
-  canonical alias, and deletes using the entry's original durable ID.
-- `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
-  it does not mutate the catalog. `GalleryView` combines familiar, Health and added
-  IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared
-  Personal/All map for that opening, with six roots and shared intersections fixed.
-  Later additions reveal their canonical paths without moving the open map.
-  Successful removal of the final Canvas element resets the field and its saved
-  expansion IDs. A local cleared-day marker suppresses recommendation prereveals
-  while that Canvas remains empty; normal recommendations resume on addition.
+- `HappeningCatalog.definitions` owns 278 stable editorial definitions independently
+  of geometry. Every definition maps to an ordinary loggable Canvas record;
+  `HappeningStore.selectable` attaches usage metadata to authoritative copy. `all`
+  also contains historical/imported records and must not feed new-choice UI.
+  Canonical aliases never rewrite saved entry IDs or Canvas labels. Removal resolves
+  the current-day entry by UUID, then exact option ID, then canonical alias, and
+  deletes using the original durable ID. The original 100 definitions preserve their
+  IDs, labels and tags; the full field no longer depends on the event tree's old atlas.
+- `AdaptiveHappeningRecommendations` ranks explicit choices, distinct recorded days,
+  a bounded legacy fallback, interests and discovery. It returns stable reason codes
+  and does not mutate the catalog or award Colors. Hidden and unavailable choices
+  are filtered before ranking; pins and intentions cannot bypass availability.
+  `PersonalHappeningProfileStore` keeps preferences in
+  app-private standard defaults, outside shared storage and sync models. Reset saves
+  a custom-day cutoff and disables pre-reset counter fallback without editing history.
+- `GalleryView` snapshots recommendations on field/browser opening. The Personal
+  constellation places six roots and the current recommendations near its center;
+  All lays out every catalog definition in a deterministic, day-specific two-dimensional
+  spiral. Positions remain fixed while open; hidden Personal choices have no hit area,
+  unavailable choices are visible but locked, and already-added events remain removable.
+  Metal receives only visible positions through viewport culling. `HappeningCatalogBrowser`
+  remains available for text search, disables unavailable choices with an explanation,
+  and calls the existing `addAndSpawnHappening` transaction, preserving the ten-event
+  limit and Colors. Its settings never write to `Happening` or Canvas metadata.
+  Care events and habit events use the ordinary Canvas history and sync path.
+  Sexual events are not offered as new choices; historical records retain their
+  existing resolution/removal paths.
+  The existing slot chooser also searches and filters the complete selectable catalog.
+- `HappeningEventTreeState.atlasNodes` retains its historical 100-position map for
+  compatibility, but it does not cap the full field. `HappeningFieldLayout.catalogLayout`
+  creates positions for the complete editorial catalog; renderer slots are culled to the
+  visible world rect. Successful removal of the final Canvas element resets expansion
+  IDs; a local cleared-day marker suppresses Personal prereveals while the Canvas is empty.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
   must not rebuild all 100 candidates. `DayObjectPaletteSet.make` shares a bounded

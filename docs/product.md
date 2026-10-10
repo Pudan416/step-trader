@@ -37,16 +37,19 @@ when changing the sequence rather than using an old slide specification.
 
 ## Happenings field
 
-New additions use one reviewed catalog of exactly **100** events. Labels are
-English, at most 20 characters, and describe complete events. Broad duplicate
-meal options are replaced by Had breakfast, Had lunch and Had dinner; Cooked
-means preparing food. Creating or naming custom happenings is unavailable,
-including in the old chooser and empty-search states. Health detections resolve
-existing catalog choices and do not add new options. Archived custom and retired
-records retain their IDs and titles; they
-remain renderable and removable from today's Canvas, but cannot be added again
-as new choices. Personal ranks familiar events from usage metadata and restored
-day history. A larger adaptive catalog remains a future step.
+The reviewed catalog contains **278** available definitions. `HappeningCatalog` owns
+editorial IDs, English labels (at most 20 characters), browsing categories and
+recommendation eligibility independently of field geometry. The original 100 IDs,
+labels and tags retain their meanings. New events cover work and learning, movement,
+food, rest, care, people, home, outdoors, travel, making, culture and feelings.
+Custom creation and renaming remain unavailable. Retired and custom records remain
+readable and removable in saved days, but cannot be added as new choices.
+
+The list button opens the searchable catalog with category filtering and per-event
+Personal settings. **All** switches the Canvas to the full two-dimensional field;
+the list remains available for direct search. All 278 definitions have a position
+in that field. Additions use the existing Canvas transaction: one event per day, up to ten,
+six Colors per addition.
 
 Cloud compatibility is independent of the selectable catalog. Archived custom
 titles, including titles longer than 20 characters, and original event IDs remain
@@ -60,37 +63,63 @@ from a saved Canvas, old option entries or category selections. A saved empty
 Canvas is authoritative; upgraded accounts do not resurrect stale legacy entries.
 Old category arrays and fractional timestamps remain readable.
 
-The Canvas add control opens **Personal**: six complete events surround the current
-day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
-after additions and removals. The initial six are Worked, Chilled, Stayed home,
-Had breakfast, Went for a walk and Saw a friend. Each has one catalog identity,
-including those promoted from outer positions. The six roots remain fixed. At the intersections,
-the event fits both neighboring roots: Took a break connects Worked and Chilled,
-Took a nap connects Chilled and Stayed home, and Cooked connects Stayed home
-and Had breakfast. These are associations; revealing a meal does not log its
-neighbors or earlier meals. Adding an event reveals up to three adjacent whole events.
-Expansion history is retained for the day. **All** reveals the same complete map
-around the same count; it retains the six roots and every option's position.
-Switching modes preserves the open field and the day's additions. Direct All additions
-are also visible along their path when returning to Personal.
-Removing the last Canvas happening clears the day's expansion history and returns
-the field to Personal with only the six roots. This cleared empty state survives
-closing and reopening the field; familiar and Health recommendations resume after
-a new happening is added. All remains available with the complete catalog.
+The Canvas add control opens the compact **Personal** field around the current
+day's count, such as **3 / 10**, in the Nowhere font. Worked, Chilled, Stayed home,
+Had breakfast, Went for a walk and Saw a friend anchor the center. Personal choices
+appear nearby. **All** expands into a pannable two-dimensional constellation of all
+278 definitions. The first six roots, personal recommendations and today's events
+stay close to the center; the remaining events fill a deterministic day-specific
+spiral, so a new day offers fresh things to discover. Positions stay fixed while
+the field is open. The former 100-node event tree remains a source of historical
+relationships, not a limit on the field.
 
-Personal pre-reveals up to three familiar events beside the six roots. It ranks
-frequency with a 21-day recency half-life, requires two use days, and excludes
-the six roots from extra recommendations. Repeated additions on one custom day
-do not increase the usage counter. Restored snapshots canonicalize old IDs and
-count each event once per day; their count is combined with local counters by
-the maximum, avoiding double-counting overlapping history. Recommendations do
-not exclude uncomfortable events such as Raged or Got wasted.
+Recommendations are local and deterministic. Personal shows up to eight choices,
+ranked by explicit intentions and pins, recorded distinct days with a 21-day recency
+half-life, a bounded old-counter fallback when there are no day snapshots, selected
+interests, then optional discovery. Today's snapshot is excluded from history and
+today's additions are excluded from new recommendation snapshots. Repeat additions
+within a day and overlapping aliases do not increase distinct-day familiarity.
+Old counters include subsequently removed choices, so the fallback is labelled
+Previously chosen and never presented as an exact count of habits.
 
-Current Health workout hints and today's additions are also visible. The first
-recommendation in each sector moves to that root's nearest outward position;
-remaining recommendations reveal their paths. Shared intersections remain
-anchored. The map is recomputed on opening and then stays fixed through taps
-and Personal/All switches. The radial field remains pannable.
+Automatic candidates are limited to two per category and two digital events. Pins
+and intentions take priority over these diversity limits. A populated Personal can
+include at most two discovery choices, with one place reserved when possible;
+a cold start offers up to three. Each list choice explains its source. Opening the
+field or the browser takes a recommendation snapshot; taps and additions do not
+reshuffle that open selection. The map's geometry stays fixed until the next opening.
+
+Personal settings are optional. A person can choose interests, pin or hide an event,
+and set Observe, More often, Less often or Try it. Less often keeps logging convenient
+with the explanation Tracking: less often; it does not suggest performing the action.
+Hidden choices remain accessible in All and existing Canvas entries remain visible.
+Reset clears all Personal preferences and excludes recorded days up to the current
+custom day from future ranking; it does not erase the archive. Preferences are stored
+in app-private device defaults, outside App Group, cloud payloads, analytics, day
+names, widgets and exports. The open list clears old recommendation signals after a
+reset and recomputes on its next opening.
+
+Took my medicine, Went to therapy and Had my period are ordinary loggable events.
+They use the same Canvas history and Supabase sync as other events. Their own
+recorded history can bring them into Personal; broad discovery does not suggest them.
+Masturbated is not offered as a new choice. Older saved entries remain readable and
+removable from Canvas.
+
+Habit events are available to log and use the ordinary Canvas and Supabase sync:
+Got wasted, Had a hangover, Smoked a cigarette, Vaped, Drank beer, Drank wine,
+Drank spirits, Used a substance and Smoked hookah. A person's own history can bring
+these events into Personal recommendations. They are not included in discovery
+suggestions that introduce something new to try. This rule is based on the event's
+recommendation role, not a judgment about the person or habit.
+
+Saved event history follows the ordinary Canvas and Supabase sync path; there is no
+separate private event store. Older records keep their IDs and labels and remain
+readable and removable. No new sexual event or sensitive day-title tag is added.
+
+Removing the last Canvas happening clears expansion history and returns the field
+to its starting state (respecting hidden choices). The cleared field survives
+closing and reopening. The recommendation field and complete catalog remain
+available; Personal recommendations resume after a new happening is added.
 
 Health walking, running, swimming, dance and flexibility resolve to Went for a
 walk, Went for a run, Swam, Danced and Stretched. Other documented workouts use
@@ -98,15 +127,15 @@ Worked out; cycling does not imply Biked to work. Unsupported workout raw values
 do not create suggestions. A generic Worked out addition does not satisfy a
 specific running or swimming suggestion. Accepting a suggestion logs its catalog
 ID and reveals that same choice in Personal. Mindful-minutes and low-screen-time
-signals currently have no honest matching event in the fixed catalog and are
-filtered out rather than inventing a feeling or another choice.
+signals still have no configured Health-to-catalog mapping and are filtered out.
+Catalog expansion does not infer that a detected signal equals a new manual event.
 
-Both modes use the same transparent field, figure assignments and interactions.
+The compact field retains its transparent figure assignments and interactions.
 While the picker is open, a light native blur and subtle white wash soften and
 lighten the Canvas artwork behind it, including in Dark Mode, so black picker
 labels remain readable. Closing it restores the clear Canvas.
-In both modes,
-one tap adds an available event, while an added event requires two taps to remove.
+In the field, one tap adds an available event, while an added event requires two taps
+to remove. Catalog additions can be removed through the existing Canvas controls.
 New tree nodes and mode changes animate the figures, labels and hit targets together.
 Reduce Motion uses the settled layout without spatial animation.
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Owns fixed choices plus historical/imported records needed to resolve saved days.
+/// Owns editorial choices plus historical/imported records needed to resolve saved days.
 /// Only selectable exposes choices for new additions.
 ///
 /// Persisted as one JSON blob in the App Group so the widget and extensions can
@@ -44,7 +44,7 @@ final class HappeningStore {
         for index in all.indices {
             let canonicalTags = all[index].isBuiltIn
                 ? builtInTags[all[index].id]
-                : HappeningEventTree.tags(forStoredHappeningID: all[index].id)
+                : HappeningCatalog.byID[all[index].id]?.tags
             if let canonicalTags, !canonicalTags.isEmpty, all[index].tags != canonicalTags {
                 all[index].tags = canonicalTags
                 metadataChanged = true
@@ -105,7 +105,7 @@ final class HappeningStore {
     /// duplicate rows for the same HealthKit workout type.
     @discardableResult
     func ensureExternalHappening(id: String, title: String) -> Happening {
-        let canonicalTags = HappeningEventTree.tags(forStoredHappeningID: id) ?? []
+        let canonicalTags = HappeningCatalog.byID[id]?.tags ?? []
         if let index = all.firstIndex(where: { $0.id == id }) {
             if !canonicalTags.isEmpty, all[index].tags != canonicalTags {
                 all[index].tags = canonicalTags
@@ -140,7 +140,7 @@ final class HappeningStore {
         guard !happenings.isEmpty else { return }
         for source in happenings where !source.isBuiltIn {
             var restored = source
-            if let canonicalTags = HappeningEventTree.tags(forStoredHappeningID: restored.id) {
+            if let canonicalTags = HappeningCatalog.byID[restored.id]?.tags {
                 restored.tags = canonicalTags
             }
             if let index = all.firstIndex(where: { $0.id == restored.id }) {

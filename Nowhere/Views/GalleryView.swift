@@ -102,7 +102,12 @@ struct GalleryView: View {
     var onPalettePresentationChange: (Bool) -> Void = { _ in }
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
-    @State private var showEventExplorer = false
+    @State private var showCatalogField = false
+    @StateObject private var personalProfileStore = PersonalHappeningProfileStore()
+    @State private var personalRecommendations: [PersonalHappeningRecommendation] = []
+    @State private var showsHappeningCatalog = false
+    @State private var catalogInitialMode: HappeningPaletteMode = .frequent
+    @State private var catalogFieldDayKey: String?
     @State private var eventTree = HappeningEventTreeState()
     @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
     @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
@@ -439,8 +444,8 @@ struct GalleryView: View {
     }
 
     private func refreshHappeningPalette() {
-        if showEventExplorer {
-            refreshEventTreePalette()
+        if showCatalogField {
+            refreshCatalogField()
             return
         }
         paletteCatalog = model.selectableHappenings
@@ -448,8 +453,13 @@ struct GalleryView: View {
         let frequent = paletteSelectedIDs.compactMap { id in
             paletteCatalog.first { $0.id == id }
         }
+        // Keep the legacy compact selector bounded; the catalog constellation
+        // below uses every editorial definition when it is open.
+        let fieldIDs = Set(HappeningEventTree.all.map { "event_" + $0.id })
         paletteHappenings = frequent
-            + HappeningPaletteSelection.alternatives(catalog: paletteCatalog, selected: paletteSelectedIDs)
+            + HappeningPaletteSelection.alternatives(
+                catalog: paletteCatalog.filter { fieldIDs.contains($0.id) }, selected: paletteSelectedIDs
+            )
         let request = HappeningEditorialAssignmentRequest(
             happenings: paletteHappenings,
             baseInput: editorialRenderInput.sceneInput,
@@ -465,15 +475,7 @@ struct GalleryView: View {
     }
 
     private func openHappeningPalette() {
-        metricOverlay = nil
-        send(.openHappeningPalette)
-        showEventExplorer = false
-        paletteMode = .frequent
-        refreshHappeningPalette()
-        happeningPalettePanel = nil
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showHappeningPalette = true
-        }
+        openCatalogField()
     }
 
     /// Every presentation change goes through here, so the mirrored binding and
@@ -508,43 +510,76 @@ struct GalleryView: View {
 
     private func closeHappeningPalette() {
         cancelPaletteInteraction()
+        showsHappeningCatalog = false
         withAnimation(.easeInOut(duration: 0.18)) {
             happeningPalettePanel = nil
             showHappeningPalette = false
-            showEventExplorer = false
+            showCatalogField = false
         }
     }
 
-    private func openEventTreePalette() {
+    private func openCatalogField() {
         metricOverlay = nil
         send(.openHappeningPalette)
         cancelPaletteInteraction()
         paletteMode = .frequent
+        catalogFieldDayKey = nil
         if eventTreeDayKey != dayCanvas.dayKey {
             eventTreeDayKey = dayCanvas.dayKey
             eventTreeExpandedIDs = ""
         }
         rebuildPersonalEventField()
-        refreshEventTreePalette()
+        refreshCatalogField()
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
-            showEventExplorer = true
+            showCatalogField = true
             showHappeningPalette = true
         }
     }
 
-    private func refreshEventTreePalette() {
-        // Synchronize every addition path, not just a tap within this field.
-        if !personalEventFieldWasCleared {
-            eventTree.revealHappenings(personalHealthRecommendationIDs + paletteAddedIDs.sorted())
-        }
-        let catalog = Dictionary(uniqueKeysWithValues: model.selectableHappenings.map { ($0.id, $0) })
-        let happenings = HappeningEventTree.all.compactMap { catalog["event_" + $0.id] }
-        paletteCatalog = happenings
+    private func refreshCatalogField() {
+        paletteCatalog = model.selectableHappenings
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
-        paletteHappenings = happenings
+        let selectableByID = Dictionary(uniqueKeysWithValues: paletteCatalog.map { ($0.id, $0) })
+        var allByID = Dictionary(uniqueKeysWithValues: HappeningCatalog.definitions.map { definition in
+            (definition.id, selectableByID[definition.id] ?? definition.happening)
+        })
+        // Keep any restored identity already on this Canvas visible and
+        // removable even when it no longer belongs to the current catalog.
+        for element in dayCanvas.elements {
+            let storedID = HappeningPaletteSelection.choiceID(element.optionId)
+            let id = HappeningDefaults.canonicalID(storedID)
+            guard allByID[id] == nil else { continue }
+            let restored = model.happeningStore.happening(id: element.optionId)
+                ?? Happening(id: id, title: model.resolveOptionTitle(for: element.optionId), isBuiltIn: false)
+            allByID[id] = Happening(id: id, title: restored.title, isBuiltIn: restored.isBuiltIn,
+                                    tags: restored.tags, useCount: restored.useCount, lastUsedAt: restored.lastUsedAt)
+        }
+        let orderedIDs: [String]
+        if catalogFieldDayKey == dayCanvas.dayKey,
+           paletteHappenings.count == allByID.count,
+           Set(paletteHappenings.map(\.id)) == Set(allByID.keys) {
+            // Keep the open constellation fixed while additions update their
+            // usage metadata and Canvas state.
+            orderedIDs = paletteHappenings.map(\.id)
+        } else {
+            let roots = HappeningEventTree.startingEvents.map { "event_" + $0.id }
+            let personal = personalRecommendations.map(\.id)
+            let current = paletteAddedIDs.sorted()
+            let health = personalHealthRecommendationIDs
+            var seen = Set<String>()
+            let priority = (roots + personal + health + current).filter { allByID[$0] != nil && seen.insert($0).inserted }
+            let discoveries = allByID.keys.filter { !seen.contains($0) }.sorted {
+                let lhs = stableCatalogOrderHash(dayCanvas.dayKey + "|" + $0)
+                let rhs = stableCatalogOrderHash(dayCanvas.dayKey + "|" + $1)
+                return lhs == rhs ? $0 < $1 : lhs < rhs
+            }
+            orderedIDs = priority + discoveries
+            catalogFieldDayKey = dayCanvas.dayKey
+        }
+        paletteHappenings = orderedIDs.compactMap { allByID[$0] }
         let request = HappeningEditorialAssignmentRequest(
-            happenings: happenings,
+            happenings: paletteHappenings,
             baseInput: editorialRenderInput.sceneInput,
             committedElements: dayCanvas.elements,
             colorNonce: model.paletteColorNonce()
@@ -559,22 +594,65 @@ struct GalleryView: View {
         }
     }
 
+    private func stableCatalogOrderHash(_ value: String) -> UInt64 {
+        value.utf8.reduce(UInt64(14_695_981_039_346_656_037)) {
+            ($0 ^ UInt64($1)) &* 1_099_511_628_211
+        }
+    }
+
     private func rebuildPersonalEventField() {
+        snapshotPersonalRecommendations()
         if personalEventFieldWasCleared {
             eventTree = HappeningEventTreeState(
                 expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init)
             )
             return
         }
-        let familiar = PersonalHappeningRecommendations.ranked(
-            catalog: model.selectableHappenings,
+        // Preserve legacy tree state for saved expansion IDs. The live catalog
+        // constellation lays out recommendations independently of this atlas.
+        let roots = Set(HappeningEventTree.startingEvents.map { "event_" + $0.id })
+        let familiar = personalRecommendations.map(\.id)
+            .filter { !roots.contains($0) && HappeningEventTree.eventID(forHappeningID: $0) != nil }.prefix(3)
+        eventTree = HappeningEventTreeState(
+            expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
+            recommendedHappeningIDs: personalHealthRecommendationIDs + Array(familiar) + paletteAddedIDs.sorted()
+        )
+    }
+
+    private func snapshotPersonalRecommendations() {
+        personalRecommendations = AdaptiveHappeningRecommendations.ranked(
+            catalog: model.selectableHappenings, profile: personalProfileStore.profile,
             historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
             todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now
         )
-        eventTree = HappeningEventTreeState(
-            expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
-            recommendedHappeningIDs: personalHealthRecommendationIDs + familiar + paletteAddedIDs.sorted()
-        )
+    }
+
+    private func openHappeningCatalog(mode: HappeningPaletteMode) {
+        cancelPaletteInteraction()
+        snapshotPersonalRecommendations()
+        catalogInitialMode = mode
+        showsHappeningCatalog = true
+    }
+
+    private func addCatalogHappening(_ id: String) -> Bool {
+        guard !paletteAddedIDs.contains(id), model.canAddHappening(id: id),
+              addAndSpawnHappening(optionId: id) else { return false }
+        paletteAdditionHapticTick &+= 1
+        if showCatalogField, let eventID = HappeningEventTree.eventID(forHappeningID: id) {
+            eventTree.expand(eventID)
+            eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
+            refreshCatalogField()
+        }
+        return true
+    }
+
+    private var personalConstellationIDs: Set<String> {
+        let recommendations = personalEventFieldWasCleared ? [] : personalRecommendations.map(\.id)
+        let health = personalEventFieldWasCleared ? [] : personalHealthRecommendationIDs
+        return Set(HappeningEventTree.startingEvents.map { "event_" + $0.id }
+            + recommendations
+            + health
+            + paletteAddedIDs.sorted())
     }
 
     private var personalEventFieldWasCleared: Bool {
@@ -600,7 +678,7 @@ struct GalleryView: View {
 
     @ViewBuilder
     private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout, treeHubCenter: CGPoint?) -> some View {
-        if (showHappeningPalette || showEventExplorer), !presentation.isWideCanvas {
+        if (showHappeningPalette || showCatalogField), !presentation.isWideCanvas {
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 assignments: paletteEditorialAssignments,
@@ -608,13 +686,13 @@ struct GalleryView: View {
                 catalog: paletteCatalog,
                 selectedIDs: paletteSelectedIDs,
                 activePanel: Binding(
-                    get: { showEventExplorer ? nil : happeningPalettePanel },
-                    set: { happeningPalettePanel = showEventExplorer ? nil : $0 }
+                    get: { showCatalogField ? nil : happeningPalettePanel },
+                    set: { happeningPalettePanel = showCatalogField ? nil : $0 }
                 ),
                 layout: layout,
                 mode: paletteMode,
-                compactLayout: showEventExplorer ? nil : compactLayout,
-                usesEventTree: showEventExplorer,
+                compactLayout: showCatalogField ? nil : compactLayout,
+                usesCatalogField: showCatalogField,
                 artworkForLayout: { displayedLayout, isExpanding, visibleRect in
                     AnyView(DayObjectsView(
                         sceneInput: displayedEditorialRenderInput.sceneInput,
@@ -623,7 +701,7 @@ struct GalleryView: View {
                         soundPulseBus: canvasSoundPulseBus,
                         presentationMode: paletteRenderMode(layout: displayedLayout,
                             viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
-                            visibleRect: showEventExplorer ? visibleRect : nil)
+                            visibleRect: showCatalogField ? visibleRect : nil)
                     ))
                 },
                 interaction: paletteInteraction,
@@ -635,11 +713,11 @@ struct GalleryView: View {
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {
                     model.rerollPaletteFigures()
-                    if showEventExplorer { refreshEventTreePalette() }
+                    if showCatalogField { refreshCatalogField() }
                     else { refreshHappeningPalette() }
                 },
                 dateHubCenter: treeHubCenter,
-                treeFocusID: showEventExplorer && paletteMode == .frequent
+                treeFocusID: showCatalogField && paletteMode == .frequent
                     ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
                 dateHubInk: .resolve(state: .available,
                     background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
@@ -718,24 +796,39 @@ struct GalleryView: View {
                 CGFloat(tour.cardBottomGlobalY) - viewport.frame(in: .global).minY + 12
             )
         }
-        if showEventExplorer {
-            let tree = eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
-            let placed = Dictionary(uniqueKeysWithValues: zip(eventTree.atlasNodes, tree.sources).map { ($0.0.id, $0.1) })
-            let visible = Set(eventTree.nodes.map(\.id))
-            let sources = HappeningEventTree.all.enumerated().map { index, event in
-                let source = placed[event.id]
-                let scale: CGFloat = paletteMode == .all || visible.contains(event.id) ? 1 : 0
-                return HappeningFieldLayout.Source(index: index,
-                    center: source?.center ?? tree.dateHubCenter ?? .zero,
-                    radius: (source?.radius ?? 0) * scale, appearanceScale: scale)
+        if showCatalogField {
+            let constellation = HappeningFieldLayout.catalogLayout(
+                count: paletteHappenings.count,
+                in: viewport.size,
+                safeInsets: canvasSafeInsets,
+                dynamicTypeSize: paletteDynamicTypeSize,
+                dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
+            )
+            let profile = personalProfileStore.profile
+            let personalIDs = personalConstellationIDs
+            let sources = constellation.sources.map { source in
+                let happening = paletteHappenings[source.index]
+                let id = happening.id
+                let added = paletteAddedIDs.contains(id)
+                let definition = HappeningCatalog.byID[id]
+                let available = definition?.isSelectable == true
+                let hidden = profile.hiddenIDs.contains(id)
+                let revealed = paletteMode == .all
+                    || (personalIDs.contains(id) && (!hidden || added))
+                let scale: CGFloat
+                if !revealed { scale = 0 }
+                else if available || added { scale = 1 }
+                else { scale = 0.58 }
+                return HappeningFieldLayout.Source(index: source.index,
+                    center: source.center, radius: source.radius * scale, appearanceScale: scale)
             }
-            var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: tree.dockAnchor)
-            result.contentSize = tree.contentSize
-            result.dateHubCenter = tree.dateHubCenter
+            var result = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: constellation.dockAnchor)
+            result.contentSize = constellation.contentSize
+            result.dateHubCenter = constellation.dateHubCenter
             return result
         }
         var layout = HappeningFieldLayout.layout(
-            count: compact && !showEventExplorer ? min(10, paletteHappenings.count) : paletteHappenings.count,
+            count: compact && !showCatalogField ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
             safeInsets: canvasSafeInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
@@ -748,15 +841,6 @@ struct GalleryView: View {
         layout.contentSize = CGSize(width: max(viewport.size.width, layout.contentSize.width),
                                     height: max(viewport.size.height, layout.contentSize.height))
         return layout
-    }
-
-    private func eventTreeField(in viewport: GeometryProxy, contentTopInset: CGFloat? = nil) -> HappeningEventTreeLayout.Field {
-        HappeningEventTreeLayout.layout(
-            nodes: eventTree.atlasNodes, in: viewport.size, safeInsets: canvasSafeInsets,
-            contentTopInset: contentTopInset ?? canvasSafeInsets.top
-                + HappeningPaletteChromeLayout.panelTopInset(topCardHeight: topCardHeight, hidesSurroundingChrome: true) + 10,
-            dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }
-        )
     }
 
     private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false, visibleRect: CGRect? = nil) -> DayObjectsPresentationMode {
@@ -814,6 +898,8 @@ struct GalleryView: View {
     }
 
     private func handlePaletteActivation(_ happening: Happening) {
+        guard HappeningCatalog.byID[happening.id]?.isSelectable == true
+                || paletteAddedIDs.contains(happening.id) else { return }
         guard let assignment = paletteEditorialAssignments[happening.id] else { return }
         let isTourAddition = CanvasTour.shared.isActive && CanvasTour.shared.step == .happening
         if isTourAddition && paletteAddedIDs.contains(happening.id) {
@@ -854,11 +940,11 @@ struct GalleryView: View {
                 paletteErrorID = happening.id
                 return
             }
-            if showEventExplorer, case .add = mutation,
+            if showCatalogField, case .add = mutation,
                let eventID = HappeningEventTree.eventID(forHappeningID: happening.id) {
                 eventTree.expand(eventID)
                 eventTreeExpandedIDs = eventTree.expandedIDs.joined(separator: ",")
-                refreshEventTreePalette()
+                refreshCatalogField()
             }
             switch HappeningPaletteSuccessHaptic.forMutation(mutation) {
             case .addition:
@@ -909,7 +995,7 @@ struct GalleryView: View {
     }
 
     private func handlePaletteSelectionSave(_ ids: [String]) -> Bool {
-        guard !showEventExplorer else { return false }
+        guard !showCatalogField else { return false }
         do {
             try model.savePaletteHappeningSelection(ids)
             cancelPaletteInteraction()
@@ -1336,7 +1422,7 @@ struct GalleryView: View {
             syncCanvasMusicInput()
         }
         .onChange(of: model.pendingActivitySuggestions.map(\.optionId)) {
-            if showEventExplorer { refreshEventTreePalette() }
+            if showCatalogField { refreshCatalogField() }
         }
         .onChange(of: preferredCanvasVisualStyleRaw) { _, rawValue in
             applyPreferredCanvasVisualStyle(rawValue)
@@ -1348,11 +1434,11 @@ struct GalleryView: View {
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
         .onChange(of: dayCanvas.dayKey) {
-            if showEventExplorer {
+            if showCatalogField {
                 eventTreeDayKey = dayCanvas.dayKey
                 eventTreeExpandedIDs = ""
                 rebuildPersonalEventField()
-                refreshEventTreePalette()
+                refreshCatalogField()
             }
             remixHistory = CanvasRemixHistory()
             remixFeedbackTask?.cancel()
@@ -1546,6 +1632,22 @@ struct GalleryView: View {
             if let image = toolbar.shareImage {
                 CanvasShareSheet(items: [image])
             }
+        }
+        .sheet(isPresented: $showsHappeningCatalog) {
+            HappeningCatalogBrowser(
+                catalog: HappeningCatalog.definitions.map(\.happening),
+                recommendations: personalRecommendations,
+                addedIDs: paletteAddedIDs, addedCount: todayEventCount,
+                profileStore: personalProfileStore, initialMode: catalogInitialMode,
+                onAdd: addCatalogHappening,
+                onClose: { showsHappeningCatalog = false }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(32)
+        }
+        .onChange(of: showsHappeningCatalog) { _, isPresented in
+            onPalettePanelPresentationChange(isPresented)
         }
         .confirmationDialog(
             String(localized: "Remove this happening?", comment: "Canvas editing – delete confirmation title"),
@@ -1801,22 +1903,25 @@ struct GalleryView: View {
                 && model.pendingActivitySuggestions.isEmpty ? activeHintWindow.prompt : nil,
             onSound: handleCanvasSoundControl,
             onOpenHappeningList: {
-                guard !showEventExplorer else { return }
+                if showCatalogField {
+                    openHappeningCatalog(mode: .frequent)
+                    return
+                }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     happeningPalettePanel = .chooser
                 }
             },
             onToggleHappeningPalette: {
                 if showHappeningPalette { closeHappeningPalette() }
-                else { openEventTreePalette() }
+                else { openCatalogField() }
             },
             happeningMode: showHappeningPalette ? paletteMode : nil,
-            usesEventTree: showEventExplorer,
+            usesCatalogField: showCatalogField,
             onSelectHappeningMode: { mode in
                 guard mode != paletteMode else { return }
                 paletteConfirmationTask?.cancel()
                 paletteTransitionTask?.cancel()
-                if !showEventExplorer {
+                if !showCatalogField {
                     paletteInteraction = HappeningPaletteInteractionState()
                 }
                 paletteErrorID = nil

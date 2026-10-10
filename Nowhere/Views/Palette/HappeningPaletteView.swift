@@ -103,7 +103,7 @@ struct HappeningPaletteView: View {
     let selectedIDs: [String]
     let artwork: AnyView
     let compactLayout: HappeningFieldLayout.Layout?
-    let usesEventTree: Bool
+    let usesCatalogField: Bool
     let artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)?
     @State private var modeTransition: HappeningFieldModeTransition?
     @State private var eventTransition: HappeningEventFieldTransition?
@@ -140,7 +140,7 @@ struct HappeningPaletteView: View {
         layout: HappeningFieldLayout.Layout,
         mode: HappeningPaletteMode = .all,
         compactLayout: HappeningFieldLayout.Layout? = nil,
-        usesEventTree: Bool = false,
+        usesCatalogField: Bool = false,
         artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)? = nil,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
@@ -165,7 +165,7 @@ struct HappeningPaletteView: View {
         self.selectedIDs = selectedIDs ?? happenings.map(\.id)
         self.artwork = artwork
         self.compactLayout = compactLayout
-        self.usesEventTree = usesEventTree
+        self.usesCatalogField = usesCatalogField
         self.artworkForLayout = artworkForLayout
         _activePanel = activePanel
         self.layout = layout
@@ -193,14 +193,14 @@ struct HappeningPaletteView: View {
                     }
                     .coordinateSpace(name: "happeningViewport")
                     .defaultScrollAnchor(mode == .frequent && (compactLayout?.contentSize.height ?? 0) > proxy.size.height ? .top : .center)
-                    .scrollDisabled(!usesEventTree && compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
+                    .scrollDisabled(!usesCatalogField && compactLayout != nil && mode == .frequent && (compactLayout?.contentSize.height ?? 0) <= proxy.size.height)
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .canvasTourAnchor("canvas.happenings")
                     .accessibilityIdentifier("happening_field_scroll")
                     .accessibilityHidden(activePanel != nil)
                     .allowsHitTesting(activePanel == nil && modeTransition == nil && eventTransition == nil)
                     .onChange(of: mode) { oldMode, newMode in
-                        guard !usesEventTree else { return }
+                        guard !usesCatalogField else { return }
                         guard compactLayout != nil else { return }
                         let now = Date()
                         let from = modeTransition?.value(at: now) ?? (oldMode == .all ? 1 : 0)
@@ -217,10 +217,10 @@ struct HappeningPaletteView: View {
                         visibleFieldRect = .zero
                         modeTransition = nil
                         eventTransition = nil
-                        eventLayout = usesEventTree ? layout : nil
+                        eventLayout = usesCatalogField ? layout : nil
                     }
                     .onChange(of: layout) { oldLayout, newLayout in
-                        guard usesEventTree else { return }
+                        guard usesCatalogField else { return }
                         let now = Date()
                         let origin = eventTransition?.layout(at: now) ?? eventLayout ?? oldLayout
                         eventLayout = newLayout
@@ -230,7 +230,7 @@ struct HappeningPaletteView: View {
                         if reduced { eventTransition = nil; modeTransition = nil }
                     }
                     .task(id: eventTransition?.startedAt) {
-                        guard usesEventTree, eventTransition != nil else { return }
+                        guard usesCatalogField, eventTransition != nil else { return }
                         do { try await Task.sleep(for: .seconds(HappeningEventFieldTransition.duration + 0.05)) }
                         catch { return }
                         eventTransition = nil
@@ -334,7 +334,7 @@ struct HappeningPaletteView: View {
             return HappeningFieldExpansion.layout(compact: compactLayout, expanded: layout,
                 viewport: viewport, progress: progress)
         }
-        if usesEventTree { return eventTransition?.layout(at: date) ?? eventLayout ?? layout }
+        if usesCatalogField { return eventTransition?.layout(at: date) ?? eventLayout ?? layout }
         return layout
     }
 
@@ -358,7 +358,8 @@ struct HappeningPaletteView: View {
                 .allowsHitTesting(false)
             HappeningShapeField(happenings: happenings, assignments: assignments, layout: layout,
                 interaction: interaction, addedIDs: addedIDs, onActivate: onActivate,
-                labelInks: labelInks, fitsTreeLabels: usesEventTree)
+                labelInks: labelInks,
+                fitsCatalogLabels: usesCatalogField)
             if let hub = hubCenter {
                 HappeningPaletteCountHub(count: addedEventCount, ink: dateHubInk.color)
                     .position(hub)
@@ -387,7 +388,7 @@ struct HappeningPaletteView: View {
 
     @ViewBuilder
     private func fieldScrollFocus(layout expanded: HappeningFieldLayout.Layout) -> some View {
-        if usesEventTree, mode == .all, eventTransition == nil {
+        if usesCatalogField, mode == .all, eventTransition == nil {
             HappeningTreeScrollFocus(focusID: "event_field_all",
                 center: expanded.dateHubCenter ?? self.dateHubCenter
                     ?? CGPoint(x: expanded.contentSize.width / 2, y: expanded.contentSize.height / 2),

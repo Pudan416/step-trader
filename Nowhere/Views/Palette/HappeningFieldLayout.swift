@@ -1,8 +1,13 @@
 import SwiftUI
 
-/// Stable circle positions for the happening field. Larger catalogs extend
-/// beyond the viewport in both directions instead of shrinking their targets.
+/// Stable circle positions for the happening field. The catalog constellation
+/// uses a day-seeded spiral so large catalogs grow in two dimensions.
 enum HappeningFieldLayout {
+    private struct GridPoint {
+        let x: Int
+        let y: Int
+    }
+
     struct Source: Equatable {
         let index: Int
         let center: CGPoint
@@ -161,6 +166,74 @@ enum HappeningFieldLayout {
             contentBottom: contentBottom,
             dockAnchor: dockAnchor
         )
+    }
+
+    /// A catalog constellation: the first items stay near the day centre and
+    /// the rest spiral outward across a pannable two-dimensional field.
+    /// Unlike the legacy event tree, it has no fixed node count or atlas.
+    static func catalogLayout(
+        count: Int,
+        in size: CGSize,
+        safeInsets: EdgeInsets,
+        dynamicTypeSize: DynamicTypeSize = .large,
+        dockCenterY: CGFloat? = nil
+    ) -> Layout {
+        let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
+        guard !safeBounds.isEmpty, count > 0 else {
+            return Layout(sources: [], labelFrames: [], contourBounds: .zero,
+                          dockAnchor: CGPoint(x: safeBounds.midX, y: safeBounds.maxY - dockHitRadius),
+                          completionBounds: nil, contentSize: size)
+        }
+
+        let defaultDockY = safeBounds.maxY - dockHitRadius
+        let dockAnchor = CGPoint(
+            x: safeBounds.midX,
+            y: min(safeBounds.maxY - dockHitRadius,
+                   max(safeBounds.midY, dockCenterY ?? defaultDockY))
+        )
+        let typeScale = HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize / 14
+        let radius = min(78, max(60, targetRadius * typeScale))
+        let step = radius * 2 + contactGap
+        // Reserve the origin for the day-count hub; event one begins on the
+        // first ring and the six roots naturally gather around it.
+        let coordinates = Array(spiralCoordinates(count: count + 1).dropFirst())
+        let minX = coordinates.map(\.x).min() ?? 0
+        let maxX = coordinates.map(\.x).max() ?? 0
+        let minY = coordinates.map(\.y).min() ?? 0
+        let maxY = coordinates.map(\.y).max() ?? 0
+        let padding = radius + edgeClearance
+        let width = max(size.width, CGFloat(maxX - minX) * step + padding * 2)
+        let height = max(size.height, CGFloat(maxY - minY) * step + padding * 2)
+        let middleX = CGFloat(minX + maxX) / 2
+        let middleY = CGFloat(minY + maxY) / 2
+        let sources = coordinates.enumerated().map { index, point in
+            Source(index: index, center: CGPoint(
+                x: width / 2 + (CGFloat(point.x) - middleX) * step,
+                y: height / 2 + (CGFloat(point.y) - middleY) * step
+            ), radius: radius)
+        }
+        var result = makeLayout(sources: sources, dockAnchor: dockAnchor)
+        result.contentSize = CGSize(width: width, height: height)
+        result.dateHubCenter = CGPoint(x: width / 2, y: height / 2)
+        return result
+    }
+
+    private static func spiralCoordinates(count: Int) -> [GridPoint] {
+        var points: [GridPoint] = []
+        points.reserveCapacity(count)
+        var x = 0
+        var y = 0
+        var dx = 0
+        var dy = -1
+        for _ in 0..<count {
+            points.append(GridPoint(x: x, y: y))
+            if x == y || (x < 0 && x == -y) || (x > 0 && x == 1 - y) {
+                (dx, dy) = (-dy, dx)
+            }
+            x += dx
+            y += dy
+        }
+        return points
     }
 
     private static func standardLayout(

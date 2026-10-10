@@ -11,7 +11,7 @@ struct HappeningShapeField: View {
     let onActivate: (Happening) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var labelInks: [String: HappeningPaletteLabelInk] = [:]
-    var fitsTreeLabels = false
+    var fitsCatalogLabels = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -30,7 +30,8 @@ struct HappeningShapeField: View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
         let existingTourMoment = CanvasTour.shared.isActive
             && CanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
-        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil || existingTourMoment
+        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
+            || existingTourMoment
         let side = max(44, source.radius * 2 / max(0.001, source.appearanceScale))
         let ink = labelInks[happening.id] ?? .dark
 
@@ -41,8 +42,8 @@ struct HappeningShapeField: View {
                 Text(happening.localizedTitle())
                     .font(.onest(size: min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
                     .multilineTextAlignment(.center)
-                    .lineLimit(fitsTreeLabels && !happening.localizedTitle().contains(" ") ? 1 : 3)
-                    .minimumScaleFactor(fitsTreeLabels ? 0.75 : tourLabelScale)
+                    .lineLimit(fitsCatalogLabels && !happening.localizedTitle().contains(" ") ? 1 : 3)
+                    .minimumScaleFactor(fitsCatalogLabels ? 0.75 : tourLabelScale)
                     .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
                     // Preview actions never participate in the title's layout.
                     .overlay {
