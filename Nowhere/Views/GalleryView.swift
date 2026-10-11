@@ -103,6 +103,7 @@ struct GalleryView: View {
     var onPalettePanelPresentationChange: (Bool) -> Void = { _ in }
     @State private var showHappeningPalette = false
     @State private var showEventExplorer = false
+    @State private var hasHappeningPaletteChanges = false
     @State private var eventTree = HappeningEventTreeState()
     @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
     @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
@@ -467,6 +468,7 @@ struct GalleryView: View {
     private func openHappeningPalette() {
         metricOverlay = nil
         send(.openHappeningPalette)
+        hasHappeningPaletteChanges = false
         showEventExplorer = false
         paletteMode = .frequent
         refreshHappeningPalette()
@@ -519,6 +521,7 @@ struct GalleryView: View {
         metricOverlay = nil
         send(.openHappeningPalette)
         cancelPaletteInteraction()
+        hasHappeningPaletteChanges = false
         paletteMode = .frequent
         if eventTreeDayKey != dayCanvas.dayKey {
             eventTreeDayKey = dayCanvas.dayKey
@@ -854,6 +857,7 @@ struct GalleryView: View {
                 paletteErrorID = happening.id
                 return
             }
+            hasHappeningPaletteChanges = true
             if showEventExplorer, case .add = mutation,
                let eventID = HappeningEventTree.eventID(forHappeningID: happening.id) {
                 eventTree.expand(eventID)
@@ -1796,6 +1800,7 @@ struct GalleryView: View {
         CanvasBottomActionRow(
             isDataPanelOpen: presentation.showsDataPanel,
             isHappeningPalettePresented: showHappeningPalette,
+            hasHappeningPaletteChanges: hasHappeningPaletteChanges,
             soundAppearance: canvasSoundAppearance,
             addHint: showAddHint && suggestionBannerHeight == 0 && !isCanvasTourActive && !presentation.isWideCanvas
                 && model.pendingActivitySuggestions.isEmpty ? activeHintWindow.prompt : nil,
