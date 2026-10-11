@@ -17,7 +17,7 @@ struct CanvasBottomActionRow: View {
     /// can't see through must not leave a live hit region under it.
     let isDataPanelOpen: Bool
     let isHappeningPalettePresented: Bool
-    let hasHappeningPaletteChanges: Bool
+    var hasHappeningPaletteChanges = false
     let soundAppearance: CanvasSoundButtonAppearance
     var addHint: String? = nil
     let onSound: () -> Void
