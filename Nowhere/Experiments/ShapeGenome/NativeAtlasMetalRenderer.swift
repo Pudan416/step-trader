@@ -113,7 +113,7 @@ final class NativeAtlasMetalRenderer {
     }
 
     func encode(commandBuffer: MTLCommandBuffer, output: MTLTexture, recipe: NativeAtlasRecipe, frame: DayObjectRenderFrame, damage: Float, scene: DayObjectScene, elapsed: Double, pointToPixelScale: Float, isPalette: Bool, colorVariants: [String: Int] = [:]) -> Bool {
-        let renderScale = min(1.0, 1536.0 / Double(max(output.width, output.height)))
+        let renderScale = isPalette ? 1.0 : min(1.0, 1536.0 / Double(max(output.width, output.height)))
         let w = max(1, Int(Double(output.width) * renderScale)), h = max(1, Int(Double(output.height) * renderScale))
         if targets.first?.width != w || targets.first?.height != h || targets.count != 3 {
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: w, height: h, mipmapped: false)

@@ -302,7 +302,8 @@ enum HappeningPaletteRenderFrame {
             postProcess: DayObjectPostProcess(
                 visualClarity: 1,
                 grainSeed: scene.rootSeed,
-                elapsed: elapsed
+                elapsed: elapsed,
+                grainIntensity: 0
             )
         )
     }
