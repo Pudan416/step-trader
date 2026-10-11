@@ -17,6 +17,7 @@ struct CanvasBottomActionRow: View {
     /// can't see through must not leave a live hit region under it.
     let isDataPanelOpen: Bool
     let isHappeningPalettePresented: Bool
+    var hasHappeningPaletteChanges = false
     let soundAppearance: CanvasSoundButtonAppearance
     var addHint: String? = nil
     let onSound: () -> Void
@@ -174,19 +175,22 @@ struct CanvasBottomActionRow: View {
 
     private var addControl: some View {
         Button(action: onToggleHappeningPalette) {
-            Image(systemName: "plus")
+            Image(systemName: closeButtonSymbol)
                 .font(.geist(size: 22, weight: .regular))
                 .foregroundStyle(palette.onAccentColor)
-                .rotationEffect(.degrees(isHappeningPalettePresented ? 45 : 0))
+                .rotationEffect(.degrees(isHappeningPalettePresented && !hasHappeningPaletteChanges ? 45 : 0))
                 .frame(width: 52, height: 52)
                 .background(palette.accentColor, in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .animation(.spring(response: 0.34, dampingFraction: 0.78), value: isHappeningPalettePresented)
+        .animation(.spring(response: 0.34, dampingFraction: 0.78), value: hasHappeningPaletteChanges)
         .accessibilityLabel(
             String(
-                localized: isHappeningPalettePresented ? "Close" : "Add happening",
+                localized: isHappeningPalettePresented
+                    ? (hasHappeningPaletteChanges ? "Done" : "Close")
+                    : "Add happening",
                 comment: "Canvas add or palette close button"
             )
         )
@@ -205,6 +209,11 @@ struct CanvasBottomActionRow: View {
                 )
             }
         )
+    }
+
+    private var closeButtonSymbol: String {
+        guard isHappeningPalettePresented else { return "plus" }
+        return hasHappeningPaletteChanges ? "checkmark" : "plus"
     }
 }
 

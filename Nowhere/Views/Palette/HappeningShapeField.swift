@@ -44,25 +44,29 @@ struct HappeningShapeField: View {
                     .lineLimit(fitsTreeLabels && !happening.localizedTitle().contains(" ") ? 1 : 3)
                     .minimumScaleFactor(fitsTreeLabels ? 0.75 : tourLabelScale)
                     .frame(width: max(30, side * 0.80 - 12), alignment: .center)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background {
-                        if state != .available {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .fill(ink.backingColor)
-                        }
-                    }
-                    // Preview actions never participate in the title's layout.
+                    .padding(.horizontal, 4)
+                    // Keep selected labels directly on the figure. A small
+                    // contrasting halo preserves legibility without the old
+                    // opaque rounded rectangle behind the text.
+                    .shadow(color: ink == .light ? .black.opacity(0.8) : .white.opacity(0.8), radius: 2, x: 0, y: 0)
+                    .shadow(color: ink == .light ? .black.opacity(0.55) : .white.opacity(0.55), radius: 4, x: 0, y: 1)
+                    // Preview actions are high contrast and remain outside the
+                    // title's layout so the figure and caption do not jump.
                     .overlay {
                         if state.awaitsConfirmation {
-                            Text(state == .additionPreview ? LocalizedStringKey("Add") : LocalizedStringKey("Delete"))
-                                .font(.geist(size: 12, weight: .semibold))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 3)
-                                .background(ink.color.opacity(0.08), in: Capsule())
-                                .overlay(Capsule().strokeBorder(ink.color.opacity(0.45), lineWidth: 1))
+                            Label(
+                                state == .additionPreview ? LocalizedStringKey("Add") : LocalizedStringKey("Delete"),
+                                systemImage: state == .additionPreview ? "plus" : "trash"
+                            )
+                                .font(.geist(size: 13, weight: .bold))
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 6)
+                                .foregroundStyle(.white)
+                                .background(.black.opacity(0.94), in: Capsule())
+                                .overlay(Capsule().strokeBorder(.white.opacity(0.95), lineWidth: 1.5))
+                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                                 .accessibilityIdentifier("happening_action_\(happening.id)")
-                                .offset(y: side * 0.30)
+                                .offset(y: min(side * 0.31, 38))
                         }
                     }
                     .foregroundStyle(ink.color)
@@ -118,10 +122,6 @@ enum HappeningPaletteLabelInk: Equatable {
     case dark, light
 
     var color: Color { self == .dark ? .black : .white }
-
-    var backingColor: Color {
-        self == .light ? .black.opacity(0.68) : .white.opacity(0.82)
-    }
 
     static func contrasting(with linearColors: [SIMD3<Float>]) -> Self {
         guard !linearColors.isEmpty else { return .dark }

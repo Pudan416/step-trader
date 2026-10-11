@@ -104,7 +104,10 @@ filtered out rather than inventing a feeling or another choice.
 Both modes use the same transparent field, figure assignments and interactions.
 While the picker is open, a light native blur and subtle white wash soften and
 lighten the Canvas artwork behind it, including in Dark Mode, so black picker
-labels remain readable. Closing it restores the clear Canvas.
+labels remain readable. Labels sit directly on selected figures with a light
+contrast halo, and the two-tap removal preview uses a high-contrast Delete
+control. After a successful addition or removal, the close control becomes a
+checkmark until the picker closes. Closing it restores the clear Canvas.
 In both modes,
 one tap adds an available event, while an added event requires two taps to remove.
 New tree nodes and mode changes animate the figures, labels and hit targets together.
