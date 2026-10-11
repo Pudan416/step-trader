@@ -143,6 +143,9 @@ from new scenes. Circles remain round. Figures share a related color group, with
 pigments borrowed from nearby palettes in the selected categories.
 With zero automatically spent colors, there is no global scene blur. Blur
 collections retain their own softness, and manual Trace overrides stay available.
+When colors are spent, digital traces become visible earlier at low and medium
+strengths. Each of the nine seeded trace styles keeps its own character; scene
+displacement is stronger but remains capped, and zero strength stays unchanged.
 The numeric pigments and mixed look order are frozen with the day. Adding or
 removing an event preserves the other figures. A seeded Remix creates a new look
 order; saved days keep their prior recipe version. Today's unlocked Editorial
