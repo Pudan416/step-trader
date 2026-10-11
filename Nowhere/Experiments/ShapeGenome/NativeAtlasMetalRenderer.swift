@@ -113,6 +113,9 @@ final class NativeAtlasMetalRenderer {
     }
 
     func encode(commandBuffer: MTLCommandBuffer, output: MTLTexture, recipe: NativeAtlasRecipe, frame: DayObjectRenderFrame, damage: Float, scene: DayObjectScene, elapsed: Double, pointToPixelScale: Float, isPalette: Bool, colorVariants: [String: Int] = [:]) -> Bool {
+        // Bring low and medium spend into view earlier while keeping zero
+        // spend completely clean and full strength bounded at one.
+        let traceStrength = isPalette ? 0 : pow(min(max(damage, 0), 1), 0.72)
         let renderScale = isPalette ? 1.0 : min(1.0, 1536.0 / Double(max(output.width, output.height)))
         let w = max(1, Int(Double(output.width) * renderScale)), h = max(1, Int(Double(output.height) * renderScale))
         if targets.first?.width != w || targets.first?.height != h || targets.count != 3 {
@@ -184,7 +187,6 @@ final class NativeAtlasMetalRenderer {
             let saturation: Float = scene.meshGradientStyle.isNoir == true ? 0 : pose.presentationSaturation
             let renderRotation = Self.renderRotation(for: pose.direction)
             let actorSeed = UInt64(spec.seedHex, radix: 16) ?? 0
-            let traceStrength = isPalette ? 0 : min(max(damage, 0), 1)
             let placement: [SIMD4<Float>] = [
                 SIMD4(center.x, center.y, pose.halfSize.x * 2.72, renderRotation),
                 SIMD4(Float(w), Float(h), pose.opacity, 1),
@@ -210,7 +212,7 @@ final class NativeAtlasMetalRenderer {
             encoder.setRenderPipelineState(display); encoder.setFragmentTexture(targets[source], index: 0)
             let seed = UInt64(recipe.seedHex, radix: 16) ?? 0
             let legacyTrace = recipe.glitchType < 5
-            var effect = SIMD4<Float>(legacyTrace ? damage : 0, Float(recipe.glitchType), Float(seed & 65535) / 65535, Float((seed >> 16) & 65535) / 65535)
+            var effect = SIMD4<Float>(legacyTrace ? traceStrength : 0, Float(recipe.glitchType), Float(seed & 65535) / 65535, Float((seed >> 16) & 65535) / 65535)
             encoder.setFragmentBytes(&effect, length: 16, index: 0)
             var focus = SIMD4<Float>(post.blurRadiusPixels / Float(max(output.width, output.height)), scene.meshGradientStyle.isNoir == true ? 1 : 0, 0, 0)
             encoder.setFragmentBytes(&focus, length: 16, index: 1)

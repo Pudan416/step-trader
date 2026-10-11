@@ -1,10 +1,11 @@
 #include "ShapeAtlas/MetalShapeUniforms.metalh"
 
-// Seeded digital trace pass; source sampling and strength curve are unchanged.
+// Seeded digital trace pass with a bounded, more visible displacement curve.
 fragment float4 nativeAtlasDisplay(MetalShapeVertexOut in [[stage_in]], texture2d<float> scene [[texture(0)]], constant float4 &effect [[buffer(0)]], constant float4 &finish [[buffer(1)]]) {
     constexpr sampler linearSampler(coord::normalized, address::clamp_to_edge, filter::linear);
     const float2 uv = in.uv;
-    const float strength = clamp(effect.x, 0.0, 1.0), amount = strength * strength * 0.085;
+    const float strength = clamp(effect.x, 0.0, 1.0);
+    const float amount = pow(strength, 1.15) * 0.14;
     const float phase = effect.z * 6.2831853, angle = effect.w * 6.2831853;
     const float2 direction = float2(cos(angle), sin(angle));
     float2 shifted = uv;
