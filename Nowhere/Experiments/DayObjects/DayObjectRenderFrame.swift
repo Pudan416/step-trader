@@ -926,12 +926,17 @@ struct DayObjectPostProcess: Equatable {
     let grainIntensity: Double
     let grainPhase: Double
 
-    init(visualClarity rawVisualClarity: Double, grainSeed _: UInt64, elapsed rawElapsed: Double = 0) {
+    init(
+        visualClarity rawVisualClarity: Double,
+        grainSeed _: UInt64,
+        elapsed rawElapsed: Double = 0,
+        grainIntensity rawGrainIntensity: Double = 0.05
+    ) {
         let visualClarity = Self.clampedUnit(rawVisualClarity)
         blurRadius = pow(1 - visualClarity, 1.4) * 18
         contrast = 0.84 + 0.16 * visualClarity
         saturation = 0.88 + 0.12 * visualClarity
-        grainIntensity = 0.05
+        grainIntensity = Self.clampedGrain(rawGrainIntensity)
 
         let elapsed = rawElapsed.isFinite ? max(rawElapsed, 0) : 0
         // Drift the final monochrome grain by roughly one pixel per second.
@@ -941,6 +946,11 @@ struct DayObjectPostProcess: Equatable {
     private static func clampedUnit(_ value: Double) -> Double {
         guard value.isFinite else { return 0 }
         return min(max(value, 0), 1)
+    }
+
+    private static func clampedGrain(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), 0.075)
     }
 
 }

@@ -43,7 +43,15 @@ struct HappeningShapeField: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(fitsTreeLabels && !happening.localizedTitle().contains(" ") ? 1 : 3)
                     .minimumScaleFactor(fitsTreeLabels ? 0.75 : tourLabelScale)
-                    .frame(width: side * 0.80, height: side * 0.76, alignment: .center)
+                    .frame(width: max(30, side * 0.80 - 12), alignment: .center)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background {
+                        if state != .available {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(ink.backingColor)
+                        }
+                    }
                     // Preview actions never participate in the title's layout.
                     .overlay {
                         if state.awaitsConfirmation {
@@ -110,6 +118,10 @@ enum HappeningPaletteLabelInk: Equatable {
     case dark, light
 
     var color: Color { self == .dark ? .black : .white }
+
+    var backingColor: Color {
+        self == .light ? .black.opacity(0.68) : .white.opacity(0.82)
+    }
 
     static func contrasting(with linearColors: [SIMD3<Float>]) -> Self {
         guard !linearColors.isEmpty else { return .dark }

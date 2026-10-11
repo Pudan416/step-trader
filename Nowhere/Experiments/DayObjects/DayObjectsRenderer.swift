@@ -205,7 +205,7 @@ struct DayObjectsPostUniforms: Equatable {
         saturation = Self.nonnegativeFinite(Float(postProcess.saturation))
 
         _ = rawPaletteLuminance
-        grainIntensity = 0.05
+        grainIntensity = Self.nonnegativeFinite(Float(postProcess.grainIntensity))
 
         grainPhase = postProcess.grainPhase.isFinite
             ? max(Float(postProcess.grainPhase), 0)
