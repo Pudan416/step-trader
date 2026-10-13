@@ -1,6 +1,9 @@
 import WidgetKit
 import SwiftUI
 import ImageIO
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
 
 // MARK: - Module-Scope Reusable Helpers
 //
@@ -18,6 +21,20 @@ private let widgetDecoder: JSONDecoder = JSONDecoder()
 /// Reusable calendar for "next reset / next date matching components" lookups.
 /// Locale-current — same answer as `widgetCalendar` but no per-call lookup.
 private let widgetCalendar: Calendar = .current
+
+private enum WidgetSelectionMetrics {
+    static func applicationCount(in selectionData: Data?) -> Int {
+        #if canImport(FamilyControls)
+        guard let selectionData,
+              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) else {
+            return 0
+        }
+        return selection.applicationTokens.count
+        #else
+        return 0
+        #endif
+    }
+}
 
 // MARK: - Shared Widget Kind
 
@@ -247,7 +264,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     launchBundleId: AppGroupIdentity.widgetLaunchBundleId(
                         templateApp: group.templateApp, name: group.name, selectionData: group.selectionData
                     ),
-                    appsCount: Self.applicationCount(in: group.selectionData),
+                    appsCount: WidgetSelectionMetrics.applicationCount(in: group.selectionData),
                     spentToday: 0,
                     budgetMinutes: budgetMinutes,
                     budgetInitial: budgetInitial,
@@ -279,18 +296,6 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                               bodyPoints: 0, mindPoints: 0, heartPoints: 0,
                               resetDate: nil)
         )
-    }
-
-    private static func applicationCount(in selectionData: Data?) -> Int {
-        #if canImport(FamilyControls)
-        guard let selectionData,
-              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) else {
-            return 0
-        }
-        return selection.applicationTokens.count
-        #else
-        return 0
-        #endif
     }
 
     // MARK: - Energy Data
@@ -733,7 +738,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             launchBundleId: AppGroupIdentity.widgetLaunchBundleId(
                 templateApp: group.templateApp, name: group.name, selectionData: group.selectionData
             ),
-            appsCount: Self.applicationCount(in: group.selectionData),
+            appsCount: WidgetSelectionMetrics.applicationCount(in: group.selectionData),
             spentToday: 0,
             budgetMinutes: budgetMinutes,
             budgetInitial: budgetInitial,
