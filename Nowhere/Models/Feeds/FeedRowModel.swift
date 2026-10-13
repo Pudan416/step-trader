@@ -50,12 +50,12 @@ enum FeedInlineLayout {
     static let coordinateSpaceName = "feeds-scroll-viewport"
     static let tabBarClearance: CGFloat = 16
 
+    /// The caller supplies the usable viewport after its page footer inset.
     static func needsAutoScroll(
         optionsBottom: CGFloat,
-        viewportHeight: CGFloat,
-        tabBarHeight: CGFloat
+        viewportHeight: CGFloat
     ) -> Bool {
-        optionsBottom > viewportHeight - tabBarHeight - tabBarClearance
+        optionsBottom > viewportHeight - tabBarClearance
     }
 }
 

@@ -114,6 +114,21 @@ one tap adds an available event, while an added event requires two taps to remov
 New tree nodes and mode changes animate the figures, labels and hit targets together.
 Reduce Motion uses the settled layout without spatial animation.
 
+## Adding and editing Feeds
+
+The Choose apps to block banner stays above the bottom navigation while the feed
+list scrolls. Its height is reserved outside the scroll viewport, keeping the
+last feed and expanded unlock options reachable.
+
+Adding a feed starts with the system app picker. Continue opens a selection
+preview, name and optional widget-opening choice; Change apps returns to the
+picker with the draft intact. Editing starts at those details. Cancel or swipe
+dismissal discards the draft without changing saved groups. Exactly one app can
+leave its name blank and use the system app title. A supported selection that
+includes multiple apps, categories or websites requires a group name. Website-only
+blocking remains unavailable. Selecting a widget target can suggest a name for
+an empty draft; changing that target preserves manually edited and existing names.
+
 ## Widget app opening
 
 An unlocked group containing one application can reopen that app through Nowhere.

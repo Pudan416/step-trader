@@ -168,13 +168,8 @@ struct AppsPageSimplified: View {
                     .padding(.bottom, 14)
 
                     if visibleGroups.isEmpty {
-                        VStack(spacing: 18) {
-                            emptyState
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            addFeedCard
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, max(tabBarHeight, 50) + 20)
+                        emptyState
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         feedsList
                     }
@@ -184,6 +179,12 @@ struct AppsPageSimplified: View {
             }
             .todayCanvasBackground(matchesCanvas: true)
             .background(Color.clear)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                addFeedCard
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, max(tabBarHeight, 50) + 16)
+            }
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear.frame(height: topCardHeight)
             }
@@ -241,7 +242,7 @@ struct AppsPageSimplified: View {
                     },
                     isEditing: selectedGroupId != nil
                 ) { selection, name, launchTarget in
-                    guard selection.hasGroupTargets, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    guard AppGroupNamePolicy.canSave(selection: selection, name: name) else { return }
                     guard !pickerCommitted else { return }
                     if let pickerOperation {
                         guard CanvasTour.shared.isCurrent(pickerOperation) else { return }
@@ -380,18 +381,11 @@ struct AppsPageSimplified: View {
                                 }
                             }
                         }
-
-                        addFeedCard
-                            .padding(.top, 2)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
                 }
                 .coordinateSpace(name: FeedInlineLayout.coordinateSpaceName)
-                .safeAreaPadding(
-                    .bottom,
-                    max(tabBarHeight, 50) + FeedInlineLayout.tabBarClearance
-                )
                 .scrollIndicators(.hidden)
                 .onPreferenceChange(FeedUnlockOptionsBottomPreferenceKey.self) { optionBottoms in
                     guard
@@ -401,8 +395,7 @@ struct AppsPageSimplified: View {
                         let optionsBottom = optionBottoms[groupID],
                         FeedInlineLayout.needsAutoScroll(
                             optionsBottom: optionsBottom,
-                            viewportHeight: viewport.size.height,
-                            tabBarHeight: max(tabBarHeight, 50)
+                            viewportHeight: max(0, viewport.size.height - viewport.safeAreaInsets.bottom)
                         )
                     else { return }
 

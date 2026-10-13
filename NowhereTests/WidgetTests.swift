@@ -581,3 +581,81 @@ final class TargetResolverLaunchTests: XCTestCase {
         XCTAssertNil(TargetResolver.urlScheme(forBundleId: bundleID))
     }
 }
+
+
+final class AppGroupEditorDraftTests: XCTestCase {
+    private func singleSelection() throws -> FamilyActivitySelection {
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        return selection
+    }
+
+    func testOnlyOneApplicationCanSaveWithoutAName() throws {
+        var selection = try singleSelection()
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "  "))
+        selection.applicationTokens.insert(try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8)))
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: selection, name: "  "))
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "Social"))
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: FamilyActivitySelection(), name: "Social"))
+    }
+
+    func testWebsiteAndCategorySelectionsRequireName() throws {
+        var selection = try singleSelection()
+        selection.webDomainTokens = [try JSONDecoder().decode(WebDomainToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: selection, name: ""))
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "Reading"))
+        selection = try singleSelection()
+        selection.categoryTokens = [try JSONDecoder().decode(ActivityCategoryToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: selection, name: ""))
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "Social"))
+    }
+
+    func testWidgetChoiceSuggestsNameButPreservesUserEditsAndExistingNames() throws {
+        var draft = AppGroupEditorDraft(selection: try singleSelection(), name: "", launchTarget: nil, isEditing: false)
+        draft.chooseLaunchTarget("com.grailed.production")
+        XCTAssertEqual(draft.name, "Grailed")
+        draft.chooseLaunchTarget("com.burbn.instagram")
+        XCTAssertEqual(draft.name, "Instagram")
+        draft.editName("My feed")
+        draft.chooseLaunchTarget("com.google.ios.youtube")
+        XCTAssertEqual(draft.name, "My feed")
+        draft = AppGroupEditorDraft(selection: try singleSelection(), name: "Instagram", launchTarget: "com.burbn.instagram", isEditing: true)
+        draft.chooseLaunchTarget("com.grailed.production")
+        XCTAssertEqual(draft.name, "Instagram", "An existing name is always user-owned")
+    }
+
+    func testChangingAppsOrClearingWidgetTargetRemovesOnlySuggestedName() throws {
+        var draft = AppGroupEditorDraft(selection: try singleSelection(), name: "", launchTarget: nil, isEditing: false)
+        draft.chooseLaunchTarget("com.burbn.instagram")
+        var changed = try singleSelection()
+        changed.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        draft.updateSelection(changed)
+        XCTAssertEqual(draft.name, "")
+        XCTAssertEqual(draft.launchTarget, "")
+        draft.chooseLaunchTarget("com.grailed.production")
+        draft.chooseLaunchTarget("")
+        XCTAssertEqual(draft.name, "")
+        draft.editName("My name")
+        draft.chooseLaunchTarget("com.burbn.instagram")
+        draft.chooseLaunchTarget("")
+        draft.updateSelection(try singleSelection())
+        XCTAssertEqual(draft.name, "My name")
+    }
+
+    func testChangingStepsKeepsDraftButChangingAppsClearsAssociation() throws {
+        let original = try singleSelection()
+        var draft = AppGroupEditorDraft(selection: original, name: "Focus", launchTarget: "com.grailed.production", isEditing: true)
+        XCTAssertEqual(draft.step, .details)
+        draft.step = .selection
+        draft.updateSelection(original)
+        draft.step = .details
+        XCTAssertEqual(draft.launchTarget, "com.grailed.production")
+        XCTAssertEqual(draft.name, "Focus")
+        var updated = original
+        updated.applicationTokens.removeAll()
+        draft.updateSelection(updated)
+        XCTAssertEqual(draft.launchTarget, "")
+        XCTAssertEqual(draft.name, "Focus")
+        XCTAssertEqual(original.applicationTokens.count, 1, "Discarding the draft must leave the source selection unchanged")
+    }
+}
