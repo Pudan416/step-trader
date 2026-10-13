@@ -400,10 +400,16 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
             Happening(id: "event_root_worked", title: "Worked", isBuiltIn: true, useCount: 200, lastUsedAt: now),
             Happening(id: "user_saved", title: "Saved", isBuiltIn: false, useCount: 200, lastUsedAt: now)
         ]
-        XCTAssertEqual(
-            PersonalHappeningRecommendations.sphereLeaders(catalog: catalog, at: now),
-            ["event_root_worked", "event_rage", "event_root_home", "event_walk", "event_walked", "event_friend"]
-        )
+        let leaders = PersonalHappeningRecommendations.sphereLeaders(catalog: catalog, at: now)
+        XCTAssertEqual(leaders,
+            ["event_root_worked", "event_rage", "event_doomscroll", "event_walk", "event_walked", "event_friend"])
+        XCTAssertEqual(Set(leaders).count, 6, "Each sphere keeps one distinct leader")
+        XCTAssertFalse(leaders.contains("event_coffee"), "One use cannot replace a cold-start leader")
+        XCTAssertFalse(leaders.contains("user_saved"), "Archived custom events cannot enter the selectable field")
+        // Old usage still leads when it is a sphere's only eligible event.
+        // Recency determines the winner when that same sphere has alternatives.
+        let recentHome = Happening(id: "event_cleaned", title: "Cleaned up", isBuiltIn: true, useCount: 2, lastUsedAt: now)
+        XCTAssertEqual(PersonalHappeningRecommendations.sphereLeaders(catalog: catalog + [recentHome], at: now)[2], "event_cleaned")
     }
 
     func testRestoredDayHistoryLearnsCanonicalEventsWithoutUsageMetadata() {
@@ -443,6 +449,52 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
         XCTAssertEqual(state.nodes.first { $0.id == "swam" }?.parentID, "walk")
         state.expand("walk")
         XCTAssertEqual(HappeningEventTreeState(expandedIDs: state.expandedIDs, recommendedHappeningIDs: ["health_workout_46"]), state)
+    }
+
+    func testSixLearnedSphereLeadersKeepCompleteStableAtlasWithHealthAndTodayPaths() {
+        let learnedIDs = ["event_email", "event_rage", "event_cleaned", "event_yoga", "event_train", "event_family"]
+        let catalog = HappeningDefaults.builtIns.map { original -> Happening in
+            var event = original
+            if learnedIDs.contains(event.id) {
+                event.useCount = 3
+                event.lastUsedAt = now
+            }
+            return event
+        }
+        let leaders = PersonalHappeningRecommendations.sphereLeaders(catalog: catalog, at: now)
+        XCTAssertEqual(leaders, learnedIDs)
+        let recommendations = leaders + ["health_workout_52", "happening_walk", "event_swam", "event_peoplecall"]
+        var state = HappeningEventTreeState(recommendedHappeningIDs: recommendations)
+        let atlas = state.atlasNodes
+        let byID = Dictionary(uniqueKeysWithValues: atlas.map { ($0.id, $0) })
+        XCTAssertEqual(Array(state.nodes.prefix(6)).map(\.id), learnedIDs.map { String($0.dropFirst(6)) })
+        XCTAssertEqual(Array(state.nodes.prefix(6)).map(\.cell), HappeningEventTreeState.Cell.directions)
+        XCTAssertEqual(Set(atlas.map(\.id)), Set(HappeningEventTree.all.map(\.id)))
+        XCTAssertEqual(Set(atlas.map(\.cell)), Set(HappeningEventTreeState.allNodes.map(\.cell)))
+        XCTAssertEqual(state.nodes.filter { $0.id == "walk" }.count, 1, "Health and saved walking aliases reveal one event")
+        XCTAssertTrue(state.nodes.contains { $0.id == "peoplecall" }, "Today's addition remains visible")
+        for node in atlas {
+            var ancestor = node
+            var visited = Set<String>([node.id])
+            while let parentID = ancestor.parentID {
+                guard visited.insert(parentID).inserted, let parent = byID[parentID] else {
+                    XCTFail("Missing parent or cyclic path for \(node.id)")
+                    break
+                }
+                XCTAssertLessThan(parent.cell.ring, ancestor.cell.ring)
+                XCTAssertTrue(parent.cell.neighbors.contains(ancestor.cell))
+                ancestor = parent
+            }
+        }
+        var index = 0
+        while index < state.nodes.count {
+            XCTAssertLessThanOrEqual(state.expand(state.nodes[index].id), 3)
+            index += 1
+        }
+        XCTAssertEqual(Set(state.nodes.map(\.id)), Set(atlas.map(\.id)))
+        XCTAssertEqual(state.nodes.count, HappeningDefaults.maximumCatalogCount)
+        XCTAssertEqual(state.atlasNodes, atlas)
+        XCTAssertEqual(HappeningEventTreeState(expandedIDs: state.expandedIDs, recommendedHappeningIDs: recommendations), state)
     }
 
     func testEveryPromotionStaysBesideItsEditorialRoot() {

@@ -7,16 +7,18 @@ import ManagedSettings
 /// Name and selection stay local until Done. Cancel (including swipe dismissal)
 /// never creates a group or changes an existing one.
 struct NewAppGroupSheet: View {
-    let onSave: (FamilyActivitySelection, String) -> Void
+    let onSave: (FamilyActivitySelection, String, String?) -> Void
     let isEditing: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var selection: FamilyActivitySelection
     @State private var name: String
+    @State private var launchTarget: String
     @State private var hasSaved = false
     @FocusState private var nameFocused: Bool
 
     init(selection: FamilyActivitySelection = FamilyActivitySelection(), name: String = "",
-         isEditing: Bool = false, onSave: @escaping (FamilyActivitySelection, String) -> Void) {
+         templateApp: String? = nil, isEditing: Bool = false,
+         onSave: @escaping (FamilyActivitySelection, String, String?) -> Void) {
         var draftSelection = selection
         #if DEBUG && targetEnvironment(simulator)
         // Native simulator picker UI cannot supply a real authorized app token.
@@ -29,6 +31,7 @@ struct NewAppGroupSheet: View {
         #endif
         _selection = State(initialValue: draftSelection)
         _name = State(initialValue: name)
+        _launchTarget = State(initialValue: templateApp ?? "")
         self.isEditing = isEditing
         self.onSave = onSave
     }
@@ -44,7 +47,20 @@ struct NewAppGroupSheet: View {
             return .constant(selection)
         }
         #endif
-        return $selection
+        return Binding(get: { selection }, set: { updated in
+            if updated != selection { launchTarget = "" }
+            selection = updated
+        })
+    }
+
+    private var isSingleApp: Bool {
+        selection.applicationTokens.count == 1 && selection.categoryTokens.isEmpty
+            && selection.webDomainTokens.isEmpty
+    }
+
+    private var launchOptions: [String] {
+        AppGroupIdentity.applicationNames.keys.filter { TargetResolver.canOpen(bundleId: $0) }
+            .sorted { TargetResolver.displayName(for: $0) < TargetResolver.displayName(for: $1) }
     }
 
     var body: some View {
@@ -68,6 +84,24 @@ struct NewAppGroupSheet: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
+
+                if isSingleApp {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Picker("Open from widget", selection: $launchTarget) {
+                            Text("Nowhere").tag("")
+                            ForEach(launchOptions, id: \.self) { bundleID in
+                                Text(TargetResolver.displayName(for: bundleID)).tag(bundleID)
+                            }
+                        }
+                        .accessibilityIdentifier("feed.launchTarget")
+                        Text("Choose the same app you selected below. Used after unlocking.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
+                }
 
                 FamilyActivityPicker(selection: pickerSelection)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -95,7 +129,11 @@ struct NewAppGroupSheet: View {
     private func save() {
         guard !hasSaved, selection.hasGroupTargets, !trimmedName.isEmpty else { return }
         hasSaved = true
-        onSave(selection, trimmedName)
+        let confirmedTarget = AppGroupIdentity.widgetLaunchBundleId(
+            templateApp: launchTarget,
+            selectionData: try? JSONEncoder().encode(selection)
+        )
+        onSave(selection, trimmedName, confirmedTarget)
         dismiss()
     }
 }

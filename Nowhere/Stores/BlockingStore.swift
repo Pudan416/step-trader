@@ -290,7 +290,9 @@ final class BlockingStore: ObservableObject {
             familyControlsService.updateMinuteModeMonitoring()
             familyControlsService.updateShieldSchedule()
             
-            applyShieldImmediately(selection: combined)
+            // Local selection drives UI and heartbeat setup. Enforcement always
+            // re-reads persisted groups/budgets under the shared purchase lock.
+            ShieldRebuildHelper.rebuild()
 
             // Purchase success means the usage budget and monitor were committed.
             // Read our named store back after the rebuild so diagnostics can tell
@@ -323,21 +325,6 @@ final class BlockingStore: ObservableObject {
         }
     }
     
-    #if canImport(ManagedSettings)
-    private func applyShieldImmediately(selection: FamilyActivitySelection) {
-        guard familyControlsService.isAuthorized else {
-            AppLogger.shield.debug("⚠️ Cannot apply shield: Family Controls not authorized")
-            return
-        }
-        
-        let store = ManagedSettingsStore(named: .init("shield"))
-        store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
-        store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
-        AppLogger.shield.debug("🛡️ Shield applied immediately: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories")
-    }
-    #endif
-    
-
     // MARK: - Shield Diagnostics
 
     /// Append a diagnostic entry to the shared history ring buffer (last 20 entries).

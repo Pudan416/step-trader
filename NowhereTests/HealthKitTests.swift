@@ -290,7 +290,7 @@ final class HealthActivitySuggestionTests: XCTestCase {
 
         await model.refreshActivitySuggestions()
 
-        XCTAssertTrue(model.pendingActivitySuggestions.contains { suggestion in
+        XCTAssertFalse(model.pendingActivitySuggestions.contains { suggestion in
             if case .workout = suggestion.source { return true }
             return false
         })

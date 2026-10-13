@@ -26,7 +26,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
-- `HappeningDefaults.builtIns` derives the fixed 100 choices from `HappeningEventTree.all`.
+- `HappeningDefaults.builtIns` derives the fixed 102 choices from `HappeningEventTree.all`.
   `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
   `all` also contains historical/imported records and must not feed new-choice UI.
   Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
@@ -42,7 +42,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
   while that Canvas remains empty; normal recommendations resume on addition.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
-  must not rebuild all 100 candidates. `DayObjectPaletteSet.make` shares a bounded
+  must not rebuild all 102 candidates. `DayObjectPaletteSet.make` shares a bounded
   16-entry palette cache keyed by root seed, normalized categories, day and identity.
   Its lock protects lookup/publication, while palette derivation runs outside the lock.
 - `MePosterEventLedger.unlocks` retains four immutable full-ledger requests so live
@@ -55,6 +55,9 @@ Test names live in `NowhereTests/` unless stated otherwise.
 - The app and extensions are separate processes. Preserve App Group identifiers, persisted
   keys, atomic read/modify/write operations and the existing lock ordering. An actor in one
   process does not synchronize another process.
+  All shield assignments route through `ShieldRebuildHelper.rebuild`; the usage-budget
+  state lock spans the persisted snapshot and ManagedSettings write. DeviceActivity
+  registration always happens after that lock is released.
 - `DayCanvas` and versioned recipes are durable data. Older render paths and textures are
   still required by saved artwork and export. Preserve decoder defaults, stable IDs, random
   consumption order and Metal uniform layouts. See [Canvas components](canvas-components.md).

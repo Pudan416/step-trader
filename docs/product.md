@@ -37,7 +37,7 @@ when changing the sequence rather than using an old slide specification.
 
 ## Happenings field
 
-New additions use one reviewed catalog of exactly **100** events. Labels are
+New additions use one reviewed catalog of exactly **102** events. Labels are
 English, at most 20 characters, and describe complete events. Broad duplicate
 meal options are replaced by Had breakfast, Had lunch and Had dinner; Cooked
 means preparing food. Creating or naming custom happenings is unavailable,
@@ -114,6 +114,16 @@ one tap adds an available event, while an added event requires two taps to remov
 New tree nodes and mode changes animate the figures, labels and hit targets together.
 Reduce Motion uses the settled layout without spatial animation.
 
+## Widget app opening
+
+An unlocked group containing one application can reopen that app through Nowhere.
+In the group editor, **Open from widget** explicitly associates the selected app
+with a supported launch target. Existing groups without that association open
+Nowhere until the user chooses a target. Group names never determine launch identity.
+Changing the Family Controls selection clears the association; canceling the editor
+does not save it. Groups with multiple apps, categories or websites open Nowhere.
+Grailed uses its verified `/feed/` Universal Link, without a custom-scheme fallback.
+
 ## Screen Time accounting and recovery
 
 Purchased minutes are spent by cumulative Screen Time usage thresholds, not by
@@ -126,6 +136,11 @@ The rejected generation cannot spend further minutes. Recovery runs when the app
 returns to the foreground or the user retries through the widget/Feeds, without
 charging again, within the existing custom-day expiry. Healthy monitors are retained
 on top-up so Apple's partial-minute usage is not reset.
+
+The app and Screen Time callbacks apply shields through one shared rebuild. Its
+budget read and settings write hold the same cross-process lock as purchase
+commits, so an older callback cannot reapply an obsolete shield after a purchase.
+Monitor registration runs outside that lock so synchronous callbacks can finish.
 
 Screen Time is the source of usage measurements. Local checks can reject impossible
 early values, but cannot distinguish a plausible incorrect OS measurement from a

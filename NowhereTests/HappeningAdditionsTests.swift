@@ -217,7 +217,7 @@ final class HappeningAdditionsTests: XCTestCase {
         XCTAssertNil(happening.lastUsedAt)
         XCTAssertNil(model.addHappening(id: happening.id, colorHex: "#AABBCC", at: date))
         XCTAssertEqual(model.todayAdditions.count, 0)
-        XCTAssertEqual(model.paletteHappeningCatalog().count, 100)
+        XCTAssertEqual(model.paletteHappeningCatalog().count, HappeningDefaults.maximumCatalogCount)
     }
 
     func testLegacyPaletteCreationApiRejectsCustomChoicesWithoutChangingSelection() throws {

@@ -5,6 +5,40 @@ import ManagedSettings
 
 final class WidgetTests: XCTestCase {
 
+    func testWidgetLaunchDoesNotInferAppFromAnEditableGroupName() throws {
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let group = TicketGroup(name: "Instagram", selection: selection,
+                                settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20))
+        let savedSelection = try JSONEncoder().encode(group.selection)
+        // Editing the Instagram preset's selection clears templateApp, while
+        // preserving the user's name. That name no longer identifies its app.
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: group.templateApp, selectionData: savedSelection))
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: "unknown.app", selectionData: savedSelection))
+        XCTAssertEqual(AppGroupIdentity.widgetLaunchBundleId(templateApp: "com.google.ios.youtube", selectionData: savedSelection), "com.google.ios.youtube")
+    }
+
+    func testWidgetLaunchRequiresOneAppAndNoOtherTargets() throws {
+        var selection = FamilyActivitySelection()
+        let templateApp = "com.burbn.instagram"
+        func target() throws -> String? {
+            AppGroupIdentity.widgetLaunchBundleId(templateApp: templateApp, selectionData: try JSONEncoder().encode(selection))
+        }
+        XCTAssertNil(try target())
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        XCTAssertEqual(try target(), templateApp)
+        selection.categoryTokens = [try JSONDecoder().decode(ActivityCategoryToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        XCTAssertNil(try target())
+        selection.categoryTokens = []
+        selection.webDomainTokens = [try JSONDecoder().decode(WebDomainToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        XCTAssertNil(try target())
+        selection.webDomainTokens = []
+        selection.applicationTokens.insert(try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8)))
+        XCTAssertNil(try target())
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: templateApp, selectionData: Data("invalid".utf8)))
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: templateApp, selectionData: nil))
+    }
+
     func testWidgetPickerUsesPersistedUserNameAndIgnoresUnsupportedShieldCache() throws {
         let suite = "widget-picker-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -534,5 +568,16 @@ final class ExtensionDeploymentTargetTests: XCTestCase {
                 + "it will be silently missing on every system below \(minimum)"
             )
         }
+    }
+}
+
+final class TargetResolverLaunchTests: XCTestCase {
+    func testGrailedUsesVerifiedFeedUniversalLinkWithoutGuessedScheme() {
+        let bundleID = "com.grailed.production"
+        XCTAssertEqual(TargetResolver.bundleId(from: "grailed"), bundleID)
+        XCTAssertTrue(TargetResolver.canOpen(bundleId: bundleID))
+        XCTAssertEqual(TargetResolver.universalLinks(forBundleId: bundleID), ["https://www.grailed.com/feed/"])
+        XCTAssertTrue(TargetResolver.primaryAndFallbackSchemes(for: bundleID).isEmpty)
+        XCTAssertNil(TargetResolver.urlScheme(forBundleId: bundleID))
     }
 }

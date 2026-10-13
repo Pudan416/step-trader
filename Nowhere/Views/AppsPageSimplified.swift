@@ -236,8 +236,11 @@ struct AppsPageSimplified: View {
                     name: selectedGroupId.flatMap { id in
                         model.blockingStore.ticketGroups.first { $0.id == id.id }?.name
                     } ?? "",
+                    templateApp: selectedGroupId.flatMap { id in
+                        model.blockingStore.ticketGroups.first { $0.id == id.id }?.templateApp
+                    },
                     isEditing: selectedGroupId != nil
-                ) { selection, name in
+                ) { selection, name, launchTarget in
                     guard selection.hasGroupTargets, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     guard !pickerCommitted else { return }
                     if let pickerOperation {
@@ -254,13 +257,13 @@ struct AppsPageSimplified: View {
                     let savedGroupID: String
                     if let id = selectedGroupId,
                        var group = model.blockingStore.ticketGroups.first(where: { $0.id == id.id }) {
-                        if group.selection != selection { group.templateApp = nil }
+                        group.templateApp = launchTarget
                         group.selection = selection
                         group.name = name
                         model.updateTicketGroup(group)
                         savedGroupID = group.id
                     } else {
-                        savedGroupID = model.createTicketGroup(name: name, selection: selection, stickerThemeIndex: 0).id
+                        savedGroupID = model.createTicketGroup(name: name, selection: selection, templateApp: launchTarget, stickerThemeIndex: 0).id
                     }
                     if let pickerOperation, CanvasTour.shared.isCurrent(pickerOperation),
                        model.blockingStore.ticketGroups.contains(where: { $0.id == savedGroupID && $0.selection.hasGroupTargets }) {

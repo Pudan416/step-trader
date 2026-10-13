@@ -262,7 +262,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
                     templateApp: group.templateApp,
                     launchBundleId: AppGroupIdentity.widgetLaunchBundleId(
-                        templateApp: group.templateApp, name: group.name, selectionData: group.selectionData
+                        templateApp: group.templateApp, selectionData: group.selectionData
                     ),
                     appsCount: WidgetSelectionMetrics.applicationCount(in: group.selectionData),
                     spentToday: 0,
@@ -736,7 +736,7 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
             templateApp: group.templateApp,
             launchBundleId: AppGroupIdentity.widgetLaunchBundleId(
-                templateApp: group.templateApp, name: group.name, selectionData: group.selectionData
+                templateApp: group.templateApp, selectionData: group.selectionData
             ),
             appsCount: WidgetSelectionMetrics.applicationCount(in: group.selectionData),
             spentToday: 0,

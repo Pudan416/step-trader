@@ -107,14 +107,14 @@ struct AppGroupIdentity: Equatable {
         "com.reddit.Reddit": "Reddit", "com.atebits.Tweetie2": "X",
         "com.facebook.Facebook": "Facebook", "com.linkedin.LinkedIn": "LinkedIn",
         "com.pinterest": "Pinterest", "ph.telegra.Telegraph": "Telegram",
-        "net.whatsapp.WhatsApp": "WhatsApp"
+        "net.whatsapp.WhatsApp": "WhatsApp", "com.grailed.production": "Grailed"
     ]
 
     /// A widget can open a target only when its opaque selection is exactly one
     /// app and that app is one of the launchable targets Nowhere knows how to open.
-    /// Family Controls keeps arbitrary application tokens private, so for older
-    /// groups without `templateApp` the saved group name is the only safe fallback.
-    static func widgetLaunchBundleId(templateApp: String?, name: String, selectionData: Data?) -> String? {
+    /// Family Controls keeps arbitrary application tokens private. Only the
+    /// preset or explicit user association identifies an app; editable group names never do.
+    static func widgetLaunchBundleId(templateApp: String?, selectionData: Data?) -> String? {
         #if canImport(FamilyControls)
         guard let selectionData,
               let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
@@ -125,10 +125,7 @@ struct AppGroupIdentity: Equatable {
         if let templateApp, applicationNames[templateApp] != nil {
             return templateApp
         }
-        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return applicationNames.first {
-            $0.value.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
-        }?.key
+        return nil
         #else
         return nil
         #endif

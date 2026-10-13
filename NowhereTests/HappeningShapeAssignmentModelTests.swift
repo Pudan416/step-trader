@@ -6,7 +6,7 @@ final class HappeningShapeAssignmentModelTests: XCTestCase {
 
     func testNativeCatalogSnapshotAvoidsLegacySceneConstruction() throws {
         let happenings = HappeningDefaults.builtIns
-        XCTAssertEqual(happenings.count, 100)
+        XCTAssertEqual(happenings.count, HappeningDefaults.maximumCatalogCount)
         let day = "2026-10-08"
         let baseRecipe = NativeAtlasRecipe.makeDaily(dayKey: day, paletteCategories: ModernPaletteSelection.all, collection: .circles)
         for nonce: UInt64 in [19, 20, 21] {
@@ -23,7 +23,7 @@ final class HappeningShapeAssignmentModelTests: XCTestCase {
             })
             let milliseconds = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
             print("Native snapshot nonce=\(nonce) legacyScenes=\(builds) elapsedMs=\(milliseconds)")
-            XCTAssertEqual(snapshot.assignments.count, 100)
+            XCTAssertEqual(snapshot.assignments.count, happenings.count)
             XCTAssertEqual(builds, 0, "Native candidates must not construct discarded legacy scene trees")
             for assignment in snapshot.assignments.values {
                 XCTAssertEqual(assignment.nativeActor, recipe.prospectiveActor(eventID: assignment.elementID.uuidString.lowercased()))
@@ -35,8 +35,8 @@ final class HappeningShapeAssignmentModelTests: XCTestCase {
             legacyBuilds += 1
             return DayObjectScene.make(input: input)
         })
-        XCTAssertEqual(legacyBuilds, 100)
-        XCTAssertEqual(fallback.assignments.count, 100)
+        XCTAssertEqual(legacyBuilds, happenings.count)
+        XCTAssertEqual(fallback.assignments.count, happenings.count)
     }
 
     func testNativeSnapshotKeepsLegacyPresentationMetadataAndCommittedIdentity() throws {

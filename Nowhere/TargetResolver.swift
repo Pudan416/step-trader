@@ -11,7 +11,7 @@ enum TargetResolver {
         let targets: [String]
         let bundleId: String
         let displayName: String
-        let scheme: String
+        let scheme: String?
         let fallbackSchemes: [String]
         /// Apple-verified Universal Links (https). Preferred over custom schemes when
         /// re-opening a blocked app: iOS routes them to the exact app that owns the
@@ -24,6 +24,15 @@ enum TargetResolver {
     }
 
     private static let registry: [AppTarget] = [
+        // Grailed's Apple-hosted association file permits /feed/*, not the
+        // website root. Use only its verified Universal Link, with no guessed scheme.
+        AppTarget(targets: ["grailed"],
+                  bundleId: "com.grailed.production",
+                  displayName: "Grailed",
+                  scheme: nil,
+                  fallbackSchemes: [],
+                  universalLinks: ["https://www.grailed.com/feed/"]),
+
         AppTarget(targets: ["instagram"],
                   bundleId: "com.burbn.instagram",
                   displayName: "Instagram",
