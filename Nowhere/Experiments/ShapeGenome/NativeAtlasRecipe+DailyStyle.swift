@@ -39,6 +39,7 @@ extension NativeAtlasRecipe {
         if let background = recipe.backgroundStyle {
             style.freezeApprovedAppearance(background: background, categories: paletteCategories, seed: seed)
         }
+        style.pigmentChromaPolicyVersion = 1
         style.silhouettePolicyVersion = 1
         style.collection = collection
         style.roundScalePolicyVersion = 2

@@ -2,6 +2,64 @@ import XCTest
 @testable import Nowhere
 
 final class MetalShapeGenomeCatalogTests: XCTestCase {
+    func testNewDailyCollectionsBoostMutedPigmentChroma() throws {
+        let mutedPalette = ["#64819A", "#A17A72", "#718C78", "#9180A0"]
+            .map { DayObjectRGB(hex: $0).linearRGB }
+        let inputChroma = mutedPalette.map { color -> Float in
+            let lab = DayObjectRGB(linearRGB: color).perceptualOKLab
+            return hypot(lab.y, lab.z)
+        }.reduce(0, +) / Float(mutedPalette.count)
+
+        for collection in NativeAtlasDailyStyle.Collection.selectableCases {
+            var recipe = NativeAtlasRecipe.makeDaily(
+                dayKey: "vivid-\(collection.rawValue)",
+                paletteCategories: ModernPaletteSelection.all,
+                collection: collection
+            )
+            var style = try XCTUnwrap(recipe.dailyStyle)
+            style.palette = mutedPalette
+            style.neighboringPigments = mutedPalette
+            recipe.dailyStyle = style
+            recipe = recipe.reconciled(eventIDs: (0..<8).map { "vivid-\($0)" })
+
+            let outputChroma = recipe.actors.map { actor -> Float in
+                let lab = DayObjectRGB(linearRGB: SIMD3(actor.material.color0.x, actor.material.color0.y,
+                    actor.material.color0.z)).perceptualOKLab
+                return hypot(lab.y, lab.z)
+            }.reduce(0, +) / Float(recipe.actors.count)
+            XCTAssertGreaterThan(outputChroma, inputChroma * 1.12, collection.rawValue)
+        }
+    }
+
+    func testArchivedDailyStylesKeepTheirOriginalPigmentPolicy() throws {
+        let mutedPalette = ["#64819A", "#A17A72", "#718C78", "#9180A0"]
+            .map { DayObjectRGB(hex: $0).linearRGB }
+        let inputChroma = mutedPalette.map { color -> Float in
+            let lab = DayObjectRGB(linearRGB: color).perceptualOKLab
+            return hypot(lab.y, lab.z)
+        }.reduce(0, +) / Float(mutedPalette.count)
+
+        var recipe = NativeAtlasRecipe.makeDaily(
+            dayKey: "archived-muted",
+            paletteCategories: ModernPaletteSelection.all,
+            collection: .circles
+        )
+        var style = try XCTUnwrap(recipe.dailyStyle)
+        style.palette = mutedPalette
+        style.neighboringPigments = mutedPalette
+        style.pigmentChromaPolicyVersion = nil
+        let data = try JSONEncoder().encode(style)
+        style = try JSONDecoder().decode(NativeAtlasDailyStyle.self, from: data)
+        XCTAssertNil(style.pigmentChromaPolicyVersion)
+        recipe.dailyStyle = style
+
+        recipe = recipe.reconciled(eventIDs: ["old-day-event"])
+        let actor = try XCTUnwrap(recipe.actors.first)
+        let lab = DayObjectRGB(linearRGB: SIMD3(actor.material.color0.x,
+            actor.material.color0.y, actor.material.color0.z)).perceptualOKLab
+        XCTAssertLessThan(hypot(lab.y, lab.z), inputChroma * 1.12)
+    }
+
     func testCatalogKeepsOnlyDistinctFamiliesAndAddsTheSoftClover() {
         let presets = MetalShapeGenomeCatalog.presets
         XCTAssertEqual(presets.count, 12)

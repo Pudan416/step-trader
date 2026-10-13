@@ -141,6 +141,34 @@ struct DayObjectRGB: Equatable {
         return DayObjectRGB(linearRGB: candidate(lower))
     }
 
+    /// Raise chroma at a fixed OKLab hue/lightness, compressing only when the
+    /// result leaves displayable sRGB. New Canvas recipes opt into this policy.
+    func vividlyFittingPerceptualLightness(
+        to lightness: Float,
+        maximumChromaScale: Float = 1.45
+    ) -> DayObjectRGB {
+        let source = DayObjectOKLab(linearRGB: linearRGB)
+        let target = lightness.isFinite ? min(max(lightness, 0.061), 0.939) : source.lightness
+        let scale = maximumChromaScale.isFinite ? max(1, maximumChromaScale) : 1
+        func candidate(_ chromaScale: Float) -> SIMD3<Float> {
+            DayObjectOKLab(lightness: target, a: source.a * chromaScale, b: source.b * chromaScale).linearRGB
+        }
+        if DayObjectOKLab.isInDisplayGamut(candidate(scale)) {
+            return DayObjectRGB(linearRGB: candidate(scale))
+        }
+        var lower: Float = 0
+        var upper = scale
+        for _ in 0..<18 {
+            let midpoint = (lower + upper) * 0.5
+            if DayObjectOKLab.isInDisplayGamut(candidate(midpoint)) {
+                lower = midpoint
+            } else {
+                upper = midpoint
+            }
+        }
+        return DayObjectRGB(linearRGB: candidate(lower))
+    }
+
     private static func linearComponent(_ value: Float) -> Float {
         value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
     }

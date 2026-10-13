@@ -225,7 +225,9 @@ silhouettes before repeating one. Each blur family keeps its own shape; water
 ripples, spiral rays and volume spheres keep their dedicated rendering behavior.
 The Soft Drift form and procedural light/flow/striped-contour fills are excluded
 from new scenes. Circles remain round. Figures share a related color group, with
-pigments borrowed from nearby palettes in the selected categories.
+pigments borrowed from nearby palettes in the selected categories. New and
+remixed recipes increase pigment chroma while keeping each hue recognizable;
+saved recipes without that policy version keep their original colors.
 With zero automatically spent colors, there is no global scene blur. Blur
 collections retain their own softness, and manual Trace overrides stay available.
 When colors are spent, digital traces become visible earlier at low and medium
