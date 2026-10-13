@@ -203,10 +203,15 @@ extension AppModel {
             removeSatisfiedActivitySuggestions()
             return nil
         }
+        return optionId
+    }
+
+    /// Dismiss the prompt only after its happening has been committed to the
+    /// Canvas. A failed spawn leaves the suggestion available for another try.
+    func completeActivitySuggestion(_ suggestion: ActivitySuggestion) {
         pendingActivitySuggestions.removeAll { $0.id == suggestion.id }
         (notificationService as? NotificationManager)?
             .removeActivityDetectedNotifications(suggestionIds: [suggestion.id])
-        return optionId
     }
 
     func dismissActivitySuggestion(_ suggestion: ActivitySuggestion) {

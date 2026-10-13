@@ -62,44 +62,45 @@ Old category arrays and fractional timestamps remain readable.
 
 The Canvas add control opens **Personal**: six complete events surround the current
 day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
-after additions and removals. The initial six are Worked, Chilled, Stayed home,
-Had breakfast, Went for a walk and Saw a friend. Each has one catalog identity,
-including those promoted from outer positions. The six roots remain fixed. At the intersections,
-the event fits both neighboring roots: Took a break connects Worked and Chilled,
-Took a nap connects Chilled and Stayed home, and Cooked connects Stayed home
-and Had breakfast. These are associations; revealing a meal does not log its
-neighbors or earlier meals. Adding an event reveals up to three adjacent whole events.
-Expansion history is retained for the day. **All** reveals the same complete map
-around the same count; it retains the six roots and every option's position.
-Switching modes preserves the open field and the day's additions. Direct All additions
-are also visible along their path when returning to Personal.
+after additions and removals. The six positions represent Work & study, Leisure & play
+(including feelings), Home & everyday, Body & wellbeing, Getting around, and People
+& connection. Each position shows that sphere's most familiar event; the cold-start
+leaders are Worked, Chilled, Stayed home, Went for a walk, Walked to work and Saw a
+friend. At the intersections, the event fits both neighboring roots: Took a break
+connects Worked and Chilled, Took a nap connects Chilled and Stayed home, and Cooked
+connects Stayed home and Body & wellbeing. These are associations; revealing a meal
+does not log its neighbors or earlier meals. Adding an event reveals up to three
+adjacent whole events. Expansion history is retained for the day. **All** reveals
+the same complete map around the same count; it retains the six roots and every
+option's position. Switching modes preserves the open field and the day's additions.
+Direct All additions are also visible along their path when returning to Personal.
 Removing the last Canvas happening clears the day's expansion history and returns
 the field to Personal with only the six roots. This cleared empty state survives
-closing and reopening the field; familiar and Health recommendations resume after
-a new happening is added. All remains available with the complete catalog.
+closing and reopening the field; sphere leaders and Health recommendations resume
+after a new happening is added. All remains available with the complete catalog.
 
-Personal pre-reveals up to three familiar events beside the six roots. It ranks
-frequency with a 21-day recency half-life, requires two use days, and excludes
-the six roots from extra recommendations. Repeated additions on one custom day
-do not increase the usage counter. Restored snapshots canonicalize old IDs and
-count each event once per day; their count is combined with local counters by
-the maximum, avoiding double-counting overlapping history. Recommendations do
-not exclude uncomfortable events such as Raged or Got wasted.
+Personal chooses one leading event per sphere, so repeated activities cannot take
+over the six positions. It ranks frequency with a 21-day recency half-life and
+requires two distinct use days before replacing a cold-start leader. Repeated
+additions on one custom day do not increase the usage counter. Restored snapshots
+canonicalize old IDs and count each event once per day; their count is combined
+with local counters by the maximum, avoiding double-counting overlapping history.
+Recommendations do not exclude uncomfortable events such as Raged or Got wasted.
 
-Current Health workout hints and today's additions are also visible. The first
-recommendation in each sector moves to that root's nearest outward position;
-remaining recommendations reveal their paths. Shared intersections remain
-anchored. The map is recomputed on opening and then stays fixed through taps
-and Personal/All switches. The radial field remains pannable.
+Pending Health workout hints and today's additions are also visible along their
+sphere's path. Shared intersections remain anchored. The map is recomputed on
+opening and after a successful addition, then stays fixed through taps and
+Personal/All switches. The radial field remains pannable.
 
-Health walking, running, swimming, dance and flexibility resolve to Went for a
-walk, Went for a run, Swam, Danced and Stretched. Other documented workouts use
-Worked out; cycling does not imply Biked to work. Unsupported workout raw values
-do not create suggestions. A generic Worked out addition does not satisfy a
-specific running or swimming suggestion. Accepting a suggestion logs its catalog
-ID and reveals that same choice in Personal. Mindful-minutes and low-screen-time
-signals currently have no honest matching event in the fixed catalog and are
-filtered out rather than inventing a feeling or another choice.
+Health walking, running, swimming, dance, flexibility, yoga and cycling resolve
+to Went for a walk, Went for a run, Swam, Danced, Stretched, Did yoga and Went
+cycling. Other documented workouts use Worked out; cycling does not imply Biked
+to work. Unsupported workout raw values do not create suggestions. A generic
+Worked out addition does not satisfy a specific activity suggestion. Accepting
+a suggestion dismisses it only after its catalog event is committed to Canvas.
+Mindful-minutes and low-screen-time signals currently have no honest matching
+event in the fixed catalog and are filtered out rather than inventing a feeling
+or another choice.
 
 Both modes use the same transparent field, figure assignments and interactions.
 While the picker is open, a light native blur and subtle white wash soften and

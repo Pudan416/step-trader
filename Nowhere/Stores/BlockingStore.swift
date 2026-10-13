@@ -250,6 +250,7 @@ final class BlockingStore: ObservableObject {
             var combined = FamilyActivitySelection()
             let defaults = UserDefaults.nowhere()
             var diagLines: [String] = []
+            var unlockedApplicationTokens = Set<ApplicationToken>()
             
             for group in ticketGroups {
                 // Must ask exactly what ShieldRebuildHelper.rebuild() asks. This used to
@@ -259,6 +260,7 @@ final class BlockingStore: ObservableObject {
                 // end of its window.
                 if ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: group.id) {
                     diagLines.append("SKIP \(group.name): usageBudget active")
+                    unlockedApplicationTokens.formUnion(group.selection.applicationTokens)
                     AppLogger.shield.debug("⏭️ Skipping group \(group.name) - usage budget active")
                     continue
                 }
@@ -289,6 +291,23 @@ final class BlockingStore: ObservableObject {
             familyControlsService.updateShieldSchedule()
             
             applyShieldImmediately(selection: combined)
+
+            // Purchase success means the usage budget and monitor were committed.
+            // Read our named store back after the rebuild so diagnostics can tell
+            // whether that same store still contains apps from unlocked groups.
+            let shieldStore = ManagedSettingsStore(named: .init("shield"))
+            let shieldedApplications = shieldStore.shield.applications ?? []
+            let unlockedApplicationsStillShielded = unlockedApplicationTokens
+                .intersection(shieldedApplications).count
+            let shieldedCategoryCount: Int = {
+                if case .specific(let categories, _) = shieldStore.shield.applicationCategories {
+                    return categories.count
+                }
+                return 0
+            }()
+            diagLines.append(
+                "UNLOCK READBACK appTokens=\(unlockedApplicationTokens.count) stillInStore=\(unlockedApplicationsStillShielded) categoryRules=\(shieldedCategoryCount)"
+            )
             
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
             if elapsed > 0.1 {

@@ -569,14 +569,14 @@ struct GalleryView: View {
             )
             return
         }
-        let familiar = PersonalHappeningRecommendations.ranked(
+        let leaders = PersonalHappeningRecommendations.sphereLeaders(
             catalog: model.selectableHappenings,
             historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
             todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now
         )
         eventTree = HappeningEventTreeState(
             expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
-            recommendedHappeningIDs: personalHealthRecommendationIDs + familiar + paletteAddedIDs.sorted()
+            recommendedHappeningIDs: leaders + personalHealthRecommendationIDs + paletteAddedIDs.sorted()
         )
     }
 
@@ -1654,7 +1654,9 @@ struct GalleryView: View {
                         suggestions: model.pendingActivitySuggestions,
                         onAccept: { suggestion in
                             guard let optionId = model.acceptActivitySuggestion(suggestion) else { return }
-                            addAndSpawnHappening(optionId: optionId)
+                            if addAndSpawnHappening(optionId: optionId) {
+                                model.completeActivitySuggestion(suggestion)
+                            }
                         },
                         onDismiss: { model.dismissActivitySuggestion($0) }
                     )
@@ -2388,7 +2390,10 @@ struct GalleryView: View {
         if presentationOrigin != nil {
             animateSpawnToDestination(elementID: element.id)
         }
-        if showHappeningPalette {
+        if showEventExplorer {
+            rebuildPersonalEventField()
+            refreshEventTreePalette()
+        } else if showHappeningPalette {
             refreshHappeningPalette()
         }
         CanvasTour.shared.send(.happeningAdded(result.entry.id), token: tourOperation)

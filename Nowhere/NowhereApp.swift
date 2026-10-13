@@ -132,6 +132,8 @@ private struct NowhereProductionRoot: View {
     @State private var hasRequestedReviewThisSession = false
     @State private var pendingWidgetUnlock: (request: WidgetUnlockRequest, receivedAt: Date)?
     @State private var isProcessingWidgetUnlock = false
+    @State private var widgetHandoffBundleId: String?
+    @State private var widgetHandoffRequestID: UUID?
 
     /// At most one feature tip per process lifetime — repeated
     /// background→foreground cycles must not stack tips in one session.
@@ -325,12 +327,25 @@ private struct NowhereProductionRoot: View {
         .font(AppFonts.body)
         .modifier(NowhereLaunchPresentation())
         .modifier(TodayCanvasBackdropHost(model: model))
+        .overlay {
+            if widgetHandoffBundleId != nil {
+                NowhereLaunchView(wordmarkOpacity: 1, gradientProgress: 1)
+                    .transition(.identity)
+                    .statusBarHidden(true)
+                    .accessibilityHidden(true)
+                    .zIndex(1)
+            }
+        }
         .onOpenURL { handleWidgetOpenApp($0) }
         .onChange(of: model.didCompleteBootstrap) { _, ready in
             if ready { processPendingWidgetUnlock() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { processPendingWidgetUnlock() }
+            if phase == .background {
+                widgetHandoffBundleId = nil
+                widgetHandoffRequestID = nil
+            }
         }
     }
 
@@ -646,10 +661,32 @@ private struct NowhereProductionRoot: View {
             return
         }
 
+        // Cover the app root synchronously before scheduling the launch request.
+        // This keeps a resumed Nowhere scene from showing its app list between
+        // the widget link and the destination app handoff.
+        let requestID = UUID()
+        widgetHandoffBundleId = bundleId
+        widgetHandoffRequestID = requestID
         Task { @MainActor in
             SharedKeys.recordWidgetInteraction("opening registered target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
             AppLauncher.open(bundleId: bundleId) { success in
                 SharedKeys.recordWidgetInteraction("target open result=\(success) target=\(bundleId) state=\(UIApplication.shared.applicationState.rawValue)", source: "app")
+                guard widgetHandoffRequestID == requestID else { return }
+                if success {
+                    // The destination normally backgrounds Nowhere immediately.
+                    // Retain the cover through that transition, with a bounded
+                    // fallback in case iOS accepts the URL without switching.
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(2))
+                        if widgetHandoffRequestID == requestID {
+                            widgetHandoffBundleId = nil
+                            widgetHandoffRequestID = nil
+                        }
+                    }
+                } else {
+                    widgetHandoffBundleId = nil
+                    widgetHandoffRequestID = nil
+                }
             }
         }
     }

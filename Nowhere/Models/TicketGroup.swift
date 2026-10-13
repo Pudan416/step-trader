@@ -110,6 +110,30 @@ struct AppGroupIdentity: Equatable {
         "net.whatsapp.WhatsApp": "WhatsApp"
     ]
 
+    /// A widget can open a target only when its opaque selection is exactly one
+    /// app and that app is one of the launchable targets Nowhere knows how to open.
+    /// Family Controls keeps arbitrary application tokens private, so for older
+    /// groups without `templateApp` the saved group name is the only safe fallback.
+    static func widgetLaunchBundleId(templateApp: String?, name: String, selectionData: Data?) -> String? {
+        #if canImport(FamilyControls)
+        guard let selectionData,
+              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData),
+              selection.applicationTokens.count == 1,
+              selection.categoryTokens.isEmpty,
+              selection.webDomainTokens.isEmpty else { return nil }
+
+        if let templateApp, applicationNames[templateApp] != nil {
+            return templateApp
+        }
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return applicationNames.first {
+            $0.value.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
+        }?.key
+        #else
+        return nil
+        #endif
+    }
+
     init(name: String, templateApp: String?, applicationCount: Int?, categoryCount: Int = 0, webDomainCount: Int = 0) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let app = templateApp.flatMap { Self.applicationNames[$0] }

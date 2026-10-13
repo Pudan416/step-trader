@@ -353,11 +353,16 @@ enum ShieldRebuildHelper {
 
         var allApps = Set<ApplicationToken>()
         var allCategories = Set<ActivityCategoryToken>()
+        var activeBudgetApps = Set<ApplicationToken>()
 
         let groups = loadGroups(defaults: defaults)
 
         for group in groups where group.active {
             if shouldSkipShieldingDueToActiveUsageBudget(defaults: defaults, groupId: group.id) {
+                if let selectionData = group.selectionData,
+                   let selection = cachedSelection(for: group.id, data: selectionData) {
+                    activeBudgetApps.formUnion(selection.applicationTokens)
+                }
                 continue
             }
 
@@ -387,6 +392,12 @@ enum ShieldRebuildHelper {
             ? nil
             : .specific(allCategories)
 
+        // A successful budget commit is separate from the settings the system
+        // enforces. Read the named store back after every app/extension rebuild
+        // so a late writer that re-adds a purchased app leaves a diagnostic.
+        let storedApps = store.shield.applications ?? []
+        let activeBudgetAppsStillShielded = activeBudgetApps.intersection(storedApps).count
+
         defaults.set(0, forKey: SharedKeys.shieldState)
 
         // DeviceActivity callbacks must return before another monitor replacement.
@@ -395,7 +406,13 @@ enum ShieldRebuildHelper {
             startPendingWidgetBudgets(defaults: defaults, groups: groups)
         }
 
-        logDiagnostic(defaults: defaults, apps: allApps.count, categories: allCategories.count)
+        logDiagnostic(
+            defaults: defaults,
+            apps: allApps.count,
+            categories: allCategories.count,
+            budgetApps: activeBudgetApps.count,
+            budgetAppsStillShielded: activeBudgetAppsStillShielded
+        )
         #endif
     }
 
@@ -766,9 +783,15 @@ enum ShieldRebuildHelper {
         return f
     }()
 
-    private static func logDiagnostic(defaults: UserDefaults, apps: Int, categories: Int) {
+    private static func logDiagnostic(
+        defaults: UserDefaults,
+        apps: Int,
+        categories: Int,
+        budgetApps: Int,
+        budgetAppsStillShielded: Int
+    ) {
         let ts = isoFormatter.string(from: Date())
-        let entry = "[\(ts)] [helper] apps=\(apps) cats=\(categories)"
+        let entry = "[\(ts)] [helper] apps=\(apps) cats=\(categories) budgetApps=\(budgetApps) budgetAppsStillShielded=\(budgetAppsStillShielded)"
 
         var history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
         history.append(entry)
