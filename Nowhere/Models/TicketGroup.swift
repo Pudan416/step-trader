@@ -21,7 +21,7 @@ struct TicketGroup: Identifiable, Codable {
         self.selection = selection
         self.settings = settings
         self.enabledIntervals = enabledIntervals
-        self.templateApp = templateApp
+        self.templateApp = templateApp.map(AppLaunchCatalog.canonicalBundleId)
         self.stickerThemeIndex = stickerThemeIndex
     }
 
@@ -55,7 +55,7 @@ struct TicketGroup: Identifiable, Codable {
         if enabledIntervals.isEmpty {
             enabledIntervals = [.minutes10, .minutes30, .hour1]
         }
-        templateApp = try container.decodeIfPresent(String.self, forKey: .templateApp)
+        templateApp = try container.decodeIfPresent(String.self, forKey: .templateApp).map(AppLaunchCatalog.canonicalBundleId)
         stickerThemeIndex = try container.decodeIfPresent(Int.self, forKey: .stickerThemeIndex) ?? 0
 
         #if canImport(FamilyControls)
@@ -92,6 +92,164 @@ struct TicketGroup: Identifiable, Codable {
 }
 
 
+/// Shared by the app and widget so names, selectable targets and launch routing
+/// always describe the same public app identity.
+enum AppLaunchCatalog {
+    struct Target {
+        let targets: [String]
+        let bundleId: String
+        let displayName: String
+        let scheme: String?
+        let fallbackSchemes: [String]
+        /// Apple-verified Universal Links (https). Preferred over custom schemes when
+        /// re-opening a blocked app: iOS routes them to the exact app that owns the
+        /// domain, so a third-party app squatting a custom scheme (e.g. `x://`) can't
+        /// intercept them. Empty = no known Universal Link, custom schemes only.
+        ///
+        /// `var`, not `let`: a `let` with an inline default is dropped from the
+        /// memberwise initializer, so entries passing `universalLinks:` wouldn't compile.
+        var universalLinks: [String] = []
+    }
+
+    static let targets: [Target] = [
+        // Grailed's Apple-hosted association file permits /feed/*, not the
+        // website root. Use only its verified Universal Link, with no guessed scheme.
+        Target(targets: ["grailed"],
+                  bundleId: "com.grailed.production",
+                  displayName: "Grailed",
+                  scheme: nil,
+                  fallbackSchemes: [],
+                  universalLinks: ["https://www.grailed.com/feed/"]),
+
+        Target(targets: ["instagram"],
+                  bundleId: "com.burbn.instagram",
+                  displayName: "Instagram",
+                  scheme: "instagram://",
+                  fallbackSchemes: ["instagram://app", "instagram://", "instagram://feed", "instagram://camera"]),
+
+        Target(targets: ["tiktok"],
+                  bundleId: "com.zhiliaoapp.musically",
+                  displayName: "TikTok",
+                  scheme: "tiktok://",
+                  fallbackSchemes: ["tiktok://"]),
+
+        Target(targets: ["youtube"],
+                  bundleId: "com.google.ios.youtube",
+                  displayName: "YouTube",
+                  scheme: "youtube://",
+                  fallbackSchemes: ["youtube://"]),
+
+        Target(targets: ["telegram"],
+                  bundleId: "ph.telegra.Telegraph",
+                  displayName: "Telegram",
+                  scheme: "tg://",
+                  fallbackSchemes: ["tg://", "telegram://"]),
+
+        Target(targets: ["whatsapp"],
+                  bundleId: "net.whatsapp.WhatsApp",
+                  displayName: "WhatsApp",
+                  scheme: "whatsapp://",
+                  fallbackSchemes: ["whatsapp://"]),
+
+        Target(targets: ["snapchat"],
+                  bundleId: "com.toyopagroup.picaboo",
+                  displayName: "Snapchat",
+                  scheme: "snapchat://",
+                  fallbackSchemes: ["snapchat://"]),
+
+        Target(targets: ["facebook"],
+                  bundleId: "com.facebook.Facebook",
+                  displayName: "Facebook",
+                  scheme: "fb://",
+                  fallbackSchemes: ["fb://", "facebook://"]),
+
+        Target(targets: ["linkedin"],
+                  bundleId: "com.linkedin.LinkedIn",
+                  displayName: "LinkedIn",
+                  scheme: "linkedin://",
+                  fallbackSchemes: ["linkedin://"]),
+
+        Target(targets: ["x", "twitter"],
+                  bundleId: "com.atebits.Tweetie2",
+                  displayName: "X",
+                  scheme: "twitter://",
+                  // `x://` intentionally removed — it's a generic scheme other apps
+                  // (e.g. Standoff 2) register, which hijacked the re-open and launched
+                  // the wrong app. Universal Links below open the real X app reliably.
+                  fallbackSchemes: ["twitter://"],
+                  universalLinks: ["https://x.com", "https://twitter.com"]),
+
+        Target(targets: ["reddit"],
+                  bundleId: "com.reddit.Reddit",
+                  displayName: "Reddit",
+                  scheme: "reddit://",
+                  fallbackSchemes: ["reddit://"]),
+
+        Target(targets: ["pinterest"],
+                  bundleId: "pinterest",
+                  displayName: "Pinterest",
+                  scheme: "pinterest://",
+                  fallbackSchemes: ["pinterest://"]),
+
+        // Public associated-domain routes. Source links and limits are maintained
+        // in docs/architecture/widget-app-opening.md; iOS decides whether the
+        // installed app claims the route. Never fall back to Safari.
+        Target(targets: ["threads"], bundleId: "com.burbn.barcelona", displayName: "Threads",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.threads.com/"]),
+        Target(targets: ["discord"], bundleId: "com.hammerandchisel.discord", displayName: "Discord",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://discord.com/app"]),
+        Target(targets: ["twitch"], bundleId: "tv.twitch", displayName: "Twitch",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.twitch.tv/home"]),
+        Target(targets: ["bluesky"], bundleId: "xyz.blueskyweb.app", displayName: "Bluesky",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://bsky.app/"]),
+        Target(targets: ["spotify"], bundleId: "com.spotify.client", displayName: "Spotify",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://open.spotify.com/home"]),
+        Target(targets: ["netflix"], bundleId: "com.netflix.Netflix", displayName: "Netflix",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.netflix.com/browse"]),
+        Target(targets: ["youtubemusic"], bundleId: "com.google.ios.youtubemusic", displayName: "YouTube Music",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://music.youtube.com/"]),
+        Target(targets: ["temu"], bundleId: "com.einnovation.temu", displayName: "Temu",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.temu.com/?_p_dp=1"]),
+        Target(targets: ["shein"], bundleId: "zzkko.com.ZZKKO", displayName: "SHEIN",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://api-shein.shein.com/h5/sharejump/appjump"]),
+        Target(targets: ["etsy"], bundleId: "com.etsy.etsyforios", displayName: "Etsy",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.etsy.com/"]),
+        Target(targets: ["depop"], bundleId: "com.garageitaly.garage", displayName: "Depop",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.depop.com/"]),
+        Target(targets: ["vinted"], bundleId: "lt.manodrabuziai.fr", displayName: "Vinted",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.vinted.com/"]),
+        Target(targets: ["stockx"], bundleId: "com.Campless.Campless", displayName: "StockX",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://stockx.com/"]),
+        Target(targets: ["goat"], bundleId: "com.airgoat.goat.ios", displayName: "GOAT",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.goat.com/"]),
+        Target(targets: ["duolingo"], bundleId: "com.duolingo.DuolingoMobile", displayName: "Duolingo",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://www.duolingo.com/home"]),
+        Target(targets: ["tinder"], bundleId: "com.cardify.tinder", displayName: "Tinder",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://go.tinder.com/"]),
+        Target(targets: ["bumble"], bundleId: "com.moxco.bumble", displayName: "Bumble",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://bumble.com/nav/"]),
+        Target(targets: ["hinge"], bundleId: "co.hinge.mobile.ios", displayName: "Hinge",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://hinge.co/app/"]),
+        Target(targets: ["characterai"], bundleId: "ai.character.app", displayName: "Character.AI",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://character.ai/profile/"]),
+        Target(targets: ["chatgpt"], bundleId: "com.openai.chat", displayName: "ChatGPT",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://chatgpt.com/open-app"]),
+        Target(targets: ["brawlstars"], bundleId: "com.supercell.laser", displayName: "Brawl Stars",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://link.brawlstars.com/"]),
+        Target(targets: ["clashroyale"], bundleId: "com.supercell.scroll", displayName: "Clash Royale",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://link.clashroyale.com/"]),
+        Target(targets: ["clashofclans"], bundleId: "com.supercell.magic", displayName: "Clash of Clans",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://link.clashofclans.com/"]),
+        Target(targets: ["hayday"], bundleId: "com.supercell.soil", displayName: "Hay Day",
+               scheme: nil, fallbackSchemes: [], universalLinks: ["https://link.haydaygame.com/"])
+    ]
+
+    static func canonicalBundleId(_ bundleId: String) -> String {
+        // Preserve associations saved before the public Pinterest ID was corrected.
+        bundleId == "com.pinterest" ? "pinterest" : bundleId
+    }
+}
+
 /// The same group name and scope on every purchase surface, including widgets.
 /// A preset must never replace a user's group name.
 struct AppGroupIdentity: Equatable {
@@ -101,14 +259,8 @@ struct AppGroupIdentity: Equatable {
     var applicationToken: ApplicationToken? = nil
     #endif
 
-    static let applicationNames: [String: String] = [
-        "com.burbn.instagram": "Instagram", "com.zhiliaoapp.musically": "TikTok",
-        "com.google.ios.youtube": "YouTube", "com.toyopagroup.picaboo": "Snapchat",
-        "com.reddit.Reddit": "Reddit", "com.atebits.Tweetie2": "X",
-        "com.facebook.Facebook": "Facebook", "com.linkedin.LinkedIn": "LinkedIn",
-        "com.pinterest": "Pinterest", "ph.telegra.Telegraph": "Telegram",
-        "net.whatsapp.WhatsApp": "WhatsApp", "com.grailed.production": "Grailed"
-    ]
+    static let applicationNames = Dictionary(uniqueKeysWithValues:
+        AppLaunchCatalog.targets.map { ($0.bundleId, $0.displayName) })
 
     /// A widget can open a target only when its opaque selection is exactly one
     /// app and that app is one of the launchable targets Nowhere knows how to open.
@@ -122,8 +274,9 @@ struct AppGroupIdentity: Equatable {
               selection.categoryTokens.isEmpty,
               selection.webDomainTokens.isEmpty else { return nil }
 
-        if let templateApp, applicationNames[templateApp] != nil {
-            return templateApp
+        if let templateApp {
+            let canonical = AppLaunchCatalog.canonicalBundleId(templateApp)
+            if applicationNames[canonical] != nil { return canonical }
         }
         return nil
         #else
@@ -133,7 +286,7 @@ struct AppGroupIdentity: Equatable {
 
     init(name: String, templateApp: String?, applicationCount: Int?, categoryCount: Int = 0, webDomainCount: Int = 0) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let app = templateApp.flatMap { Self.applicationNames[$0] }
+        let app = templateApp.flatMap { Self.applicationNames[AppLaunchCatalog.canonicalBundleId($0)] }
         title = name.isEmpty ? (app ?? String(localized: "App group")) : name
         if let app, app != title {
             detail = app

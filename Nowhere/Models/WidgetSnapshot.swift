@@ -196,7 +196,7 @@ struct WidgetGroupOption: Decodable {
     func pickerName(index: Int) -> PickerName {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return PickerName(title: trimmed, needsAppName: false) }
-        if let templateApp, let title = AppGroupIdentity.applicationNames[templateApp] {
+        if let templateApp, let title = AppGroupIdentity.applicationNames[AppLaunchCatalog.canonicalBundleId(templateApp)] {
             return PickerName(title: title, needsAppName: false)
         }
         // AppEntity requires text; the privacy-preserving Family Controls Label

@@ -138,6 +138,10 @@ Nowhere until the user chooses a target. Group names never determine launch iden
 Changing the Family Controls selection clears the association; canceling the editor
 does not save it. Groups with multiple apps, categories or websites open Nowhere.
 Grailed uses its verified `/feed/` Universal Link, without a custom-scheme fallback.
+The app and widget share one supported target catalog, including four Supercell
+games. New targets use associated HTTPS routes with no browser fallback. Pinterest
+uses public ID `pinterest`; older saved `com.pinterest` associations remain valid.
+See [widget app opening](architecture/widget-app-opening.md) for routes and checks.
 
 ## Screen Time accounting and recovery
 

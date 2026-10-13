@@ -572,6 +572,18 @@ final class ExtensionDeploymentTargetTests: XCTestCase {
 }
 
 final class TargetResolverLaunchTests: XCTestCase {
+    @MainActor
+    func testUninstalledUniversalLinkReturnsFailureInsteadOfOpeningBrowser() async {
+        #if targetEnvironment(simulator)
+        let finished = expectation(description: "Opening reports failure")
+        AppLauncher.open(bundleId: "com.supercell.laser") { success in
+            XCTAssertFalse(success)
+            finished.fulfill()
+        }
+        await fulfillment(of: [finished], timeout: 10)
+        #endif
+    }
+
     func testGrailedUsesVerifiedFeedUniversalLinkWithoutGuessedScheme() {
         let bundleID = "com.grailed.production"
         XCTAssertEqual(TargetResolver.bundleId(from: "grailed"), bundleID)
@@ -580,6 +592,72 @@ final class TargetResolverLaunchTests: XCTestCase {
         XCTAssertTrue(TargetResolver.primaryAndFallbackSchemes(for: bundleID).isEmpty)
         XCTAssertNil(TargetResolver.urlScheme(forBundleId: bundleID))
     }
+    func testExpandedCatalogSupportsSingleAppWidgetHandoffs() throws {
+        let targets: [(name: String, bundle: String, link: String)] = [
+            ("Threads", "com.burbn.barcelona", "https://www.threads.com/"),
+            ("Discord", "com.hammerandchisel.discord", "https://discord.com/app"),
+            ("Twitch", "tv.twitch", "https://www.twitch.tv/home"),
+            ("Bluesky", "xyz.blueskyweb.app", "https://bsky.app/"),
+            ("Spotify", "com.spotify.client", "https://open.spotify.com/home"),
+            ("Netflix", "com.netflix.Netflix", "https://www.netflix.com/browse"),
+            ("YouTube Music", "com.google.ios.youtubemusic", "https://music.youtube.com/"),
+            ("Temu", "com.einnovation.temu", "https://www.temu.com/?_p_dp=1"),
+            ("SHEIN", "zzkko.com.ZZKKO", "https://api-shein.shein.com/h5/sharejump/appjump"),
+            ("Etsy", "com.etsy.etsyforios", "https://www.etsy.com/"),
+            ("Depop", "com.garageitaly.garage", "https://www.depop.com/"),
+            ("Vinted", "lt.manodrabuziai.fr", "https://www.vinted.com/"),
+            ("StockX", "com.Campless.Campless", "https://stockx.com/"),
+            ("GOAT", "com.airgoat.goat.ios", "https://www.goat.com/"),
+            ("Duolingo", "com.duolingo.DuolingoMobile", "https://www.duolingo.com/home"),
+            ("Tinder", "com.cardify.tinder", "https://go.tinder.com/"),
+            ("Bumble", "com.moxco.bumble", "https://bumble.com/nav/"),
+            ("Hinge", "co.hinge.mobile.ios", "https://hinge.co/app/"),
+            ("Character.AI", "ai.character.app", "https://character.ai/profile/"),
+            ("ChatGPT", "com.openai.chat", "https://chatgpt.com/open-app"),
+            ("Brawl Stars", "com.supercell.laser", "https://link.brawlstars.com/"),
+            ("Clash Royale", "com.supercell.scroll", "https://link.clashroyale.com/"),
+            ("Clash of Clans", "com.supercell.magic", "https://link.clashofclans.com/"),
+            ("Hay Day", "com.supercell.soil", "https://link.haydaygame.com/"),
+        ]
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let data = try JSONEncoder().encode(selection)
+        for target in targets {
+            XCTAssertEqual(AppGroupIdentity.widgetLaunchBundleId(templateApp: target.bundle, selectionData: data), target.bundle, target.name)
+            XCTAssertEqual(AppGroupIdentity(name: "", templateApp: target.bundle, applicationCount: 1).title, target.name)
+            XCTAssertTrue(TargetResolver.canOpen(bundleId: target.bundle), target.name)
+            XCTAssertEqual(TargetResolver.universalLinks(forBundleId: target.bundle), [target.link], target.name)
+            XCTAssertTrue(TargetResolver.primaryAndFallbackSchemes(for: target.bundle).isEmpty, "New targets use their exact Universal Link owner")
+        }
+        selection.applicationTokens.insert(try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8)))
+        let groupData = try JSONEncoder().encode(selection)
+        for target in targets {
+            XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: target.bundle, selectionData: groupData), target.name)
+        }
+    }
+
+    func testPinterestUsesPublicBundleIDAndPreservesLegacyAssociation() throws {
+        XCTAssertEqual(TargetResolver.bundleId(from: "pinterest"), "pinterest")
+        XCTAssertEqual(TargetResolver.bundleId(from: "com.pinterest"), "pinterest")
+        XCTAssertEqual(TargetResolver.displayName(for: "pinterest"), "Pinterest")
+        XCTAssertTrue(TargetResolver.canOpen(bundleId: "pinterest"))
+        XCTAssertEqual(TargetResolver.primaryAndFallbackSchemes(for: "pinterest"), ["pinterest://"])
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let data = try JSONEncoder().encode(selection)
+        XCTAssertEqual(AppGroupIdentity.widgetLaunchBundleId(templateApp: "com.pinterest", selectionData: data), "pinterest")
+        XCTAssertEqual(AppGroupIdentity(name: "", templateApp: "com.pinterest", applicationCount: 1).title, "Pinterest")
+        let group = TicketGroup(name: "My inspiration", selection: selection,
+            settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20), templateApp: "com.pinterest")
+        XCTAssertEqual(group.templateApp, "pinterest")
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(group)) as? [String: Any])
+        legacy["templateApp"] = "com.pinterest"
+        let decoded = try JSONDecoder().decode(TicketGroup.self, from: JSONSerialization.data(withJSONObject: legacy))
+        XCTAssertEqual(decoded.templateApp, "pinterest")
+        XCTAssertEqual(decoded.name, "My inspiration")
+        XCTAssertEqual(decoded.selection, selection)
+    }
+
 }
 
 
