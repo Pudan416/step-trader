@@ -1364,6 +1364,21 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        let drawableView = view as? DayObjectsDrawableView
+        let paletteViewportSize: CGSize?
+        if case let .happeningPalette(presentation) = presentationMode {
+            paletteViewportSize = presentation.viewportSize
+        } else { paletteViewportSize = nil }
+        if let drawableView, drawableView.paletteResizeHandoff.isPending,
+           let paletteViewportSize,
+           (!drawableView.paletteResizeHandoff.canPresent(viewportSize: paletteViewportSize, boundsSize: view.bounds.size)
+            || !drawableView.drawableMatchesBounds) {
+            // SwiftUI has supplied the new world, but UIKit has not laid it out
+            // yet. Never render that world's coordinates into the old surface.
+            return
+        }
+        let synchronizesResize = view.presentsWithTransaction
+            || (drawableView?.paletteResizeHandoff.isPending == true && paletteViewportSize != nil)
         performanceProbe?.recordAttempt()
         let elapsedTime = clock.elapsedTime
         guard let drawable = view.currentDrawable,
@@ -1374,7 +1389,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                   drawableSize: view.drawableSize,
                   pointToPixelScale: Float(view.contentScaleFactor),
                   elapsedTime: elapsedTime,
-                  present: drawable
+                  present: synchronizesResize ? nil : drawable
               )
         else {
             performanceProbe?.recordResourceDrop()
@@ -1382,6 +1397,19 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
         lastDisplayedTime = elapsedTime
         commandBuffer.commit()
+        if synchronizesResize {
+            // CAMetalLayer's transaction path requires scheduling first, then
+            // presenting the drawable directly (not commandBuffer.present).
+            // https://developer.apple.com/documentation/quartzcore/cametallayer/presentswithtransaction
+            let prior = view.presentsWithTransaction
+            view.presentsWithTransaction = true
+            commandBuffer.waitUntilScheduled()
+            drawable.present()
+            view.presentsWithTransaction = prior
+        }
+        if let paletteViewportSize {
+            drawableView?.didPresentPaletteFrame(viewportSize: paletteViewportSize)
+        }
         configureAnimation(view, elapsedTime: elapsedTime, requestsStaticFrame: false)
     }
 

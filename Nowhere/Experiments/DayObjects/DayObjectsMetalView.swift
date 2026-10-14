@@ -285,24 +285,104 @@ struct DayObjectsMetalView: UIViewRepresentable {
             if lunarPhysicsIsActive && isAnimating { motionInput.start() } else { motionInput.stop() }
             renderer.setAnimating(isAnimating, continuously: animatesContinuously)
             renderer.configureAnimation(view)
+            if let drawableView = view as? DayObjectsDrawableView {
+                let viewportSize: CGSize?
+                if case let .happeningPalette(presentation) = presentationMode {
+                    viewportSize = presentation.viewportSize
+                } else { viewportSize = nil }
+                drawableView.configurePaletteViewportSize(viewportSize)
+                drawableView.synchronizePaletteResizeIfNeeded()
+            }
         }
     }
 }
 
 
+/// A resized CAMetalLayer must not stretch its previous questionnaire frame
+/// across the All world while waiting for the display link. Only a frame for
+/// the requested viewport can complete this handoff.
+struct DayObjectsPaletteResizeHandoff: Equatable {
+    private(set) var requestedViewportSize: CGSize?
+    private(set) var presentedViewportSize: CGSize?
+
+    var isPending: Bool {
+        requestedViewportSize != nil && requestedViewportSize != presentedViewportSize
+    }
+
+    mutating func request(viewportSize: CGSize?) {
+        requestedViewportSize = viewportSize
+        if viewportSize == nil { presentedViewportSize = nil }
+    }
+
+    func canPresent(viewportSize: CGSize, boundsSize: CGSize) -> Bool {
+        guard let requestedViewportSize else { return false }
+        return viewportSize == requestedViewportSize
+            && abs(boundsSize.width - viewportSize.width) < 0.5
+            && abs(boundsSize.height - viewportSize.height) < 0.5
+    }
+
+    @discardableResult
+    mutating func didPresent(viewportSize: CGSize) -> Bool {
+        guard viewportSize == requestedViewportSize else { return false }
+        presentedViewportSize = viewportSize
+        return true
+    }
+}
+
 /// Scroll fields can be much taller than the screen. Keep the drawable within
 /// a conservative Metal texture limit while labels retain native UI resolution.
 final class DayObjectsDrawableView: MTKView {
+    private(set) var paletteResizeHandoff = DayObjectsPaletteResizeHandoff()
+    private var isSynchronizingPaletteResize = false
+
+    func configurePaletteViewportSize(_ size: CGSize?) {
+        paletteResizeHandoff.request(viewportSize: size)
+    }
+
+    func synchronizePaletteResizeIfNeeded() {
+        guard paletteResizeHandoff.isPending,
+              let size = paletteResizeHandoff.requestedViewportSize,
+              paletteResizeHandoff.canPresent(viewportSize: size, boundsSize: bounds.size),
+              delegate != nil, !isSynchronizingPaletteResize else { return }
+        resizeDrawableToMatchBounds()
+        isSynchronizingPaletteResize = true
+        defer { isSynchronizingPaletteResize = false }
+        // The first fresh drawable joins the same transaction as the new view
+        // bounds. Normal display-link frames stay asynchronous afterward.
+        let prior = presentsWithTransaction
+        presentsWithTransaction = true
+        draw()
+        presentsWithTransaction = prior
+    }
+
+    func didPresentPaletteFrame(viewportSize: CGSize) {
+        paletteResizeHandoff.didPresent(viewportSize: viewportSize)
+    }
+
     static func displayScale(for size: CGSize, nativeScale: CGFloat) -> CGFloat {
         min(max(1, nativeScale), 4096 / max(1, max(size.width, size.height)))
     }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
+    var drawableMatchesBounds: Bool {
+        let scale = Self.displayScale(for: bounds.size, nativeScale: traitCollection.displayScale)
+        return drawableSize == CGSize(width: max(1, floor(bounds.width * scale)),
+            height: max(1, floor(bounds.height * scale)))
+    }
+
+    private func resizeDrawableToMatchBounds() {
         let scale = Self.displayScale(for: bounds.size, nativeScale: traitCollection.displayScale)
         if contentScaleFactor != scale { contentScaleFactor = scale }
         let size = CGSize(width: max(1, floor(bounds.width * scale)),
                           height: max(1, floor(bounds.height * scale)))
-        if drawableSize != size { drawableSize = size }
+        if drawableSize != size {
+            releaseDrawables()
+            drawableSize = size
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        resizeDrawableToMatchBounds()
+        synchronizePaletteResizeIfNeeded()
     }
 }

@@ -273,3 +273,12 @@ Only coordination methods/types needed across the extracted files become interna
 Regression suites cover geometry/Metal ABI, actual material rendering, deterministic recipes, historical decoding, event reconciliation, Remix, catalog validity, and audio graph/lifecycle behavior. A source split is not a performance improvement claim; device profiling before merge is a separate step.
 
 This is not a wholesale rewrite of the legacy renderer. Large existing files such as `DayObjectsRenderer.swift`, `DayObjectSceneRecipeV1.swift`, `DayObjectPaletteSet.swift` and `DayObjectsTonalVoice.swift` still deserve a separate, targeted review when their behavior is changed. They are not silently replaced here.
+
+
+When a palette switches from a questionnaire viewport to the larger All world,
+`DayObjectsPaletteResizeHandoff` waits for matching UIKit bounds and renderer
+viewport. The first fresh drawable presents in the resize's Core Animation
+transaction, using `commit`, `waitUntilScheduled` and direct drawable presentation.
+This prevents the previous questionnaire texture stretching across the new world.
+Later palette frames retain normal asynchronous presentation. A stale frame size
+cannot complete a newer handoff; this path does not hide or replace the native view.
