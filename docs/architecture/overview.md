@@ -41,8 +41,10 @@ Test names live in `NowhereTests/` unless stated otherwise.
   across six questions and the All reveal: synthetic choice identities pass through
   Editorial assignments and DayObjects render slots, while selected preferences
   supply visual state separately from actual added IDs. Survey gestures do not
-  invoke Canvas mutation paths. Only a real addition and palette dismissal advance
-  the tour into Health, Feeds and Me.
+  invoke Canvas mutation paths. A real addition and palette dismissal advance
+  the tour into Health, Feeds and Me. Once All is revealed, an existing day can
+  instead advance through `useExistingDay`; closing the palette in the next-step
+  observer does not change its recorded elements.
 - `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
   it does not mutate the catalog. `GalleryView` combines familiar, Health and added
   IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared

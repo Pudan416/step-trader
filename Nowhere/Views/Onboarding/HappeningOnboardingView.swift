@@ -53,7 +53,7 @@ struct HappeningOnboardingDeveloperPage: View {
     var body: some View {
         Form {
             Section {
-                Text(verbatim: "Replay the full tour from welcome. At Add happening, + opens six questions in the live Happenings field. Recorded days stay in place.")
+                Text(verbatim: "Replay the full tour from welcome. At Add happening, + opens six questions in the live Happenings field. Answers update recommendations only. Recorded happenings stay selected and recorded days are kept. After the questions, use your existing day to continue without adding a happening.")
                 Button("Start full onboarding from welcome") { HappeningOnboardingCoordinator.shared.replay() }
                     .accessibilityIdentifier("happenings.onboarding.debug.start")
             }

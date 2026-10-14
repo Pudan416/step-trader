@@ -1390,6 +1390,24 @@ struct GalleryView: View {
                         .foregroundStyle(happeningQuestionInk)
                         .padding(.horizontal, 24)
                         .padding(.bottom, canvasSafeInsets.bottom + 72)
+                } else if showsHappeningIntroduction && !happeningRevealIsActive && showHappeningPalette,
+                          CanvasTour.shared.isActive, CanvasTour.shared.step == .happening,
+                          todayEventCount > 0 {
+                    // The tour coach stays suspended in All. Offer its existing
+                    // continuation here so replay never requires changing today.
+                    Button {
+                        CanvasTour.shared.send(.useExistingDay)
+                    } label: {
+                        Text(String(localized: "Use this day"))
+                            .font(.onest(.subheadline))
+                            .frame(minHeight: 44)
+                            .padding(.horizontal, 20)
+                            .foregroundStyle(.white)
+                            .background(.black, in: Capsule())
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, canvasSafeInsets.bottom + 72)
+                    .accessibilityIdentifier("canvas_tour.existingDay")
                 }
             }
         }

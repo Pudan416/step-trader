@@ -85,6 +85,10 @@ suspended while questions and this first All presentation are visible. Debug has
 argument. Replay begins with a fresh survey draft and starts the complete existing
 tour at welcome. The explicit + at Add happening opens questions; completion reveals
 All, and a real today addition advances to the remaining Health, Feeds and Me steps.
+When today already has happenings, **Use this day** appears below the ready All
+field and continues those steps without adding or removing anything, including at
+the ten-addition limit. Survey completion changes recommendations only; existing
+recorded happenings remain selected.
 Committed preferences survive cancellation until replacement answers are completed.
 Recorded days and legacy onboarding completion are retained.
 
