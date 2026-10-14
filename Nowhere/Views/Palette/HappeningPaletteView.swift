@@ -126,7 +126,8 @@ struct HappeningPaletteView: View {
     let treeFocusID: String?
     let dateHubInk: HappeningPaletteLabelInk
     let addedEventCount: Int
-    let onSurveySelection: ((Happening, Bool) -> Void)?
+    let isSurvey: Bool
+    let reveal: HappeningFieldReveal?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -158,7 +159,8 @@ struct HappeningPaletteView: View {
         treeFocusID: String? = nil,
         dateHubInk: HappeningPaletteLabelInk = .dark,
         addedEventCount: Int = 0,
-        onSurveySelection: ((Happening, Bool) -> Void)? = nil
+        isSurvey: Bool = false,
+        reveal: HappeningFieldReveal? = nil
     ) {
         self.happenings = happenings
         self.assignments = assignments
@@ -184,7 +186,8 @@ struct HappeningPaletteView: View {
         self.treeFocusID = treeFocusID
         self.dateHubInk = dateHubInk
         self.addedEventCount = addedEventCount
-        self.onSurveySelection = onSurveySelection
+        self.isSurvey = isSurvey
+        self.reveal = reveal
     }
 
     var body: some View {
@@ -200,8 +203,9 @@ struct HappeningPaletteView: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .canvasTourAnchor("canvas.happenings")
                     .accessibilityIdentifier("happening_field_scroll")
+                    .accessibilityValue(reveal == nil ? "Ready" : "Revealing")
                     .accessibilityHidden(activePanel != nil)
-                    .allowsHitTesting(activePanel == nil && modeTransition == nil && eventTransition == nil)
+                    .allowsHitTesting(activePanel == nil && modeTransition == nil && eventTransition == nil && reveal == nil)
                     .onChange(of: mode) { oldMode, newMode in
                         guard !usesEventTree else { return }
                         guard compactLayout != nil else { return }
@@ -224,10 +228,21 @@ struct HappeningPaletteView: View {
                     }
                     .onChange(of: layout) { oldLayout, newLayout in
                         guard usesEventTree else { return }
+                        // The questionnaire and All have unrelated identities;
+                        // their shared renderer must not morph matching indices.
+                        guard oldLayout.dateHubCenter != nil, reveal == nil else {
+                            eventLayout = newLayout
+                            eventTransition = nil
+                            return
+                        }
                         let now = Date()
                         let origin = eventTransition?.layout(at: now) ?? eventLayout ?? oldLayout
                         eventLayout = newLayout
                         eventTransition = reduceMotion ? nil : .init(from: origin, to: newLayout, startedAt: now)
+                    }
+                    .onChange(of: usesEventTree) { _, isTree in
+                        eventTransition = nil
+                        eventLayout = isTree ? layout : nil
                     }
                     .onChange(of: reduceMotion) { _, reduced in
                         if reduced { eventTransition = nil; modeTransition = nil }
@@ -302,7 +317,7 @@ struct HappeningPaletteView: View {
         let worldHeight = max(viewport.height, layout.contentSize.height,
             compactLayout?.contentSize.height ?? 0, eventTransition?.from.contentSize.height ?? 0)
         return TimelineView(.animation(minimumInterval: 1.0 / 60,
-            paused: modeTransition == nil && eventTransition == nil)) { context in
+            paused: modeTransition == nil && eventTransition == nil && reveal == nil)) { context in
             sampledField(viewport: viewport, at: context.date)
         }
         // Advertise the complete world to the native scroll surface.
@@ -337,7 +352,10 @@ struct HappeningPaletteView: View {
             return HappeningFieldExpansion.layout(compact: compactLayout, expanded: layout,
                 viewport: viewport, progress: progress)
         }
-        if usesEventTree { return eventTransition?.layout(at: date) ?? eventLayout ?? layout }
+        if usesEventTree {
+            if let reveal { return reveal.layout(layout, ids: happenings.map(\.id), at: date) }
+            return eventTransition?.layout(at: date) ?? eventLayout ?? layout
+        }
         return layout
     }
 
@@ -349,7 +367,7 @@ struct HappeningPaletteView: View {
     }
 
     private func fieldArtwork(layout: HappeningFieldLayout.Layout, visibleRect: CGRect) -> AnyView {
-        let isMoving = modeTransition != nil || eventTransition != nil || isFieldScrolling
+        let isMoving = modeTransition != nil || eventTransition != nil || reveal != nil || isFieldScrolling
         return artworkForLayout?(layout, isMoving, visibleRect) ?? artwork
     }
 
@@ -361,7 +379,7 @@ struct HappeningPaletteView: View {
                 .allowsHitTesting(false)
             HappeningShapeField(happenings: happenings, assignments: assignments, layout: layout,
                 interaction: interaction, addedIDs: addedIDs, onActivate: onActivate,
-                labelInks: labelInks, fitsTreeLabels: usesEventTree, onSurveySelection: onSurveySelection)
+                labelInks: labelInks, fitsTreeLabels: usesEventTree, isSurvey: isSurvey)
             if let hub = hubCenter {
                 HappeningPaletteCountHub(count: addedEventCount, ink: dateHubInk.color)
                     .position(hub)
@@ -394,12 +412,12 @@ struct HappeningPaletteView: View {
             HappeningTreeScrollFocus(focusID: "event_field_all",
                 center: expanded.dateHubCenter ?? self.dateHubCenter
                     ?? CGPoint(x: expanded.contentSize.width / 2, y: expanded.contentSize.height / 2),
-                contentSize: expanded.contentSize, animated: !reduceMotion)
+                contentSize: expanded.contentSize, animated: !reduceMotion && reveal == nil)
                 .allowsHitTesting(false).accessibilityHidden(true)
         } else if let hub = expanded.dateHubCenter, eventTransition == nil {
             let focus = treeFocusCenter(layout: expanded, fallback: hub)
             HappeningTreeScrollFocus(focusID: treeFocusID ?? "event_field_tree_home",
-                center: focus, contentSize: expanded.contentSize, animated: !reduceMotion)
+                center: focus, contentSize: expanded.contentSize, animated: !reduceMotion && reveal == nil)
                 .allowsHitTesting(false).accessibilityHidden(true)
         }
     }

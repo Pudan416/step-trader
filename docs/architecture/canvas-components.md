@@ -234,7 +234,7 @@ For supported native recipes, `HappeningEditorialAssignmentResolver` obtains the
 prospective native actor directly and derives presentation metadata through
 `DayObjectSceneRecipeV1.paletteAppearance`, shared with legacy preview/Lab
 material generation. Root seed, palette and art direction are resolved once per
-snapshot. It does not build discarded legacy scene trees for the 100 choices.
+snapshot. It does not build discarded legacy scene trees for the catalog choices.
 Committed UUIDs and optional variants retain priority; native actor parameters,
 legacy shape/material/silhouette metadata and the ten-actor admission rule stay
 consistent with the original picker. Legacy/unsupported inputs retain the

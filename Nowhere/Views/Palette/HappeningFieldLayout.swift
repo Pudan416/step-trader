@@ -499,3 +499,45 @@ struct HappeningEventFieldTransition {
         return to.dateHubCenter == nil ? 1 - p : p
     }
 }
+
+/// One immutable reveal schedule drives the native figures and their labels.
+/// It scales cells in their final positions without resizing the scroll world
+/// or publishing a parent Gallery update for every catalog event.
+struct HappeningFieldReveal: Equatable {
+    static let growthDuration: TimeInterval = 0.58
+    let startedAt: Date
+    private let offsets: [String: TimeInterval]
+    let duration: TimeInterval
+
+    init(order: [String], startedAt: Date = .now) {
+        self.startedAt = startedAt
+        var offsets: [String: TimeInterval] = [:]
+        for (index, id) in order.enumerated() {
+            offsets[id] = index < 6 ? Double(index) * 0.12 : 0.72 + Double(index - 6) * 0.015
+        }
+        self.offsets = offsets
+        duration = (offsets.values.max() ?? 0) + Self.growthDuration
+    }
+
+    func scale(for id: String, at date: Date) -> CGFloat {
+        guard let offset = offsets[id] else { return 1 }
+        // Compare absolute endpoints before subtracting Date values. Floating
+        // point cancellation must not leave the final cell microscopically small.
+        if date >= startedAt.addingTimeInterval(offset + Self.growthDuration) { return 1 }
+        if date <= startedAt.addingTimeInterval(offset) { return 0 }
+        let phase = min(1, max(0, (date.timeIntervalSince(startedAt) - offset) / Self.growthDuration))
+        return CGFloat(phase * phase * (3 - 2 * phase))
+    }
+
+    func layout(_ final: HappeningFieldLayout.Layout, ids: [String], at date: Date) -> HappeningFieldLayout.Layout {
+        let sources = final.sources.enumerated().map { index, source in
+            let scale = index < ids.count ? self.scale(for: ids[index], at: date) : 1
+            return HappeningFieldLayout.Source(index: source.index, center: source.center,
+                radius: source.radius * scale, appearanceScale: source.appearanceScale * scale)
+        }
+        var sampled = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: final.dockAnchor)
+        sampled.contentSize = final.contentSize
+        sampled.dateHubCenter = final.dateHubCenter
+        return sampled
+    }
+}

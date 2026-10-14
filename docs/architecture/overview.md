@@ -26,7 +26,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
-- `HappeningDefaults.builtIns` derives the fixed 105 choices from `HappeningEventTree.all`.
+- `HappeningDefaults.builtIns` derives the fixed 106 choices from `HappeningEventTree.all`.
   `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
   `all` also contains historical/imported records and must not feed new-choice UI.
   Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
@@ -40,10 +40,14 @@ Test names live in `NowhereTests/` unless stated otherwise.
   existing CanvasTour at welcome. The same HappeningPaletteView stays mounted
   across six questions and the All reveal. Synthetic IDs own only survey answers;
   explicit representative catalog IDs reuse the full authoritative Editorial
-  assignment snapshot, including frozen current-day actors. Survey gestures use
-  one exclusive single/double-tap recognizer and never invoke Canvas mutation
-  paths. Headings contribute to the same measured CanvasTourHost coach surface;
-  a persistent card animates placement while content changes atomically. A real
+  assignment snapshot, including frozen current-day actors. Survey taps reuse
+  HappeningPaletteInteractionState's removal preview and confirmation, without
+  invoking Canvas mutation paths. Headings and the persistent first-All choice
+  prompt contribute to the same CanvasTourHost coach surface. The coach publishes
+  its destination geometry rather than every animation frame; content changes
+  atomically. HappeningFieldReveal samples an immutable schedule in the leaf
+  TimelineView, preserving the full All world and Today hub. Palette presentation
+  copies reuse the prepared DayObjects scene rather than deriving it per frame. A real
   addition or explicit tap on an already recorded happening, followed by palette
   dismissal, advances to Health, Feeds and Me. Recorded event taps acknowledge
   the durable entry without a mutation, including at the ten-addition limit.
@@ -57,7 +61,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
   while that Canvas remains empty; normal recommendations resume on addition.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
-  must not rebuild all 105 candidates. `DayObjectPaletteSet.make` shares a bounded
+  must not rebuild all catalog candidates. `DayObjectPaletteSet.make` shares a bounded
   16-entry palette cache keyed by root seed, normalized categories, day and identity.
   Its lock protects lookup/publication, while palette derivation runs outside the lock.
 - `MePosterEventLedger.unlocks` retains four immutable full-ledger requests so live

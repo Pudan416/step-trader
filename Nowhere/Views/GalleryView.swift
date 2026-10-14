@@ -111,11 +111,10 @@ struct GalleryView: View {
     @ObservedObject private var happeningsAuthentication = AuthenticationService.shared
     @State private var showsHappeningQuestions = false
     @State private var happeningQuestionProfile = HappeningPersonalizationProfile()
-    @State private var happeningIntroductionHeaderHeight: CGFloat = 175
     @State private var happeningQuestionsScope = "local"
     @State private var happeningQuestionsDayKey = ""
     @State private var showsHappeningIntroduction = false
-    @State private var happeningRevealIDs: Set<String> = []
+    @State private var happeningReveal: HappeningFieldReveal?
     @State private var happeningRevealTask: Task<Void, Never>?
     @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteTourSessionID: UUID?
@@ -677,7 +676,26 @@ struct GalleryView: View {
         persistHappeningQuestionDraft()
     }
 
+    private func handleHappeningQuestionActivation(_ happening: Happening) {
+        guard showsHappeningQuestions else { return }
+        switch paletteInteraction.tap(id: happening.id, addedIDs: fieldSelectedIDs) {
+        case .armed:
+            beginPaletteTransition()
+            lightHapticTick &+= 1
+        case let .perform(mutation):
+            // Share the ordinary two-tap removal preview, but the mutation is
+            // confined to the account-scoped survey draft.
+            if case .add = mutation { setHappeningQuestionChoice(happening, selected: true) }
+            else { setHappeningQuestionChoice(happening, selected: false) }
+            paletteInteraction.resolve(mutation, succeeded: true)
+            beginPaletteTransition()
+            lightHapticTick &+= 1
+        case .ignored: break
+        }
+    }
+
     private func advanceHappeningQuestion() {
+        cancelPaletteInteraction()
         if !happeningQuestionProfile.hasStarted { happeningQuestionProfile.hasStarted = true }
         else if happeningQuestionProfile.questionIndex == 5 { completeHappeningQuestions(skipped: false); return }
         else { happeningQuestionProfile.questionIndex += 1 }
@@ -686,6 +704,7 @@ struct GalleryView: View {
     }
 
     private func backHappeningQuestion() {
+        cancelPaletteInteraction()
         if !happeningQuestionProfile.hasStarted { closeHappeningPalette(); return }
         if happeningQuestionProfile.questionIndex == 0 { happeningQuestionProfile.hasStarted = false }
         else { happeningQuestionProfile.questionIndex -= 1 }
@@ -711,6 +730,7 @@ struct GalleryView: View {
         HappeningPersonalizationStore.save(happeningQuestionProfile, scope: happeningQuestionsScope)
         HappeningPersonalizationStore.clearDraft(scope: happeningQuestionsScope)
         HappeningOnboardingCoordinator.shared.didCompleteQuestions()
+        cancelPaletteInteraction()
         showsHappeningQuestions = false
         startHappeningIntroduction()
     }
@@ -745,7 +765,7 @@ struct GalleryView: View {
         refreshEventTreePalette()
         paletteMode = .all
         showsHappeningIntroduction = true
-        happeningRevealIDs = []
+        happeningReveal = nil
         HappeningOnboardingCoordinator.shared.suspendsCanvasTour = true
         let scores = HappeningPersonalizationStore.load().scores(dayKey: dayCanvas.dayKey)
         let leaderIDs = eventTree.atlasNodes.prefix(6).map(\.id)
@@ -758,18 +778,20 @@ struct GalleryView: View {
             let x = scores["event_" + $0, default: 0], y = scores["event_" + $1, default: 0]
             return x == y ? $0 < $1 : x > y
         }
-        let order = leaderIDs + remainder
-        if reduceMotion { happeningRevealIDs = Set(order); return }
+        let order = (leaderIDs + remainder).map { "event_" + $0 }
+        guard !reduceMotion else { return }
+        let reveal = HappeningFieldReveal(order: order)
+        happeningReveal = reveal
         let expectedDay = dayCanvas.dayKey
         let expectedScope = happeningQuestionsScope
         happeningRevealTask = Task { @MainActor in
-            for (index, id) in order.enumerated() {
-                guard !Task.isCancelled, expectedDay == dayCanvas.dayKey,
-                      expectedScope == HappeningPersonalizationStore.scope, showHappeningPalette else { return }
-                withAnimation(.easeOut(duration: 0.2)) { _ = happeningRevealIDs.insert(id) }
-                try? await Task.sleep(for: .milliseconds(index < 6 ? 135 : 15))
-            }
-            guard !Task.isCancelled else { return }
+            do { try await Task.sleep(for: .seconds(reveal.duration)) }
+            catch { return }
+            guard expectedDay == dayCanvas.dayKey,
+                  expectedScope == HappeningPersonalizationStore.scope, showHappeningPalette else { return }
+            // Only the clock stops. Full-size cells, world bounds, the hub and
+            // coach reservation have the same endpoints before and after this.
+            happeningReveal = nil
             happeningRevealTask = nil
         }
     }
@@ -777,12 +799,22 @@ struct GalleryView: View {
     private func finishHappeningIntroduction() {
         happeningRevealTask?.cancel(); happeningRevealTask = nil
         showsHappeningIntroduction = false
-        happeningRevealIDs = []
+        happeningReveal = nil
         HappeningOnboardingCoordinator.shared.suspendsCanvasTour = false
     }
 
     private var happeningRevealIsActive: Bool {
-        showsHappeningIntroduction && happeningRevealIDs.count < HappeningEventTree.all.count
+        showsHappeningIntroduction && happeningReveal != nil
+    }
+
+    private func happeningChoiceCoachBottom(in viewport: GeometryProxy) -> CGFloat {
+        let idealHeight = HappeningTodayChoiceCoach.idealHeight(width: viewport.size.width,
+            dynamicTypeSize: paletteDynamicTypeSize)
+        let hostSize = CGSize(width: viewport.size.width,
+            height: max(1, viewport.size.height - canvasSafeInsets.top - canvasSafeInsets.bottom))
+        let frame = CanvasTourCardGeometry.frame(in: hostSize, idealHeight: idealHeight,
+            step: .happening, target: nil, navigationTop: nil)
+        return canvasSafeInsets.top + frame.maxY
     }
 
     private var personalEventFieldWasCleared: Bool {
@@ -809,6 +841,10 @@ struct GalleryView: View {
     @ViewBuilder
     private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout, treeHubCenter: CGPoint?) -> some View {
         if (showHappeningPalette || showEventExplorer), !presentation.isWideCanvas {
+            let input = displayedEditorialRenderInput
+            let paletteArtwork = DayObjectsView(sceneInput: input.sceneInput,
+                digitalImpact: input.digitalImpact, isAnimating: isCanvasSelected,
+                soundPulseBus: canvasSoundPulseBus)
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 assignments: paletteEditorialAssignments,
@@ -824,15 +860,9 @@ struct GalleryView: View {
                 compactLayout: showEventExplorer || showsHappeningQuestions ? nil : compactLayout,
                 usesEventTree: showEventExplorer,
                 artworkForLayout: { displayedLayout, isExpanding, visibleRect in
-                    AnyView(DayObjectsView(
-                        sceneInput: displayedEditorialRenderInput.sceneInput,
-                        digitalImpact: displayedEditorialRenderInput.digitalImpact,
-                        isAnimating: isCanvasSelected,
-                        soundPulseBus: canvasSoundPulseBus,
-                        presentationMode: paletteRenderMode(layout: displayedLayout,
-                            viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
-                            visibleRect: showEventExplorer ? visibleRect : nil)
-                    ))
+                    AnyView(paletteArtwork.presented(as: paletteRenderMode(layout: displayedLayout,
+                        viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
+                        visibleRect: showEventExplorer ? visibleRect : nil)))
                 },
                 interaction: paletteInteraction,
                 addedIDs: fieldSelectedIDs,
@@ -840,7 +870,7 @@ struct GalleryView: View {
                 instruction: paletteInstruction,
                 onActivate: { happening in
                     if showsHappeningQuestions {
-                        setHappeningQuestionChoice(happening, selected: !fieldSelectedIDs.contains(happening.id))
+                        handleHappeningQuestionActivation(happening)
                     } else { handlePaletteActivation(happening) }
                 },
                 onSaveSelection: handlePaletteSelectionSave,
@@ -857,9 +887,8 @@ struct GalleryView: View {
                     background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
                     material: nil),
                 addedEventCount: todayEventCount,
-                onSurveySelection: showsHappeningQuestions ? { happening, selected in
-                    setHappeningQuestionChoice(happening, selected: selected)
-                } : nil
+                isSurvey: showsHappeningQuestions,
+                reveal: happeningReveal
             )
             .transition(.opacity)
             .onAppear {
@@ -922,7 +951,10 @@ struct GalleryView: View {
         var contentTopInset = canvasSafeInsets.top
             + HappeningPaletteChromeLayout.panelTopInset(
                 topCardHeight: topCardHeight, hidesSurroundingChrome: true
-            ) + (happeningRevealIsActive ? 92 : 10)
+            ) + 10
+        if showsHappeningIntroduction {
+            contentTopInset = max(contentTopInset, happeningChoiceCoachBottom(in: viewport) + 12)
+        }
         let tour = CanvasTour.shared
         if (showsHappeningQuestions || (tour.isActive && !HappeningOnboardingCoordinator.shared.suspendsCanvasTour && tour.step == .happening)), tour.cardBottomGlobalY > 0 {
             // The coach has a fixed top position independent of this field.
@@ -939,8 +971,7 @@ struct GalleryView: View {
             let visible = Set(eventTree.nodes.map(\.id))
             let sources = HappeningEventTree.all.enumerated().map { index, event in
                 let source = placed[event.id]
-                let isRevealed = !showsHappeningIntroduction || happeningRevealIDs.contains(event.id)
-                let scale: CGFloat = isRevealed && (paletteMode == .all || visible.contains(event.id)) ? 1 : 0
+                let scale: CGFloat = paletteMode == .all || visible.contains(event.id) ? 1 : 0
                 return HappeningFieldLayout.Source(index: index,
                     center: source?.center ?? tree.dateHubCenter ?? .zero,
                     radius: (source?.radius ?? 0) * scale, appearanceScale: scale)
@@ -1037,7 +1068,8 @@ struct GalleryView: View {
     private func handlePaletteActivation(_ happening: Happening) {
         guard !showsHappeningQuestions, !happeningRevealIsActive, let assignment = paletteEditorialAssignments[happening.id] else { return }
         let isTourAddition = CanvasTour.shared.isActive && CanvasTour.shared.step == .happening
-        if isTourAddition && paletteAddedIDs.contains(happening.id),
+        let isOnboardingChoice = isTourAddition || showsHappeningIntroduction
+        if isOnboardingChoice && paletteAddedIDs.contains(happening.id),
            let recorded = dayCanvas.elements.first(where: {
                HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID($0.optionId)) == happening.id
            }) {
@@ -1100,7 +1132,7 @@ struct GalleryView: View {
                     argument: "\(happening.localizedTitle()). \(String(localized: "Removed from Canvas"))"
                 )
             }
-            if isTourAddition, case .add = mutation {
+            if isOnboardingChoice, case .add = mutation {
                 closeHappeningPalette()
                 return
             }
@@ -1375,9 +1407,9 @@ struct GalleryView: View {
                 happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true),
                     treeHubCenter: paletteLayout.dateHubCenter)
                     .mask {
-                        if happeningRevealIsActive {
+                        if showsHappeningIntroduction {
                             VStack(spacing: 0) {
-                                Color.clear.frame(height: happeningIntroductionHeaderHeight + 12)
+                                Color.clear.frame(height: happeningChoiceCoachBottom(in: viewport) + 12)
                                 Rectangle()
                                 Color.clear.frame(height: canvasSafeInsets.bottom + 72)
                             }
@@ -1392,20 +1424,11 @@ struct GalleryView: View {
                             question: CanvasTourQuestionCoach(
                                 identity: happeningQuestionProfile.hasStarted ? happeningQuestionProfile.question.rawValue : "invitation",
                                 content: AnyView(happeningQuestionChrome.header))))
-                } else if happeningRevealIsActive && showHappeningPalette {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(verbatim: "Finding your happenings")
-                            .font(.nowhereDisplay(25, relativeTo: .title2))
-                        Text(verbatim: "Making room for the things in your day.")
-                            .font(.onest(.footnote))
-                    }
-                    .foregroundStyle(happeningQuestionInk)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.top, canvasSafeInsets.top + 20)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height }
-                    action: { happeningIntroductionHeaderHeight = $0 }
-                    .allowsHitTesting(false)
+                } else if showsHappeningIntroduction && showHappeningPalette {
+                    Color.clear.frame(width: 0, height: 0)
+                        .preference(key: CanvasTourAnchors.self, value: CanvasTourOverlayPreferences(
+                            question: CanvasTourQuestionCoach(identity: "chooseToday",
+                                content: AnyView(HappeningTodayChoiceCoach()))))
                 }
             }
             .overlay(alignment: .bottom) {

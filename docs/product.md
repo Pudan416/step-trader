@@ -37,7 +37,7 @@ when changing the sequence rather than using an old slide specification.
 
 ## Happenings field
 
-New additions use one reviewed catalog of exactly **105** events. Labels are
+New additions use one reviewed catalog of exactly **106** events. Labels are
 English, at most 20 characters, and describe complete events. Broad duplicate
 meal options are replaced by Had breakfast, Had lunch and Had dinner; Cooked
 means preparing food. Creating or naming custom happenings is unavailable,
@@ -69,8 +69,11 @@ measured coach surface as the surrounding tour; its position animates between
 steps. Questions show no optional badge, selection counter or repeated instruction.
 Leisure includes Doomscrolling, Vibe coding, Watching movies and Watching series;
 these seed the existing doomscroll, made, movie and show events. Relationship and
-aspiration choices use staggered 3–2–1 rows. A double tap deselects a selected
-answer and accessibility activation toggles it. Back and close retain a local
+aspiration choices use staggered 3–2–1 rows. Routine and habit answers describe
+ongoing activities, while feelings, people and aspirations describe their own
+contexts. A tap on a selected answer previews deselection with a monochrome
+figure and Delete badge; another tap confirms. Accessibility uses the same
+selection and confirmation sequence. Back and close retain a local
 account-scoped draft. Skip questions marks this introduction as skipped. Completed
 answers seed preferences only: they create no history, usage counters or colors.
 Relationship context never implies an actual call or text. Emotion context expires
@@ -79,12 +82,19 @@ without seeds, the existing two-use-day learning threshold remains in place.
 
 Completion reveals **All**, first six distinct domain leaders, then remaining
 canonical events in relevance order, at the same map positions used for selection.
-The temporary **Finding your happenings** heading disappears when the reveal ends,
-along with its reserved space. The ready field has no top prompt. Actual taps
-use the ordinary atomic addition/removal path and the ten-addition limit. Reduced
-Motion reveals the complete field immediately. Closing or a day change cancels
-the reveal. The catalog includes separate **Smoked**, **Had a beer** and **Stayed
-up late** events; Had a beer never aliases Got wasted. Canvas tour cards are
+The same framed coach displays **Choose one thing you’ve done today.** throughout
+the reveal and while scrolling or exploring the field, until an explicit real
+happening choice. One immutable reveal clock scales circles and their labels in
+their final cells; the complete scroll world, coach reservation and Today hub
+keep the same geometry at completion. The unchanged production scene is reused
+between animation samples. Actual taps use the ordinary atomic addition/removal
+path and the ten-addition limit. Reduced Motion reveals the complete field immediately. Closing or a day change cancels
+the reveal. The catalog includes separate **Smoked**, **Had a beer**, **Had a
+drink**, **Got drunk** and **Stayed up late** events. Beer, a general alcoholic
+drink and intoxication retain separate identities and counters. Got drunk keeps
+the existing `event_wasted` identity; saved copy and entries are retained. Habit
+preferences include Drinking alcohol and Getting drunk; a historical beer answer
+keeps its beer-only meaning. Canvas tour cards are
 suspended while questions and this first All presentation are visible. Debug has
 **Happenings onboarding (Debug)** and the `debug-happenings-onboarding` launch
 argument. Replay begins with a fresh survey draft and starts the complete existing
@@ -125,7 +135,7 @@ requires two distinct use days before replacing a cold-start leader. Repeated
 additions on one custom day do not increase the usage counter. Restored snapshots
 canonicalize old IDs and count each event once per day; their count is combined
 with local counters by the maximum, avoiding double-counting overlapping history.
-Recommendations do not exclude uncomfortable events such as Raged or Got wasted.
+Recommendations do not exclude uncomfortable events such as Raged or Got drunk.
 
 Pending Health workout hints and today's additions are also visible along their
 sphere's path. Shared intersections remain anchored. The map is recomputed on

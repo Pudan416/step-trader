@@ -29,7 +29,11 @@ struct HappeningPersonalizationProfile: Codable, Equatable {
         var result: [String: Double] = [:]
         for question in HappeningPersonalizationQuestion.allCases {
             if question == .feelings && (!includeMood || emotionDayKey != dayKey) { continue }
-            for choice in question.choices where answers[question.rawValue, default: []].contains(choice.id) {
+            let selected = answers[question.rawValue, default: []]
+            if question == .habits && selected.contains("beer") {
+                result["event_beer", default: 0] += 3
+            }
+            for choice in question.choices where selected.contains(choice.id) {
                 for id in choice.events where HappeningEventTree.event(id) != nil {
                     result["event_" + id, default: 0] += question == .aspirations ? 1 : 3
                 }
@@ -68,7 +72,7 @@ enum HappeningPersonalizationQuestion: String, CaseIterable {
         case .routine: "What does your day usually include?"
         case .unwind: "What do you do to chill?"
         case .feelings: "How have you been feeling lately?"
-        case .habits: "Any habits you’ve noticed?"
+        case .habits: "Which habits feel familiar?"
         case .people: "Who do you spend time with?"
         case .aspirations: "What would you like to spend more time on?"
         }
@@ -76,10 +80,10 @@ enum HappeningPersonalizationQuestion: String, CaseIterable {
     var choices: [HappeningPersonalizationChoice] {
         switch self {
         case .routine: [
-            .init("work", "Worked", ["root_worked"]), .init("study", "Studied", ["solo", "class"]),
-            .init("walk", "Went for a walk", ["walk"]), .init("cook", "Cooked", ["cooked", "root_home"]),
-            .init("friend", "Saw a friend", ["friend"]), .init("break", "Took a break", ["break", "root_chilled"]),
-            .init("home", "Stayed home", ["root_home"])]
+            .init("work", "Working", ["root_worked"]), .init("study", "Studying", ["solo", "class"]),
+            .init("walk", "Going for walks", ["walk"]), .init("cook", "Cooking", ["cooked", "root_home"]),
+            .init("friend", "Seeing friends", ["friend"]), .init("break", "Taking breaks", ["break", "root_chilled"]),
+            .init("home", "Staying home", ["root_home"])]
         case .unwind: [
             .init("read", "Reading", ["book"]),
             .init("walk", "Walking", ["walk", "nature"]), .init("music", "Listening to music", ["music"]),
@@ -89,17 +93,18 @@ enum HappeningPersonalizationQuestion: String, CaseIterable {
         case .feelings: [
             .init("calm", "Calm", ["calm"]), .init("happy", "Happy", ["happy"]), .init("curious", "Curious", ["curious"]),
             .init("tired", "Tired", ["tired"]), .init("anxious", "Anxious", ["anxious"]), .init("angry", "Angry", ["angry"]),
-            .init("lonely", "Lonely", ["lonely"]), .init("mixed", "Mixed", ["mixed"])]
+            .init("lonely", "Lonely", ["lonely"]), .init("mixed", "Mixed feelings", ["mixed"])]
         case .habits: [
-            .init("coffee", "Had coffee", ["coffee"]), .init("smoked", "Smoked", ["smoked"]),
-            .init("beer", "Had a beer", ["beer"]), .init("late", "Stayed up late", ["stayedlate"]),
-            .init("games", "Played video games", ["videogame"]), .init("time", "Lost track of time", ["losttime"]),
-            .init("bed", "Stayed in bed", ["bed"]), .init("nothing", "Got nothing done", ["nothingwork"])]
+            .init("coffee", "Drinking coffee", ["coffee"]), .init("smoked", "Smoking", ["smoked"]),
+            .init("alcohol", "Drinking alcohol", ["drink", "beer"], representativeEvent: "drink"),
+            .init("drunk", "Getting drunk", ["wasted"]), .init("late", "Staying up late", ["stayedlate"]),
+            .init("games", "Playing video games", ["videogame"]), .init("time", "Losing track of time", ["losttime"]),
+            .init("bed", "Staying in bed", ["bed"]), .init("nothing", "Getting little done", ["nothingwork"])]
         // Relationship context boosts a domain; it never pretends a call or text happened.
         case .people: [
             .init("friends", "Friends", ["friend"], spheres: [5]), .init("family", "Family", ["family"], spheres: [5]),
             .init("partner", "A partner", spheres: [5], representativeEvent: "peoplecall"), .init("colleagues", "Colleagues", ["colleague"], spheres: [0, 5]),
-            .init("new", "New people", spheres: [5], representativeEvent: "guests"), .init("myself", "Mostly myself", ["alonepeople"], spheres: [1])]
+            .init("new", "New people", spheres: [5], representativeEvent: "guests"), .init("myself", "Mostly on my own", ["alonepeople"], spheres: [1])]
         case .aspirations: [
             .init("move", "Movement", spheres: [3], representativeEvent: "run"), .init("rest", "Rest", ["break", "nap", "root_chilled"], spheres: [1]),
             .init("connection", "Connection", spheres: [5], representativeEvent: "texted"), .init("create", "Creativity", ["made", "drew", "photos"], spheres: [1]),

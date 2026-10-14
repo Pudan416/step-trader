@@ -1839,7 +1839,7 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
         let state = HappeningEventTreeState()
         XCTAssertEqual(state.nodes.count, 6)
         XCTAssertEqual(state.nodes.map(\.event.title), [
-            "Worked", "Chilled", "Stayed home", "Had breakfast", "Went for a walk", "Saw a friend"
+            "Worked", "Chilled", "Stayed home", "Went for a walk", "Walked to work", "Saw a friend"
         ])
         XCTAssertTrue(state.nodes.allSatisfy { $0.cell.distanceSquared == 1 && $0.parentID == nil })
         XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
@@ -1881,7 +1881,7 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
         XCTAssertEqual(Set(state.nodes.map(\.id)).count, state.nodes.count)
         XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
         XCTAssertTrue(state.nodes.contains { $0.event.title == "Raged" })
-        XCTAssertTrue(state.nodes.contains { $0.event.title == "Got wasted" })
+        XCTAssertTrue(state.nodes.contains { $0.event.title == "Got drunk" })
         XCTAssertTrue(HappeningEventTree.all.allSatisfy { !$0.title.isEmpty && $0.title.count <= 20 })
     }
 
@@ -1951,5 +1951,43 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
         HappeningEventTreeLayout.layout(nodes: state.nodes, in: size,
             safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
             contentTopInset: 180, dockCenterY: size.height - 100)
+    }
+}
+
+
+final class HappeningFieldRevealTests: XCTestCase {
+    func testRevealPreservesFullWorldCellCentersAndHubAtEverySample() {
+        let started = Date(timeIntervalSince1970: 100)
+        let ids = HappeningDefaults.builtIns.map(\.id)
+        let final = HappeningEventTreeLayout.layout(nodes: HappeningEventTreeState().atlasNodes,
+            in: CGSize(width: 393, height: 852), safeInsets: .init(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 180, dockCenterY: 760).layout
+        let reveal = HappeningFieldReveal(order: ids, startedAt: started)
+        for elapsed in stride(from: 0.0, through: reveal.duration + 0.1, by: 1.0 / 60) {
+            let sampled = reveal.layout(final, ids: ids, at: started.addingTimeInterval(elapsed))
+            XCTAssertEqual(sampled.contentSize, final.contentSize)
+            XCTAssertEqual(sampled.dateHubCenter, final.dateHubCenter)
+            XCTAssertEqual(sampled.dockAnchor, final.dockAnchor)
+            XCTAssertEqual(sampled.sources.map(\.index), final.sources.map(\.index))
+            XCTAssertEqual(sampled.sources.map(\.center), final.sources.map(\.center))
+        }
+        XCTAssertEqual(reveal.layout(final, ids: ids, at: started.addingTimeInterval(reveal.duration)).sources, final.sources)
+    }
+
+    func testEachRevealedCellGrowsContinuouslyAndNeverRestarts() {
+        let start = Date(timeIntervalSince1970: 100)
+        let ids = HappeningDefaults.builtIns.map(\.id)
+        let reveal = HappeningFieldReveal(order: ids, startedAt: start)
+        for id in ids {
+            var previous: CGFloat = 0
+            XCTAssertEqual(reveal.scale(for: id, at: start), 0)
+            for elapsed in stride(from: 0.0, through: reveal.duration + 0.1, by: 1.0 / 60) {
+                let scale = reveal.scale(for: id, at: start.addingTimeInterval(elapsed))
+                XCTAssertGreaterThanOrEqual(scale, previous)
+                XCTAssertLessThanOrEqual(scale - previous, 0.05)
+                previous = scale
+            }
+            XCTAssertEqual(previous, 1)
+        }
     }
 }

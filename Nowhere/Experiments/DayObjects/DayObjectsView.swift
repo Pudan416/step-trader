@@ -18,7 +18,7 @@ struct DayObjectsView: View {
     let isAnimating: Bool
     let animatesContinuously: Bool
     let soundPulseBus: DayObjectsSoundPulseBus?
-    let presentationMode: DayObjectsPresentationMode
+    private(set) var presentationMode: DayObjectsPresentationMode
     let lunarPhysicsIsActive: Bool
     let lunarInteractionBus: DayObjectLunarInteractionBus?
     let onWallImpact: @MainActor (DayObjectWallImpact) -> Void
@@ -54,6 +54,14 @@ struct DayObjectsView: View {
             motionEnergy: sceneInput.motionEnergy,
             visualClarity: sceneInput.visualClarity
         )
+    }
+
+    /// Sample palette geometry without rebuilding the unchanged production
+    /// scene and its native material inputs on every TimelineView frame.
+    func presented(as mode: DayObjectsPresentationMode) -> Self {
+        var view = self
+        view.presentationMode = mode
+        return view
     }
 
     var body: some View {

@@ -21,7 +21,7 @@ enum HappeningEventTree {
         ]),
         .init("body", "Body & wellbeing", [
             .init("move", "Moved around", [.init("walk", "Went for a walk"), .init("run", "Went for a run"), .init("workout", "Worked out"), .init("yoga", "Did yoga"), .init("cycling", "Went cycling"), .init("swam", "Swam"), .init("stretched", "Stretched"), .init("errands", "Ran errands")]),
-            .init("food", "Ate & drank", [.init("snack", "Had a snack"), .init("meal_breakfast", "Had breakfast"), .init("meal_lunch", "Had lunch"), .init("meal_dinner", "Had dinner"), .init("coffee", "Had coffee"), .init("tea", "Had tea"), .init("wasted", "Got wasted"), .init("hangover", "Had a hangover"), .init("beer", "Had a beer"), .init("smoked", "Smoked")]),
+            .init("food", "Ate & drank", [.init("snack", "Had a snack"), .init("meal_breakfast", "Had breakfast"), .init("meal_lunch", "Had lunch"), .init("meal_dinner", "Had dinner"), .init("coffee", "Had coffee"), .init("tea", "Had tea"), .init("wasted", "Got drunk"), .init("hangover", "Had a hangover"), .init("beer", "Had a beer"), .init("drink", "Had a drink"), .init("smoked", "Smoked")]),
             .init("rest", "Rested", [.init("slept", "Slept"), .init("nap", "Took a nap"), .init("bed", "Stayed in bed"), .init("shower", "Took a shower"), .init("stayedlate", "Stayed up late")])
         ]),
         .init("people", "People & connection", [
@@ -147,8 +147,8 @@ enum HappeningEventTree {
         "snack": ["food_drink"], "meal_breakfast": ["food_drink", "meal"],
         "meal_lunch": ["food_drink", "meal"], "meal_dinner": ["food_drink", "meal"],
         "coffee": ["food_drink", "caffeine"], "tea": ["food_drink", "caffeine"],
-        "beer": ["food_drink", "alcohol"], "smoked": ["smoking"], "stayedlate": ["sleep", "late_night"],
-        "wasted": ["food_drink"], "hangover": ["tiredness"], "slept": ["sleep"],
+        "beer": ["food_drink", "alcohol"], "drink": ["food_drink", "alcohol"], "smoked": ["smoking"], "stayedlate": ["sleep", "late_night"],
+        "wasted": ["food_drink", "alcohol", "intoxication"], "hangover": ["tiredness", "alcohol"], "slept": ["sleep"],
         "nap": ["sleep", "rest"], "bed": ["rest"], "shower": ["personal_care"],
         "talk": ["conversation", "in_person"], "friend": ["social_context", "with_others"],
         "family": ["social_context", "with_others"], "colleague": ["social_context", "with_others"],

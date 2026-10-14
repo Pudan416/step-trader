@@ -87,6 +87,7 @@ private struct CanvasTourHost: ViewModifier {
     @Environment(\.canvasChromePalette) private var palette
     @State private var showSetup = false
     @State private var cardFrame: CGRect = .zero
+    @State private var cardIdealHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var setupSession: UUID?
     @State private var showDiagnostics = false
@@ -131,6 +132,11 @@ private struct CanvasTourHost: ViewModifier {
                         return value.width > 0 && value.height > 0 && !visible.isNull && visible.height >= min(value.height, 30) ? value : nil
                     }
                     let navigationTop = ["tabs.canvas", "tabs.feeds", "tabs.me"].compactMap { anchors[$0].map { proxy[$0].minY } }.min()
+                    let cardStep: CanvasTourStep = question == nil ? tour.step : .happening
+                    let cardTarget = question == nil ? usable : nil
+                    let destinationFrame = CanvasTourCardGeometry.frame(in: proxy.size,
+                        idealHeight: max(44, cardIdealHeight), step: cardStep,
+                        target: cardTarget, navigationTop: navigationTop)
                     if tour.overlayVisible || question != nil {
                         if question == nil {
                             CanvasTourMissedTapObserver(excludedRects: allowedTapRects(anchors: anchors, proxy: proxy) + [cardFrame]) {
@@ -139,15 +145,15 @@ private struct CanvasTourHost: ViewModifier {
                             .allowsHitTesting(false)
                         }
                         CanvasTourCardLayout(step: question == nil ? tour.step : .happening, target: question == nil ? usable : nil, navigationTop: navigationTop) {
-                            card(question: question, target: question != nil || [.happening, .saveDays, .poster].contains(tour.step) ? nil : usable.map {
+                            card(question: question, onContentHeight: { cardIdealHeight = $0 }, target: question != nil || [.happening, .saveDays, .poster].contains(tour.step) ? nil : usable.map {
                                 let host = proxy.frame(in: .global)
                                 return $0.offsetBy(dx: host.minX, dy: host.minY)
                             })
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
                                     let host = proxy.frame(in: .global)
+                                    // Local hit exclusion follows the moving surface;
+                                    // Gallery only receives its final destination.
                                     cardFrame = frame.offsetBy(dx: -host.minX, dy: -host.minY)
-                                    tour.cardTopGlobalY = frame.minY
-                                    tour.cardBottomGlobalY = frame.maxY
                                 }
                         }
                         // Keep one measured surface. Content changes immediately;
@@ -155,6 +161,13 @@ private struct CanvasTourHost: ViewModifier {
                         .animation(reduceMotion ? nil : .smooth(duration: 0.46), value: tour.step)
                         .animation(reduceMotion ? nil : .smooth(duration: 0.46), value: question?.identity)
                         .animation(reduceMotion ? nil : .smooth(duration: 0.46), value: usable)
+                        .onChange(of: destinationFrame, initial: true) { _, frame in
+                            // Publish the final placement once, rather than feeding
+                            // every animated frame back into the field's layout.
+                            let host = proxy.frame(in: .global)
+                            tour.cardTopGlobalY = host.minY + frame.minY
+                            tour.cardBottomGlobalY = host.minY + frame.maxY
+                        }
                         .onChange(of: usable, initial: true) { _, frame in updateTarget(frame) }
                         .onChange(of: target) { _, _ in updateTarget(usable) }
                     }
@@ -229,9 +242,9 @@ private struct CanvasTourHost: ViewModifier {
     private var coachInk: Color {
         palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.surfaceColor : palette.textColor
     }
-    private func card(question: CanvasTourQuestionCoach?, target: CGRect?) -> some View {
+    private func card(question: CanvasTourQuestionCoach?, onContentHeight: @escaping (CGFloat) -> Void, target: CGRect?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Group {
+            VStack(alignment: .leading, spacing: 12) {
                 if let question {
                     ViewThatFits(in: .vertical) {
                         question.content.fixedSize(horizontal: false, vertical: true)
@@ -253,6 +266,9 @@ private struct CanvasTourHost: ViewModifier {
             // Switch text/actions atomically inside the moving shared surface.
             // An outgoing instruction must never remain an actionable transition.
             .transaction { $0.animation = nil }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                onContentHeight(height + ([.healthValue, .healthResult].contains(tour.step) ? 24 : 40))
+            }
         }
         .foregroundStyle(coachInk)
         .padding(.horizontal, 20)

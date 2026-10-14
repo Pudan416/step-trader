@@ -597,7 +597,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
     private func expectHappeningsReady(_ app: XCUIApplication, timeout: TimeInterval) {
         let count = app.descendants(matching: .any)["happening_palette_count_hub"].firstMatch
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            count.exists && !app.staticTexts["Finding your happenings"].exists
+            count.exists && (app.descendants(matching: .any)["happening_field_scroll"].firstMatch.value as? String) == "Ready"
                 && !app.buttons["happenings.onboarding.continue"].exists
         }, object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed)
@@ -608,7 +608,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
 
     private func expectSurveySelection(_ choice: XCUIElement, _ selected: Bool) {
         let expected = selected ? "Selected" : "Not selected"
-        // The native single/double-tap recognizer must resolve before asserting.
+        // Native figure transitions must settle before asserting selection.
         let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: choice)
         XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
     }
@@ -638,7 +638,12 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         walk.tap()
         expectSurveySelection(walk, true)
         capture(app, "personalization-native-selected-object")
-        walk.doubleTap()
+        walk.tap()
+        let preview = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Previewing deselection"), object: walk)
+        XCTAssertEqual(XCTWaiter.wait(for: [preview], timeout: 3), .completed)
+        XCTAssertTrue(app.staticTexts["Delete"].exists)
+        capture(app, "personalization-native-removal-preview")
+        walk.tap()
         expectSurveySelection(walk, false)
         walk.tap()
         nextQuestion.tap()
@@ -654,6 +659,19 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertFalse(nextQuestion.exists)
         XCTAssertTrue(viewport.exists, "The native Canvas host remains mounted")
         capture(app, "personalization-native-all")
+        let coach = app.descendants(matching: .any)["happenings.onboarding.coach.chooseToday"].firstMatch
+        let prompt = app.staticTexts["happenings.onboarding.chooseToday"]
+        XCTAssertTrue(coach.exists, "All keeps the same framed coach surface")
+        XCTAssertTrue(prompt.exists)
+        XCTAssertEqual(prompt.label, "Choose one thing you’ve done today.")
+        let promptFrame = prompt.frame
+        let field = app.scrollViews["happening_field_scroll"]
+        field.swipeUp(velocity: .slow)
+        XCTAssertTrue(coach.exists)
+        XCTAssertEqual(prompt.frame.minY, promptFrame.minY, accuracy: 1)
+        XCTAssertEqual(prompt.frame.height, promptFrame.height, accuracy: 1)
+        XCTAssertFalse(app.buttons["canvas_tour.momentNext"].exists, "Scrolling cannot fulfill a real event choice")
+        capture(app, "personalization-native-all-scrolled-persistent-coach")
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
         let usableField = CGRect(x: 0, y: 220, width: app.frame.width, height: app.frame.height - 320)
         guard let choice = choices.allElementsBoundByIndex.first(where: {
@@ -665,6 +683,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         choice.tap()
         let next = app.buttons["canvas_tour.momentNext"]
         XCTAssertTrue(next.waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertFalse(prompt.exists, "The prompt leaves only after an explicit real event choice")
         capture(app, "personalization-story-resumed")
         next.tap()
         let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch

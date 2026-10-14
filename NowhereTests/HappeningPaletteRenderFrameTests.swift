@@ -70,7 +70,7 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(preview.gpuAppearance, assignment.material.gpuAppearance)
         XCTAssertEqual(added.gpuActor.presentationSaturation, 1, accuracy: 0.001)
         XCTAssertEqual(removal.gpuActor.removalEmphasis, 1)
-        XCTAssertEqual(frame.postProcess.grainIntensity, 0.05)
+        XCTAssertEqual(frame.postProcess.grainIntensity, 0, "The transparent palette overlay does not duplicate Canvas grain")
         XCTAssertEqual(frame.postProcess.blurRadius, 0)
     }
 

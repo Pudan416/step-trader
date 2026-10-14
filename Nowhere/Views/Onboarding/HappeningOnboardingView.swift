@@ -47,6 +47,31 @@ struct HappeningOnboardingView: View {
     var body: some View { header }
 }
 
+/// Shares the surrounding tour's card typography and padding. Measuring its
+/// destination up front keeps the first and last All reveal frames identical.
+struct HappeningTodayChoiceCoach: View {
+    static let title = "Choose one thing you’ve done today."
+
+    static func idealHeight(width: CGFloat, dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        let font = AppTypography.scaledUIFont(size: 20, weight: .semibold, relativeTo: .title3,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory:
+                HappeningFieldLabelTypography.contentSizeCategory(for: dynamicTypeSize)))
+        let textWidth = max(1, min(360, width - 32) - 40)
+        let bounds = (title as NSString).boundingRect(with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font], context: nil)
+        return ceil(bounds.height) + 40
+    }
+
+    var body: some View {
+        Text(verbatim: Self.title)
+            .font(.onest(20, weight: .semibold, relativeTo: .title3))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("happenings.onboarding.chooseToday")
+    }
+}
+
 #if DEBUG
 struct HappeningOnboardingDeveloperPage: View {
     var body: some View {
