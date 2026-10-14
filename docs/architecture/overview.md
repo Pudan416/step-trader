@@ -7,7 +7,7 @@ and primary scheme are named Nowhere. Energy and steps remain domain concepts.
 | --- | --- | --- |
 | Startup, dependency wiring, app lifecycle | `Nowhere/NowhereApp.swift`, `DIContainer.swift`, `AppModel.swift` | `AuthSessionRestoreTests`, `AuthSignInLoadingStateTests` |
 | Tabs and navigation | `Views/MainTabView.swift`, `Views/GalleryView.swift`, `Views/MeView.swift`, `Views/AppsPageSimplified.swift` | `MainTabSelectionTests`, `CanvasPresentationStateTests` |
-| Onboarding and tours | `Views/Onboarding/`, `Views/CoachMark/` | `CanvasOnboardingStateTests` |
+| Onboarding and tours | `Views/Onboarding/` (including `HappeningPersonalization.swift` and `HappeningOnboardingView.swift`), `Views/CoachMark/` | `CanvasOnboardingStateTests` |
 | Happenings, Personal recommendations, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/ActivitySuggestion.swift`, `Models/HappeningDefaults.swift`, `Models/HappeningEventTree.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `PersonalHappeningRecommendationsTests`, `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
 | Palette selection and adding/removing objects | `Views/Palette/`, `Models/CanvasElement.swift`, `Models/DayCanvas.swift` | `HappeningPaletteSelectionTests`, `CanvasPersistenceRegressionTests` |
 | Canvas rendering, gestures, saved artwork | `Views/GalleryView.swift`, `Views/Gallery/`, `Experiments/DayObjects/`, `Experiments/ShapeGenome/`, `Metal/` | `DayCanvasArtworkRoutingTests`, `MetalShapeCompatibilityTests`, `CanvasRemixTests` |
@@ -26,12 +26,19 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
-- `HappeningDefaults.builtIns` derives the fixed 102 choices from `HappeningEventTree.all`.
+- `HappeningDefaults.builtIns` derives the fixed 105 choices from `HappeningEventTree.all`.
   `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
   `all` also contains historical/imported records and must not feed new-choice UI.
   Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
   Removal resolves the current-day entry by UUID, then exact option ID, then
   canonical alias, and deletes using the entry's original durable ID.
+- `HappeningPersonalizationStore` keeps account-scoped committed survey preferences
+  separate from resumable drafts. `GalleryView` gates only the explicit Add action,
+  then reveals the existing All atlas without changing its cells. Survey seeds never
+  enter `HappeningStore`; temporary emotion scores expire by logical day. The Debug
+  coordinator requests Canvas navigation and suppresses tour presentation only.
+  Survey silhouettes sample production contours and materials render through
+  `MetalShapeGenomeRenderer`, now also available to the release app.
 - `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
   it does not mutate the catalog. `GalleryView` combines familiar, Health and added
   IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared
@@ -42,7 +49,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
   while that Canvas remains empty; normal recommendations resume on addition.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
-  must not rebuild all 102 candidates. `DayObjectPaletteSet.make` shares a bounded
+  must not rebuild all 105 candidates. `DayObjectPaletteSet.make` shares a bounded
   16-entry palette cache keyed by root seed, normalized categories, day and identity.
   Its lock protects lookup/publication, while palette derivation runs outside the lock.
 - `MePosterEventLedger.unlocks` retains four immutable full-ledger requests so live

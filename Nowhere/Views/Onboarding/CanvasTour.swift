@@ -141,7 +141,8 @@ final class CanvasTour {
         set { session.quietMode = newValue; persist() }
     }
     var overlayVisible: Bool {
-        isActive && isForeground && presentedSheet == nil && pendingDestination == nil
+        isActive && isForeground && !HappeningOnboardingCoordinator.shared.suspendsCanvasTour
+            && presentedSheet == nil && pendingDestination == nil
             && status != .preparing && status != .waitingForSystemUI
     }
 

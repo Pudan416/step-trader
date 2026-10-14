@@ -407,6 +407,11 @@ struct MainTabView: View {
             SettingsSheet(model: model, featureTipRouteBinding: $settingsDeepLinkRoute)
         }
         .canvasTourHost(model: model)
+        .onChange(of: HappeningOnboardingCoordinator.shared.replayRevision) { _, _ in
+            showSettings = false
+            selection = Tab.canvas.rawValue
+            canvasPresentation = .canvas
+        }
         .onChange(of: CanvasTour.shared.launchRevision) { _, _ in prepareCanvasTour() }
         .onChange(of: CanvasTour.shared.step) { _, step in
             guard CanvasTour.shared.isActive else { return }
@@ -421,6 +426,9 @@ struct MainTabView: View {
         }
         #if DEBUG
         .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("debug-happenings-onboarding") {
+                HappeningOnboardingCoordinator.shared.replay()
+            }
             if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") {
                 CanvasTour.shared.start(source: "launchArgument")
             }

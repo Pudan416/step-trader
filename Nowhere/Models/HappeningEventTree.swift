@@ -21,8 +21,8 @@ enum HappeningEventTree {
         ]),
         .init("body", "Body & wellbeing", [
             .init("move", "Moved around", [.init("walk", "Went for a walk"), .init("run", "Went for a run"), .init("workout", "Worked out"), .init("yoga", "Did yoga"), .init("cycling", "Went cycling"), .init("swam", "Swam"), .init("stretched", "Stretched"), .init("errands", "Ran errands")]),
-            .init("food", "Ate & drank", [.init("snack", "Had a snack"), .init("meal_breakfast", "Had breakfast"), .init("meal_lunch", "Had lunch"), .init("meal_dinner", "Had dinner"), .init("coffee", "Had coffee"), .init("tea", "Had tea"), .init("wasted", "Got wasted"), .init("hangover", "Had a hangover")]),
-            .init("rest", "Rested", [.init("slept", "Slept"), .init("nap", "Took a nap"), .init("bed", "Stayed in bed"), .init("shower", "Took a shower")])
+            .init("food", "Ate & drank", [.init("snack", "Had a snack"), .init("meal_breakfast", "Had breakfast"), .init("meal_lunch", "Had lunch"), .init("meal_dinner", "Had dinner"), .init("coffee", "Had coffee"), .init("tea", "Had tea"), .init("wasted", "Got wasted"), .init("hangover", "Had a hangover"), .init("beer", "Had a beer"), .init("smoked", "Smoked")]),
+            .init("rest", "Rested", [.init("slept", "Slept"), .init("nap", "Took a nap"), .init("bed", "Stayed in bed"), .init("shower", "Took a shower"), .init("stayedlate", "Stayed up late")])
         ]),
         .init("people", "People & connection", [
             .init("talk", "Talked with people", [.init("friend", "Saw a friend"), .init("family", "Saw family"), .init("colleague", "Saw a colleague"), .init("texted", "Texted someone"), .init("peoplecall", "Called someone"), .init("snapped", "Snapped at someone"), .init("avoidedpeople", "Avoided everyone")]),
@@ -147,6 +147,7 @@ enum HappeningEventTree {
         "snack": ["food_drink"], "meal_breakfast": ["food_drink", "meal"],
         "meal_lunch": ["food_drink", "meal"], "meal_dinner": ["food_drink", "meal"],
         "coffee": ["food_drink", "caffeine"], "tea": ["food_drink", "caffeine"],
+        "beer": ["food_drink", "alcohol"], "smoked": ["smoking"], "stayedlate": ["sleep", "late_night"],
         "wasted": ["food_drink"], "hangover": ["tiredness"], "slept": ["sleep"],
         "nap": ["sleep", "rest"], "bed": ["rest"], "shower": ["personal_care"],
         "talk": ["conversation", "in_person"], "friend": ["social_context", "with_others"],
@@ -429,7 +430,7 @@ enum PersonalHappeningRecommendations {
     /// logging days before a learned choice can replace its cold-start leader.
     static func sphereLeaders(catalog: [Happening], historyByDay: [String: [String]] = [:],
                               todayIDs: [String] = [], dayKey: String? = nil,
-                              at date: Date) -> [String] {
+                              at date: Date, surveyScores: [String: Double] = [:]) -> [String] {
         var usedDays: [String: Set<String>] = [:]
         var lastSeen: [String: Date] = [:]
         let formatter = DateFormatter()
@@ -464,7 +465,7 @@ enum PersonalHappeningRecommendations {
                 var value = stored
                 value.useCount = max(stored.useCount, usedDays[stored.id]?.count ?? 0)
                 value.lastUsedAt = [stored.lastUsedAt, lastSeen[stored.id]].compactMap { $0 }.max()
-                guard value.useCount >= 2, value.lastUsedAt != nil else { return nil }
+                guard value.useCount >= (surveyScores.isEmpty ? 2 : 1), value.lastUsedAt != nil else { return nil }
                 return value
             }.sorted { left, right in
                 func score(_ happening: Happening) -> Double {
@@ -476,7 +477,18 @@ enum PersonalHappeningRecommendations {
                 if left.lastUsedAt != right.lastUsedAt { return left.lastUsedAt! > right.lastUsedAt! }
                 return left.id < right.id
             }
-            return familiar.first?.id ?? "event_\(fallback.id)"
+            let seeded = catalog.filter {
+                HappeningDefaults.builtInIds.contains($0.id)
+                    && HappeningEventTree.personalSphereIndex(for: String($0.id.dropFirst(6))) == sphereIndex
+                    && surveyScores[$0.id, default: 0] > 0
+            }.sorted {
+                let a = surveyScores[$0.id, default: 0], b = surveyScores[$1.id, default: 0]
+                if a != b { return a > b }
+                if $0.id == "event_\(fallback.id)" { return true }
+                if $1.id == "event_\(fallback.id)" { return false }
+                return $0.id < $1.id
+            }
+            return familiar.first?.id ?? seeded.first?.id ?? "event_\(fallback.id)"
         }
         return leaders
     }

@@ -31,6 +31,11 @@ struct SettingsDeveloperPage: View {
                         }
                         .accessibilityIdentifier("settings.developer.canvasOnboarding")
                         rowDivider
+                        NavigationLink { HappeningOnboardingDeveloperPage() } label: {
+                            diagButton(icon: "circle.hexagongrid", text: "Happenings onboarding (Debug)", trailing: "chevron.right")
+                        }
+                        .accessibilityIdentifier("settings.developer.happeningsOnboarding")
+                        rowDivider
                         shieldDiagnosticsRows
                     }
                 }

@@ -53,7 +53,7 @@ enum HappeningDefaults {
         Happening(id: "happening_listened", title: "Listened", isBuiltIn: true)
     ]
 
-    static let maximumCatalogCount = 102
+    static let maximumCatalogCount = 105
     static let allowsCustomCreation = false
 
     // Retired choices still resolve in archived days and restored entries.

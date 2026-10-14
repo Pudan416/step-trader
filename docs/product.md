@@ -37,7 +37,7 @@ when changing the sequence rather than using an old slide specification.
 
 ## Happenings field
 
-New additions use one reviewed catalog of exactly **102** events. Labels are
+New additions use one reviewed catalog of exactly **105** events. Labels are
 English, at most 20 characters, and describe complete events. Broad duplicate
 meal options are replaced by Had breakfast, Had lunch and Had dinner; Cooked
 means preparing food. Creating or naming custom happenings is unavailable,
@@ -60,7 +60,29 @@ from a saved Canvas, old option entries or category selections. A saved empty
 Canvas is authoritative; upgraded accounts do not resurrect stale legacy entries.
 Old category arrays and fractional timestamps remain readable.
 
-The Canvas add control opens **Personal**: six complete events surround the current
+The first explicit tap on the Canvas add control offers **A few questions first**.
+Six optional multi-select questions cover routine, leisure, current feelings,
+habits, relationships and aspirations. Native circles morph within a coherent
+production shape family for each question; a double tap deselects a selected
+answer and accessibility activation toggles it. Back and close retain a local
+account-scoped draft. Skip questions marks this introduction as skipped. Completed
+answers seed preferences only: they create no history, usage counters or colors.
+Relationship context never implies an actual call or text. Emotion context expires
+at the logical day boundary. Existing recorded uses outrank preference seeds;
+without seeds, the existing two-use-day learning threshold remains in place.
+
+Completion reveals **All**, first six distinct domain leaders, then remaining
+canonical events in relevance order, at the same map positions used for selection.
+The heading becomes **What have you done today?** when the reveal ends. Actual taps
+use the ordinary atomic addition/removal path and the ten-addition limit. Reduced
+Motion reveals the complete field immediately. Closing or a day change cancels
+the reveal. The catalog includes separate **Smoked**, **Had a beer** and **Stayed
+up late** events; Had a beer never aliases Got wasted. Canvas tour cards are
+suspended while questions and this first All presentation are visible. Debug has
+**Happenings onboarding (Debug)** and the `debug-happenings-onboarding` launch
+argument for replay without deleting recorded days or legacy onboarding completion.
+
+Subsequent uses of the Canvas add control open **Personal**: six complete events surround the current
 day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
 after additions and removals. The six positions represent Work & study, Leisure & play
 (including feelings), Home & everyday, Body & wellbeing, Getting around, and People
