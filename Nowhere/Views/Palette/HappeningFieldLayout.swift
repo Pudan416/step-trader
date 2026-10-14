@@ -58,7 +58,8 @@ enum HappeningFieldLayout {
         dynamicTypeSize: DynamicTypeSize = .large,
         contentTopInset: CGFloat? = nil,
         dockCenterY: CGFloat? = nil,
-        allowsAccessibleScrolling: Bool = false
+        allowsAccessibleScrolling: Bool = false,
+        rowPattern: [Int]? = nil
     ) -> Layout {
         let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
         guard !safeBounds.isEmpty else {
@@ -74,7 +75,10 @@ enum HappeningFieldLayout {
             max(safeBounds.midY, dockCenterY ?? defaultDockY)
         )
         let dockAnchor = CGPoint(x: safeBounds.midX, y: resolvedDockY)
-        let itemCount = min(max(count, 0), rowPatterns.count - 1)
+        let customRows = rowPattern.flatMap { rows in
+            !rows.isEmpty && rows.allSatisfy { $0 > 0 } && rows.reduce(0, +) == count ? rows : nil
+        }
+        let itemCount = customRows == nil ? min(max(count, 0), rowPatterns.count - 1) : max(0, count)
         let contentTop = min(
             dockAnchor.y - dockContentGap - 44,
             max(safeBounds.minY + edgeClearance, contentTopInset ?? safeBounds.minY + edgeClearance)
@@ -105,7 +109,7 @@ enum HappeningFieldLayout {
             )
         }
 
-        if count > 10 {
+        if count > 10 && customRows == nil {
             let radius = max(68, min(96, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize / 14 * 68))
             let gap: CGFloat = 8
             let step = radius * 2 + gap
@@ -155,24 +159,23 @@ enum HappeningFieldLayout {
         }
 
         return standardLayout(
-            itemCount: itemCount,
             safeBounds: safeBounds,
             contentTop: contentTop,
             contentBottom: contentBottom,
-            dockAnchor: dockAnchor
+            dockAnchor: dockAnchor,
+            rows: customRows ?? rowPatterns[itemCount]
         )
     }
 
     private static func standardLayout(
-        itemCount: Int,
         safeBounds: CGRect,
         contentTop: CGFloat,
         contentBottom: CGFloat,
-        dockAnchor: CGPoint
+        dockAnchor: CGPoint,
+        rows: [Int]
     ) -> Layout {
         let fieldWidth = safeBounds.width - edgeClearance * 2
         let fieldHeight = max(88, contentBottom - contentTop)
-        let rows = rowPatterns[itemCount]
         let widestRow = rows.max() ?? 1
         let rowFactors = zip(rows, rows.dropFirst()).map { current, next in
             current == next ? CGFloat(1) : sqrt(3) / 2

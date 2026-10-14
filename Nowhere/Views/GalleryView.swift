@@ -111,7 +111,6 @@ struct GalleryView: View {
     @ObservedObject private var happeningsAuthentication = AuthenticationService.shared
     @State private var showsHappeningQuestions = false
     @State private var happeningQuestionProfile = HappeningPersonalizationProfile()
-    @State private var happeningQuestionHeaderHeight: CGFloat = 155
     @State private var happeningIntroductionHeaderHeight: CGFloat = 175
     @State private var happeningQuestionsScope = "local"
     @State private var happeningQuestionsDayKey = ""
@@ -124,6 +123,8 @@ struct GalleryView: View {
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
     @State private var paletteAssignmentSnapshot: HappeningEditorialAssignmentSnapshot?
+    @State private var questionAssignmentSnapshot: HappeningEditorialAssignmentSnapshot?
+    @State private var questionDisplayAssignments: [String: HappeningEditorialAssignment] = [:]
     @State private var happeningPalettePanel: HappeningPalettePanel?
     @State private var paletteInteraction = HappeningPaletteInteractionState()
     @State private var paletteErrorID: String?
@@ -240,7 +241,7 @@ struct GalleryView: View {
     }
 
     private var paletteEditorialAssignments: [String: HappeningEditorialAssignment] {
-        paletteAssignmentSnapshot?.assignments ?? [:]
+        showsHappeningQuestions ? questionDisplayAssignments : paletteAssignmentSnapshot?.assignments ?? [:]
     }
 
     private var displayedEditorialRenderInput: EditorialCanvasRenderInput {
@@ -641,10 +642,24 @@ struct GalleryView: View {
         paletteHappenings = happeningQuestionProfile.fieldChoices
         paletteCatalog = []
         paletteSelectedIDs = []
-        paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request:
-            HappeningEditorialAssignmentRequest(happenings: paletteHappenings,
-                baseInput: editorialRenderInput.sceneInput, committedElements: [],
-                colorNonce: model.paletteColorNonce()))
+        // Resolve the complete authoritative catalog with the same saved actors
+        // used by the ordinary field; only display/selection IDs are synthetic.
+        let request = HappeningEditorialAssignmentRequest(
+            happenings: model.selectableHappenings,
+            baseInput: editorialRenderInput.sceneInput, committedElements: dayCanvas.elements,
+            colorNonce: model.paletteColorNonce())
+        if HappeningEditorialAssignmentResolver.needsRefresh(current: questionAssignmentSnapshot, request: request) {
+            questionAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+        }
+        let canonical = questionAssignmentSnapshot?.assignments ?? [:]
+        let choices = happeningQuestionProfile.question.choices
+        let assignments = Dictionary(uniqueKeysWithValues: paletteHappenings.compactMap { happening -> (String, HappeningEditorialAssignment)? in
+            guard let choice = choices.first(where: {
+                happening.id == "survey:\(happeningQuestionProfile.question.rawValue):\($0.id)"
+            }), let id = choice.visualHappeningID, let assignment = canonical[id] else { return nil }
+            return (happening.id, assignment)
+        })
+        questionDisplayAssignments = assignments
     }
 
     private func setHappeningQuestionChoice(_ happening: Happening, selected: Bool) {
@@ -907,9 +922,9 @@ struct GalleryView: View {
         var contentTopInset = canvasSafeInsets.top
             + HappeningPaletteChromeLayout.panelTopInset(
                 topCardHeight: topCardHeight, hidesSurroundingChrome: true
-            ) + (showsHappeningQuestions ? happeningQuestionHeaderHeight + 12 : happeningRevealIsActive ? 92 : 10)
+            ) + (happeningRevealIsActive ? 92 : 10)
         let tour = CanvasTour.shared
-        if tour.isActive, !HappeningOnboardingCoordinator.shared.suspendsCanvasTour, tour.step == .happening, tour.cardBottomGlobalY > 0 {
+        if (showsHappeningQuestions || (tour.isActive && !HappeningOnboardingCoordinator.shared.suspendsCanvasTour && tour.step == .happening)), tour.cardBottomGlobalY > 0 {
             // The coach has a fixed top position independent of this field.
             // Convert its measured bottom into this viewport exactly once,
             // then let the product's existing packing algorithm fit below it.
@@ -935,8 +950,10 @@ struct GalleryView: View {
             result.dateHubCenter = tree.dateHubCenter
             return result
         }
-        var fieldInsets = canvasSafeInsets
-        if showsHappeningQuestions { fieldInsets.bottom += 120 }
+        // The shared packer already reserves 120pt above the Add dock. That
+        // same space houses the survey footer; adding another bottom inset
+        // would shrink the six-choice triangle twice.
+        let fieldInsets = canvasSafeInsets
         var layout = HappeningFieldLayout.layout(
             count: compact && !showEventExplorer ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
@@ -944,7 +961,8 @@ struct GalleryView: View {
             dynamicTypeSize: paletteDynamicTypeSize,
             contentTopInset: contentTopInset,
             dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY },
-            allowsAccessibleScrolling: compact || showsHappeningQuestions
+            allowsAccessibleScrolling: compact || showsHappeningQuestions,
+            rowPattern: showsHappeningQuestions ? (paletteHappenings.count == 6 ? [3, 2, 1] : nil) : nil
         )
         // Compact layouts have viewport coordinates too; Metal needs a real
         // drawable size even when there is no overflow to scroll.
@@ -1019,8 +1037,14 @@ struct GalleryView: View {
     private func handlePaletteActivation(_ happening: Happening) {
         guard !showsHappeningQuestions, !happeningRevealIsActive, let assignment = paletteEditorialAssignments[happening.id] else { return }
         let isTourAddition = CanvasTour.shared.isActive && CanvasTour.shared.step == .happening
-        if isTourAddition && paletteAddedIDs.contains(happening.id) {
-            CanvasTour.shared.report("Happening already exists today; choose another or continue with the existing day")
+        if isTourAddition && paletteAddedIDs.contains(happening.id),
+           let recorded = dayCanvas.elements.first(where: {
+               HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID($0.optionId)) == happening.id
+           }) {
+            // An explicit real-event tap fulfills the tutorial even at 10/10.
+            // Keep its durable entry and actor; this is never a removal gesture.
+            CanvasTour.shared.send(.happeningChosen(recorded.id.uuidString))
+            closeHappeningPalette()
             return
         }
         paletteConfirmationTask?.cancel()
@@ -1362,12 +1386,12 @@ struct GalleryView: View {
             }
             .overlay(alignment: .top) {
                 if showsHappeningQuestions && showHappeningPalette {
-                    happeningQuestionChrome.header
-                        .foregroundStyle(happeningQuestionInk)
-                        .padding(.horizontal, 24)
-                        .padding(.top, canvasSafeInsets.top + 20)
-                        .onGeometryChange(for: CGFloat.self) { max(155, $0.size.height - canvasSafeInsets.top) }
-                        action: { happeningQuestionHeaderHeight = $0 }
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .preference(key: CanvasTourAnchors.self, value: CanvasTourOverlayPreferences(
+                            question: CanvasTourQuestionCoach(
+                                identity: happeningQuestionProfile.hasStarted ? happeningQuestionProfile.question.rawValue : "invitation",
+                                content: AnyView(happeningQuestionChrome.header))))
                 } else if happeningRevealIsActive && showHappeningPalette {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(verbatim: "Finding your happenings")
@@ -1390,24 +1414,6 @@ struct GalleryView: View {
                         .foregroundStyle(happeningQuestionInk)
                         .padding(.horizontal, 24)
                         .padding(.bottom, canvasSafeInsets.bottom + 72)
-                } else if showsHappeningIntroduction && !happeningRevealIsActive && showHappeningPalette,
-                          CanvasTour.shared.isActive, CanvasTour.shared.step == .happening,
-                          todayEventCount > 0 {
-                    // The tour coach stays suspended in All. Offer its existing
-                    // continuation here so replay never requires changing today.
-                    Button {
-                        CanvasTour.shared.send(.useExistingDay)
-                    } label: {
-                        Text(String(localized: "Use this day"))
-                            .font(.onest(.subheadline))
-                            .frame(minHeight: 44)
-                            .padding(.horizontal, 20)
-                            .foregroundStyle(.white)
-                            .background(.black, in: Capsule())
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, canvasSafeInsets.bottom + 72)
-                    .accessibilityIdentifier("canvas_tour.existingDay")
                 }
             }
         }
@@ -1641,8 +1647,8 @@ struct GalleryView: View {
             refreshAddHint()
         }
         .onChange(of: CanvasTour.shared.step) { _, step in
-            // Continue with an existing day also closes the real palette. This
-            // only prepares the next context; it never adds or removes a moment.
+            // Dismiss the real palette when an explicit event action advances
+            // the tour, without modifying any other recorded moment.
             guard CanvasTour.shared.isActive else { return }
             if step == .welcome || step == .momentResult || step == .balance {
                 send(.exitFullScreen)

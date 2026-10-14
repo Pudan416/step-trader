@@ -64,7 +64,12 @@ The first explicit tap on the Canvas add control offers **A few questions first*
 Six optional multi-select questions cover routine, leisure, current feelings,
 habits, relationships and aspirations. Questions live in the existing Happenings
 Canvas: its shared field layout, Editorial assignments and DayObjects renderer
-turn native circles into the day's production objects. A double tap deselects a selected
+turn native circles into the day's production objects. The headings occupy the same
+measured coach surface as the surrounding tour; its position animates between
+steps. Questions show no optional badge, selection counter or repeated instruction.
+Leisure includes Doomscrolling, Vibe coding, Watching movies and Watching series;
+these seed the existing doomscroll, made, movie and show events. Relationship and
+aspiration choices use staggered 3–2–1 rows. A double tap deselects a selected
 answer and accessibility activation toggles it. Back and close retain a local
 account-scoped draft. Skip questions marks this introduction as skipped. Completed
 answers seed preferences only: they create no history, usage counters or colors.
@@ -85,10 +90,12 @@ suspended while questions and this first All presentation are visible. Debug has
 argument. Replay begins with a fresh survey draft and starts the complete existing
 tour at welcome. The explicit + at Add happening opens questions; completion reveals
 All, and a real today addition advances to the remaining Health, Feeds and Me steps.
-When today already has happenings, **Use this day** appears below the ready All
-field and continues those steps without adding or removing anything, including at
-the ten-addition limit. Survey completion changes recommendations only; existing
-recorded happenings remain selected.
+After the questions, progression requires an explicit tap on a real happening,
+including in Debug. Tapping a happening already recorded today acknowledges that
+choice and continues after the palette closes, without adding or removing it,
+including at the ten-addition limit. Survey completion changes recommendations
+only; existing recorded happenings remain selected. The balance coach enables
+the energy pill's pull gesture as well as the drawer's 44pt handle target.
 Committed preferences survive cancellation until replacement answers are completed.
 Recorded days and legacy onboarding completion are retained.
 

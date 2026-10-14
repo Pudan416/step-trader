@@ -83,12 +83,14 @@ final class CanvasTourTests: XCTestCase {
         XCTAssertEqual(t.addedEntryID, "saved")
     }
 
-    func testUsingExistingDayAlsoWaitsForMomentAcknowledgement() {
+    func testChoosingRecordedHappeningWaitsForDismissalAndMomentAcknowledgement() {
         let t = tour(); t.start(at: .happening); t.hostReady()
-        t.send(.useExistingDay)
+        t.send(.happeningChosen("recorded"))
+        XCTAssertEqual(t.step, .happening)
+        t.send(.paletteDismissed)
         XCTAssertEqual(t.step, .momentResult)
-        XCTAssertNil(t.addedEntryID)
-        XCTAssertTrue(t.skippedBranches.contains("addHappening"))
+        XCTAssertEqual(t.addedEntryID, "recorded")
+        XCTAssertFalse(t.skippedBranches.contains("addHappening"))
         t.send(.momentAcknowledged)
         XCTAssertEqual(t.step, .balance)
     }

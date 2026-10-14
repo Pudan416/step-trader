@@ -38,13 +38,15 @@ Test names live in `NowhereTests/` unless stated otherwise.
   enter `HappeningStore`; temporary emotion scores expire by logical day. The Debug
   coordinator prepares a fresh survey draft for a Debug replay and starts the
   existing CanvasTour at welcome. The same HappeningPaletteView stays mounted
-  across six questions and the All reveal: synthetic choice identities pass through
-  Editorial assignments and DayObjects render slots, while selected preferences
-  supply visual state separately from actual added IDs. Survey gestures do not
-  invoke Canvas mutation paths. A real addition and palette dismissal advance
-  the tour into Health, Feeds and Me. Once All is revealed, an existing day can
-  instead advance through `useExistingDay`; closing the palette in the next-step
-  observer does not change its recorded elements.
+  across six questions and the All reveal. Synthetic IDs own only survey answers;
+  explicit representative catalog IDs reuse the full authoritative Editorial
+  assignment snapshot, including frozen current-day actors. Survey gestures use
+  one exclusive single/double-tap recognizer and never invoke Canvas mutation
+  paths. Headings contribute to the same measured CanvasTourHost coach surface;
+  a persistent card animates placement while content changes atomically. A real
+  addition or explicit tap on an already recorded happening, followed by palette
+  dismissal, advances to Health, Feeds and Me. Recorded event taps acknowledge
+  the durable entry without a mutation, including at the ten-addition limit.
 - `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
   it does not mutate the catalog. `GalleryView` combines familiar, Health and added
   IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared

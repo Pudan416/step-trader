@@ -6,10 +6,24 @@ extension EnvironmentValues {
     @Entry var canvasTourContentTopInset: CGFloat = 0
 }
 
-private struct CanvasTourAnchors: PreferenceKey {
-    static let defaultValue: [String: Anchor<CGRect>] = [:]
-    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+/// Questions contribute their heading to the tour's persistent coach host.
+/// The same surface owns the frame before, during and after the questionnaire.
+struct CanvasTourQuestionCoach {
+    let identity: String
+    let content: AnyView
+}
+
+struct CanvasTourOverlayPreferences {
+    var anchors: [String: Anchor<CGRect>] = [:]
+    var question: CanvasTourQuestionCoach? = nil
+}
+
+struct CanvasTourAnchors: PreferenceKey {
+    static let defaultValue = CanvasTourOverlayPreferences()
+    static func reduce(value: inout CanvasTourOverlayPreferences, nextValue: () -> CanvasTourOverlayPreferences) {
+        let next = nextValue()
+        value.anchors.merge(next.anchors, uniquingKeysWith: { _, new in new })
+        if let question = next.question { value.question = question }
     }
 }
 
@@ -34,7 +48,7 @@ private struct CanvasTourControlModifier: ViewModifier {
                 view.brightness(isTarget && pulse && !reduceMotion ? 0.035 : 0)
             }
             .onChange(of: isTarget, initial: true) { _, active in pulse = active }
-            .transformAnchorPreference(key: CanvasTourAnchors.self, value: .bounds) { anchors, anchor in anchors[id] = anchor }
+            .transformAnchorPreference(key: CanvasTourAnchors.self, value: .bounds) { value, anchor in value.anchors[id] = anchor }
     }
 }
 
@@ -52,7 +66,7 @@ extension CanvasTour {
         switch step {
         case .add: return id == "canvas.addHappening"
         case .happening: return id == "canvas.paletteClose" || id == "canvas.paletteMode" || id == "canvas.happenings" || id.hasPrefix("canvas.happening.")
-        case .balance, .healthValue, .healthResult: return id == "canvas.balanceHandle"
+        case .balance, .healthValue, .healthResult: return id == "canvas.balanceHandle" || id == "canvas.balanceSummary"
         case .feedsTab: return id == "tabs.feeds"
         case .addApps: return id == "feeds.add" || id.hasPrefix("feeds.group.")
         case .selectFeed: return id == selectedGroupID.map { "feeds.group.\($0)" }
@@ -91,7 +105,7 @@ private struct CanvasTourHost: ViewModifier {
         case .add: "canvas.addHappening"
         case .happening: "canvas.happenings"
         case .momentResult: "canvas.balanceSummary"
-        case .balance: "canvas.balanceHandle"
+        case .balance: "canvas.balanceSummary"
         case .healthValue, .healthResult: "canvas.health"
         case .feedsTab: "tabs.feeds"
         case .addApps: "feeds.add"
@@ -107,7 +121,9 @@ private struct CanvasTourHost: ViewModifier {
     }
     func body(content: Content) -> some View {
         content
-            .overlayPreferenceValue(CanvasTourAnchors.self) { anchors in
+            .overlayPreferenceValue(CanvasTourAnchors.self) { preferences in
+                let anchors = preferences.anchors
+                let question = preferences.question
                 GeometryReader { proxy in
                     let rect = target.flatMap { anchors[$0] }.map { proxy[$0] }
                     let usable = rect.flatMap { value -> CGRect? in
@@ -115,17 +131,18 @@ private struct CanvasTourHost: ViewModifier {
                         return value.width > 0 && value.height > 0 && !visible.isNull && visible.height >= min(value.height, 30) ? value : nil
                     }
                     let navigationTop = ["tabs.canvas", "tabs.feeds", "tabs.me"].compactMap { anchors[$0].map { proxy[$0].minY } }.min()
-                    if tour.overlayVisible {
-                        CanvasTourMissedTapObserver(excludedRects: allowedTapRects(anchors: anchors, proxy: proxy) + [cardFrame]) {
-                            tour.requestExit(reason: "outside tap")
+                    if tour.overlayVisible || question != nil {
+                        if question == nil {
+                            CanvasTourMissedTapObserver(excludedRects: allowedTapRects(anchors: anchors, proxy: proxy) + [cardFrame]) {
+                                tour.requestExit(reason: "outside tap")
+                            }
+                            .allowsHitTesting(false)
                         }
-                        .allowsHitTesting(false)
-                        CanvasTourCardLayout(step: tour.step, target: usable, navigationTop: navigationTop) {
-                            card(target: [.happening, .saveDays, .poster].contains(tour.step) ? nil : usable.map {
+                        CanvasTourCardLayout(step: question == nil ? tour.step : .happening, target: question == nil ? usable : nil, navigationTop: navigationTop) {
+                            card(question: question, target: question != nil || [.happening, .saveDays, .poster].contains(tour.step) ? nil : usable.map {
                                 let host = proxy.frame(in: .global)
                                 return $0.offsetBy(dx: host.minX, dy: host.minY)
                             })
-                                .id(tour.step)
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
                                     let host = proxy.frame(in: .global)
                                     cardFrame = frame.offsetBy(dx: -host.minX, dy: -host.minY)
@@ -133,10 +150,11 @@ private struct CanvasTourHost: ViewModifier {
                                     tour.cardBottomGlobalY = frame.maxY
                                 }
                         }
-                        // A step replacement is atomic. Even an asymmetric fade
-                        // keeps the outgoing instruction in SwiftUI's transition
-                        // tree briefly, which can put two instructions on screen.
-                        .transaction { $0.animation = nil }
+                        // Keep one measured surface. Content changes immediately;
+                        // only its placement/size animate, so no old action stays live.
+                        .animation(reduceMotion ? nil : .smooth(duration: 0.46), value: tour.step)
+                        .animation(reduceMotion ? nil : .smooth(duration: 0.46), value: question?.identity)
+                        .animation(reduceMotion ? nil : .smooth(duration: 0.46), value: usable)
                         .onChange(of: usable, initial: true) { _, frame in updateTarget(frame) }
                         .onChange(of: target) { _, _ in updateTarget(usable) }
                     }
@@ -211,25 +229,30 @@ private struct CanvasTourHost: ViewModifier {
     private var coachInk: Color {
         palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.surfaceColor : palette.textColor
     }
-    private func card(target: CGRect?) -> some View {
+    private func card(question: CanvasTourQuestionCoach?, target: CGRect?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            ViewThatFits(in: .vertical) {
-                cardContent.fixedSize(horizontal: false, vertical: true)
-                ScrollView { cardContent.fixedSize(horizontal: false, vertical: true) }
-                    .scrollIndicators(.visible)
-                    .accessibilityIdentifier("canvas_tour.textScroll")
-            }
-            VStack(spacing: 10) {
-                actions
-                if tour.step == .happening {
-                    Button(String(localized: "Use this day")) { tour.send(.useExistingDay) }
-                        .font(.onest(.subheadline))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .accessibilityIdentifier("canvas_tour.existingDay")
+            Group {
+                if let question {
+                    ViewThatFits(in: .vertical) {
+                        question.content.fixedSize(horizontal: false, vertical: true)
+                        ScrollView { question.content.fixedSize(horizontal: false, vertical: true) }
+                            .scrollIndicators(.visible)
+                    }
+                } else {
+                    ViewThatFits(in: .vertical) {
+                        cardContent.fixedSize(horizontal: false, vertical: true)
+                        ScrollView { cardContent.fixedSize(horizontal: false, vertical: true) }
+                            .scrollIndicators(.visible)
+                            .accessibilityIdentifier("canvas_tour.textScroll")
+                    }
+                    actions
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                 }
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .layoutPriority(1)
+            // Switch text/actions atomically inside the moving shared surface.
+            // An outgoing instruction must never remain an actionable transition.
+            .transaction { $0.animation = nil }
         }
         .foregroundStyle(coachInk)
         .padding(.horizontal, 20)
@@ -237,7 +260,7 @@ private struct CanvasTourHost: ViewModifier {
         .frame(maxWidth: .infinity)
         .background { CanvasTourCardSurface(target: target, color: coachSurface) }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("canvas_tour.card.\(tour.step.rawValue)")
+        .accessibilityIdentifier(question == nil ? "canvas_tour.card.\(tour.step.rawValue)" : "happenings.onboarding.coach.\(question?.identity ?? "invitation")")
         .accessibilityHidden(tour.exitRequest != nil)
     }
     private var cardContent: some View {
@@ -609,7 +632,7 @@ extension View {
         modifier(CanvasTourControlModifier(id: id))
     }
     @ViewBuilder func canvasTourAnchor(_ id: String) -> some View {
-        transformAnchorPreference(key: CanvasTourAnchors.self, value: .bounds) { anchors, anchor in anchors[id] = anchor }
+        transformAnchorPreference(key: CanvasTourAnchors.self, value: .bounds) { value, anchor in value.anchors[id] = anchor }
     }
     @ViewBuilder func canvasTourHost(model: AppModel, context: String = "root") -> some View {
         modifier(CanvasTourHost(model: model, context: context))

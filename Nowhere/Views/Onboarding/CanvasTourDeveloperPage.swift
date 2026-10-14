@@ -13,7 +13,7 @@ struct CanvasTourDeveloperPage: View {
         @Bindable var tour = tour
         Form {
             Section("Live") {
-                Text("This tour uses the real app. Happenings, app groups and color spending are saved normally. Restart begins the full tour with fresh questions. Recorded happenings and days are always kept. Completed answers update recommendations only; saved preferences are kept until then. After the questions, use your existing day to continue without adding a happening.")
+                Text("This tour uses the real app. Happenings, app groups and color spending are saved normally. Restart begins the full tour with fresh questions. Recorded happenings and days are always kept. Completed answers update recommendations only; saved preferences are kept until then. After the questions, tap a real happening to continue. Tapping one already recorded keeps it in your day.")
                     .font(.geist(.callout))
                 Button("Start from welcome") { HappeningOnboardingCoordinator.shared.replay(source: "developer") }
                     .accessibilityIdentifier("canvas_tour.debug.start")

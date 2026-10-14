@@ -18,12 +18,14 @@ struct HappeningOnboardingView: View {
                     .accessibilityIdentifier("happenings.onboarding.close")
             }
             Text(verbatim: profile.hasStarted ? profile.question.title : "Find happenings that fit your days")
-                .font(.nowhereDisplay(28, relativeTo: .title))
+                .font(.onest(.title3).weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("happenings.onboarding.invitation")
-            Text(verbatim: profile.hasStarted ? "Choose any that fit." : "Six short questions. Choose the things that feel familiar.")
-                .font(.onest(.footnote))
+            if !profile.hasStarted {
+                Text(verbatim: "Six short questions. Choose the things that feel familiar.")
+                    .font(.geist(.callout))
+            }
         }
     }
     var footer: some View {
@@ -36,9 +38,6 @@ struct HappeningOnboardingView: View {
             }.accessibilityIdentifier("happenings.onboarding.continue")
             HStack {
                 Button(action: onBack) { Text(verbatim: "Back") }
-                Spacer()
-                Text(verbatim: profile.hasStarted ? "\(profile.selectedChoiceIDs.count) selected" : "Optional")
-                    .font(.onest(.caption))
                 Spacer()
                 Button(action: onSkip) { Text(verbatim: profile.hasStarted ? "Skip" : "Skip questions") }
                     .accessibilityIdentifier("happenings.onboarding.skip")
@@ -53,7 +52,7 @@ struct HappeningOnboardingDeveloperPage: View {
     var body: some View {
         Form {
             Section {
-                Text(verbatim: "Replay the full tour from welcome. At Add happening, + opens six questions in the live Happenings field. Answers update recommendations only. Recorded happenings stay selected and recorded days are kept. After the questions, use your existing day to continue without adding a happening.")
+                Text(verbatim: "Replay the full tour from welcome. At Add happening, + opens six questions in the live Happenings field. Answers update recommendations only. Recorded happenings stay selected and recorded days are kept. After the questions, tap a real happening to continue. Tapping one already recorded keeps it in your day.")
                 Button("Start full onboarding from welcome") { HappeningOnboardingCoordinator.shared.replay() }
                     .accessibilityIdentifier("happenings.onboarding.debug.start")
             }

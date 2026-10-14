@@ -9,7 +9,7 @@ enum CanvasTourStep: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .welcome: "begin"
         case .add: "palettePresented"
-        case .happening: "happeningAdded → paletteDismissed"
+        case .happening: "happeningAdded / happeningChosen → paletteDismissed"
         case .momentResult: "momentAcknowledged"
         case .balance: "dataPanelExpanded"
         case .healthValue: "healthUpdated / healthDeferred"
@@ -36,7 +36,7 @@ enum CanvasTourStep: String, CaseIterable, Codable, Identifiable {
 }
 
 enum CanvasTourEvent: Equatable {
-    case begin, palettePresented, happeningAdded(String), paletteDismissed, useExistingDay
+    case begin, palettePresented, happeningAdded(String), paletteDismissed, happeningChosen(String)
     case momentAcknowledged, dataPanelExpanded, healthUpdated, healthDeferred, continueHealth, tabSelected(Int)
     case appSelectionCommitted(String), selectionAcknowledged, groupOpened(String), unlockSucceeded(String)
     case skipApps, skipUnlock, addMoreColors, posterReady(String), showSetup, setupCompleted
@@ -287,8 +287,9 @@ final class CanvasTour {
             session.addedEntryID = id; pendingDestination = .momentResult
             session.status = .resolvingResult; report("happening persisted; waiting for palette dismiss"); return
         case (.happening, .paletteDismissed): destination = .add
-        case (.happening, .useExistingDay):
-            session.skippedBranches.insert("addHappening"); destination = .momentResult
+        case (.happening, .happeningChosen(let id)) where !id.isEmpty:
+            session.addedEntryID = id; pendingDestination = .momentResult
+            session.status = .resolvingResult; report("recorded happening explicitly chosen; waiting for palette dismiss"); return
         case (.momentResult, .momentAcknowledged): destination = .balance
         case (.balance, .dataPanelExpanded): destination = .healthValue
         case (.healthValue, .healthUpdated): destination = .healthResult

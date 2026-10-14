@@ -31,14 +31,16 @@ struct HappeningShapeField: View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
         let existingTourMoment = onSurveySelection == nil && CanvasTour.shared.isActive
             && CanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
-        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil || existingTourMoment
+        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
         let side = max(44, source.radius * 2 / max(0.001, source.appearanceScale))
         let ink = labelInks[happening.id] ?? .dark
 
         return ZStack {
-            Button {
-                onActivate(happening)
-            } label: {
+            HappeningFieldChoiceControl(
+                onActivate: { onActivate(happening) },
+                onSurveySelection: onSurveySelection.map { select in { selected in select(happening, selected) } },
+                isSelected: addedIDs.contains(happening.id)
+            ) {
                 Text(happening.localizedTitle())
                     .font(.onest(size: min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
                     .multilineTextAlignment(.center)
@@ -74,18 +76,13 @@ struct HappeningShapeField: View {
                     .frame(width: side, height: side)
                     .contentShape(HappeningPickerShape())
             }
-            .highPriorityGesture(
-                TapGesture(count: 2).onEnded {
-                    onSurveySelection?(happening, !addedIDs.contains(happening.id))
-                }.exclusively(before: TapGesture(count: 1).onEnded {
-                    onSurveySelection?(happening, true)
-                }), including: onSurveySelection == nil ? .none : .all)
             .buttonStyle(.plain)
             .disabled(locked)
+            .allowsHitTesting(!locked)
             .accessibilityLabel(happening.localizedTitle())
             .accessibilityValue(onSurveySelection == nil ? HappeningPaletteAccessibility.value(for: state) : (addedIDs.contains(happening.id) ? "Selected" : "Not selected"))
             .accessibilityHint(onSurveySelection != nil ? "Tap to select. Double tap to deselect. Accessibility activation toggles selection." : existingTourMoment
-                ? String(localized: "Already in your day. Choose another happening, or continue with your existing day.")
+                ? String(localized: "Already in your day. Tap to continue the tour.")
                 : hint(for: state, locked: locked))
             .accessibilityIdentifier(onSurveySelection == nil ? "happening_choice_\(happening.id)" : "happenings.onboarding.\(happening.id.replacingOccurrences(of: "survey:", with: "").replacingOccurrences(of: ":", with: "."))")
 
@@ -182,6 +179,37 @@ struct HappeningPickerShape: Shape {
                 if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
             }
             path.closeSubpath()
+        }
+    }
+}
+
+/// Survey touches belong to one exclusive recognizer, rather than a Button's
+/// immediate activation competing with its double-tap recognizer. Accessibility
+/// activation deliberately keeps the standard single-action toggle.
+private struct HappeningFieldChoiceControl<Label: View>: View {
+    let onActivate: () -> Void
+    let onSurveySelection: ((Bool) -> Void)?
+    let isSelected: Bool
+    let label: Label
+
+    init(onActivate: @escaping () -> Void, onSurveySelection: ((Bool) -> Void)?,
+         isSelected: Bool, @ViewBuilder label: () -> Label) {
+        self.onActivate = onActivate
+        self.onSurveySelection = onSurveySelection
+        self.isSelected = isSelected
+        self.label = label()
+    }
+
+    var body: some View {
+        if let select = onSurveySelection {
+            label
+                .gesture(TapGesture(count: 2).onEnded { select(!isSelected) }
+                    .exclusively(before: TapGesture(count: 1).onEnded { select(true) }))
+                .accessibilityElement()
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { onActivate() }
+        } else {
+            Button(action: onActivate) { label }
         }
     }
 }

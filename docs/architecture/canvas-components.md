@@ -72,8 +72,13 @@ It corrects circle anisotropy to `(1,1)` while preserving event IDs, positions,
 sizes, slots and manual rotations. Repeated adoption is idempotent.
 Styles without this policy keep one-tone, one-tone, `radialTwo`, then contour
 roles and their previous two-color pigments. Color variants tint the slot's leading pigment by
-10–18% toward another frozen member; default picker identity hashes therefore
-do not replace the assigned leading hue. Under the earlier policy, non-beam
+10–18% toward another frozen member. Previously saved nil and 0–96 variants
+retain this behavior. Newly offered native palette actors encode an opt-in
+identity pigment at `1 << 20` plus the deterministic daily variant. That selects
+a leading member of the frozen pigment pool independently of the prospective
+actor slot, including the glow and related-color stops. The same stored UUID and
+variant travel from survey representative to ordinary picker to committed Canvas;
+no archived actor or recipe is rewritten. Under the earlier policy, non-beam
 sizes range from 0.15 to 0.41 and beams multiply that rhythm by 1.8 with a 0.30
 floor. Revision 2 keeps blur collections at their carrier baseline, freezes
 ordinary round sizes from 0.28 to 0.72, and glow sizes from 0.19 to 0.58.

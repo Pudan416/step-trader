@@ -579,6 +579,21 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         }
     }
 
+    private func chooseRealHappening(_ app: XCUIApplication) {
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
+        XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5))
+        let usableField = CGRect(x: 0, y: 220, width: app.frame.width, height: app.frame.height - 320)
+        let visible = choices.allElementsBoundByIndex.filter {
+            usableField.contains($0.frame) && $0.isEnabled && $0.isHittable
+        }
+        // Replays can acknowledge an already recorded event, including at the
+        // daily limit. A fresh fixture uses the ordinary addition path.
+        guard let choice = visible.first(where: { ($0.value as? String) == "On Canvas" }) ?? visible.first else {
+            XCTFail("No real happening is tappable"); return
+        }
+        choice.tap()
+    }
+
     private func expectHappeningsReady(_ app: XCUIApplication, timeout: TimeInterval) {
         let count = app.descendants(matching: .any)["happening_palette_count_hub"].firstMatch
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
@@ -829,8 +844,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         let app = launch()
         app.buttons["canvas_tour.begin"].tap()
         openHappeningsSkippingQuestions(app)
-        XCTAssertTrue(app.buttons["canvas_tour.existingDay"].waitForExistence(timeout: 5))
-        app.buttons["canvas_tour.existingDay"].tap()
+        chooseRealHappening(app)
         XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.momentNext"].tap()
         let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
@@ -871,7 +885,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         let app = launch()
         app.buttons["canvas_tour.begin"].tap()
         openHappeningsSkippingQuestions(app)
-        app.buttons["canvas_tour.existingDay"].tap()
+        chooseRealHappening(app)
         XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.momentNext"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.balance"].waitForExistence(timeout: 5))
@@ -922,8 +936,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 20))
         app.buttons["canvas_tour.begin"].tap()
         openHappeningsSkippingQuestions(app)
-        XCTAssertTrue(app.buttons["canvas_tour.existingDay"].waitForExistence(timeout: 5))
-        app.buttons["canvas_tour.existingDay"].tap()
+        chooseRealHappening(app)
         let next = app.buttons["canvas_tour.momentNext"]
         XCTAssertTrue(next.waitForExistence(timeout: 5))
         XCTAssertTrue(next.isHittable, "Next must remain outside the scrolling explanation")

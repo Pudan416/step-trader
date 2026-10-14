@@ -49,8 +49,15 @@ struct HappeningPersonalizationChoice: Identifiable {
     let label: String
     var events: [String] = []
     var spheres: [Int] = []
-    init(_ id: String, _ label: String, _ events: [String] = [], spheres: [Int] = []) {
+    /// An existing catalog actor represents the preference visually. This does
+    /// not claim that the representative event happened or add it to the day.
+    var representativeEvent: String?
+    var visualHappeningID: String? {
+        (representativeEvent ?? events.first { HappeningEventTree.event($0) != nil }).map { "event_" + $0 }
+    }
+    init(_ id: String, _ label: String, _ events: [String] = [], spheres: [Int] = [], representativeEvent: String? = nil) {
         self.id = id; self.label = label; self.events = events; self.spheres = spheres
+        self.representativeEvent = representativeEvent
     }
 }
 
@@ -74,10 +81,11 @@ enum HappeningPersonalizationQuestion: String, CaseIterable {
             .init("friend", "Saw a friend", ["friend"]), .init("break", "Took a break", ["break", "root_chilled"]),
             .init("home", "Stayed home", ["root_home"])]
         case .unwind: [
-            .init("read", "Reading", ["book"]), .init("cook", "Cooking", ["cooked", "root_home"]),
+            .init("read", "Reading", ["book"]),
             .init("walk", "Walking", ["walk", "nature"]), .init("music", "Listening to music", ["music"]),
-            .init("games", "Playing games", ["videogame", "boardgame"]), .init("friends", "Seeing friends", ["friend"]),
-            .init("photos", "Taking photos", ["photos"]), .init("make", "Making things", ["made", "hobby", "drew"])]
+            .init("games", "Playing games", ["videogame", "boardgame"]),
+            .init("doomscroll", "Doomscrolling", ["doomscroll"]), .init("coding", "Vibe coding", ["made"]),
+            .init("movies", "Watching movies", ["movie"]), .init("series", "Watching series", ["show"])]
         case .feelings: [
             .init("calm", "Calm", ["calm"]), .init("happy", "Happy", ["happy"]), .init("curious", "Curious", ["curious"]),
             .init("tired", "Tired", ["tired"]), .init("anxious", "Anxious", ["anxious"]), .init("angry", "Angry", ["angry"]),
@@ -90,11 +98,11 @@ enum HappeningPersonalizationQuestion: String, CaseIterable {
         // Relationship context boosts a domain; it never pretends a call or text happened.
         case .people: [
             .init("friends", "Friends", ["friend"], spheres: [5]), .init("family", "Family", ["family"], spheres: [5]),
-            .init("partner", "A partner", spheres: [5]), .init("colleagues", "Colleagues", ["colleague"], spheres: [0, 5]),
-            .init("new", "New people", spheres: [5]), .init("myself", "Mostly myself", ["alonepeople"], spheres: [1])]
+            .init("partner", "A partner", spheres: [5], representativeEvent: "peoplecall"), .init("colleagues", "Colleagues", ["colleague"], spheres: [0, 5]),
+            .init("new", "New people", spheres: [5], representativeEvent: "guests"), .init("myself", "Mostly myself", ["alonepeople"], spheres: [1])]
         case .aspirations: [
-            .init("move", "Movement", spheres: [3]), .init("rest", "Rest", ["break", "nap", "root_chilled"], spheres: [1]),
-            .init("connection", "Connection", spheres: [5]), .init("create", "Creativity", ["made", "drew", "photos"], spheres: [1]),
+            .init("move", "Movement", spheres: [3], representativeEvent: "run"), .init("rest", "Rest", ["break", "nap", "root_chilled"], spheres: [1]),
+            .init("connection", "Connection", spheres: [5], representativeEvent: "texted"), .init("create", "Creativity", ["made", "drew", "photos"], spheres: [1]),
             .init("learn", "Learning", ["solo", "book"], spheres: [0]), .init("new", "New experiences", ["new"], spheres: [4])]
         }
     }
