@@ -568,6 +568,104 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
+    private func openHappeningsSkippingQuestions(_ app: XCUIApplication) {
+        app.buttons["canvas_add_button"].tap()
+        let skip = app.buttons["happenings.onboarding.skip"]
+        if skip.waitForExistence(timeout: 3) {
+            skip.tap()
+            XCTAssertTrue(app.staticTexts["What have you done today?"].waitForExistence(timeout: 12))
+            app.buttons["canvas_palette_close_button"].tap()
+            app.buttons["canvas_add_button"].tap()
+        }
+    }
+
+    private func expectSurveySelection(_ choice: XCUIElement, _ selected: Bool) {
+        let expected = selected ? "Selected" : "Not selected"
+        // The native single/double-tap recognizer must resolve before asserting.
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: choice)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
+    }
+
+    func testFullReplayAsksOnNativeFieldThenContinuesStoryToFinish() {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "debug-happenings-onboarding", "debug-canvas-tour-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 20), app.debugDescription)
+        XCTAssertFalse(app.buttons["happenings.onboarding.continue"].exists, "Replay must start with the story, not questions")
+        capture(app, "personalization-full-welcome")
+        let viewport = app.descendants(matching: .any)["canvas_render_viewport"].firstMatch
+        let originalViewport = viewport.frame
+        app.buttons["canvas_tour.begin"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.add"].waitForExistence(timeout: 5))
+        app.buttons["canvas_add_button"].tap()
+        let nextQuestion = app.buttons["happenings.onboarding.continue"]
+        XCTAssertTrue(nextQuestion.waitForExistence(timeout: 5))
+        XCTAssertEqual(nextQuestion.label, "Start")
+        XCTAssertEqual(viewport.frame.height, originalViewport.height, accuracy: 1)
+        capture(app, "personalization-native-invitation")
+        nextQuestion.tap()
+        let walk = app.buttons["happenings.onboarding.routine.walk"]
+        XCTAssertTrue(walk.waitForExistence(timeout: 5))
+        XCTAssertEqual(walk.value as? String, "Not selected")
+        capture(app, "personalization-native-circles")
+        walk.tap()
+        expectSurveySelection(walk, true)
+        capture(app, "personalization-native-selected-object")
+        walk.doubleTap()
+        expectSurveySelection(walk, false)
+        walk.tap()
+        nextQuestion.tap()
+        for id in ["unwind.music", "feelings.tired", "habits.smoked", "people.myself", "aspirations.learn"] {
+            let choice = app.buttons["happenings.onboarding." + id]
+            XCTAssertTrue(choice.waitForExistence(timeout: 5), id)
+            choice.tap()
+            expectSurveySelection(choice, true)
+            capture(app, "personalization-native-" + id)
+            nextQuestion.tap()
+        }
+        XCTAssertTrue(app.staticTexts["What have you done today?"].waitForExistence(timeout: 15))
+        XCTAssertFalse(nextQuestion.exists)
+        XCTAssertTrue(viewport.exists, "The native Canvas host remains mounted")
+        capture(app, "personalization-native-all")
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
+        let usableField = CGRect(x: 0, y: 220, width: app.frame.width, height: app.frame.height - 320)
+        guard let choice = choices.allElementsBoundByIndex.first(where: {
+            usableField.contains($0.frame) && $0.isEnabled && $0.isHittable && ($0.value as? String) == "Available"
+        }) else {
+            XCTFail("No actual happening is available after the survey"); return
+        }
+        XCTAssertEqual(choice.value as? String, "Available", "Survey selections must not log actual happenings")
+        choice.tap()
+        let next = app.buttons["canvas_tour.momentNext"]
+        XCTAssertTrue(next.waitForExistence(timeout: 8), app.debugDescription)
+        capture(app, "personalization-story-resumed")
+        next.tap()
+        let handle = app.descendants(matching: .any)["canvas_show_data_button"].firstMatch
+        XCTAssertTrue(handle.waitForExistence(timeout: 8))
+        handle.tap()
+        XCTAssertTrue(app.buttons["canvas_tour.healthLater"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.healthLater"].tap()
+        app.buttons["canvas_tour.healthContinue"].tap()
+        app.buttons["tab_feeds"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.skipApps"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.skipApps"].tap()
+        app.buttons["tab_me"].tap()
+        let later = app.buttons["canvas_tour.later"]
+        XCTAssertTrue(later.waitForExistence(timeout: 15))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in later.isEnabled }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        later.tap()
+        XCTAssertTrue(app.buttons["canvas_tour.setup.continue"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.setup.continue"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.skipExport"].waitForExistence(timeout: 5))
+        app.buttons["canvas_tour.skipExport"].tap()
+        XCTAssertTrue(app.buttons["canvas_tour.finish"].waitForExistence(timeout: 5))
+        capture(app, "personalization-full-finish")
+        app.buttons["canvas_tour.finish"].tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["canvas_tour.skip"].exists)
+    }
+
     func testTourDoesNotResizeTheCanvasViewport() {
         let app = launch()
         let viewport = app.descendants(matching: .any)["canvas_render_viewport"].firstMatch
@@ -604,7 +702,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         keepGoing.tap()
         XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.begin"].tap()
-        app.buttons["canvas_add_button"].tap()
+        openHappeningsSkippingQuestions(app)
         XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.happening"].waitForExistence(timeout: 5))
         XCTAssertFalse(keepGoing.exists, "A taught action must not count as a missed tap")
         skip.tap()
@@ -622,7 +720,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         capture(app, "tour-welcome")
         app.buttons["canvas_tour.begin"].tap()
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
-        app.buttons["canvas_add_button"].tap()
+        openHappeningsSkippingQuestions(app)
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
         XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5))
         capture(app, "tour-happenings")
@@ -718,7 +816,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
     func testDragDrawerAndShareCancellation() {
         let app = launch()
         app.buttons["canvas_tour.begin"].tap()
-        app.buttons["canvas_add_button"].tap()
+        openHappeningsSkippingQuestions(app)
         XCTAssertTrue(app.buttons["canvas_tour.existingDay"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.existingDay"].tap()
         XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 5))
@@ -760,7 +858,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
     func testSetupPagesKeepExitAndReturnContext() {
         let app = launch()
         app.buttons["canvas_tour.begin"].tap()
-        app.buttons["canvas_add_button"].tap()
+        openHappeningsSkippingQuestions(app)
         app.buttons["canvas_tour.existingDay"].tap()
         XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.momentNext"].tap()
@@ -811,7 +909,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 20))
         app.buttons["canvas_tour.begin"].tap()
-        app.buttons["canvas_add_button"].tap()
+        openHappeningsSkippingQuestions(app)
         XCTAssertTrue(app.buttons["canvas_tour.existingDay"].waitForExistence(timeout: 5))
         app.buttons["canvas_tour.existingDay"].tap()
         let next = app.buttons["canvas_tour.momentNext"]
@@ -837,7 +935,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["canvas_tour.skip"].isHittable)
         begin.tap()
         XCTAssertTrue(app.buttons["canvas_add_button"].isHittable)
-        app.buttons["canvas_add_button"].tap()
+        openHappeningsSkippingQuestions(app)
         XCTAssertTrue(app.buttons["canvas_tour.skip"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["canvas_tour.skip"].isHittable)
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))

@@ -62,8 +62,9 @@ Old category arrays and fractional timestamps remain readable.
 
 The first explicit tap on the Canvas add control offers **A few questions first**.
 Six optional multi-select questions cover routine, leisure, current feelings,
-habits, relationships and aspirations. Native circles morph within a coherent
-production shape family for each question; a double tap deselects a selected
+habits, relationships and aspirations. Questions live in the existing Happenings
+Canvas: its shared field layout, Editorial assignments and DayObjects renderer
+turn native circles into the day's production objects. A double tap deselects a selected
 answer and accessibility activation toggles it. Back and close retain a local
 account-scoped draft. Skip questions marks this introduction as skipped. Completed
 answers seed preferences only: they create no history, usage counters or colors.
@@ -80,7 +81,11 @@ the reveal. The catalog includes separate **Smoked**, **Had a beer** and **Staye
 up late** events; Had a beer never aliases Got wasted. Canvas tour cards are
 suspended while questions and this first All presentation are visible. Debug has
 **Happenings onboarding (Debug)** and the `debug-happenings-onboarding` launch
-argument for replay without deleting recorded days or legacy onboarding completion.
+argument. Replay begins with a fresh survey draft and starts the complete existing
+tour at welcome. The explicit + at Add happening opens questions; completion reveals
+All, and a real today addition advances to the remaining Health, Feeds and Me steps.
+Committed preferences survive cancellation until replacement answers are completed.
+Recorded days and legacy onboarding completion are retained.
 
 Subsequent uses of the Canvas add control open **Personal**: six complete events surround the current
 day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates

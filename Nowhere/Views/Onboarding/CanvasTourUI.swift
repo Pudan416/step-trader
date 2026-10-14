@@ -503,7 +503,8 @@ private struct CanvasTourExitChrome: ViewModifier {
     @State private var exitHeaderHeight: CGFloat = 56
     private var tour: CanvasTour { .shared }
     private var isOwner: Bool { context == "flow" ? tour.presentedSheet == nil : tour.presentedSheet == context }
-    private var confirmationVisible: Bool { tour.isActive && isOwner && tour.isForeground && tour.exitRequest != nil }
+    private var showsTourChrome: Bool { tour.isActive && !HappeningOnboardingCoordinator.shared.suspendsCanvasTour }
+    private var confirmationVisible: Bool { showsTourChrome && isOwner && tour.isForeground && tour.exitRequest != nil }
     private var surface: Color {
         palette.textPrimary.perceptualOKLab.x > palette.surface.perceptualOKLab.x ? palette.textColor : palette.surfaceColor
     }
@@ -512,9 +513,9 @@ private struct CanvasTourExitChrome: ViewModifier {
     }
     func body(content: Content) -> some View {
         content
-            .environment(\.canvasTourContentTopInset, tour.isActive ? exitHeaderHeight : 0)
+            .environment(\.canvasTourContentTopInset, showsTourChrome ? exitHeaderHeight : 0)
             .safeAreaInset(edge: .top, spacing: 0) {
-            if tour.isActive {
+            if showsTourChrome {
                 if isOwner && tour.isForeground {
                     HStack {
                         Button("Skip") { tour.requestExit(reason: "skip") }

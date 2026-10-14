@@ -183,6 +183,7 @@ final class CanvasTour {
         report("host ready: \(step.rawValue)")
     }
     func stop(skipped: Bool = false) {
+        HappeningOnboardingCoordinator.shared.cancelReplay()
         exitRequest = nil
         cardTopGlobalY = 0; cardBottomGlobalY = 0
         session.status = skipped ? .skipped : .inactive

@@ -126,6 +126,7 @@ struct HappeningPaletteView: View {
     let treeFocusID: String?
     let dateHubInk: HappeningPaletteLabelInk
     let addedEventCount: Int
+    let onSurveySelection: ((Happening, Bool) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -156,7 +157,8 @@ struct HappeningPaletteView: View {
         dateHubCenter: CGPoint? = nil,
         treeFocusID: String? = nil,
         dateHubInk: HappeningPaletteLabelInk = .dark,
-        addedEventCount: Int = 0
+        addedEventCount: Int = 0,
+        onSurveySelection: ((Happening, Bool) -> Void)? = nil
     ) {
         self.happenings = happenings
         self.assignments = assignments
@@ -182,6 +184,7 @@ struct HappeningPaletteView: View {
         self.treeFocusID = treeFocusID
         self.dateHubInk = dateHubInk
         self.addedEventCount = addedEventCount
+        self.onSurveySelection = onSurveySelection
     }
 
     var body: some View {
@@ -358,7 +361,7 @@ struct HappeningPaletteView: View {
                 .allowsHitTesting(false)
             HappeningShapeField(happenings: happenings, assignments: assignments, layout: layout,
                 interaction: interaction, addedIDs: addedIDs, onActivate: onActivate,
-                labelInks: labelInks, fitsTreeLabels: usesEventTree)
+                labelInks: labelInks, fitsTreeLabels: usesEventTree, onSurveySelection: onSurveySelection)
             if let hub = hubCenter {
                 HappeningPaletteCountHub(count: addedEventCount, ink: dateHubInk.color)
                     .position(hub)

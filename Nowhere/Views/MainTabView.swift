@@ -352,7 +352,8 @@ struct MainTabView: View {
         .overlay(alignment: .top) {
             // Me is where you look back, not where you check your balance — the
             // pill is drawn on canvas and feeds only.
-            if !isWideCanvas, selection != Tab.me.rawValue {
+            if !isWideCanvas, selection != Tab.me.rawValue,
+               !HappeningOnboardingCoordinator.shared.suspendsCanvasTour {
                 CanvasEnergyStatusPill(
                     status: CanvasEnergyStatus(
                         stepsBalance: model.userEconomyStore.stepsBalance,
@@ -430,7 +431,7 @@ struct MainTabView: View {
                 HappeningOnboardingCoordinator.shared.replay()
             }
             if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") {
-                CanvasTour.shared.start(source: "launchArgument")
+                HappeningOnboardingCoordinator.shared.replay(source: "launchArgument")
             }
         }
         #endif

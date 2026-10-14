@@ -564,7 +564,7 @@ private struct NowhereProductionRoot: View {
                 model.handleAppWillEnterForeground()
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.showIntro")) ) { _ in
-                CanvasTour.shared.start(source: "replay")
+                HappeningOnboardingCoordinator.shared.replay(source: "replay")
             }
             .onReceive(NotificationCenter.default.publisher(for: .init("com.steps.trader.paygate")))
             { notification in

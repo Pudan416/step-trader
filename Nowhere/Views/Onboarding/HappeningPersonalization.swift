@@ -11,6 +11,20 @@ struct HappeningPersonalizationProfile: Codable, Equatable {
     var answers: [String: Set<String>] = [:]
     var emotionDayKey: String?
 
+    var question: HappeningPersonalizationQuestion {
+        HappeningPersonalizationQuestion.allCases[min(max(questionIndex, 0), 5)]
+    }
+    var selectedChoiceIDs: Set<String> {
+        Set(answers[question.rawValue, default: []].map { "survey:\(question.rawValue):\($0)" })
+    }
+    /// Ephemeral identities never enter the catalog, Canvas, or HappeningStore.
+    var fieldChoices: [Happening] {
+        guard hasStarted else { return [] }
+        return question.choices.map {
+            Happening(id: "survey:\(question.rawValue):\($0.id)", title: $0.label, isBuiltIn: false)
+        }
+    }
+
     func scores(dayKey: String, includeMood: Bool = true) -> [String: Double] {
         var result: [String: Double] = [:]
         for question in HappeningPersonalizationQuestion.allCases {
@@ -84,16 +98,7 @@ enum HappeningPersonalizationQuestion: String, CaseIterable {
             .init("learn", "Learning", ["solo", "book"], spheres: [0]), .init("new", "New experiences", ["new"], spheres: [4])]
         }
     }
-    var presetID: String {
-        switch self {
-        case .routine: "legacy.soft-square"
-        case .unwind: "genome.soft-clover"
-        case .feelings: "legacy.rounded-hexagon"
-        case .habits: "legacy.rounded-triangle"
-        case .people: "genome.windflower"
-        case .aspirations: "genome.concave-square"
-        }
-    }
+
 }
 
 @MainActor
@@ -122,12 +127,32 @@ enum HappeningPersonalizationStore {
     }
 }
 
-/// Requests navigation only. Debug replay does not reset daily records or legacy onboarding.
+/// Replays the existing tour with a fresh draft; committed preferences and days survive cancellation.
 @Observable @MainActor
 final class HappeningOnboardingCoordinator {
     static let shared = HappeningOnboardingCoordinator()
     var replayRevision = UUID()
     var suspendsCanvasTour = false
     var replayPending = false
-    func replay() { replayPending = true; replayRevision = UUID() }
+    private(set) var replayScope: String?
+    private(set) var freshQuestionsPending = false
+    var requiresReplayQuestions: Bool { freshQuestionsPending || replayScope == HappeningPersonalizationStore.scope }
+    func cancelReplay() { replayPending = false; replayScope = nil; freshQuestionsPending = false; suspendsCanvasTour = false }
+    func didCompleteQuestions() { replayScope = nil; freshQuestionsPending = false }
+    func prepareQuestions(scope: String) {
+        guard freshQuestionsPending else { return }
+        // Authentication can restore an account after Welcome appears. Reset the
+        // draft only at the explicit Add action, for the account using it now.
+        HappeningPersonalizationStore.saveDraft(HappeningPersonalizationProfile(), scope: scope)
+        replayScope = scope
+        freshQuestionsPending = false
+    }
+    func replay(source: String = "happeningsReplay") {
+        replayScope = nil
+        freshQuestionsPending = true
+        suspendsCanvasTour = false
+        replayPending = true
+        replayRevision = UUID()
+        CanvasTour.shared.start(source: source)
+    }
 }

@@ -12,6 +12,7 @@ struct HappeningShapeField: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var labelInks: [String: HappeningPaletteLabelInk] = [:]
     var fitsTreeLabels = false
+    var onSurveySelection: ((Happening, Bool) -> Void)? = nil
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -28,7 +29,7 @@ struct HappeningShapeField: View {
         source: HappeningFieldLayout.Source
     ) -> some View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
-        let existingTourMoment = CanvasTour.shared.isActive
+        let existingTourMoment = onSurveySelection == nil && CanvasTour.shared.isActive
             && CanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
         let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil || existingTourMoment
         let side = max(44, source.radius * 2 / max(0.001, source.appearanceScale))
@@ -73,14 +74,20 @@ struct HappeningShapeField: View {
                     .frame(width: side, height: side)
                     .contentShape(HappeningPickerShape())
             }
+            .highPriorityGesture(
+                TapGesture(count: 2).onEnded {
+                    onSurveySelection?(happening, !addedIDs.contains(happening.id))
+                }.exclusively(before: TapGesture(count: 1).onEnded {
+                    onSurveySelection?(happening, true)
+                }), including: onSurveySelection == nil ? .none : .all)
             .buttonStyle(.plain)
             .disabled(locked)
             .accessibilityLabel(happening.localizedTitle())
-            .accessibilityValue(HappeningPaletteAccessibility.value(for: state))
-            .accessibilityHint(existingTourMoment
+            .accessibilityValue(onSurveySelection == nil ? HappeningPaletteAccessibility.value(for: state) : (addedIDs.contains(happening.id) ? "Selected" : "Not selected"))
+            .accessibilityHint(onSurveySelection != nil ? "Tap to select. Double tap to deselect. Accessibility activation toggles selection." : existingTourMoment
                 ? String(localized: "Already in your day. Choose another happening, or continue with your existing day.")
                 : hint(for: state, locked: locked))
-            .accessibilityIdentifier("happening_choice_\(happening.id)")
+            .accessibilityIdentifier(onSurveySelection == nil ? "happening_choice_\(happening.id)" : "happenings.onboarding.\(happening.id.replacingOccurrences(of: "survey:", with: "").replacingOccurrences(of: ":", with: "."))")
 
             if state == .added {
                 Image(systemName: "checkmark")
