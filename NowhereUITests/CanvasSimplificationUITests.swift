@@ -573,10 +573,22 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         let skip = app.buttons["happenings.onboarding.skip"]
         if skip.waitForExistence(timeout: 3) {
             skip.tap()
-            XCTAssertTrue(app.staticTexts["What have you done today?"].waitForExistence(timeout: 12))
+            expectHappeningsReady(app, timeout: 12)
             app.buttons["canvas_palette_close_button"].tap()
             app.buttons["canvas_add_button"].tap()
         }
+    }
+
+    private func expectHappeningsReady(_ app: XCUIApplication, timeout: TimeInterval) {
+        let count = app.descendants(matching: .any)["happening_palette_count_hub"].firstMatch
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            count.exists && !app.staticTexts["Finding your happenings"].exists
+                && !app.buttons["happenings.onboarding.continue"].exists
+        }, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed)
+        XCTAssertFalse(app.staticTexts["What have you done today?"].exists)
+        XCTAssertFalse(app.staticTexts["Choose what actually happened today."].exists)
+        XCTAssertTrue(count.label.hasPrefix("Today,"))
     }
 
     private func expectSurveySelection(_ choice: XCUIElement, _ selected: Bool) {
@@ -623,7 +635,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
             capture(app, "personalization-native-" + id)
             nextQuestion.tap()
         }
-        XCTAssertTrue(app.staticTexts["What have you done today?"].waitForExistence(timeout: 15))
+        expectHappeningsReady(app, timeout: 15)
         XCTAssertFalse(nextQuestion.exists)
         XCTAssertTrue(viewport.exists, "The native Canvas host remains mounted")
         capture(app, "personalization-native-all")

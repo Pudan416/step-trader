@@ -74,7 +74,8 @@ without seeds, the existing two-use-day learning threshold remains in place.
 
 Completion reveals **All**, first six distinct domain leaders, then remaining
 canonical events in relevance order, at the same map positions used for selection.
-The heading becomes **What have you done today?** when the reveal ends. Actual taps
+The temporary **Finding your happenings** heading disappears when the reveal ends,
+along with its reserved space. The ready field has no top prompt. Actual taps
 use the ordinary atomic addition/removal path and the ten-addition limit. Reduced
 Motion reveals the complete field immediately. Closing or a day change cancels
 the reveal. The catalog includes separate **Smoked**, **Had a beer** and **Stayed
@@ -88,7 +89,8 @@ Committed preferences survive cancellation until replacement answers are complet
 Recorded days and legacy onboarding completion are retained.
 
 Subsequent uses of the Canvas add control open **Personal**: six complete events surround the current
-day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
+day's added-event count, such as **3 / 10**, in the Nowhere font. A small **Today**
+label sits above the count in both Personal and All. The count updates
 after additions and removals. The six positions represent Work & study, Leisure & play
 (including feelings), Home & everyday, Body & wellbeing, Getting around, and People
 & connection. Each position shows that sphere's most familiar event; the cold-start

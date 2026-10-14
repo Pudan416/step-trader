@@ -907,7 +907,7 @@ struct GalleryView: View {
         var contentTopInset = canvasSafeInsets.top
             + HappeningPaletteChromeLayout.panelTopInset(
                 topCardHeight: topCardHeight, hidesSurroundingChrome: true
-            ) + (showsHappeningQuestions ? happeningQuestionHeaderHeight + 12 : showsHappeningIntroduction ? 92 : 10)
+            ) + (showsHappeningQuestions ? happeningQuestionHeaderHeight + 12 : happeningRevealIsActive ? 92 : 10)
         let tour = CanvasTour.shared
         if tour.isActive, !HappeningOnboardingCoordinator.shared.suspendsCanvasTour, tour.step == .happening, tour.cardBottomGlobalY > 0 {
             // The coach has a fixed top position independent of this field.
@@ -1351,7 +1351,7 @@ struct GalleryView: View {
                 happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true),
                     treeHubCenter: paletteLayout.dateHubCenter)
                     .mask {
-                        if showsHappeningIntroduction {
+                        if happeningRevealIsActive {
                             VStack(spacing: 0) {
                                 Color.clear.frame(height: happeningIntroductionHeaderHeight + 12)
                                 Rectangle()
@@ -1368,11 +1368,11 @@ struct GalleryView: View {
                         .padding(.top, canvasSafeInsets.top + 20)
                         .onGeometryChange(for: CGFloat.self) { max(155, $0.size.height - canvasSafeInsets.top) }
                         action: { happeningQuestionHeaderHeight = $0 }
-                } else if showsHappeningIntroduction && showHappeningPalette {
+                } else if happeningRevealIsActive && showHappeningPalette {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(verbatim: happeningRevealIsActive ? "Finding your happenings" : "What have you done today?")
+                        Text(verbatim: "Finding your happenings")
                             .font(.nowhereDisplay(25, relativeTo: .title2))
-                        Text(verbatim: happeningRevealIsActive ? "Making room for the things in your day." : "Choose what actually happened today.")
+                        Text(verbatim: "Making room for the things in your day.")
                             .font(.onest(.footnote))
                     }
                     .foregroundStyle(happeningQuestionInk)

@@ -527,8 +527,14 @@ private struct HappeningPaletteCountHub: View {
             .minimumScaleFactor(0.7)
             .foregroundStyle(ink)
             .frame(width: 100, height: 44)
+            .overlay(alignment: .top) {
+                Text(verbatim: "Today")
+                    .font(.onest(.caption))
+                    .foregroundStyle(ink)
+                    .offset(y: -14)
+            }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(count) of \(HappeningDefaults.maximumDailyAdditions) events added")
+            .accessibilityLabel("Today, \(count) of \(HappeningDefaults.maximumDailyAdditions) events added")
             .accessibilityIdentifier("happening_palette_count_hub")
     }
 }
