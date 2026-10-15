@@ -1099,6 +1099,27 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertTrue(app.buttons["Close"].isHittable)
     }
 
+    private func openPersonalCategories(in app: XCUIApplication) {
+        let add = app.buttons["canvas_add_button"]
+        XCTAssertTrue(add.waitForExistence(timeout: 8))
+        add.tap()
+        // A fresh account has not answered the questionnaire yet. Exercise its
+        // real Skip route instead of relying on a previous simulator's profile.
+        let skip = app.buttons["happenings.onboarding.skip"]
+        if skip.waitForExistence(timeout: 2) {
+            skip.tap()
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                (app.descendants(matching: .any)["happening_field_scroll"].firstMatch.value as? String) == "Ready"
+                    && !app.buttons["happenings.onboarding.continue"].exists
+            }, object: app)
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed)
+            app.buttons["canvas_palette_close_button"].tap()
+            XCTAssertTrue(add.waitForExistence(timeout: 5))
+            add.tap()
+        }
+        XCTAssertTrue(app.buttons["happening_choice_personal_category_work"].waitForExistence(timeout: 5), app.debugDescription)
+    }
+
     private func waitForChoiceCount(_ count: Int, in app: XCUIApplication) -> Bool {
         let predicate = NSPredicate { _, _ in
             app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_'" )).count == count
@@ -1108,7 +1129,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
 
     func testEventTreeSixRootsExpansionRemovalAndReopening() throws {
         let app = launchTask7App()
-        app.buttons["Add happening"].tap()
+        openPersonalCategories(in: app)
         let categories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_personal_category_'"))
         let work = app.buttons["happening_choice_personal_category_work"]
         XCTAssertTrue(work.waitForExistence(timeout: 5))
@@ -1165,7 +1186,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
 
     func testPersonalCategoryNavigationDoesNotLogAndAllKeepsCompleteCatalog() throws {
         let app = launchTask7App()
-        app.buttons["Add happening"].tap()
+        openPersonalCategories(in: app)
         let rest = app.buttons["happening_choice_personal_category_rest"]
         XCTAssertTrue(rest.waitForExistence(timeout: 5))
         let categoryChoices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_personal_category_'"))
@@ -1197,7 +1218,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
 
     func testPersonalDeleteCapsuleRemovesOnlyItsOriginalEvent() throws {
         let app = launchTask7App()
-        app.buttons["Add happening"].tap()
+        openPersonalCategories(in: app)
         let workCategory = app.buttons["happening_choice_personal_category_work"]
         XCTAssertTrue(workCategory.waitForExistence(timeout: 5))
         workCategory.tap()
@@ -1245,7 +1266,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
 
     func testCategoryTopChoicesStayClearOfChrome() throws {
         let app = launchTask7App()
-        app.buttons["Add happening"].tap()
+        openPersonalCategories(in: app)
         let rest = app.buttons["happening_choice_personal_category_rest"]
         XCTAssertTrue(rest.waitForExistence(timeout: 5))
         rest.tap()
