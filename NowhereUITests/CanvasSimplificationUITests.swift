@@ -350,6 +350,9 @@ final class CanvasSimplificationUITests: XCTestCase {
         let all = app.buttons["happening_mode_all"]
         XCTAssertTrue(personal.waitForExistence(timeout: 5))
         personal.tap()
+        let movement = app.buttons["happening_choice_personal_category_movement"]
+        XCTAssertTrue(movement.waitForExistence(timeout: 5))
+        movement.tap()
         let swam = app.buttons["happening_choice_event_swam"]
         XCTAssertTrue(swam.waitForExistence(timeout: 5))
         XCTAssertEqual(personal.label, "Personal")
@@ -361,8 +364,11 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["happening_palette_count_hub"].exists)
         personal.tap()
         XCTAssertEqual(swam.value as? String, "On Canvas")
-        XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].exists)
-        XCTAssertTrue(app.buttons["happening_choice_event_root_chilled"].exists)
+        app.buttons["happening_category_back"].tap()
+        let categories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_personal_category_'"))
+        XCTAssertEqual(categories.count, 6)
+        XCTAssertTrue(movement.exists)
+        XCTAssertTrue(app.buttons["happening_choice_personal_category_work"].exists)
     }
 
     func testFullScreenHidesChromeAndDoesNotStartEditing() {
@@ -577,10 +583,20 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
             app.buttons["canvas_palette_close_button"].tap()
             app.buttons["canvas_add_button"].tap()
         }
+        enterWorkCategoryIfNeeded(app)
+    }
+
+    private func enterWorkCategoryIfNeeded(_ app: XCUIApplication) {
+        let work = app.buttons["happening_choice_personal_category_work"]
+        if work.waitForExistence(timeout: 2) {
+            work.tap()
+            XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].waitForExistence(timeout: 5))
+        }
     }
 
     private func chooseRealHappening(_ app: XCUIApplication) {
-        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
+        enterWorkCategoryIfNeeded(app)
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_event_"))
         XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5))
         let usableField = CGRect(x: 0, y: 220, width: app.frame.width, height: app.frame.height - 320)
         let visible = choices.allElementsBoundByIndex.filter {
@@ -672,6 +688,24 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertEqual(prompt.frame.height, promptFrame.height, accuracy: 1)
         XCTAssertFalse(app.buttons["canvas_tour.momentNext"].exists, "Scrolling cannot fulfill a real event choice")
         capture(app, "personalization-native-all-scrolled-persistent-coach")
+        let count = app.descendants(matching: .any)["happening_palette_count_hub"]
+        let beforeBrowsing = count.label
+        app.buttons["happening_mode_frequent"].tap()
+        let workCategory = app.buttons["happening_choice_personal_category_work"]
+        XCTAssertTrue(workCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(prompt.exists)
+        workCategory.tap()
+        let categoryBack = app.buttons["happening_category_back"]
+        XCTAssertTrue(categoryBack.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(categoryBack.frame.minY, coach.frame.maxY,
+                                    "Category navigation must leave the first-choice coach clear")
+        XCTAssertEqual(count.label, beforeBrowsing, "Opening a category cannot log a tour choice")
+        XCTAssertFalse(app.buttons["canvas_tour.momentNext"].exists)
+        capture(app, "personalization-native-personal-category")
+        categoryBack.tap()
+        XCTAssertTrue(workCategory.waitForExistence(timeout: 5))
+        app.buttons["happening_mode_all"].tap()
+        XCTAssertTrue(prompt.exists)
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))
         let usableField = CGRect(x: 0, y: 220, width: app.frame.width, height: app.frame.height - 320)
         guard let choice = choices.allElementsBoundByIndex.first(where: {

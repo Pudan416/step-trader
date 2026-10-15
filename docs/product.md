@@ -109,38 +109,34 @@ the energy pill's pull gesture as well as the drawer's 44pt handle target.
 Committed preferences survive cancellation until replacement answers are completed.
 Recorded days and legacy onboarding completion are retained.
 
-Subsequent uses of the Canvas add control open **Personal**: six complete events surround the current
-day's added-event count, such as **3 / 10**, in the Nowhere font. A small **Today**
-label sits above the count in both Personal and All. The count updates
-after additions and removals. The six positions represent Work & study, Leisure & play
-(including feelings), Home & everyday, Body & wellbeing, Getting around, and People
-& connection. Each position shows that sphere's most familiar event; the cold-start
-leaders are Worked, Chilled, Stayed home, Went for a walk, Walked to work and Saw a
-friend. At the intersections, the event fits both neighboring roots: Took a break
-connects Worked and Chilled, Took a nap connects Chilled and Stayed home, and Cooked
-connects Stayed home and Body & wellbeing. These are associations; revealing a meal
-does not log its neighbors or earlier meals. Adding an event reveals up to three
-adjacent whole events. Expansion history is retained for the day. **All** reveals
-the same complete map around the same count; it retains the six roots and every
-option's position. Switching modes preserves the open field and the day's additions.
-Direct All additions are also visible along their path when returning to Personal.
-Removing the last Canvas happening clears the day's expansion history and returns
-the field to Personal with only the six roots. This cleared empty state survives
-closing and reopening the field; sphere leaders and Health recommendations resume
-after a new happening is added. All remains available with the complete catalog.
+Subsequent uses of the Canvas add control open **Personal** with six category
+circles: **Work & Study**, **Rest & Sleep**, **Food & Drink**, **Movement**,
+**People**, and **Home & Everyday**. The shared native field and DayObjects renderer
+surround the current day's added-event count, such as **3 / 10**, with a small
+**Today** label above it. A category tap only opens its concrete events; it never
+records a happening, changes usage counters or creates colors. Rest & Sleep
+includes Slept, and Food & Drink includes Had coffee. Events can appear in more
+than one category; every one of the 106 canonical choices is reachable.
 
-Personal chooses one leading event per sphere, so repeated activities cannot take
-over the six positions. It ranks frequency with a 21-day recency half-life and
-requires two distinct use days before replacing a cold-start leader. Repeated
-additions on one custom day do not increase the usage counter. Restored snapshots
-canonicalize old IDs and count each event once per day; their count is combined
-with local counters by the maximum, avoiding double-counting overlapping history.
-Recommendations do not exclude uncomfortable events such as Raged or Got drunk.
+Each category puts familiar events nearest Today, using frequency with a 21-day
+recency half-life. Restored snapshots canonicalize aliases and count each event
+once per day, combined with local counters by their maximum. Recorded usage
+ranks before survey preferences; unused choices retain a deterministic useful
+order. Category order and cells stay fixed during additions, deletion previews,
+removals and Personal/All switches. Entering a category again recalculates its
+order. Back returns to the six categories, and reopening Personal starts there.
+During the first All introduction, switching to Personal opens the same categories
+while retaining the first-choice coach. Category navigation sits below that coach;
+only an explicit real event tap completes this step.
 
-Pending Health workout hints and today's additions are also visible along their
-sphere's path. Shared intersections remain anchored. The map is recomputed on
-opening and after a successful addition, then stays fixed through taps and
-Personal/All switches. The radial field remains pannable.
+**All** retains the complete 106-event atlas and the first onboarding reveal.
+Its actors and the category browser share the authoritative full catalog assignment
+snapshot, including frozen actors for today's saved UUIDs. Navigation IDs are
+presentation only and never enter Canvas, stores, Health links or use counts.
+Actual event taps retain the existing atomic addition/removal path and ten-addition
+limit. Removing the final event returns Personal to its six category circles.
+The native radial field remains pannable; changing between categories and All
+resets field focus without morphing unrelated event indices.
 
 Health walking, running, swimming, dance, flexibility, yoga and cycling resolve
 to Went for a walk, Went for a run, Swam, Danced, Stretched, Did yoga and Went
@@ -161,6 +157,12 @@ control. After a successful addition or removal, the close control becomes a
 checkmark until the picker closes. Closing it restores the clear Canvas.
 In both modes,
 one tap adds an available event, while an added event requires two taps to remove.
+The full visible Delete capsule confirms that same event, including its edges;
+its hit region follows the capsule and rises above neighboring hit targets with
+the preview figure. Panning is retained through field layout updates. Automatic
+focus applies after a layout transition without a second scroll animation, and
+waits while a removal preview is armed. The initial All reveal focuses its fixed
+Today hub immediately so it does not jump when the reveal finishes.
 New tree nodes and mode changes animate the figures, labels and hit targets together.
 Reduce Motion uses the settled layout without spatial animation.
 

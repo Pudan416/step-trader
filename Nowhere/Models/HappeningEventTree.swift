@@ -425,7 +425,122 @@ struct HappeningEventTreeState: Equatable {
 
 /// Familiar events are recommended without replacing the six starting roots.
 /// Count is one successful-use day; recency decay lets a changed routine emerge.
+/// Navigation choices only: these IDs never enter the event catalog or stores.
+enum PersonalHappeningCategory: String, CaseIterable, Identifiable {
+    case work, rest, food, movement, people, home
+
+    var id: String { "personal_category_" + rawValue }
+    var title: String {
+        switch self {
+        case .work: "Work & Study"
+        case .rest: "Rest & Sleep"
+        case .food: "Food & Drink"
+        case .movement: "Movement"
+        case .people: "People"
+        case .home: "Home & Everyday"
+        }
+    }
+    var representativeID: String {
+        switch self {
+        case .work: "event_root_worked"
+        case .rest: "event_slept"
+        case .food: "event_coffee"
+        case .movement: "event_walk"
+        case .people: "event_friend"
+        case .home: "event_root_home"
+        }
+    }
+    var choice: Happening { Happening(id: id, title: title, isBuiltIn: false) }
+    static func category(forChoiceID id: String) -> Self? { allCases.first { $0.id == id } }
+
+    /// Derive membership from the authoritative tree, with intentional overlap
+    /// for events such as cooking, walking to work and visiting a café.
+    var eventIDs: [String] {
+        func leaves(_ sphereID: String, branch: String? = nil) -> [String] {
+            guard let sphere = HappeningEventTree.spheres.first(where: { $0.id == sphereID }) else { return [] }
+            let nodes = branch.map { id in sphere.children.filter { $0.id == id } } ?? sphere.children
+            return nodes.flatMap(HappeningEventTree.leaves).map(\.id)
+        }
+        let ids: [String]
+        switch self {
+        case .work: ids = ["root_worked"] + leaves("work")
+        case .rest: ids = ["slept", "nap", "bed", "break", "root_chilled", "stayedlate"] + leaves("play") + leaves("feelings")
+        case .food: ids = ["coffee", "meal_breakfast", "meal_lunch", "meal_dinner", "tea", "cooked", "cafe", "bar"] + leaves("body", branch: "food").filter { $0 != "smoked" }
+        case .movement: ids = leaves("body", branch: "move") + ["walked", "bike", "nature", "danced"]
+        case .people: ids = ["friend"] + leaves("people") + ["guests", "withkid"]
+        case .home: ids = ["root_home"] + leaves("home") + leaves("travel") + ["shower", "smoked", "errands"]
+        }
+        var seen = Set<String>()
+        return ids.filter { HappeningEventTree.event($0) != nil && seen.insert($0).inserted }.map { "event_" + $0 }
+    }
+}
+
+/// An opening freezes ranked choices. Canvas mutations refresh actors/selection,
+/// never the order or the native cells under the user's finger.
+struct PersonalHappeningBrowser: Equatable {
+    private(set) var category: PersonalHappeningCategory?
+    private(set) var eventIDs: [String] = []
+
+    mutating func open(_ category: PersonalHappeningCategory, catalog: [Happening],
+                       historyByDay: [String: [String]], todayIDs: [String], dayKey: String,
+                       at date: Date, surveyScores: [String: Double] = [:]) {
+        self.category = category
+        eventIDs = PersonalHappeningRecommendations.rankedCategoryIDs(category, catalog: catalog,
+            historyByDay: historyByDay, todayIDs: todayIDs, dayKey: dayKey, at: date, surveyScores: surveyScores)
+    }
+    mutating func showCategories() { category = nil; eventIDs = [] }
+
+    var choices: [Happening] {
+        guard category != nil else { return PersonalHappeningCategory.allCases.map(\.choice) }
+        let catalog = Dictionary(uniqueKeysWithValues: HappeningDefaults.builtIns.map { ($0.id, $0) })
+        return eventIDs.compactMap { catalog[$0] }
+    }
+    var placedChoices: [HappeningEventTreeState.PlacedEvent] {
+        zip(choices, HappeningEventTreeState.allNodes).map { choice, slot in
+            .init(event: .init(choice.id, choice.title), cell: slot.cell, parentID: nil)
+        }
+    }
+}
+
 enum PersonalHappeningRecommendations {
+    static func rankedCategoryIDs(_ category: PersonalHappeningCategory, catalog: [Happening],
+                                  historyByDay: [String: [String]], todayIDs: [String], dayKey: String,
+                                  at date: Date, surveyScores: [String: Double] = [:]) -> [String] {
+        var usedDays: [String: Set<String>] = [:]
+        var lastSeen: [String: Date] = [:]
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        for (day, ids) in historyByDay {
+            guard let seen = formatter.date(from: day), formatter.string(from: seen) == day, seen <= date else { continue }
+            for id in Set(ids.map(HappeningDefaults.canonicalID)) where HappeningDefaults.builtInIds.contains(id) {
+                usedDays[id, default: []].insert(day)
+                lastSeen[id] = max(lastSeen[id] ?? .distantPast, seen)
+            }
+        }
+        for id in Set(todayIDs.map(HappeningDefaults.canonicalID)) where HappeningDefaults.builtInIds.contains(id) {
+            usedDays[id, default: []].insert(dayKey)
+            lastSeen[id] = max(lastSeen[id] ?? .distantPast, date)
+        }
+        let byID = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let defaults = category.eventIDs
+        let scores = defaults.enumerated().map { index, id -> (id: String, frequency: Double, recency: Date, seed: Double, index: Int) in
+            let count = max(byID[id]?.useCount ?? 0, usedDays[id]?.count ?? 0)
+            let recent = [byID[id]?.lastUsedAt, lastSeen[id]].compactMap { $0 }.max() ?? .distantPast
+            let age = max(0, date.timeIntervalSince(recent) / 86_400)
+            let frequency = log1p(Double(count)) * pow(0.5, age / 21)
+            return (id, frequency, recent, surveyScores[id, default: 0], index)
+        }
+        return scores.sorted {
+            if $0.frequency != $1.frequency { return $0.frequency > $1.frequency }
+            if $0.frequency > 0, $0.recency != $1.recency { return $0.recency > $1.recency }
+            if $0.seed != $1.seed { return $0.seed > $1.seed }
+            return $0.index < $1.index
+        }.map(\.id)
+    }
+
     /// One most familiar happening per sphere. A sphere needs two distinct
     /// logging days before a learned choice can replace its cold-start leader.
     static func sphereLeaders(catalog: [Happening], historyByDay: [String: [String]] = [:],

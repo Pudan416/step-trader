@@ -51,14 +51,16 @@ Test names live in `NowhereTests/` unless stated otherwise.
   addition or explicit tap on an already recorded happening, followed by palette
   dismissal, advances to Health, Feeds and Me. Recorded event taps acknowledge
   the durable entry without a mutation, including at the ten-addition limit.
-- `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
-  it does not mutate the catalog. `GalleryView` combines familiar, Health and added
-  IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared
-  Personal/All map for that opening, with six roots and shared intersections fixed.
-  Later additions reveal their canonical paths without moving the open map.
-  Successful removal of the final Canvas element resets the field and its saved
-  expansion IDs. A local cleared-day marker suppresses recommendation prereveals
-  while that Canvas remains empty; normal recommendations resume on addition.
+- `PersonalHappeningCategory` owns six presentation-only navigation IDs and
+  overlapping membership covering all 106 canonical events. `PersonalHappeningBrowser`
+  freezes ranked IDs on category entry and reuses native atlas cells. `GalleryView`
+  intercepts category taps before mutation and maps their visual assignments from
+  canonical representatives without replacing the full assignment snapshot.
+  Category browsing never writes Canvas, counters or Health links. All and survey
+  introduction retain `HappeningEventTreeState.atlasNodes`; the existing sphere
+  ranking prepares that complete atlas. Browser field identities reset transitions
+  and focus between category home, details and All. Final removal returns Personal
+  to category home; saved element IDs and frozen actors retain their identities.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
   must not rebuild all catalog candidates. `DayObjectPaletteSet.make` shares a bounded

@@ -535,3 +535,85 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
         XCTAssertEqual(HappeningPaletteMode.frequent.rawValue, "frequent")
     }
 }
+
+final class PersonalHappeningCategoryBrowserTests: XCTestCase {
+    private let now = ISO8601DateFormatter().date(from: "2026-10-15T12:00:00Z")!
+
+    func testSixNavigationChoicesCoverTheCompleteRealCatalog() {
+        let categories = PersonalHappeningCategory.allCases
+        XCTAssertEqual(categories.map(\.title), ["Work & Study", "Rest & Sleep", "Food & Drink", "Movement", "People", "Home & Everyday"])
+        XCTAssertTrue(Set(categories.map(\.id)).isDisjoint(with: HappeningDefaults.builtInIds))
+        XCTAssertEqual(Set(categories.flatMap(\.eventIDs)), HappeningDefaults.builtInIds)
+        for category in categories {
+            XCTAssertEqual(category.eventIDs.count, Set(category.eventIDs).count)
+            XCTAssertTrue(category.eventIDs.contains(category.representativeID))
+            XCTAssertNil(HappeningEventTree.eventID(forHappeningID: category.id))
+        }
+        XCTAssertTrue(PersonalHappeningCategory.rest.eventIDs.contains("event_slept"))
+        XCTAssertTrue(PersonalHappeningCategory.food.eventIDs.contains("event_coffee"))
+        XCTAssertTrue(PersonalHappeningCategory.work.eventIDs.contains("event_root_worked"))
+    }
+
+    func testOpeningAndReturningFromCategoriesDoesNotWriteHistoryOrUsage() throws {
+        let suite = "PersonalCategoryBrowserTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = HappeningStore(defaults: defaults)
+        store.load()
+        store.recordUse(id: "event_coffee", at: now)
+        let savedCatalog = defaults.data(forKey: SharedKeys.happeningCatalog)
+        let before = store.all
+        var browser = PersonalHappeningBrowser()
+        XCTAssertEqual(browser.choices.count, 6)
+        for choice in browser.choices {
+            let category = try XCTUnwrap(PersonalHappeningCategory.category(forChoiceID: choice.id))
+            browser.open(category, catalog: store.selectable, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
+            XCTAssertTrue(browser.choices.allSatisfy { HappeningDefaults.builtInIds.contains($0.id) })
+            browser.showCategories()
+        }
+        XCTAssertEqual(store.all, before)
+        XCTAssertEqual(defaults.data(forKey: SharedKeys.happeningCatalog), savedCatalog)
+        XCTAssertEqual(browser.choices.map(\.id), PersonalHappeningCategory.allCases.map(\.id))
+    }
+
+    func testFamiliarEventsRankAheadOfSurveyAndColdStartWithoutDoubleCountingHistory() {
+        var catalog = HappeningDefaults.builtIns
+        let teaIndex = catalog.firstIndex { $0.id == "event_tea" }!
+        catalog[teaIndex].useCount = 3
+        catalog[teaIndex].lastUsedAt = now
+        let history = ["2026-10-13": ["event_coffee", "event_coffee"], "2026-10-14": ["event_coffee"]]
+        let ranked = PersonalHappeningRecommendations.rankedCategoryIDs(.food, catalog: catalog,
+            historyByDay: history, todayIDs: [], dayKey: "2026-10-15", at: now,
+            surveyScores: ["event_meal_breakfast": 100])
+        XCTAssertEqual(Array(ranked.prefix(3)), ["event_tea", "event_coffee", "event_meal_breakfast"])
+        XCTAssertEqual(Set(ranked), Set(PersonalHappeningCategory.food.eventIDs))
+    }
+
+    func testOpenCategoryFreezesOrderAndNativeCellsUntilNextEntry() {
+        var catalog = HappeningDefaults.builtIns
+        var browser = PersonalHappeningBrowser()
+        browser.open(.food, catalog: catalog, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
+        let opening = browser.placedChoices
+        XCTAssertEqual(browser.eventIDs.first, "event_coffee")
+        XCTAssertEqual(Array(opening.prefix(6)).map(\.cell), HappeningEventTreeState.Cell.directions)
+        let dinner = catalog.firstIndex { $0.id == "event_meal_dinner" }!
+        catalog[dinner].useCount = 5
+        catalog[dinner].lastUsedAt = now
+        XCTAssertEqual(browser.placedChoices, opening, "Changing usage outside the browser cannot move an open category")
+        browser.open(.food, catalog: catalog, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
+        XCTAssertEqual(browser.eventIDs.first, "event_meal_dinner")
+        XCTAssertEqual(browser.placedChoices.map(\.cell), opening.map(\.cell))
+        XCTAssertEqual(Set(browser.placedChoices.map(\.cell)).count, browser.choices.count)
+    }
+
+    func testBrowsingDoesNotChangeTheAllAtlasOrSurveyCatalog() {
+        let atlas = HappeningEventTreeState().atlasNodes
+        var browser = PersonalHappeningBrowser()
+        browser.open(.rest, catalog: HappeningDefaults.builtIns, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
+        browser.showCategories()
+        XCTAssertEqual(HappeningEventTreeState().atlasNodes, atlas)
+        XCTAssertEqual(atlas.count, 106)
+        XCTAssertEqual(HappeningDefaults.builtIns.count, 106)
+        XCTAssertEqual(Set(atlas.map { "event_" + $0.id }), HappeningDefaults.builtInIds)
+    }
+}

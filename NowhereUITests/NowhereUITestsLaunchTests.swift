@@ -1109,78 +1109,158 @@ final class NowhereUITestsLaunchTests: XCTestCase {
     func testEventTreeSixRootsExpansionRemovalAndReopening() throws {
         let app = launchTask7App()
         app.buttons["Add happening"].tap()
-        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
-        XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].waitForExistence(timeout: 5))
-        XCTAssertEqual(choices.count, 6)
+        let categories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_personal_category_'"))
+        let work = app.buttons["happening_choice_personal_category_work"]
+        XCTAssertTrue(work.waitForExistence(timeout: 5))
+        XCTAssertEqual(categories.count, 6)
         let count = app.descendants(matching: .any)["happening_palette_count_hub"]
         XCTAssertTrue(count.exists)
         XCTAssertTrue(app.buttons["happening_mode_switch"].exists)
-        for choice in choices.allElementsBoundByIndex {
-            XCTAssertTrue(choice.isHittable)
-            XCTAssertFalse(choice.frame.intersects(count.frame))
+        for category in categories.allElementsBoundByIndex {
+            XCTAssertTrue(category.isHittable)
+            XCTAssertFalse(category.frame.intersects(count.frame))
         }
-        attachScreenshot(named: "event-tree-six-roots")
-
+        attachScreenshot(named: "personal-six-categories")
+        let beforeCategory = count.label
+        work.tap()
         let worked = app.buttons["happening_choice_event_root_worked"]
-        worked.tap()
         let email = app.buttons["happening_choice_event_email"]
-        XCTAssertTrue(email.waitForExistence(timeout: 5))
-        XCTAssertEqual(choices.count, 9)
+        XCTAssertTrue(worked.waitForExistence(timeout: 5))
+        XCTAssertTrue(email.exists)
+        XCTAssertEqual(count.label, beforeCategory)
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
+        let detailCount = choices.count
+        let emailFrame = email.frame
+        worked.tap()
         XCTAssertEqual(worked.value as? String, "On Canvas")
-        let visible = NSPredicate { _, _ in
-            app.windows.firstMatch.frame.contains(email.frame)
-        }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: nil)], timeout: 4), .completed, "Email frame: \(email.frame)")
-        XCTAssertTrue(email.isHittable)
-        attachScreenshot(named: "event-tree-first-branch")
-
+        XCTAssertEqual(choices.count, detailCount)
+        XCTAssertEqual(email.frame.midX, emailFrame.midX, accuracy: 1)
+        XCTAssertEqual(email.frame.midY, emailFrame.midY, accuracy: 1)
         email.tap()
-        XCTAssertTrue(app.buttons["happening_choice_event_made"].waitForExistence(timeout: 5))
-        XCTAssertGreaterThan(choices.count, 9)
-        attachScreenshot(named: "event-tree-second-branch")
+        XCTAssertEqual(email.value as? String, "On Canvas")
+        XCTAssertEqual(choices.count, detailCount)
+        attachScreenshot(named: "personal-work-events")
         email.tap()
         XCTAssertEqual(email.value as? String, "Previewing removal from Canvas")
         email.tap()
         XCTAssertEqual(email.value as? String, "Available")
-        let expandedCount = choices.count
+        XCTAssertEqual(worked.value as? String, "On Canvas")
+        XCTAssertEqual(choices.count, detailCount)
         app.buttons["Close"].tap()
         XCTAssertTrue(app.scrollViews["happening_field_scroll"].waitForNonExistence(timeout: 3))
         let add = app.buttons["canvas_add_button"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
-        // Wait for the rotating close/add control to finish its spring.
         Thread.sleep(forTimeInterval: 0.5)
         add.tap()
+        XCTAssertTrue(work.waitForExistence(timeout: 5))
+        XCTAssertEqual(categories.count, 6)
+        work.tap()
         XCTAssertTrue(worked.waitForExistence(timeout: 5))
-        XCTAssertEqual(choices.count, expandedCount)
+        XCTAssertEqual(choices.count, detailCount)
         XCTAssertEqual(worked.value as? String, "On Canvas")
         XCTAssertEqual(email.value as? String, "Available")
-        attachScreenshot(named: "event-tree-reopened")
+        attachScreenshot(named: "personal-work-reopened")
     }
 
-    func testEventTreeTopBranchStaysClearOfChrome() throws {
+    func testPersonalCategoryNavigationDoesNotLogAndAllKeepsCompleteCatalog() throws {
         let app = launchTask7App()
         app.buttons["Add happening"].tap()
-        let chilled = app.buttons["happening_choice_event_root_chilled"]
-        XCTAssertTrue(chilled.waitForExistence(timeout: 5))
-        chilled.tap()
-        let music = app.buttons["happening_choice_event_music"]
-        XCTAssertTrue(music.waitForExistence(timeout: 5))
-        let musicVisible = NSPredicate { _, _ in app.windows.firstMatch.frame.contains(music.frame) }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: musicVisible, object: nil)], timeout: 4), .completed)
-        music.tap()
-        let videos = app.buttons["happening_choice_event_videos"]
-        XCTAssertTrue(videos.waitForExistence(timeout: 5))
+        let rest = app.buttons["happening_choice_personal_category_rest"]
+        XCTAssertTrue(rest.waitForExistence(timeout: 5))
+        let categoryChoices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_personal_category_'"))
+        XCTAssertEqual(categoryChoices.count, 6)
+        let count = app.descendants(matching: .any)["happening_palette_count_hub"]
+        let before = count.label
+        attachScreenshot(named: "personal-six-categories")
+        rest.tap()
+        XCTAssertTrue(app.buttons["happening_choice_event_slept"].waitForExistence(timeout: 5))
+        XCTAssertEqual(count.label, before)
+        app.buttons["happening_category_back"].tap()
+        let food = app.buttons["happening_choice_personal_category_food"]
+        XCTAssertTrue(food.waitForExistence(timeout: 5))
+        food.tap()
+        XCTAssertTrue(app.buttons["happening_choice_event_coffee"].waitForExistence(timeout: 5))
+        XCTAssertEqual(count.label, before)
+        attachScreenshot(named: "personal-food-and-drink")
+        app.buttons["happening_mode_all"].tap()
+        let allChoices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
+        let complete = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in allChoices.count == 106 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [complete], timeout: 5), .completed)
+        XCTAssertEqual(count.label, before)
+        app.buttons["happening_mode_frequent"].tap()
+        XCTAssertTrue(app.buttons["happening_choice_event_coffee"].waitForExistence(timeout: 5))
+        app.buttons["happening_category_back"].tap()
+        XCTAssertEqual(categoryChoices.count, 6)
+        XCTAssertEqual(count.label, before)
+    }
+
+    func testPersonalDeleteCapsuleRemovesOnlyItsOriginalEvent() throws {
+        let app = launchTask7App()
+        app.buttons["Add happening"].tap()
+        let workCategory = app.buttons["happening_choice_personal_category_work"]
+        XCTAssertTrue(workCategory.waitForExistence(timeout: 5))
+        workCategory.tap()
+        let worked = app.buttons["happening_choice_event_root_worked"]
+        XCTAssertTrue(worked.waitForExistence(timeout: 5))
+        worked.tap()
+        let email = app.buttons["happening_choice_event_email"]
+        XCTAssertTrue(email.waitForExistence(timeout: 5))
+        email.tap()
+        let made = app.buttons["happening_choice_event_made"]
+        XCTAssertTrue(made.waitForExistence(timeout: 5))
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
+        let count = app.descendants(matching: .any)["happening_palette_count_hub"]
+        let beforeCount = count.label
+        let originalFrame = email.frame
+        let beforeNeighbors = Dictionary(uniqueKeysWithValues: choices.allElementsBoundByIndex
+            .filter { $0.identifier != email.identifier }
+            .map { ($0.identifier, $0.value as? String) })
+        email.tap()
+        XCTAssertEqual(email.value as? String, "Previewing removal from Canvas")
+        XCTAssertEqual(count.label, beforeCount, "The first tap only previews removal")
+        // A scroll animation used to start after layout hit testing resumed.
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            abs(email.frame.midX - originalFrame.midX) > 1
+                || abs(email.frame.midY - originalFrame.midY) > 1
+        }, object: nil)
+        moved.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 0.6), .completed)
+        XCTAssertTrue(email.staticTexts["Delete"].exists)
+        attachScreenshot(named: "personal-delete-confirmation")
+        // This visible lower-right capsule area lies outside the original
+        // figure-only superellipse. It must confirm this same event.
+        let actionOffset = min(email.frame.width * 0.31, 38)
+        email.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: 44, dy: actionOffset + 14.96)).tap()
+        XCTAssertEqual(email.value as? String, "Available")
+        XCTAssertEqual(worked.value as? String, "On Canvas")
+        for (identifier, value) in beforeNeighbors {
+            XCTAssertEqual(app.buttons[identifier].value as? String, value,
+                           "Delete changed the neighboring event \(identifier)")
+        }
+        XCTAssertEqual(choices.count, beforeNeighbors.count + 1)
+        XCTAssertTrue(count.label.contains("1 of 10"))
+    }
+
+    func testCategoryTopChoicesStayClearOfChrome() throws {
+        let app = launchTask7App()
+        app.buttons["Add happening"].tap()
+        let rest = app.buttons["happening_choice_personal_category_rest"]
+        XCTAssertTrue(rest.waitForExistence(timeout: 5))
+        rest.tap()
+        let nap = app.buttons["happening_choice_event_nap"]
+        XCTAssertTrue(nap.waitForExistence(timeout: 5))
+        let back = app.buttons["happening_category_back"]
         let branchVisible = NSPredicate { _, _ in
-            ["videos", "movie", "doomscroll"].allSatisfy { id in
-                let button = app.buttons["happening_choice_event_" + id]
-                return app.windows.firstMatch.frame.contains(button.frame)
-                    && button.frame.minY > app.otherElements["canvas_energy_pill"].frame.maxY + 12
-                    && button.frame.maxY < app.buttons["canvas_palette_close_button"].frame.minY - 24
-            }
+            app.windows.firstMatch.frame.contains(nap.frame)
+                && nap.frame.minY > back.frame.maxY + 8
+                && nap.frame.maxY < app.buttons["canvas_palette_close_button"].frame.minY - 24
         }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: branchVisible, object: nil)], timeout: 4), .completed)
-        XCTAssertTrue(videos.isHittable)
-        attachScreenshot(named: "event-tree-top-branch")
+        XCTAssertTrue(nap.isHittable)
+        nap.tap()
+        XCTAssertEqual(nap.value as? String, "On Canvas")
+        attachScreenshot(named: "personal-top-choice-clears-header")
     }
 
     private func launchTask7App(
