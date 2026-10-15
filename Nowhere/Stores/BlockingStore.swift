@@ -27,6 +27,7 @@ final class BlockingStore: ObservableObject {
     private var persistAndRebuildTask: Task<Void, Never>?
     private var saveAppSelectionTask: Task<Void, Never>?
     private var lastSavedAppSelection: FamilyActivitySelection?
+    private var cancellables = Set<AnyCancellable>()
     
     // Constants
     private let ticketGroupsKey = "ticketGroups_v1"
@@ -34,6 +35,12 @@ final class BlockingStore: ObservableObject {
     
     init(familyControlsService: any FamilyControlsServiceProtocol) {
         self.familyControlsService = familyControlsService
+
+        if let observableService = familyControlsService as? FamilyControlsService {
+            observableService.objectWillChange
+                .sink { [weak self] _ in self?.objectWillChange.send() }
+                .store(in: &cancellables)
+        }
     }
     
     // MARK: - Authorization
@@ -48,6 +55,10 @@ final class BlockingStore: ObservableObject {
             ErrorManager.shared.handle(AppError.familyControlsAuthorizationFailed(error))
             throw error
         }
+    }
+
+    func refreshAuthorizationStatus() {
+        familyControlsService.refreshAuthorizationStatus()
     }
     
     // MARK: - App Selection Logic

@@ -3,6 +3,7 @@ import UserNotifications
 
 enum SettingsPermissionStatus: Equatable {
     case connected
+    case noData
     case checkAccess
     case unavailable
     case allowed
@@ -14,6 +15,8 @@ enum SettingsPermissionStatus: Equatable {
         switch self {
         case .connected:
             String(localized: "Connected", comment: "Permission status")
+        case .noData:
+            String(localized: "No data yet", comment: "Health permission status when no Health samples are visible")
         case .checkAccess:
             String(localized: "Check access", comment: "Permission status")
         case .unavailable:
@@ -93,7 +96,7 @@ struct SettingsPermissionPresentation: Equatable {
         }
         return hasVisibleData
             ? .init(status: .connected, action: .showHealthGuide, contributesToWarning: false)
-            : .init(status: .checkAccess, action: .checkAccess, contributesToWarning: false)
+            : .init(status: .noData, action: .showHealthGuide, contributesToWarning: false)
     }
 
     static func remindersEnabled(in defaults: UserDefaults) -> Bool {
