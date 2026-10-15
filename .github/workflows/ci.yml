@@ -49,12 +49,35 @@ jobs:
       - name: Verify Screen Time callback contract
         run: python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 
+      - name: Verify host audio output
+        # Simulator RemoteIO depends on the runner's virtual CoreAudio device.
+        # Record and exercise it before launching tests; fail if it cannot play.
+        timeout-minutes: 2
+        run: |
+          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio.json"
+          python3 - <<'PY'
+          import os, pathlib, subprocess, wave
+          audio = pathlib.Path(os.environ["RUNNER_TEMP"]) / "audio-device-check.wav"
+          with wave.open(str(audio), "wb") as output:
+              output.setnchannels(2)
+              output.setsampwidth(2)
+              output.setframerate(44100)
+              output.writeframes(bytes(4410 * 4))
+          subprocess.run(["afplay", str(audio)], check=True, timeout=30)
+          print("Host audio playback completed")
+          PY
+
       - name: Verify live remix stress in a fresh test host
         timeout-minutes: 25
         # Fail early on the live-audio lifecycle regression before the long
         # analysis matrices. The full suite below still includes this class.
         run: |
           set -o pipefail
+          python3 Scripts/capture_test_stalls.py "$RUNNER_TEMP/LiveRemixPreflight.log" "$RUNNER_TEMP/test-stacks" \
+            --capture-marker '[RemixStress] constructing production runtime' \
+            --process-name coreaudiod --process-name Nowhere --sudo &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" 2>/dev/null || true' EXIT
           xcodebuild test \
             -project Nowhere.xcodeproj \
             -scheme Nowhere \
@@ -103,6 +126,7 @@ jobs:
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks
+            ${{ runner.temp }}/host-audio.json
             ~/Library/Logs/DiagnosticReports
           retention-days: 7
           if-no-files-found: warn
