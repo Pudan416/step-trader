@@ -5,115 +5,144 @@ import XCTest
 
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
-    func testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts() async throws {
+    func testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts() throws {
         try requireLiveAudioOutput()
+        // Keep XCTest's entrypoint synchronous. Its async error-observation
+        // adapter can abort in swift_task_dealloc after this live-audio stress
+        // workload; an explicit task owns both the work and its async cleanup.
+        let finished = expectation(description: "100 live remixes and cleanup completed")
+        let cleanedUp = XCTestExpectation(description: "Live remix task released its audio graph")
+        var outcome: Result<Void, Error>?
+        let workload = Task { @MainActor in
+            do {
+                try await runOneHundredProductionRemixes()
+                outcome = .success(())
+            } catch {
+                outcome = .failure(error)
+            }
+            cleanedUp.fulfill()
+            finished.fulfill()
+        }
+        defer { workload.cancel() }
+        let waitResult = XCTWaiter.wait(for: [finished], timeout: 900)
+        if waitResult != .completed {
+            workload.cancel()
+            wait(for: [cleanedUp], timeout: 30)
+            XCTFail("The live remix workload exceeded its time allowance")
+        }
+        try XCTUnwrap(outcome, "The live remix workload did not complete").get()
+    }
+
+    private func runOneHundredProductionRemixes() async throws {
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
-        var plan = productionCyclePlan(seed: 10_000)
-        try runtime.prepare(plan: plan)
-        try runtime.startAudio()
-        // A failed restart or readiness timeout must not leave a live graph
-        // running into the next test in the shared XCTest host process.
-        addTeardownBlock { @MainActor in
+        do {
+            var plan = productionCyclePlan(seed: 10_000)
+            try runtime.prepare(plan: plan)
+            try runtime.startAudio()
+            try runtime.startPreparedWorldForTesting()
+            try runtime.fadeMaster(to: plan)
+
+            let baselineTopology = runtime.engineTopologyForTesting
+            let baselineAllocation = runtime.allocationSnapshotForTesting
+            XCTAssertFalse(baselineTopology.avAudioEngineAttachedNodeIdentities.isEmpty)
+            XCTAssertFalse(baselineTopology.avAudioEngineConnections.isEmpty)
+            XCTAssertEqual(baselineTopology.meterTapNodeIdentities.count, 7)
+            XCTAssertEqual(baselineTopology.meterTapInstallationCount, 1)
+
+            for cycle in 1...100 {
+                try Task.checkCancellation()
+                let start = Int64(cycle * 48 - 32)
+                plan = productionCyclePlan(seed: UInt64(10_000 + cycle))
+                runtime.scheduleStructuralPlan(plan)
+                runtime.renderForTesting(productionEvent(position: start))
+                XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: plan.seed), "cycle \(cycle)")
+                runtime.renderForTesting(productionEvent(position: start + 32))
+
+                if cycle.isMultiple(of: 10) {
+                    let topology = runtime.engineTopologyForTesting
+                    XCTAssertEqual(topology.avAudioEngineAttachedNodeIdentities, baselineTopology.avAudioEngineAttachedNodeIdentities, "cycle \(cycle)")
+                    XCTAssertEqual(topology.avAudioEngineConnections, baselineTopology.avAudioEngineConnections, "cycle \(cycle)")
+                    XCTAssertEqual(topology.meterTapNodeIdentities, baselineTopology.meterTapNodeIdentities, "cycle \(cycle)")
+                    XCTAssertEqual(topology.meterTapInstallationCount, 1, "cycle \(cycle)")
+                    XCTAssertEqual(runtime.allocationSnapshotForTesting, baselineAllocation, "cycle \(cycle)")
+                }
+
+                if cycle.isMultiple(of: 20) {
+                    print("[RemixStress] completed cycle \(cycle); restarting live engine")
+                    await runtime.stopAudio()
+                    try Task.checkCancellation()
+                    try runtime.prepare(plan: plan)
+                    try runtime.startAudio()
+                    try runtime.startPreparedWorldForTesting()
+                    try runtime.fadeMaster(to: plan)
+                }
+            }
+
+            XCTAssertEqual(runtime.worldRecycleCountsForTesting, [50, 50])
+            XCTAssertEqual(runtime.allocationSnapshotForTesting, baselineAllocation)
+
+            runtime.beginLead(.init(normalizedX: 0.45, normalizedY: 0.75, speed: 0))
+            for kind in [
+                DayObjectsTransportEventKind.subdivision,
+                .beat,
+                .barBoundary,
+                .harmonicCycleBoundary,
+            ] {
+                runtime.renderForTesting(.init(
+                    kind: kind,
+                    position: .init(absoluteSubdivision: 0),
+                    hostTimeSeconds: 0,
+                    tempoBPM: plan.rhythm.tempoBPM
+                ))
+            }
+            print("[RemixStress] all 100 cycles complete; collecting final live meter samples")
+            // RunLoop.run is unavailable from async contexts: nesting the run loop
+            // inside this MainActor task can reenter XCTest/concurrency work. Yield
+            // cooperatively until the actual output contract is ready. startAudio
+            // resets the meter windows; their sample counts are bounded occupancy,
+            // not monotonic counters, so do not compare them to a prior snapshot.
+            let expectedMeters: Set<String> = [
+                "rhythm", "bass", "harmony", "happenings", "lead", "preLimiter", "finalOutput",
+            ]
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: .seconds(5))
+            while true {
+                let metrics = runtime.playbackPairMetricsForTesting
+                let counts = metrics.meterTapCapturedScalarSampleCounts
+                let everyTapHasSamples = expectedMeters.allSatisfy { counts[$0, default: 0] > 0 }
+                let everyRoleIsAudible = DayObjectsRoleBus.allCases.allSatisfy {
+                    metrics.roleBusMetrics.metrics(for: $0).peakDBFS > -120
+                }
+                if everyTapHasSamples && everyRoleIsAudible && metrics.masterMetrics.peakDBFS > -120 {
+                    break
+                }
+                guard clock.now < deadline else {
+                    throw DayObjectsAudioError("Timed out waiting for audible meter samples after 100 live remixes: \(counts)")
+                }
+                try await clock.sleep(for: .milliseconds(10))
+            }
+            print("[RemixStress] final meter collection complete")
+
+            let restartedTopology = runtime.engineTopologyForTesting
+            let restartedMeters = runtime.playbackPairMetricsForTesting
+            XCTAssertEqual(restartedTopology.avAudioEngineAttachedNodeIdentities, baselineTopology.avAudioEngineAttachedNodeIdentities)
+            XCTAssertEqual(restartedTopology.avAudioEngineConnections, baselineTopology.avAudioEngineConnections)
+            XCTAssertEqual(restartedTopology.meterTapNodeIdentities, baselineTopology.meterTapNodeIdentities)
+            XCTAssertEqual(restartedTopology.meterTapInstallationCount, 1)
+            XCTAssertEqual(Set(restartedMeters.meterTapCapturedScalarSampleCounts.keys), [
+                "rhythm", "bass", "harmony", "happenings", "lead", "preLimiter", "finalOutput",
+            ])
+            XCTAssertTrue(restartedMeters.meterTapCapturedScalarSampleCounts.values.allSatisfy { $0 > 0 })
+            for role in DayObjectsRoleBus.allCases {
+                XCTAssertGreaterThan(restartedMeters.roleBusMetrics.metrics(for: role).peakDBFS, -120, "\(role)")
+            }
+            XCTAssertGreaterThan(restartedMeters.masterMetrics.peakDBFS, -120)
+
+        } catch {
             runtime.endLead()
             await runtime.stopAudio()
+            throw error
         }
-        try runtime.startPreparedWorldForTesting()
-        try runtime.fadeMaster(to: plan)
-
-        let baselineTopology = runtime.engineTopologyForTesting
-        let baselineAllocation = runtime.allocationSnapshotForTesting
-        XCTAssertFalse(baselineTopology.avAudioEngineAttachedNodeIdentities.isEmpty)
-        XCTAssertFalse(baselineTopology.avAudioEngineConnections.isEmpty)
-        XCTAssertEqual(baselineTopology.meterTapNodeIdentities.count, 7)
-        XCTAssertEqual(baselineTopology.meterTapInstallationCount, 1)
-
-        for cycle in 1...100 {
-            let start = Int64(cycle * 48 - 32)
-            plan = productionCyclePlan(seed: UInt64(10_000 + cycle))
-            runtime.scheduleStructuralPlan(plan)
-            runtime.renderForTesting(productionEvent(position: start))
-            XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: plan.seed), "cycle \(cycle)")
-            runtime.renderForTesting(productionEvent(position: start + 32))
-
-            if cycle.isMultiple(of: 10) {
-                let topology = runtime.engineTopologyForTesting
-                XCTAssertEqual(topology.avAudioEngineAttachedNodeIdentities, baselineTopology.avAudioEngineAttachedNodeIdentities, "cycle \(cycle)")
-                XCTAssertEqual(topology.avAudioEngineConnections, baselineTopology.avAudioEngineConnections, "cycle \(cycle)")
-                XCTAssertEqual(topology.meterTapNodeIdentities, baselineTopology.meterTapNodeIdentities, "cycle \(cycle)")
-                XCTAssertEqual(topology.meterTapInstallationCount, 1, "cycle \(cycle)")
-                XCTAssertEqual(runtime.allocationSnapshotForTesting, baselineAllocation, "cycle \(cycle)")
-            }
-
-            if cycle.isMultiple(of: 20) {
-                print("[RemixStress] completed cycle \(cycle); restarting live engine")
-                await runtime.stopAudio()
-                try runtime.prepare(plan: plan)
-                try runtime.startAudio()
-                try runtime.startPreparedWorldForTesting()
-                try runtime.fadeMaster(to: plan)
-            }
-        }
-
-        XCTAssertEqual(runtime.worldRecycleCountsForTesting, [50, 50])
-        XCTAssertEqual(runtime.allocationSnapshotForTesting, baselineAllocation)
-
-        runtime.beginLead(.init(normalizedX: 0.45, normalizedY: 0.75, speed: 0))
-        for kind in [
-            DayObjectsTransportEventKind.subdivision,
-            .beat,
-            .barBoundary,
-            .harmonicCycleBoundary,
-        ] {
-            runtime.renderForTesting(.init(
-                kind: kind,
-                position: .init(absoluteSubdivision: 0),
-                hostTimeSeconds: 0,
-                tempoBPM: plan.rhythm.tempoBPM
-            ))
-        }
-        print("[RemixStress] all 100 cycles complete; collecting final live meter samples")
-        // RunLoop.run is unavailable from async contexts: nesting the run loop
-        // inside this MainActor task can reenter XCTest/concurrency work. Yield
-        // cooperatively until the actual output contract is ready. startAudio
-        // resets the meter windows; their sample counts are bounded occupancy,
-        // not monotonic counters, so do not compare them to a prior snapshot.
-        let expectedMeters: Set<String> = [
-            "rhythm", "bass", "harmony", "happenings", "lead", "preLimiter", "finalOutput",
-        ]
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: .seconds(5))
-        while true {
-            let metrics = runtime.playbackPairMetricsForTesting
-            let counts = metrics.meterTapCapturedScalarSampleCounts
-            let everyTapHasSamples = expectedMeters.allSatisfy { counts[$0, default: 0] > 0 }
-            let everyRoleIsAudible = DayObjectsRoleBus.allCases.allSatisfy {
-                metrics.roleBusMetrics.metrics(for: $0).peakDBFS > -120
-            }
-            if everyTapHasSamples && everyRoleIsAudible && metrics.masterMetrics.peakDBFS > -120 {
-                break
-            }
-            guard clock.now < deadline else {
-                throw DayObjectsAudioError("Timed out waiting for audible meter samples after 100 live remixes: \(counts)")
-            }
-            try await clock.sleep(for: .milliseconds(10))
-        }
-        print("[RemixStress] final meter collection complete")
-
-        let restartedTopology = runtime.engineTopologyForTesting
-        let restartedMeters = runtime.playbackPairMetricsForTesting
-        XCTAssertEqual(restartedTopology.avAudioEngineAttachedNodeIdentities, baselineTopology.avAudioEngineAttachedNodeIdentities)
-        XCTAssertEqual(restartedTopology.avAudioEngineConnections, baselineTopology.avAudioEngineConnections)
-        XCTAssertEqual(restartedTopology.meterTapNodeIdentities, baselineTopology.meterTapNodeIdentities)
-        XCTAssertEqual(restartedTopology.meterTapInstallationCount, 1)
-        XCTAssertEqual(Set(restartedMeters.meterTapCapturedScalarSampleCounts.keys), [
-            "rhythm", "bass", "harmony", "happenings", "lead", "preLimiter", "finalOutput",
-        ])
-        XCTAssertTrue(restartedMeters.meterTapCapturedScalarSampleCounts.values.allSatisfy { $0 > 0 })
-        for role in DayObjectsRoleBus.allCases {
-            XCTAssertGreaterThan(restartedMeters.roleBusMetrics.metrics(for: role).peakDBFS, -120, "\(role)")
-        }
-        XCTAssertGreaterThan(restartedMeters.masterMetrics.peakDBFS, -120)
-
         runtime.endLead()
         await runtime.stopAudio()
         print("[RemixStress] stopped live engine")
