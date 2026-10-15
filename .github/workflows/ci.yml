@@ -49,6 +49,25 @@ jobs:
       - name: Verify Screen Time callback contract
         run: python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 
+      - name: Verify live remix stress in a fresh test host
+        timeout-minutes: 25
+        # Fail early on the live-audio lifecycle regression before the long
+        # analysis matrices. The full suite below still includes this class.
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Nowhere.xcodeproj \
+            -scheme Nowhere \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -only-testing:NowhereTests/DayObjectsRemixCoordinatorTests \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 900 \
+            -maximum-test-execution-time-allowance 900 \
+            -collect-test-diagnostics on-failure \
+            -resultBundlePath "$RUNNER_TEMP/LiveRemixPreflight.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/LiveRemixPreflight.log"
+
       - name: Run NowhereTests
         timeout-minutes: 80
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
@@ -79,6 +98,8 @@ jobs:
         with:
           name: ios-test-results
           path: |
+            ${{ runner.temp }}/LiveRemixPreflight.xcresult
+            ${{ runner.temp }}/LiveRemixPreflight.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks

@@ -6,22 +6,25 @@ import XCTest
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
     func testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts() throws {
+        logRemixStress("test entered; checking live audio output")
         try requireLiveAudioOutput()
-        // Keep XCTest's entrypoint synchronous. Its async error-observation
-        // adapter can abort in swift_task_dealloc after this live-audio stress
-        // workload; an explicit task owns both the work and its async cleanup.
+        logRemixStress("live audio preflight passed")
+        // Own the workload and its cleanup without inheriting XCTest's scoped
+        // task-local error observer across the synchronous waiter's run loop.
         let finished = expectation(description: "100 live remixes and cleanup completed")
         let cleanedUp = XCTestExpectation(description: "Live remix task released its audio graph")
         var outcome: Result<Void, Error>?
-        let workload = Task { @MainActor in
+        let workload = Task.detached { @MainActor in
+            self.logRemixStress("detached workload entered")
             do {
-                try await runOneHundredProductionRemixes()
+                try await self.runOneHundredProductionRemixes()
                 outcome = .success(())
             } catch {
                 outcome = .failure(error)
             }
             cleanedUp.fulfill()
             finished.fulfill()
+            self.logRemixStress("workload cleanup and completion delivered")
         }
         defer { workload.cancel() }
         let waitResult = XCTWaiter.wait(for: [finished], timeout: 900)
@@ -33,14 +36,22 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         try XCTUnwrap(outcome, "The live remix workload did not complete").get()
     }
 
+    private func logRemixStress(_ message: String) {
+        FileHandle.standardError.write(Data("[RemixStress] \(message)\n".utf8))
+    }
+
     private func runOneHundredProductionRemixes() async throws {
+        logRemixStress("constructing production runtime")
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
         do {
             var plan = productionCyclePlan(seed: 10_000)
+            logRemixStress("preparing initial world")
             try runtime.prepare(plan: plan)
+            logRemixStress("starting live engine")
             try runtime.startAudio()
             try runtime.startPreparedWorldForTesting()
             try runtime.fadeMaster(to: plan)
+            logRemixStress("initial world started; beginning 100 remixes")
 
             let baselineTopology = runtime.engineTopologyForTesting
             let baselineAllocation = runtime.allocationSnapshotForTesting
@@ -51,6 +62,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
 
             for cycle in 1...100 {
                 try Task.checkCancellation()
+                if cycle == 1 { logRemixStress("cycle 1 entered") }
                 let start = Int64(cycle * 48 - 32)
                 plan = productionCyclePlan(seed: UInt64(10_000 + cycle))
                 runtime.scheduleStructuralPlan(plan)
@@ -68,7 +80,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
                 }
 
                 if cycle.isMultiple(of: 20) {
-                    print("[RemixStress] completed cycle \(cycle); restarting live engine")
+                    logRemixStress("completed cycle \(cycle); restarting live engine")
                     await runtime.stopAudio()
                     try Task.checkCancellation()
                     try runtime.prepare(plan: plan)
@@ -95,7 +107,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
                     tempoBPM: plan.rhythm.tempoBPM
                 ))
             }
-            print("[RemixStress] all 100 cycles complete; collecting final live meter samples")
+            logRemixStress("all 100 cycles complete; collecting final live meter samples")
             // RunLoop.run is unavailable from async contexts: nesting the run loop
             // inside this MainActor task can reenter XCTest/concurrency work. Yield
             // cooperatively until the actual output contract is ready. startAudio
@@ -121,7 +133,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
                 }
                 try await clock.sleep(for: .milliseconds(10))
             }
-            print("[RemixStress] final meter collection complete")
+            logRemixStress("final meter collection complete")
 
             let restartedTopology = runtime.engineTopologyForTesting
             let restartedMeters = runtime.playbackPairMetricsForTesting
@@ -139,13 +151,14 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             XCTAssertGreaterThan(restartedMeters.masterMetrics.peakDBFS, -120)
 
         } catch {
+            logRemixStress("workload threw: \(error); stopping live engine")
             runtime.endLead()
             await runtime.stopAudio()
             throw error
         }
         runtime.endLead()
         await runtime.stopAudio()
-        print("[RemixStress] stopped live engine")
+        logRemixStress("stopped live engine")
     }
 
     func testCancelPendingRemixLeavesCurrentWorldRunningAndClearsOnlyQueuedPlan() throws {
