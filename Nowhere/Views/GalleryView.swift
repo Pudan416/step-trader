@@ -602,6 +602,12 @@ struct GalleryView: View {
         refreshEventTreePalette()
     }
 
+    private func personalCategoryHeaderTop(in viewport: GeometryProxy) -> CGFloat {
+        if showsHappeningIntroduction { return happeningChoiceCoachBottom(in: viewport) + 12 }
+        return canvasSafeInsets.top + HappeningPaletteChromeLayout.panelTopInset(
+            topCardHeight: topCardHeight, hidesSurroundingChrome: true)
+    }
+
     private func personalCategoryHeader(topInset: CGFloat) -> some View {
         HStack(spacing: 12) {
             if let category = personalBrowser.category {
@@ -1015,8 +1021,7 @@ struct GalleryView: View {
         if showEventExplorer {
             if showsPersonalCategories {
                 if personalBrowser.category != nil {
-                    let headerTop = showsHappeningIntroduction
-                        ? happeningChoiceCoachBottom(in: viewport) + 12 : canvasSafeInsets.top + 12
+                    let headerTop = personalCategoryHeaderTop(in: viewport)
                     contentTopInset = max(contentTopInset, headerTop + 56)
                 }
                 return HappeningEventTreeLayout.layout(nodes: personalBrowser.placedChoices,
@@ -1495,8 +1500,7 @@ struct GalleryView: View {
             }
             .overlay(alignment: .top) {
                 if showHappeningPalette && showsPersonalCategories && personalBrowser.category != nil {
-                    personalCategoryHeader(topInset: showsHappeningIntroduction
-                        ? happeningChoiceCoachBottom(in: viewport) + 12 : canvasSafeInsets.top + 12)
+                    personalCategoryHeader(topInset: personalCategoryHeaderTop(in: viewport))
                 }
             }
             .overlay(alignment: .top) {

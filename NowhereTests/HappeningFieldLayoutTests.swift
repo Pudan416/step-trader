@@ -1778,6 +1778,25 @@ final class HappeningScrollableFieldTests: XCTestCase {
 }
 
 final class HappeningPaletteRemovalTargetTests: XCTestCase {
+    func testVisibleDeleteEdgeIsInsideCapsuleAndOutsideFigure() {
+        let side: CGFloat = 112
+        let bounds = CGRect(origin: .zero, size: HappeningPickerHitShape.size(side: side, showsAction: true))
+        let actionCenter = CGPoint(x: bounds.midX,
+                                  y: bounds.midY + HappeningPickerHitShape.actionOffset(side: side))
+        // Keep a margin inside the curved capsule edge. Accessibility frame
+        // rounding can put a point only a fraction inside its curve outside it.
+        let point = CGPoint(x: actionCenter.x + 42, y: actionCenter.y + 14)
+        let action = CGRect(x: actionCenter.x - HappeningPickerHitShape.actionSize.width / 2,
+                            y: actionCenter.y - HappeningPickerHitShape.actionSize.height / 2,
+                            width: HappeningPickerHitShape.actionSize.width,
+                            height: HappeningPickerHitShape.actionSize.height)
+        let figure = CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2,
+                            width: side, height: side)
+        XCTAssertTrue(Capsule().path(in: action).contains(point))
+        XCTAssertFalse(HappeningPickerShape().path(in: figure).contains(point))
+        XCTAssertTrue(HappeningPickerHitShape(side: side, showsAction: true).path(in: bounds).contains(point))
+    }
+
     func testConfirmationCapsuleExtendsBeyondOriginalFigureHitShape() {
         // The original ~85x28 Delete capsule had visible lower corners outside
         // the r56 figure. A tap here looked like Delete but missed its button.

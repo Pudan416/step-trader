@@ -124,7 +124,8 @@ once per day, combined with local counters by their maximum. Recorded usage
 ranks before survey preferences; unused choices retain a deterministic useful
 order. Category order and cells stay fixed during additions, deletion previews,
 removals and Personal/All switches. Entering a category again recalculates its
-order. Back returns to the six categories, and reopening Personal starts there.
+order. The category title and Back control sit below the energy card. Back returns
+to the six categories, and reopening Personal starts there.
 During the first All introduction, switching to Personal opens the same categories
 while retaining the first-choice coach. Category navigation sits below that coach;
 only an explicit real event tap completes this step.

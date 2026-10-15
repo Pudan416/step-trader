@@ -1115,7 +1115,8 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertEqual(categories.count, 6)
         let count = app.descendants(matching: .any)["happening_palette_count_hub"]
         XCTAssertTrue(count.exists)
-        XCTAssertTrue(app.buttons["happening_mode_switch"].exists)
+        XCTAssertTrue(app.buttons["happening_mode_frequent"].exists)
+        XCTAssertTrue(app.buttons["happening_mode_all"].exists)
         for category in categories.allElementsBoundByIndex {
             XCTAssertTrue(category.isHittable)
             XCTAssertFalse(category.frame.intersects(count.frame))
@@ -1146,7 +1147,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertEqual(email.value as? String, "Available")
         XCTAssertEqual(worked.value as? String, "On Canvas")
         XCTAssertEqual(choices.count, detailCount)
-        app.buttons["Close"].tap()
+        app.buttons["canvas_palette_close_button"].tap()
         XCTAssertTrue(app.scrollViews["happening_field_scroll"].waitForNonExistence(timeout: 3))
         let add = app.buttons["canvas_add_button"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
@@ -1231,7 +1232,7 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         // figure-only superellipse. It must confirm this same event.
         let actionOffset = min(email.frame.width * 0.31, 38)
         email.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .withOffset(CGVector(dx: 44, dy: actionOffset + 14.96)).tap()
+            .withOffset(CGVector(dx: 42, dy: actionOffset + 14)).tap()
         XCTAssertEqual(email.value as? String, "Available")
         XCTAssertEqual(worked.value as? String, "On Canvas")
         for (identifier, value) in beforeNeighbors {
@@ -1248,19 +1249,30 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         let rest = app.buttons["happening_choice_personal_category_rest"]
         XCTAssertTrue(rest.waitForExistence(timeout: 5))
         rest.tap()
-        let nap = app.buttons["happening_choice_event_nap"]
-        XCTAssertTrue(nap.waitForExistence(timeout: 5))
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
+        XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5))
         let back = app.buttons["happening_category_back"]
-        let branchVisible = NSPredicate { _, _ in
-            app.windows.firstMatch.frame.contains(nap.frame)
-                && nap.frame.minY > back.frame.maxY + 8
-                && nap.frame.maxY < app.buttons["canvas_palette_close_button"].frame.minY - 24
+        let hub = app.descendants(matching: .any)["happening_palette_count_hub"]
+        // Usage and survey answers decide which events occupy the inner ring.
+        // Verify those actual six, rather than assuming Nap remains near Today.
+        let hubFrame = hub.frame
+        let snapshots = choices.allElementsBoundByIndex.map { (element: $0, frame: $0.frame) }
+        let topChoices = Array(snapshots.sorted {
+            hypot($0.frame.midX - hubFrame.midX, $0.frame.midY - hubFrame.midY)
+                < hypot($1.frame.midX - hubFrame.midX, $1.frame.midY - hubFrame.midY)
+        }.prefix(6).map(\.element))
+        XCTAssertEqual(topChoices.count, 6)
+        let close = app.buttons["canvas_palette_close_button"]
+        for choice in topChoices {
+            XCTAssertTrue(app.windows.firstMatch.frame.contains(choice.frame), choice.identifier)
+            XCTAssertGreaterThan(choice.frame.minY, back.frame.maxY + 8, choice.identifier)
+            XCTAssertLessThan(choice.frame.maxY, close.frame.minY - 24, choice.identifier)
+            XCTAssertTrue(choice.isHittable, choice.identifier)
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: branchVisible, object: nil)], timeout: 4), .completed)
-        XCTAssertTrue(nap.isHittable)
-        nap.tap()
-        XCTAssertEqual(nap.value as? String, "On Canvas")
-        attachScreenshot(named: "personal-top-choice-clears-header")
+        let top = try XCTUnwrap(topChoices.min { $0.frame.minY < $1.frame.minY })
+        top.tap()
+        XCTAssertEqual(top.value as? String, "On Canvas")
+        attachScreenshot(named: "personal-top-choices-clear-header")
     }
 
     private func launchTask7App(
