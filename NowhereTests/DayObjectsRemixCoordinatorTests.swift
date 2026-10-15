@@ -15,7 +15,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         defer { try? session.setActive(false, options: .notifyOthersOnDeactivation) }
         try session.setCategory(.playback, mode: .default)
         try session.setActive(true)
-        logRemixStress("audio session active; verifying output with the production graph")
+        logRemixStress("audio session active: sampleRate=\(session.sampleRate), ioBufferDuration=\(session.ioBufferDuration); verifying production output")
         try await runOneHundredProductionRemixes()
     }
 
@@ -91,7 +91,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
                 }
 
                 if cycle.isMultiple(of: 20) {
-                    logRemixStress("completed cycle \(cycle); restarting live engine")
+                    logRemixStress("completed cycle \(cycle), outputSampleTime=\(String(describing: runtime.latestOutputSampleTimeForTesting)); restarting live engine")
                     await runtime.stopAudio()
                     try Task.checkCancellation()
                     try runtime.prepare(plan: plan)

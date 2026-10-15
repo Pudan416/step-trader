@@ -55,6 +55,8 @@ jobs:
         timeout-minutes: 2
         run: |
           system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio.json"
+          swift Scripts/configure_ci_audio.swift > "$RUNNER_TEMP/host-audio-routing.json"
+          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio-after.json"
           python3 - <<'PY'
           import os, pathlib, subprocess, wave
           audio = pathlib.Path(os.environ["RUNNER_TEMP"]) / "audio-device-check.wav"
@@ -127,6 +129,8 @@ jobs:
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks
             ${{ runner.temp }}/host-audio.json
+            ${{ runner.temp }}/host-audio-routing.json
+            ${{ runner.temp }}/host-audio-after.json
             ~/Library/Logs/DiagnosticReports
           retention-days: 7
           if-no-files-found: warn
