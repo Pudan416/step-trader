@@ -49,51 +49,10 @@ jobs:
       - name: Verify Screen Time callback contract
         run: python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 
-      - name: Verify host audio output
-        # Simulator RemoteIO depends on the runner's virtual CoreAudio device.
-        # Record and exercise it before launching tests; fail if it cannot play.
-        timeout-minutes: 2
-        run: |
-          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio.json"
-          swift Scripts/configure_ci_audio.swift > "$RUNNER_TEMP/host-audio-routing.json"
-          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio-after.json"
-          python3 - <<'PY'
-          import os, pathlib, subprocess, wave
-          audio = pathlib.Path(os.environ["RUNNER_TEMP"]) / "audio-device-check.wav"
-          with wave.open(str(audio), "wb") as output:
-              output.setnchannels(2)
-              output.setsampwidth(2)
-              output.setframerate(44100)
-              output.writeframes(bytes(4410 * 4))
-          subprocess.run(["afplay", str(audio)], check=True, timeout=30)
-          print("Host audio playback completed")
-          PY
-
-      - name: Verify live remix stress in a fresh test host
-        timeout-minutes: 25
-        # Fail early on the live-audio lifecycle regression before the long
-        # analysis matrices. The full suite below still includes this class.
-        run: |
-          set -o pipefail
-          python3 Scripts/capture_test_stalls.py "$RUNNER_TEMP/LiveRemixPreflight.log" "$RUNNER_TEMP/test-stacks" \
-            --capture-marker '[RemixStress] constructing production runtime' \
-            --process-name coreaudiod --process-name Nowhere --sudo &
-          monitor_pid=$!
-          trap 'kill "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" 2>/dev/null || true' EXIT
-          xcodebuild test \
-            -project Nowhere.xcodeproj \
-            -scheme Nowhere \
-            -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
-            -only-testing:NowhereTests/DayObjectsRemixCoordinatorTests \
-            -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 900 \
-            -maximum-test-execution-time-allowance 900 \
-            -collect-test-diagnostics on-failure \
-            -resultBundlePath "$RUNNER_TEMP/LiveRemixPreflight.xcresult" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/LiveRemixPreflight.log"
-
       - name: Run NowhereTests
+        # The one live 100-remix deadline test runs in the required optimized
+        # Release job below; all other tests, including deterministic remix
+        # lifecycle/allocation coverage, remain in Debug.
         timeout-minutes: 80
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
         # hop) was fixed by polling deterministically, so the global
@@ -110,6 +69,7 @@ jobs:
             -configuration Debug \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -only-testing:NowhereTests \
+            -skip-testing:NowhereTests/DayObjectsRemixCoordinatorTests/testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 900 \
             -maximum-test-execution-time-allowance 900 \
@@ -123,14 +83,9 @@ jobs:
         with:
           name: ios-test-results
           path: |
-            ${{ runner.temp }}/LiveRemixPreflight.xcresult
-            ${{ runner.temp }}/LiveRemixPreflight.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks
-            ${{ runner.temp }}/host-audio.json
-            ${{ runner.temp }}/host-audio-routing.json
-            ${{ runner.temp }}/host-audio-after.json
             ~/Library/Logs/DiagnosticReports
           retention-days: 7
           if-no-files-found: warn
@@ -153,29 +108,86 @@ jobs:
           python3 Scripts/check_canvas_audio_bundle.py \
             "$RUNNER_TEMP/ReleaseAudio/Build/Products/Release-iphonesimulator/Nowhere.app"
 
-      - name: Verify Release Smudge source and GPU output
+      - name: Verify host audio output
+        # Simulator RemoteIO depends on the runner's virtual CoreAudio device.
+        # Record and exercise it before launching tests; fail if it cannot play.
+        timeout-minutes: 2
         run: |
+          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio.json"
+          swift Scripts/configure_ci_audio.swift > "$RUNNER_TEMP/host-audio-routing.json"
+          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio-after.json"
+          python3 - <<'PY'
+          import os, pathlib, subprocess, wave
+          audio = pathlib.Path(os.environ["RUNNER_TEMP"]) / "audio-device-check.wav"
+          with wave.open(str(audio), "wb") as output:
+              output.setnchannels(2)
+              output.setsampwidth(2)
+              output.setframerate(44100)
+              output.writeframes(bytes(4410 * 4))
+          subprocess.run(["afplay", str(audio)], check=True, timeout=30)
+          print("Host audio playback completed")
+          PY
+
+      - name: Verify Release live audio and Smudge output
+        # Realtime rendering is verified with the optimization used by shipped
+        # audio code. INTERNAL_BUILD exposes diagnostics, not a substitute graph.
+        run: |
+          set -o pipefail
+          python3 Scripts/capture_test_stalls.py "$RUNNER_TEMP/ReleaseAudio.log" "$RUNNER_TEMP/release-test-stacks" &
+          monitor_pid=$!
+          trap 'kill "$monitor_pid" 2>/dev/null || true; wait "$monitor_pid" 2>/dev/null || true' EXIT
           xcodebuild test \
             -project Nowhere.xcodeproj -scheme Nowhere -configuration Release \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -derivedDataPath "$RUNNER_TEMP/ReleaseAudio" \
             -parallel-testing-enabled NO \
+            -only-testing:NowhereTests/DayObjectsRemixCoordinatorTests \
             -only-testing:NowhereTests/SmudgePreparationTests \
             -only-testing:NowhereTests/SmudgeWaterRippleTests \
             -only-testing:NowhereTests/SmudgeComputeRegionTests \
             -only-testing:NowhereTests/SmudgeRegionSequenceTests \
             -only-testing:NowhereTests/DayObjectsMusicLabControllerTests/testCanvasLeadReceivesCompleteGestureBeforeSmudgeIsPrepared \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 900 \
+            -maximum-test-execution-time-allowance 900 \
             -resultBundlePath "$RUNNER_TEMP/ReleaseSmudge.xcresult" \
             ENABLE_TESTABILITY=YES ENABLE_CODE_COVERAGE=NO \
             'OTHER_SWIFT_FLAGS=$(inherited) -D INTERNAL_BUILD' \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/ReleaseAudio.log"
 
-      - name: Retain Release Smudge frames and test results
+      - name: Confirm the live stress test executed
+        run: |
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/ReleaseSmudge.xcresult" --compact > "$RUNNER_TEMP/ReleaseAudioTests.json"
+          python3 - <<'PYCODE'
+          import json, os, pathlib
+          expected = "DayObjectsRemixCoordinatorTests/testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts()"
+          found = []
+          def visit(node):
+              if isinstance(node, dict):
+                  if node.get("nodeIdentifier") == expected and node.get("nodeType") == "Test Case":
+                      found.append(node.get("result"))
+                  for child in node.values(): visit(child)
+              elif isinstance(node, list):
+                  for child in node: visit(child)
+          visit(json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "ReleaseAudioTests.json").read_text()))
+          assert found == ["Passed"], f"Required live stress test missing, skipped or failed: {found}"
+          print("Required optimized 100-remix test passed")
+          PYCODE
+
+      - name: Retain Release audio and Smudge test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-smudge-results
-          path: ${{ runner.temp }}/ReleaseSmudge.xcresult
+          path: |
+            ${{ runner.temp }}/ReleaseSmudge.xcresult
+            ${{ runner.temp }}/ReleaseAudio.log
+            ${{ runner.temp }}/ReleaseAudioTests.json
+            ${{ runner.temp }}/release-test-stacks
+            ${{ runner.temp }}/host-audio.json
+            ${{ runner.temp }}/host-audio-routing.json
+            ${{ runner.temp }}/host-audio-after.json
+            ~/Library/Logs/DiagnosticReports
           retention-days: 7
           if-no-files-found: warn
 
