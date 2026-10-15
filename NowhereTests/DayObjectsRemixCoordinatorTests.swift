@@ -1,4 +1,5 @@
 #if DEBUG || INTERNAL_BUILD
+import AVFAudio
 import Foundation
 import XCTest
 @testable import Nowhere
@@ -9,7 +10,12 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
         // The production graph's start and first rendered buffer below are the
         // output precondition. A throwaway probe would activate/deactivate the
         // same session immediately before it, adding an unrelated IO lifecycle.
-        logRemixStress("test entered; verifying output with the production graph")
+        logRemixStress("test entered; activating audio session")
+        let session = AVAudioSession.sharedInstance()
+        defer { try? session.setActive(false, options: .notifyOthersOnDeactivation) }
+        try session.setCategory(.playback, mode: .default)
+        try session.setActive(true)
+        logRemixStress("audio session active; verifying output with the production graph")
         try await runOneHundredProductionRemixes()
     }
 
