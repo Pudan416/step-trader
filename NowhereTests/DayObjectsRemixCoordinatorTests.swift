@@ -6,9 +6,10 @@ import XCTest
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
     func testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts() async throws {
-        logRemixStress("test entered; checking live audio output")
-        try requireLiveAudioOutput()
-        logRemixStress("live audio preflight passed")
+        // The production graph's start and first rendered buffer below are the
+        // output precondition. A throwaway probe would activate/deactivate the
+        // same session immediately before it, adding an unrelated IO lifecycle.
+        logRemixStress("test entered; verifying output with the production graph")
         try await runOneHundredProductionRemixes()
     }
 
