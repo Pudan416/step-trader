@@ -621,6 +621,7 @@ struct GalleryView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("happening_category_back")
+                .canvasTourControl("canvas.paletteCategoryBack")
                 Spacer()
                 Text(category.title).font(.onest(size: 17, weight: .medium))
                 Spacer()

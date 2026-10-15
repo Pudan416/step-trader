@@ -65,7 +65,7 @@ extension CanvasTour {
         if step == .setup { return true }
         switch step {
         case .add: return id == "canvas.addHappening"
-        case .happening: return id == "canvas.paletteClose" || id == "canvas.paletteMode" || id == "canvas.happenings" || id.hasPrefix("canvas.happening.")
+        case .happening: return id == "canvas.paletteClose" || id == "canvas.paletteMode" || id == "canvas.paletteCategoryBack" || id == "canvas.happenings" || id.hasPrefix("canvas.happening.")
         case .balance, .healthValue, .healthResult: return id == "canvas.balanceHandle" || id == "canvas.balanceSummary"
         case .feedsTab: return id == "tabs.feeds"
         case .addApps: return id == "feeds.add" || id.hasPrefix("feeds.group.")

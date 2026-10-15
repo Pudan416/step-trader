@@ -629,6 +629,38 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
     }
 
+    func testCategoryBackAfterClosingFirstAllKeepsOnboardingActive() {
+        let app = XCUIApplication()
+        app.launchArguments = ["ui-testing", "debug-happenings-onboarding", "debug-canvas-tour-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+        XCTAssertTrue(app.buttons["canvas_tour.begin"].waitForExistence(timeout: 20))
+        app.buttons["canvas_tour.begin"].tap()
+        app.buttons["canvas_add_button"].tap()
+        let skip = app.buttons["happenings.onboarding.skip"]
+        XCTAssertTrue(skip.waitForExistence(timeout: 5))
+        skip.tap()
+        expectHappeningsReady(app, timeout: 15)
+        app.buttons["canvas_palette_close_button"].tap()
+        XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
+        app.buttons["canvas_add_button"].tap()
+        let work = app.buttons["happening_choice_personal_category_work"]
+        XCTAssertTrue(work.waitForExistence(timeout: 5))
+        work.tap()
+        let back = app.buttons["happening_category_back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        let count = app.descendants(matching: .any)["happening_palette_count_hub"].firstMatch
+        let before = count.label
+        back.tap()
+        XCTAssertTrue(work.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["canvas_tour.exit.confirm"].waitForExistence(timeout: 1))
+        XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.happening"].firstMatch.exists)
+        XCTAssertEqual(count.label, before)
+        work.tap()
+        chooseRealHappening(app)
+        XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 8))
+        capture(app, "category-back-keeps-tour-active")
+    }
+
     func testFullReplayAsksOnNativeFieldThenContinuesStoryToFinish() {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing", "debug-happenings-onboarding", "debug-canvas-tour-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
