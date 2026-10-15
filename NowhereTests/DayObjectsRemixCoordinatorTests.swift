@@ -5,35 +5,34 @@ import XCTest
 
 @MainActor
 final class DayObjectsRemixCoordinatorTests: XCTestCase {
-    func testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts() throws {
+    func testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts() async throws {
         logRemixStress("test entered; checking live audio output")
         try requireLiveAudioOutput()
         logRemixStress("live audio preflight passed")
-        // Own the workload and its cleanup without inheriting XCTest's scoped
-        // task-local error observer across the synchronous waiter's run loop.
-        let finished = expectation(description: "100 live remixes and cleanup completed")
-        let cleanedUp = XCTestExpectation(description: "Live remix task released its audio graph")
-        var outcome: Result<Void, Error>?
-        let workload = Task.detached { @MainActor in
-            self.logRemixStress("detached workload entered")
-            do {
-                try await self.runOneHundredProductionRemixes()
-                outcome = .success(())
-            } catch {
-                outcome = .failure(error)
+        try await runOneHundredProductionRemixes()
+    }
+
+    private func waitForLiveRender(
+        _ runtime: DayObjectsLivePlaybackRuntime,
+        after previousSampleTime: Int64?,
+        stage: String
+    ) async throws {
+        // isRunning only confirms that start() returned. AVAudioPlayerNode also
+        // needs a real IO cycle. Pace synthetic transport events by the output
+        // tap's timeline, not sleeps or the meter ring's bounded sample count.
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(15))
+        while true {
+            try Task.checkCancellation()
+            if let sampleTime = runtime.latestOutputSampleTimeForTesting,
+               previousSampleTime.map({ sampleTime > $0 }) ?? true {
+                return
             }
-            cleanedUp.fulfill()
-            finished.fulfill()
-            self.logRemixStress("workload cleanup and completion delivered")
+            guard clock.now < deadline else {
+                throw DayObjectsAudioError("Timed out waiting for a live IO cycle: \(stage)")
+            }
+            try await clock.sleep(for: .milliseconds(10))
         }
-        defer { workload.cancel() }
-        let waitResult = XCTWaiter.wait(for: [finished], timeout: 900)
-        if waitResult != .completed {
-            workload.cancel()
-            wait(for: [cleanedUp], timeout: 30)
-            XCTFail("The live remix workload exceeded its time allowance")
-        }
-        try XCTUnwrap(outcome, "The live remix workload did not complete").get()
     }
 
     private func logRemixStress(_ message: String) {
@@ -49,6 +48,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
             try runtime.prepare(plan: plan)
             logRemixStress("starting live engine")
             try runtime.startAudio()
+            try await waitForLiveRender(runtime, after: nil, stage: "initial engine start")
             try runtime.startPreparedWorldForTesting()
             try runtime.fadeMaster(to: plan)
             logRemixStress("initial world started; beginning 100 remixes")
@@ -62,13 +62,17 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
 
             for cycle in 1...100 {
                 try Task.checkCancellation()
-                if cycle == 1 { logRemixStress("cycle 1 entered") }
+                logRemixStress("cycle \(cycle) entered")
                 let start = Int64(cycle * 48 - 32)
                 plan = productionCyclePlan(seed: UInt64(10_000 + cycle))
                 runtime.scheduleStructuralPlan(plan)
                 runtime.renderForTesting(productionEvent(position: start))
+                let afterTransition = runtime.latestOutputSampleTimeForTesting
+                try await waitForLiveRender(runtime, after: afterTransition, stage: "cycle \(cycle) transition")
                 XCTAssertEqual(runtime.remixResultForTesting, .transitioned(seed: plan.seed), "cycle \(cycle)")
                 runtime.renderForTesting(productionEvent(position: start + 32))
+                let afterRelease = runtime.latestOutputSampleTimeForTesting
+                try await waitForLiveRender(runtime, after: afterRelease, stage: "cycle \(cycle) release")
 
                 if cycle.isMultiple(of: 10) {
                     let topology = runtime.engineTopologyForTesting
@@ -85,6 +89,7 @@ final class DayObjectsRemixCoordinatorTests: XCTestCase {
                     try Task.checkCancellation()
                     try runtime.prepare(plan: plan)
                     try runtime.startAudio()
+                    try await waitForLiveRender(runtime, after: nil, stage: "cycle \(cycle) engine restart")
                     try runtime.startPreparedWorldForTesting()
                     try runtime.fadeMaster(to: plan)
                 }

@@ -153,6 +153,12 @@ final class DayObjectsPlaybackBankPair {
         lifecycleState = .prepared
     }
 
+    #if DEBUG || INTERNAL_BUILD
+    var latestOutputSampleTimeForTesting: Int64? {
+        sharedEngine.latestOutputSampleTimeForTesting
+    }
+    #endif
+
     func consumeMeterSamplesForTesting(role: DayObjectsRoleBus, amplitude: Float) {
         sharedEngine.consumeMeterSamplesForTesting(role: role, amplitude: amplitude)
     }
@@ -374,6 +380,12 @@ final class DayObjectsSharedInstrumentBankEngine {
             meterTapCapturedScalarSampleCounts: masterGraph.meterTapCapturedScalarSampleCounts
         )
     }
+
+    #if DEBUG || INTERNAL_BUILD
+    var latestOutputSampleTimeForTesting: Int64? {
+        masterGraph.limiterMeterTimelineDiagnostics.post.map { $0.0 }.max()
+    }
+    #endif
 
     func consumeMeterSamplesForTesting(role: DayObjectsRoleBus, amplitude: Float) {
         masterGraph.consumeMeterSamplesForTesting(role: role, amplitude: amplitude)

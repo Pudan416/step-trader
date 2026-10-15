@@ -1357,6 +1357,9 @@ final class DayObjectsLivePlaybackRuntime: DayObjectsPlaybackRuntimeProtocol, Da
             allocatedDrumPlayerCounts: worldMetrics.map(\.allocatedDrumPlayerCount)
         )
     }
+    #if DEBUG || INTERNAL_BUILD
+    var latestOutputSampleTimeForTesting: Int64? { pair.latestOutputSampleTimeForTesting }
+    #endif
     var playbackPairMetricsForTesting: DayObjectsPlaybackBankPairMetrics { pair.metrics }
     var engineTopologyForTesting: DayObjectsInstrumentBankEngineTopologyMetrics {
         pair.bankA.metrics.engineTopology
