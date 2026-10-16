@@ -597,6 +597,51 @@ final class HappeningFieldLayoutTests: XCTestCase {
         ))
     }
 
+    func testTwoTapCanonicalRemovalKeepsTheOriginalUUIDAndNeighborEntry() throws {
+        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let model = makeRemovalModel()
+        defer { clearRemovalDefaults() }
+        var canvas = DayCanvas(dayKey: AppModel.dayKey(for: date))
+        let original = CanvasElement.spawn(
+            id: UUID(), optionId: "body_walking", label: "Walking", existingElements: [],
+            dayKey: canvas.dayKey,
+            composition: DayComposition.forDay(dayKey: canvas.dayKey, happeningCount: 0))
+        let neighbor = CanvasElement.spawn(
+            id: UUID(), optionId: "event_email", label: "Email", existingElements: [original],
+            dayKey: canvas.dayKey,
+            composition: DayComposition.forDay(dayKey: canvas.dayKey, happeningCount: 1))
+        canvas.elements = [original, neighbor]
+        model.todayAdditions = canvas.elements.map {
+            OptionEntry(id: $0.id.uuidString, dayKey: canvas.dayKey, optionId: $0.optionId,
+                        colorHex: $0.hexColor, timestamp: date, assetVariant: nil)
+        }
+        let entriesBefore = model.todayAdditions.map(\.id)
+        var state = HappeningPaletteInteractionState()
+        let added = Set(canvas.elements.map { HappeningDefaults.canonicalID($0.optionId) })
+        XCTAssertEqual(state.tap(id: "event_walk", addedIDs: added), .armed(.remove("event_walk")))
+        XCTAssertEqual(model.todayAdditions.map(\.id), entriesBefore)
+        guard case let .perform(.remove(id)) = state.tap(id: "event_walk", addedIDs: added) else {
+            return XCTFail("The second activation must remove the original armed event")
+        }
+        let durable = try XCTUnwrap(canvas.elements.first {
+            HappeningDefaults.canonicalID($0.optionId) == id
+        })
+        let result = try XCTUnwrap(CanvasHappeningRemovalTransaction.commit(
+            canvasLoaded: true, canvas: canvas, model: model,
+            happeningID: durable.optionId, elementID: durable.id, at: date, persist: { _ in true }))
+        state.resolve(.remove(id), succeeded: true)
+        XCTAssertEqual(result.removedElement.id, original.id)
+        XCTAssertEqual(result.removedElement.optionId, "body_walking")
+        XCTAssertEqual(result.canvas.elements.map(\.id), [neighbor.id])
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let survivingNeighbor = try XCTUnwrap(result.canvas.elements.first)
+        XCTAssertEqual(try encoder.encode(survivingNeighbor), try encoder.encode(neighbor))
+        XCTAssertEqual(model.todayAdditions.map(\.id), [neighbor.id.uuidString])
+        XCTAssertEqual(model.todayAdditions.map(\.optionId), ["event_email"])
+        XCTAssertEqual(state.confirmation, .removed("event_walk"))
+    }
+
     func testDayRolloverPaletteStateClosesCreatorAndRestoresChrome() {
         var state = CanvasPalettePresentationState(
             isPresented: true,
@@ -1732,6 +1777,148 @@ final class HappeningScrollableFieldTests: XCTestCase {
     }
 }
 
+final class HappeningPaletteRemovalTargetTests: XCTestCase {
+    func testVisibleDeleteEdgeIsInsideCapsuleAndOutsideFigure() {
+        let side: CGFloat = 112
+        let bounds = CGRect(origin: .zero, size: HappeningPickerHitShape.size(side: side, showsAction: true))
+        let actionCenter = CGPoint(x: bounds.midX,
+                                  y: bounds.midY + HappeningPickerHitShape.actionOffset(side: side))
+        // Keep a margin inside the curved capsule edge. Accessibility frame
+        // rounding can put a point only a fraction inside its curve outside it.
+        let point = CGPoint(x: actionCenter.x + 42, y: actionCenter.y + 14)
+        let action = CGRect(x: actionCenter.x - HappeningPickerHitShape.actionSize.width / 2,
+                            y: actionCenter.y - HappeningPickerHitShape.actionSize.height / 2,
+                            width: HappeningPickerHitShape.actionSize.width,
+                            height: HappeningPickerHitShape.actionSize.height)
+        let figure = CGRect(x: bounds.midX - side / 2, y: bounds.midY - side / 2,
+                            width: side, height: side)
+        XCTAssertTrue(Capsule().path(in: action).contains(point))
+        XCTAssertFalse(HappeningPickerShape().path(in: figure).contains(point))
+        XCTAssertTrue(HappeningPickerHitShape(side: side, showsAction: true).path(in: bounds).contains(point))
+    }
+
+    func testConfirmationCapsuleExtendsBeyondOriginalFigureHitShape() {
+        // The original ~85x28 Delete capsule had visible lower corners outside
+        // the r56 figure. A tap here looked like Delete but missed its button.
+        let side: CGFloat = 112
+        let rect = CGRect(origin: .zero, size: CGSize(width: side, height: side))
+        let oldAction = CGRect(x: rect.midX - 42.5,
+                               y: rect.midY + min(side * 0.31, 38) - 14,
+                               width: 85, height: 28)
+        let point = CGPoint(x: rect.midX + 38, y: oldAction.midY + 10)
+        XCTAssertTrue(Capsule().path(in: oldAction).contains(point))
+        XCTAssertFalse(HappeningPickerShape().path(in: rect).contains(point))
+
+        let size = HappeningPickerHitShape.size(side: side, showsAction: true)
+        let hitRect = CGRect(origin: .zero, size: size)
+        let translated = CGPoint(x: point.x + hitRect.midX - rect.midX,
+                                 y: point.y + hitRect.midY - rect.midY)
+        XCTAssertTrue(HappeningPickerHitShape(side: side, showsAction: true)
+            .path(in: hitRect).contains(translated))
+    }
+
+    func testEveryVisibleConfirmationPixelSharesTheCapsuleHitRegion() {
+        for side in [CGFloat(64), 96, 107.66, 112, 136] {
+            let size = HappeningPickerHitShape.size(side: side, showsAction: true)
+            let bounds = CGRect(origin: .zero, size: size)
+            let action = CGRect(x: bounds.midX - HappeningPickerHitShape.actionSize.width / 2,
+                                y: bounds.midY + HappeningPickerHitShape.actionOffset(side: side)
+                                    - HappeningPickerHitShape.actionSize.height / 2,
+                                width: HappeningPickerHitShape.actionSize.width,
+                                height: HappeningPickerHitShape.actionSize.height)
+            let capsule = Capsule().path(in: action)
+            let hit = HappeningPickerHitShape(side: side, showsAction: true).path(in: bounds)
+            XCTAssertTrue(bounds.contains(action))
+            for x in stride(from: action.minX + 0.5, to: action.maxX, by: 2) {
+                for y in stride(from: action.minY + 0.5, to: action.maxY, by: 2) {
+                    let point = CGPoint(x: x, y: y)
+                    if capsule.contains(point) { XCTAssertTrue(hit.contains(point)) }
+                }
+            }
+            XCTAssertFalse(hit.contains(CGPoint(x: action.minX + 0.5, y: action.maxY - 0.5)),
+                           "The capsule's transparent lower corner must not capture a neighbor")
+        }
+    }
+
+    @MainActor
+    func testAllRevealFocusesItsHubBeforeTheRevealFinishes() throws {
+        let events = HappeningDefaults.builtIns
+        let layout = HappeningEventTreeLayout.layout(nodes: HappeningEventTreeState().atlasNodes,
+            in: CGSize(width: 393, height: 852),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 220, dockCenterY: 752).layout
+        let reveal = HappeningFieldReveal(order: events.map(\.id), startedAt: .now)
+        let palette = HappeningPaletteView(happenings: events, layout: layout, mode: .all,
+            usesEventTree: true, interaction: .init(), addedIDs: [], instruction: nil,
+            onActivate: { _ in }, reveal: reveal)
+        let host = UIHostingController(rootView: palette)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        func findScroll(_ view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            return view.subviews.lazy.compactMap { findScroll($0) }.first
+        }
+        let scroll = try XCTUnwrap(findScroll(host.view))
+        let expected = HappeningEventTreeLayout.focusOffset(
+            center: try XCTUnwrap(layout.dateHubCenter), contentSize: scroll.contentSize,
+            viewportSize: scroll.bounds.size)
+        XCTAssertEqual(scroll.contentOffset.x, expected.x, accuracy: 1)
+        XCTAssertEqual(scroll.contentOffset.y, expected.y, accuracy: 1)
+    }
+
+    @MainActor
+    func testLayoutTransitionAndRemovalPreviewPreservePannedFieldOffset() throws {
+        let events = HappeningDefaults.builtIns
+        let initial = HappeningEventTreeLayout.layout(nodes: HappeningEventTreeState().atlasNodes,
+            in: CGSize(width: 393, height: 852),
+            safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 180, dockCenterY: 752).layout
+        func palette(_ layout: HappeningFieldLayout.Layout,
+                     interaction: HappeningPaletteInteractionState = .init()) -> HappeningPaletteView {
+            HappeningPaletteView(happenings: events, layout: layout, mode: .frequent,
+                usesEventTree: true, interaction: interaction, addedIDs: [events[0].id],
+                instruction: nil, onActivate: { _ in }, treeFocusID: events[0].id)
+        }
+        let host = UIHostingController(rootView: palette(initial))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        func findScroll(_ view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            return view.subviews.lazy.compactMap { findScroll($0) }.first
+        }
+        let scroll = try XCTUnwrap(findScroll(host.view))
+        let panned = CGPoint(x: scroll.contentOffset.x + 60, y: scroll.contentOffset.y + 50)
+        scroll.setContentOffset(panned, animated: false)
+        let changed = HappeningFieldLayout.Layout(sources: initial.sources.map {
+            .init(index: $0.index, center: $0.center, radius: $0.radius - 1)
+        }, labelFrames: initial.labelFrames, contourBounds: initial.contourBounds,
+            dockAnchor: initial.dockAnchor, completionBounds: initial.completionBounds,
+            contentSize: initial.contentSize, dateHubCenter: initial.dateHubCenter)
+        host.rootView = palette(changed)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+        XCTAssertEqual(scroll.contentOffset.x, panned.x, accuracy: 1)
+        XCTAssertEqual(scroll.contentOffset.y, panned.y, accuracy: 1)
+
+        var interaction = HappeningPaletteInteractionState()
+        XCTAssertEqual(interaction.tap(id: events[0].id, addedIDs: [events[0].id]),
+                       .armed(.remove(events[0].id)))
+        host.rootView = palette(changed, interaction: interaction)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        XCTAssertEqual(scroll.contentOffset.x, panned.x, accuracy: 1)
+        XCTAssertEqual(scroll.contentOffset.y, panned.y, accuracy: 1)
+        XCTAssertEqual(interaction.tap(id: events[0].id, addedIDs: [events[0].id]),
+                       .perform(.remove(events[0].id)))
+    }
+}
+
 private struct HappeningScrollArtworkProbe: UIViewRepresentable {
     let view: UIView
     func makeUIView(context: Context) -> UIView { view }
@@ -1839,7 +2026,7 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
         let state = HappeningEventTreeState()
         XCTAssertEqual(state.nodes.count, 6)
         XCTAssertEqual(state.nodes.map(\.event.title), [
-            "Worked", "Chilled", "Stayed home", "Had breakfast", "Went for a walk", "Saw a friend"
+            "Worked", "Chilled", "Stayed home", "Went for a walk", "Walked to work", "Saw a friend"
         ])
         XCTAssertTrue(state.nodes.allSatisfy { $0.cell.distanceSquared == 1 && $0.parentID == nil })
         XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
@@ -1881,7 +2068,7 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
         XCTAssertEqual(Set(state.nodes.map(\.id)).count, state.nodes.count)
         XCTAssertFalse(state.nodes.contains { $0.cell == .origin })
         XCTAssertTrue(state.nodes.contains { $0.event.title == "Raged" })
-        XCTAssertTrue(state.nodes.contains { $0.event.title == "Got wasted" })
+        XCTAssertTrue(state.nodes.contains { $0.event.title == "Got drunk" })
         XCTAssertTrue(HappeningEventTree.all.allSatisfy { !$0.title.isEmpty && $0.title.count <= 20 })
     }
 
@@ -1951,5 +2138,43 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
         HappeningEventTreeLayout.layout(nodes: state.nodes, in: size,
             safeInsets: EdgeInsets(top: 59, leading: 0, bottom: 34, trailing: 0),
             contentTopInset: 180, dockCenterY: size.height - 100)
+    }
+}
+
+
+final class HappeningFieldRevealTests: XCTestCase {
+    func testRevealPreservesFullWorldCellCentersAndHubAtEverySample() {
+        let started = Date(timeIntervalSince1970: 100)
+        let ids = HappeningDefaults.builtIns.map(\.id)
+        let final = HappeningEventTreeLayout.layout(nodes: HappeningEventTreeState().atlasNodes,
+            in: CGSize(width: 393, height: 852), safeInsets: .init(top: 59, leading: 0, bottom: 34, trailing: 0),
+            contentTopInset: 180, dockCenterY: 760).layout
+        let reveal = HappeningFieldReveal(order: ids, startedAt: started)
+        for elapsed in stride(from: 0.0, through: reveal.duration + 0.1, by: 1.0 / 60) {
+            let sampled = reveal.layout(final, ids: ids, at: started.addingTimeInterval(elapsed))
+            XCTAssertEqual(sampled.contentSize, final.contentSize)
+            XCTAssertEqual(sampled.dateHubCenter, final.dateHubCenter)
+            XCTAssertEqual(sampled.dockAnchor, final.dockAnchor)
+            XCTAssertEqual(sampled.sources.map(\.index), final.sources.map(\.index))
+            XCTAssertEqual(sampled.sources.map(\.center), final.sources.map(\.center))
+        }
+        XCTAssertEqual(reveal.layout(final, ids: ids, at: started.addingTimeInterval(reveal.duration)).sources, final.sources)
+    }
+
+    func testEachRevealedCellGrowsContinuouslyAndNeverRestarts() {
+        let start = Date(timeIntervalSince1970: 100)
+        let ids = HappeningDefaults.builtIns.map(\.id)
+        let reveal = HappeningFieldReveal(order: ids, startedAt: start)
+        for id in ids {
+            var previous: CGFloat = 0
+            XCTAssertEqual(reveal.scale(for: id, at: start), 0)
+            for elapsed in stride(from: 0.0, through: reveal.duration + 0.1, by: 1.0 / 60) {
+                let scale = reveal.scale(for: id, at: start.addingTimeInterval(elapsed))
+                XCTAssertGreaterThanOrEqual(scale, previous)
+                XCTAssertLessThanOrEqual(scale - previous, 0.05)
+                previous = scale
+            }
+            XCTAssertEqual(previous, 1)
+        }
     }
 }

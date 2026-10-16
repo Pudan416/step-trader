@@ -1,6 +1,9 @@
 import WidgetKit
 import SwiftUI
 import ImageIO
+#if canImport(FamilyControls)
+import FamilyControls
+#endif
 
 // MARK: - Module-Scope Reusable Helpers
 //
@@ -18,6 +21,20 @@ private let widgetDecoder: JSONDecoder = JSONDecoder()
 /// Reusable calendar for "next reset / next date matching components" lookups.
 /// Locale-current — same answer as `widgetCalendar` but no per-call lookup.
 private let widgetCalendar: Calendar = .current
+
+private enum WidgetSelectionMetrics {
+    static func applicationCount(in selectionData: Data?) -> Int {
+        #if canImport(FamilyControls)
+        guard let selectionData,
+              let selection = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selectionData) else {
+            return 0
+        }
+        return selection.applicationTokens.count
+        #else
+        return 0
+        #endif
+    }
+}
 
 // MARK: - Shared Widget Kind
 
@@ -52,6 +69,7 @@ struct UnlockEntry: TimelineEntry {
         let enabledIntervals: Set<AccessWindow>
         let isUnlocked: Bool
         let templateApp: String?
+        let launchBundleId: String?
         let appsCount: Int
         let spentToday: Int
         let budgetMinutes: Int
@@ -134,7 +152,7 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                 .init(id: "placeholder", name: "Apps",
                       enabledIntervals: [.minutes10, .minutes30, .hour1],
                       isUnlocked: false,
-                      templateApp: nil, appsCount: 1, spentToday: 0,
+                      templateApp: nil, launchBundleId: nil, appsCount: 0, spentToday: 0,
                       budgetMinutes: 0, budgetInitial: 0,
                       budgetExpiryDate: nil)
             ],
@@ -243,7 +261,10 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     enabledIntervals: intervals,
                     isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
                     templateApp: group.templateApp,
-                    appsCount: 1,
+                    launchBundleId: AppGroupIdentity.widgetLaunchBundleId(
+                        templateApp: group.templateApp, selectionData: group.selectionData
+                    ),
+                    appsCount: WidgetSelectionMetrics.applicationCount(in: group.selectionData),
                     spentToday: 0,
                     budgetMinutes: budgetMinutes,
                     budgetInitial: budgetInitial,
@@ -555,7 +576,8 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
                 .init(id: "placeholder", name: "Instagram",
                       enabledIntervals: [.minutes10, .minutes30, .hour1],
                       isUnlocked: false,
-                      templateApp: "com.burbn.instagram", appsCount: 1, spentToday: 0,
+                      templateApp: "com.burbn.instagram", launchBundleId: "com.burbn.instagram",
+                      appsCount: 1, spentToday: 0,
                       budgetMinutes: 0, budgetInitial: 0,
                       budgetExpiryDate: nil)
             ],
@@ -713,7 +735,10 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             enabledIntervals: intervals,
             isUnlocked: ShieldRebuildHelper.isUsageBudgetActive(defaults: g, groupId: group.id, at: date),
             templateApp: group.templateApp,
-            appsCount: 1,
+            launchBundleId: AppGroupIdentity.widgetLaunchBundleId(
+                templateApp: group.templateApp, selectionData: group.selectionData
+            ),
+            appsCount: WidgetSelectionMetrics.applicationCount(in: group.selectionData),
             spentToday: 0,
             budgetMinutes: budgetMinutes,
             budgetInitial: budgetInitial,

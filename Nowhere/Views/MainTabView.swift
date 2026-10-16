@@ -352,7 +352,8 @@ struct MainTabView: View {
         .overlay(alignment: .top) {
             // Me is where you look back, not where you check your balance — the
             // pill is drawn on canvas and feeds only.
-            if !isWideCanvas, selection != Tab.me.rawValue {
+            if !isWideCanvas, selection != Tab.me.rawValue,
+               !HappeningOnboardingCoordinator.shared.suspendsCanvasTour {
                 CanvasEnergyStatusPill(
                     status: CanvasEnergyStatus(
                         stepsBalance: model.userEconomyStore.stepsBalance,
@@ -407,6 +408,11 @@ struct MainTabView: View {
             SettingsSheet(model: model, featureTipRouteBinding: $settingsDeepLinkRoute)
         }
         .canvasTourHost(model: model)
+        .onChange(of: HappeningOnboardingCoordinator.shared.replayRevision) { _, _ in
+            showSettings = false
+            selection = Tab.canvas.rawValue
+            canvasPresentation = .canvas
+        }
         .onChange(of: CanvasTour.shared.launchRevision) { _, _ in prepareCanvasTour() }
         .onChange(of: CanvasTour.shared.step) { _, step in
             guard CanvasTour.shared.isActive else { return }
@@ -421,8 +427,11 @@ struct MainTabView: View {
         }
         #if DEBUG
         .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("debug-happenings-onboarding") {
+                HappeningOnboardingCoordinator.shared.replay()
+            }
             if ProcessInfo.processInfo.arguments.contains("debug-canvas-tour-welcome") {
-                CanvasTour.shared.start(source: "launchArgument")
+                HappeningOnboardingCoordinator.shared.replay(source: "launchArgument")
             }
         }
         #endif

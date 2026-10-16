@@ -198,10 +198,12 @@ struct SettingsPermissionsPage: View {
         .settingsDetailPage(title: String(localized: "Permissions", comment: "Permissions page title"))
         .task {
             seedSuccessfulZeroHealthFixtureIfNeeded()
+            model.blockingStore.refreshAuthorizationStatus()
             await refreshNotificationStatus()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
+            model.blockingStore.refreshAuthorizationStatus()
             Task { await refreshNotificationStatus() }
         }
     }
@@ -371,7 +373,7 @@ struct SettingsPermissionsPage: View {
         return switch presentation.status {
         case .connected, .allowed:
             .green
-        case .unavailable, .checkAccess:
+        case .unavailable, .noData, .checkAccess:
             theme.adaptiveMutedText
         case .notRequested, .offInSystemSettings, .actionNeeded:
             .orange

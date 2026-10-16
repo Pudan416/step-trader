@@ -13,9 +13,9 @@ struct CanvasTourDeveloperPage: View {
         @Bindable var tour = tour
         Form {
             Section("Live") {
-                Text("This tour uses the real app. Happenings, app groups and color spending are saved normally. Restart resets only the tour.")
+                Text("This tour uses the real app. Happenings, app groups and color spending are saved normally. Restart begins the full tour with fresh questions. Recorded happenings and days are always kept. Completed answers update recommendations only; saved preferences are kept until then. After the questions, tap a real happening to continue. Tapping one already recorded keeps it in your day.")
                     .font(.geist(.callout))
-                Button("Start from welcome") { tour.start() }
+                Button("Start from welcome") { HappeningOnboardingCoordinator.shared.replay(source: "developer") }
                     .accessibilityIdentifier("canvas_tour.debug.start")
                 Button("Test first launch") {
                     tour.stop()
@@ -28,7 +28,7 @@ struct CanvasTourDeveloperPage: View {
                         .font(.geist(.callout))
                         .accessibilityIdentifier("canvas_tour.debug.firstLaunchReset")
                 }
-                Button("Restart tour") { tour.start(source: "restart") }
+                Button("Restart tour") { HappeningOnboardingCoordinator.shared.replay(source: "restart") }
                     .accessibilityIdentifier("canvas_tour.debug.restart")
                 Button("Resume") { tour.resume(groupIDs: Set(model.ticketGroups.map(\.id))) }
                     .disabled(!tour.canResume)
@@ -51,7 +51,10 @@ struct CanvasTourDeveloperPage: View {
                 }
                 Button("Start selected step") {
                     prerequisite = missingPrerequisite(for: jumpStep)
-                    if prerequisite == nil { tour.start(at: jumpStep, source: "jump", selectedGroupID: jumpGroupID.isEmpty ? nil : jumpGroupID) }
+                    if prerequisite == nil {
+                        if jumpStep == .welcome { HappeningOnboardingCoordinator.shared.replay(source: "jump") }
+                        else { tour.start(at: jumpStep, source: "jump", selectedGroupID: jumpGroupID.isEmpty ? nil : jumpGroupID) }
+                    }
                 }.accessibilityIdentifier("canvas_tour.debug.jump")
                 if let prerequisite { Text(prerequisite).font(.geist(.caption)) }
             }

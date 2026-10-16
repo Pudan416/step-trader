@@ -37,7 +37,7 @@ when changing the sequence rather than using an old slide specification.
 
 ## Happenings field
 
-New additions use one reviewed catalog of exactly **100** events. Labels are
+New additions use one reviewed catalog of exactly **106** events. Labels are
 English, at most 20 characters, and describe complete events. Broad duplicate
 meal options are replaced by Had breakfast, Had lunch and Had dinner; Cooked
 means preparing food. Creating or naming custom happenings is unavailable,
@@ -60,46 +60,94 @@ from a saved Canvas, old option entries or category selections. A saved empty
 Canvas is authoritative; upgraded accounts do not resurrect stale legacy entries.
 Old category arrays and fractional timestamps remain readable.
 
-The Canvas add control opens **Personal**: six complete events surround the current
-day's added-event count, such as **3 / 10**, in the Nowhere font. The count updates
-after additions and removals. The initial six are Worked, Chilled, Stayed home,
-Had breakfast, Went for a walk and Saw a friend. Each has one catalog identity,
-including those promoted from outer positions. The six roots remain fixed. At the intersections,
-the event fits both neighboring roots: Took a break connects Worked and Chilled,
-Took a nap connects Chilled and Stayed home, and Cooked connects Stayed home
-and Had breakfast. These are associations; revealing a meal does not log its
-neighbors or earlier meals. Adding an event reveals up to three adjacent whole events.
-Expansion history is retained for the day. **All** reveals the same complete map
-around the same count; it retains the six roots and every option's position.
-Switching modes preserves the open field and the day's additions. Direct All additions
-are also visible along their path when returning to Personal.
-Removing the last Canvas happening clears the day's expansion history and returns
-the field to Personal with only the six roots. This cleared empty state survives
-closing and reopening the field; familiar and Health recommendations resume after
-a new happening is added. All remains available with the complete catalog.
+The first explicit tap on the Canvas add control offers **A few questions first**.
+Six optional multi-select questions cover routine, leisure, current feelings,
+habits, relationships and aspirations. Questions live in the existing Happenings
+Canvas: its shared field layout, Editorial assignments and DayObjects renderer
+turn native circles into the day's production objects. The headings occupy the same
+measured coach surface as the surrounding tour; its position animates between
+steps. Questions show no optional badge, selection counter or repeated instruction.
+Leisure includes Doomscrolling, Vibe coding, Watching movies and Watching series;
+these seed the existing doomscroll, made, movie and show events. Relationship and
+aspiration choices use staggered 3–2–1 rows. Routine and habit answers describe
+ongoing activities, while feelings, people and aspirations describe their own
+contexts. A tap on a selected answer previews deselection with a monochrome
+figure and Delete badge; another tap confirms. Accessibility uses the same
+selection and confirmation sequence. Back and close retain a local
+account-scoped draft. Skip questions marks this introduction as skipped. Completed
+answers seed preferences only: they create no history, usage counters or colors.
+Relationship context never implies an actual call or text. Emotion context expires
+at the logical day boundary. Existing recorded uses outrank preference seeds;
+without seeds, the existing two-use-day learning threshold remains in place.
 
-Personal pre-reveals up to three familiar events beside the six roots. It ranks
-frequency with a 21-day recency half-life, requires two use days, and excludes
-the six roots from extra recommendations. Repeated additions on one custom day
-do not increase the usage counter. Restored snapshots canonicalize old IDs and
-count each event once per day; their count is combined with local counters by
-the maximum, avoiding double-counting overlapping history. Recommendations do
-not exclude uncomfortable events such as Raged or Got wasted.
+Completion reveals **All**, first six distinct domain leaders, then remaining
+canonical events in relevance order, at the same map positions used for selection.
+The same framed coach displays **Choose one thing you’ve done today.** throughout
+the reveal and while scrolling or exploring the field, until an explicit real
+happening choice. One immutable reveal clock scales circles and their labels in
+their final cells; the complete scroll world, coach reservation and Today hub
+keep the same geometry at completion. The unchanged production scene is reused
+between animation samples. Actual taps use the ordinary atomic addition/removal
+path and the ten-addition limit. Reduced Motion reveals the complete field immediately. Closing or a day change cancels
+the reveal. The catalog includes separate **Smoked**, **Had a beer**, **Had a
+drink**, **Got drunk** and **Stayed up late** events. Beer, a general alcoholic
+drink and intoxication retain separate identities and counters. Got drunk keeps
+the existing `event_wasted` identity; saved copy and entries are retained. Habit
+preferences include Drinking alcohol and Getting drunk; a historical beer answer
+keeps its beer-only meaning. Canvas tour cards are
+suspended while questions and this first All presentation are visible. Debug has
+**Happenings onboarding (Debug)** and the `debug-happenings-onboarding` launch
+argument. Replay begins with a fresh survey draft and starts the complete existing
+tour at welcome. The explicit + at Add happening opens questions; completion reveals
+All, and a real today addition advances to the remaining Health, Feeds and Me steps.
+After the questions, progression requires an explicit tap on a real happening,
+including in Debug. Tapping a happening already recorded today acknowledges that
+choice and continues after the palette closes, without adding or removing it,
+including at the ten-addition limit. Survey completion changes recommendations
+only; existing recorded happenings remain selected. The balance coach enables
+the energy pill's pull gesture as well as the drawer's 44pt handle target.
+Committed preferences survive cancellation until replacement answers are completed.
+Recorded days and legacy onboarding completion are retained.
 
-Current Health workout hints and today's additions are also visible. The first
-recommendation in each sector moves to that root's nearest outward position;
-remaining recommendations reveal their paths. Shared intersections remain
-anchored. The map is recomputed on opening and then stays fixed through taps
-and Personal/All switches. The radial field remains pannable.
+Subsequent uses of the Canvas add control open **Personal** with six category
+circles: **Work & Study**, **Rest & Sleep**, **Food & Drink**, **Movement**,
+**People**, and **Home & Everyday**. The shared native field and DayObjects renderer
+surround the current day's added-event count, such as **3 / 10**, with a small
+**Today** label above it. A category tap only opens its concrete events; it never
+records a happening, changes usage counters or creates colors. Rest & Sleep
+includes Slept, and Food & Drink includes Had coffee. Events can appear in more
+than one category; every one of the 106 canonical choices is reachable.
 
-Health walking, running, swimming, dance and flexibility resolve to Went for a
-walk, Went for a run, Swam, Danced and Stretched. Other documented workouts use
-Worked out; cycling does not imply Biked to work. Unsupported workout raw values
-do not create suggestions. A generic Worked out addition does not satisfy a
-specific running or swimming suggestion. Accepting a suggestion logs its catalog
-ID and reveals that same choice in Personal. Mindful-minutes and low-screen-time
-signals currently have no honest matching event in the fixed catalog and are
-filtered out rather than inventing a feeling or another choice.
+Each category puts familiar events nearest Today, using frequency with a 21-day
+recency half-life. Restored snapshots canonicalize aliases and count each event
+once per day, combined with local counters by their maximum. Recorded usage
+ranks before survey preferences; unused choices retain a deterministic useful
+order. Category order and cells stay fixed during additions, deletion previews,
+removals and Personal/All switches. Entering a category again recalculates its
+order. The category title and Back control sit below the energy card. Back returns
+to the six categories, and reopening Personal starts there.
+During the first All introduction, switching to Personal opens the same categories
+while retaining the first-choice coach. Category navigation sits below that coach;
+only an explicit real event tap completes this step.
+
+**All** retains the complete 106-event atlas and the first onboarding reveal.
+Its actors and the category browser share the authoritative full catalog assignment
+snapshot, including frozen actors for today's saved UUIDs. Navigation IDs are
+presentation only and never enter Canvas, stores, Health links or use counts.
+Actual event taps retain the existing atomic addition/removal path and ten-addition
+limit. Removing the final event returns Personal to its six category circles.
+The native radial field remains pannable; changing between categories and All
+resets field focus without morphing unrelated event indices.
+
+Health walking, running, swimming, dance, flexibility, yoga and cycling resolve
+to Went for a walk, Went for a run, Swam, Danced, Stretched, Did yoga and Went
+cycling. Other documented workouts use Worked out; cycling does not imply Biked
+to work. Unsupported workout raw values do not create suggestions. A generic
+Worked out addition does not satisfy a specific activity suggestion. Accepting
+a suggestion dismisses it only after its catalog event is committed to Canvas.
+Mindful-minutes and low-screen-time signals currently have no honest matching
+event in the fixed catalog and are filtered out rather than inventing a feeling
+or another choice.
 
 Both modes use the same transparent field, figure assignments and interactions.
 While the picker is open, a light native blur and subtle white wash soften and
@@ -110,8 +158,43 @@ control. After a successful addition or removal, the close control becomes a
 checkmark until the picker closes. Closing it restores the clear Canvas.
 In both modes,
 one tap adds an available event, while an added event requires two taps to remove.
+The full visible Delete capsule confirms that same event, including its edges;
+its hit region follows the capsule and rises above neighboring hit targets with
+the preview figure. Panning is retained through field layout updates. Automatic
+focus applies after a layout transition without a second scroll animation, and
+waits while a removal preview is armed. The initial All reveal focuses its fixed
+Today hub immediately so it does not jump when the reveal finishes.
 New tree nodes and mode changes animate the figures, labels and hit targets together.
 Reduce Motion uses the settled layout without spatial animation.
+
+## Adding and editing Feeds
+
+The Choose apps to block banner stays above the bottom navigation while the feed
+list scrolls. Its height is reserved outside the scroll viewport, keeping the
+last feed and expanded unlock options reachable.
+
+Adding a feed starts with the system app picker. Continue opens a selection
+preview, name and optional widget-opening choice; Change apps returns to the
+picker with the draft intact. Editing starts at those details. Cancel or swipe
+dismissal discards the draft without changing saved groups. Exactly one app can
+leave its name blank and use the system app title. A supported selection that
+includes multiple apps, categories or websites requires a group name. Website-only
+blocking remains unavailable. Selecting a widget target can suggest a name for
+an empty draft; changing that target preserves manually edited and existing names.
+
+## Widget app opening
+
+An unlocked group containing one application can reopen that app through Nowhere.
+In the group editor, **Open from widget** explicitly associates the selected app
+with a supported launch target. Existing groups without that association open
+Nowhere until the user chooses a target. Group names never determine launch identity.
+Changing the Family Controls selection clears the association; canceling the editor
+does not save it. Groups with multiple apps, categories or websites open Nowhere.
+Grailed uses its verified `/feed/` Universal Link, without a custom-scheme fallback.
+The app and widget share one supported target catalog, including four Supercell
+games. New targets use associated HTTPS routes with no browser fallback. Pinterest
+uses public ID `pinterest`; older saved `com.pinterest` associations remain valid.
+See [widget app opening](architecture/widget-app-opening.md) for routes and checks.
 
 ## Screen Time accounting and recovery
 
@@ -125,6 +208,11 @@ The rejected generation cannot spend further minutes. Recovery runs when the app
 returns to the foreground or the user retries through the widget/Feeds, without
 charging again, within the existing custom-day expiry. Healthy monitors are retained
 on top-up so Apple's partial-minute usage is not reset.
+
+The app and Screen Time callbacks apply shields through one shared rebuild. Its
+budget read and settings write hold the same cross-process lock as purchase
+commits, so an older callback cannot reapply an obsolete shield after a purchase.
+Monitor registration runs outside that lock so synchronous callbacks can finish.
 
 Screen Time is the source of usage measurements. Local checks can reject impossible
 early values, but cannot distinguish a plausible incorrect OS measurement from a
@@ -140,7 +228,9 @@ silhouettes before repeating one. Each blur family keeps its own shape; water
 ripples, spiral rays and volume spheres keep their dedicated rendering behavior.
 The Soft Drift form and procedural light/flow/striped-contour fills are excluded
 from new scenes. Circles remain round. Figures share a related color group, with
-pigments borrowed from nearby palettes in the selected categories.
+pigments borrowed from nearby palettes in the selected categories. New and
+remixed recipes increase pigment chroma while keeping each hue recognizable;
+saved recipes without that policy version keep their original colors.
 With zero automatically spent colors, there is no global scene blur. Blur
 collections retain their own softness, and manual Trace overrides stay available.
 When colors are spent, digital traces become visible earlier at low and medium

@@ -27,6 +27,7 @@ final class BlockingStore: ObservableObject {
     private var persistAndRebuildTask: Task<Void, Never>?
     private var saveAppSelectionTask: Task<Void, Never>?
     private var lastSavedAppSelection: FamilyActivitySelection?
+    private var cancellables = Set<AnyCancellable>()
     
     // Constants
     private let ticketGroupsKey = "ticketGroups_v1"
@@ -34,6 +35,12 @@ final class BlockingStore: ObservableObject {
     
     init(familyControlsService: any FamilyControlsServiceProtocol) {
         self.familyControlsService = familyControlsService
+
+        if let observableService = familyControlsService as? FamilyControlsService {
+            observableService.objectWillChange
+                .sink { [weak self] _ in self?.objectWillChange.send() }
+                .store(in: &cancellables)
+        }
     }
     
     // MARK: - Authorization
@@ -48,6 +55,10 @@ final class BlockingStore: ObservableObject {
             ErrorManager.shared.handle(AppError.familyControlsAuthorizationFailed(error))
             throw error
         }
+    }
+
+    func refreshAuthorizationStatus() {
+        familyControlsService.refreshAuthorizationStatus()
     }
     
     // MARK: - App Selection Logic
@@ -250,6 +261,7 @@ final class BlockingStore: ObservableObject {
             var combined = FamilyActivitySelection()
             let defaults = UserDefaults.nowhere()
             var diagLines: [String] = []
+            var unlockedApplicationTokens = Set<ApplicationToken>()
             
             for group in ticketGroups {
                 // Must ask exactly what ShieldRebuildHelper.rebuild() asks. This used to
@@ -259,6 +271,7 @@ final class BlockingStore: ObservableObject {
                 // end of its window.
                 if ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: group.id) {
                     diagLines.append("SKIP \(group.name): usageBudget active")
+                    unlockedApplicationTokens.formUnion(group.selection.applicationTokens)
                     AppLogger.shield.debug("⏭️ Skipping group \(group.name) - usage budget active")
                     continue
                 }
@@ -288,7 +301,26 @@ final class BlockingStore: ObservableObject {
             familyControlsService.updateMinuteModeMonitoring()
             familyControlsService.updateShieldSchedule()
             
-            applyShieldImmediately(selection: combined)
+            // Local selection drives UI and heartbeat setup. Enforcement always
+            // re-reads persisted groups/budgets under the shared purchase lock.
+            ShieldRebuildHelper.rebuild()
+
+            // Purchase success means the usage budget and monitor were committed.
+            // Read our named store back after the rebuild so diagnostics can tell
+            // whether that same store still contains apps from unlocked groups.
+            let shieldStore = ManagedSettingsStore(named: .init("shield"))
+            let shieldedApplications = shieldStore.shield.applications ?? []
+            let unlockedApplicationsStillShielded = unlockedApplicationTokens
+                .intersection(shieldedApplications).count
+            let shieldedCategoryCount: Int = {
+                if case .specific(let categories, _) = shieldStore.shield.applicationCategories {
+                    return categories.count
+                }
+                return 0
+            }()
+            diagLines.append(
+                "UNLOCK READBACK appTokens=\(unlockedApplicationTokens.count) stillInStore=\(unlockedApplicationsStillShielded) categoryRules=\(shieldedCategoryCount)"
+            )
             
             let elapsed = CFAbsoluteTimeGetCurrent() - startTime
             if elapsed > 0.1 {
@@ -304,21 +336,6 @@ final class BlockingStore: ObservableObject {
         }
     }
     
-    #if canImport(ManagedSettings)
-    private func applyShieldImmediately(selection: FamilyActivitySelection) {
-        guard familyControlsService.isAuthorized else {
-            AppLogger.shield.debug("⚠️ Cannot apply shield: Family Controls not authorized")
-            return
-        }
-        
-        let store = ManagedSettingsStore(named: .init("shield"))
-        store.shield.applications = selection.applicationTokens.isEmpty ? nil : selection.applicationTokens
-        store.shield.applicationCategories = selection.categoryTokens.isEmpty ? nil : .specific(selection.categoryTokens)
-        AppLogger.shield.debug("🛡️ Shield applied immediately: \(selection.applicationTokens.count) apps, \(selection.categoryTokens.count) categories")
-    }
-    #endif
-    
-
     // MARK: - Shield Diagnostics
 
     /// Append a diagnostic entry to the shared history ring buffer (last 20 entries).

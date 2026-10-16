@@ -105,15 +105,26 @@ struct GalleryView: View {
     @State private var showEventExplorer = false
     @State private var hasHappeningPaletteChanges = false
     @State private var eventTree = HappeningEventTreeState()
+    @State private var personalBrowser = PersonalHappeningBrowser()
     @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
     @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
     @AppStorage("happeningEventTreeClearedDayKey") private var eventTreeClearedDayKey = ""
+    @ObservedObject private var happeningsAuthentication = AuthenticationService.shared
+    @State private var showsHappeningQuestions = false
+    @State private var happeningQuestionProfile = HappeningPersonalizationProfile()
+    @State private var happeningQuestionsScope = "local"
+    @State private var happeningQuestionsDayKey = ""
+    @State private var showsHappeningIntroduction = false
+    @State private var happeningReveal: HappeningFieldReveal?
+    @State private var happeningRevealTask: Task<Void, Never>?
     @State private var paletteMode: HappeningPaletteMode = .frequent
     @State private var paletteTourSessionID: UUID?
     @State private var paletteHappenings: [Happening] = []
     @State private var paletteCatalog: [Happening] = []
     @State private var paletteSelectedIDs: [String] = []
     @State private var paletteAssignmentSnapshot: HappeningEditorialAssignmentSnapshot?
+    @State private var questionAssignmentSnapshot: HappeningEditorialAssignmentSnapshot?
+    @State private var questionDisplayAssignments: [String: HappeningEditorialAssignment] = [:]
     @State private var happeningPalettePanel: HappeningPalettePanel?
     @State private var paletteInteraction = HappeningPaletteInteractionState()
     @State private var paletteErrorID: String?
@@ -230,7 +241,12 @@ struct GalleryView: View {
     }
 
     private var paletteEditorialAssignments: [String: HappeningEditorialAssignment] {
-        paletteAssignmentSnapshot?.assignments ?? [:]
+        if showsHappeningQuestions { return questionDisplayAssignments }
+        let canonical = paletteAssignmentSnapshot?.assignments ?? [:]
+        guard showsPersonalCategories, personalBrowser.category == nil else { return canonical }
+        return Dictionary(uniqueKeysWithValues: PersonalHappeningCategory.allCases.compactMap { category in
+            canonical[category.representativeID].map { (category.id, $0) }
+        })
     }
 
     private var displayedEditorialRenderInput: EditorialCanvasRenderInput {
@@ -440,6 +456,7 @@ struct GalleryView: View {
     }
 
     private func refreshHappeningPalette() {
+        if showsHappeningQuestions { refreshHappeningQuestionField(); return }
         if showEventExplorer {
             refreshEventTreePalette()
             return
@@ -466,16 +483,7 @@ struct GalleryView: View {
     }
 
     private func openHappeningPalette() {
-        metricOverlay = nil
-        send(.openHappeningPalette)
-        hasHappeningPaletteChanges = false
-        showEventExplorer = false
-        paletteMode = .frequent
-        refreshHappeningPalette()
-        happeningPalettePanel = nil
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showHappeningPalette = true
-        }
+        openEventTreePalette(offerQuestions: true)
     }
 
     /// Every presentation change goes through here, so the mirrored binding and
@@ -509,6 +517,9 @@ struct GalleryView: View {
     }
 
     private func closeHappeningPalette() {
+        persistHappeningQuestionDraft()
+        showsHappeningQuestions = false
+        finishHappeningIntroduction()
         cancelPaletteInteraction()
         withAnimation(.easeInOut(duration: 0.18)) {
             happeningPalettePanel = nil
@@ -517,7 +528,12 @@ struct GalleryView: View {
         }
     }
 
-    private func openEventTreePalette() {
+    private func openEventTreePalette(offerQuestions: Bool = false) {
+        if offerQuestions && (HappeningPersonalizationStore.load().completion == .pending
+            || HappeningOnboardingCoordinator.shared.requiresReplayQuestions) {
+            presentHappeningQuestions()
+            return
+        }
         metricOverlay = nil
         send(.openHappeningPalette)
         cancelPaletteInteraction()
@@ -527,6 +543,7 @@ struct GalleryView: View {
             eventTreeDayKey = dayCanvas.dayKey
             eventTreeExpandedIDs = ""
         }
+        personalBrowser.showCategories()
         rebuildPersonalEventField()
         refreshEventTreePalette()
         happeningPalettePanel = nil
@@ -537,6 +554,7 @@ struct GalleryView: View {
     }
 
     private func refreshEventTreePalette() {
+        guard !showsHappeningQuestions else { refreshHappeningQuestionField(); return }
         // Synchronize every addition path, not just a tap within this field.
         if !personalEventFieldWasCleared {
             eventTree.revealHappenings(personalHealthRecommendationIDs + paletteAddedIDs.sorted())
@@ -545,7 +563,7 @@ struct GalleryView: View {
         let happenings = HappeningEventTree.all.compactMap { catalog["event_" + $0.id] }
         paletteCatalog = happenings
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
-        paletteHappenings = happenings
+        paletteHappenings = showsPersonalCategories ? personalBrowser.choices : happenings
         let request = HappeningEditorialAssignmentRequest(
             happenings: happenings,
             baseInput: editorialRenderInput.sceneInput,
@@ -562,22 +580,293 @@ struct GalleryView: View {
         }
     }
 
-    private func rebuildPersonalEventField() {
-        if personalEventFieldWasCleared {
+    private var showsPersonalCategories: Bool {
+        !showsHappeningQuestions && paletteMode == .frequent
+    }
+
+    private var happeningFieldIdentity: String {
+        if showsHappeningQuestions { return "questionnaire" }
+        guard showsPersonalCategories else { return "all" }
+        return personalBrowser.category?.id ?? "personal_categories"
+    }
+
+    private func openPersonalCategory(_ category: PersonalHappeningCategory) {
+        #if DEBUG
+        AppLogger.ui.info("Happening category tap id=\(category.id, privacy: .public) mode=\(self.paletteMode.rawValue, privacy: .public) selected=false count=\(self.todayEventCount)")
+        #endif
+        cancelPaletteInteraction()
+        personalBrowser.open(category, catalog: model.selectableHappenings,
+            historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
+            todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now,
+            surveyScores: HappeningPersonalizationStore.load().scores(dayKey: dayCanvas.dayKey, includeMood: false))
+        refreshEventTreePalette()
+    }
+
+    private func personalCategoryHeaderTop(in viewport: GeometryProxy) -> CGFloat {
+        if showsHappeningIntroduction { return happeningChoiceCoachBottom(in: viewport) + 12 }
+        return canvasSafeInsets.top + HappeningPaletteChromeLayout.panelTopInset(
+            topCardHeight: topCardHeight, hidesSurroundingChrome: true)
+    }
+
+    private func personalCategoryHeader(topInset: CGFloat) -> some View {
+        HStack(spacing: 12) {
+            if let category = personalBrowser.category {
+                Button {
+                    cancelPaletteInteraction()
+                    personalBrowser.showCategories()
+                    refreshEventTreePalette()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("happening_category_back")
+                .canvasTourControl("canvas.paletteCategoryBack")
+                Spacer()
+                Text(category.title).font(.onest(size: 17, weight: .medium))
+                Spacer()
+            }
+        }
+        .foregroundStyle(happeningQuestionInk)
+        .padding(.horizontal, 24)
+        .padding(.top, topInset)
+    }
+
+    private func rebuildPersonalEventField(usesSurveyIntroduction: Bool = false) {
+        if personalEventFieldWasCleared && !usesSurveyIntroduction {
             eventTree = HappeningEventTreeState(
                 expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init)
             )
             return
         }
-        let familiar = PersonalHappeningRecommendations.ranked(
+        let leaders = PersonalHappeningRecommendations.sphereLeaders(
             catalog: model.selectableHappenings,
             historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
-            todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now
+            todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now,
+            surveyScores: HappeningPersonalizationStore.load().scores(dayKey: dayCanvas.dayKey, includeMood: usesSurveyIntroduction)
         )
         eventTree = HappeningEventTreeState(
             expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
-            recommendedHappeningIDs: personalHealthRecommendationIDs + familiar + paletteAddedIDs.sorted()
+            recommendedHappeningIDs: leaders + personalHealthRecommendationIDs + paletteAddedIDs.sorted()
         )
+    }
+
+    private func presentHappeningQuestions() {
+        metricOverlay = nil
+        send(.exitFullScreen)
+        send(.hideData)
+        send(.openHappeningPalette)
+        happeningQuestionsScope = HappeningPersonalizationStore.scope
+        happeningQuestionsDayKey = dayCanvas.dayKey
+        HappeningOnboardingCoordinator.shared.prepareQuestions(scope: happeningQuestionsScope)
+        happeningQuestionProfile = HappeningPersonalizationStore.draft(scope: happeningQuestionsScope)
+            ?? HappeningPersonalizationStore.load(scope: happeningQuestionsScope)
+        cancelPaletteInteraction()
+        showsHappeningQuestions = true
+        showEventExplorer = false
+        paletteMode = .all
+        happeningPalettePanel = nil
+        hasHappeningPaletteChanges = false
+        HappeningOnboardingCoordinator.shared.suspendsCanvasTour = true
+        refreshHappeningQuestionField()
+        showHappeningPalette = true
+    }
+
+    private func consumeHappeningReplay() {
+        let coordinator = HappeningOnboardingCoordinator.shared
+        guard coordinator.replayPending, isCanvasSelected else { return }
+        coordinator.replayPending = false
+        // Navigation prepares welcome. Only the real Add button opens questions.
+        // A new replay will reset its draft at Add; never persist stale UI here.
+        showsHappeningQuestions = false
+        closeHappeningPalette()
+    }
+
+    private func persistHappeningQuestionDraft() {
+        guard showsHappeningQuestions, happeningQuestionProfile.completion == .pending else { return }
+        HappeningPersonalizationStore.saveDraft(happeningQuestionProfile, scope: happeningQuestionsScope)
+    }
+
+    private func refreshHappeningQuestionField() {
+        paletteHappenings = happeningQuestionProfile.fieldChoices
+        paletteCatalog = []
+        paletteSelectedIDs = []
+        // Resolve the complete authoritative catalog with the same saved actors
+        // used by the ordinary field; only display/selection IDs are synthetic.
+        let request = HappeningEditorialAssignmentRequest(
+            happenings: model.selectableHappenings,
+            baseInput: editorialRenderInput.sceneInput, committedElements: dayCanvas.elements,
+            colorNonce: model.paletteColorNonce())
+        if HappeningEditorialAssignmentResolver.needsRefresh(current: questionAssignmentSnapshot, request: request) {
+            questionAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+        }
+        let canonical = questionAssignmentSnapshot?.assignments ?? [:]
+        let choices = happeningQuestionProfile.question.choices
+        let assignments = Dictionary(uniqueKeysWithValues: paletteHappenings.compactMap { happening -> (String, HappeningEditorialAssignment)? in
+            guard let choice = choices.first(where: {
+                happening.id == "survey:\(happeningQuestionProfile.question.rawValue):\($0.id)"
+            }), let id = choice.visualHappeningID, let assignment = canonical[id] else { return nil }
+            return (happening.id, assignment)
+        })
+        questionDisplayAssignments = assignments
+    }
+
+    private func setHappeningQuestionChoice(_ happening: Happening, selected: Bool) {
+        guard showsHappeningQuestions, happeningQuestionsScope == HappeningPersonalizationStore.scope,
+              happeningQuestionsDayKey == dayCanvas.dayKey,
+              let choice = happeningQuestionProfile.question.choices.first(where: {
+                  happening.id == "survey:\(happeningQuestionProfile.question.rawValue):\($0.id)"
+              }) else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.58)) {
+            let key = happeningQuestionProfile.question.rawValue
+            if selected { happeningQuestionProfile.answers[key, default: []].insert(choice.id) }
+            else { happeningQuestionProfile.answers[key, default: []].remove(choice.id) }
+        }
+        if happeningQuestionProfile.question == .feelings { happeningQuestionProfile.emotionDayKey = happeningQuestionsDayKey }
+        persistHappeningQuestionDraft()
+    }
+
+    private func handleHappeningQuestionActivation(_ happening: Happening) {
+        guard showsHappeningQuestions else { return }
+        switch paletteInteraction.tap(id: happening.id, addedIDs: fieldSelectedIDs) {
+        case .armed:
+            beginPaletteTransition()
+            lightHapticTick &+= 1
+        case let .perform(mutation):
+            // Share the ordinary two-tap removal preview, but the mutation is
+            // confined to the account-scoped survey draft.
+            if case .add = mutation { setHappeningQuestionChoice(happening, selected: true) }
+            else { setHappeningQuestionChoice(happening, selected: false) }
+            paletteInteraction.resolve(mutation, succeeded: true)
+            beginPaletteTransition()
+            lightHapticTick &+= 1
+        case .ignored: break
+        }
+    }
+
+    private func advanceHappeningQuestion() {
+        cancelPaletteInteraction()
+        if !happeningQuestionProfile.hasStarted { happeningQuestionProfile.hasStarted = true }
+        else if happeningQuestionProfile.questionIndex == 5 { completeHappeningQuestions(skipped: false); return }
+        else { happeningQuestionProfile.questionIndex += 1 }
+        persistHappeningQuestionDraft()
+        refreshHappeningQuestionField()
+    }
+
+    private func backHappeningQuestion() {
+        cancelPaletteInteraction()
+        if !happeningQuestionProfile.hasStarted { closeHappeningPalette(); return }
+        if happeningQuestionProfile.questionIndex == 0 { happeningQuestionProfile.hasStarted = false }
+        else { happeningQuestionProfile.questionIndex -= 1 }
+        persistHappeningQuestionDraft()
+        refreshHappeningQuestionField()
+    }
+
+    private func skipHappeningQuestion() {
+        if !happeningQuestionProfile.hasStarted {
+            happeningQuestionProfile.answers = [:]
+            completeHappeningQuestions(skipped: true)
+        } else {
+            happeningQuestionProfile.answers[happeningQuestionProfile.question.rawValue] = []
+            advanceHappeningQuestion()
+        }
+    }
+
+    private func completeHappeningQuestions(skipped: Bool) {
+        guard happeningQuestionsScope == HappeningPersonalizationStore.scope,
+              happeningQuestionsDayKey == dayCanvas.dayKey else { closeHappeningPalette(); return }
+        happeningQuestionProfile.completion = skipped ? .skipped : .completed
+        happeningQuestionProfile.hasStarted = false
+        HappeningPersonalizationStore.save(happeningQuestionProfile, scope: happeningQuestionsScope)
+        HappeningPersonalizationStore.clearDraft(scope: happeningQuestionsScope)
+        HappeningOnboardingCoordinator.shared.didCompleteQuestions()
+        cancelPaletteInteraction()
+        showsHappeningQuestions = false
+        startHappeningIntroduction()
+    }
+
+    private var happeningQuestionInk: Color {
+        HappeningPaletteLabelInk.resolve(state: .available,
+            background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
+            material: nil).color
+    }
+
+    private var happeningQuestionChrome: HappeningOnboardingView {
+        HappeningOnboardingView(profile: happeningQuestionProfile,
+            onAdvance: advanceHappeningQuestion, onBack: backHappeningQuestion,
+            onSkip: skipHappeningQuestion, onCancel: closeHappeningPalette)
+    }
+
+    private var fieldSelectedIDs: Set<String> {
+        showsHappeningQuestions ? happeningQuestionProfile.selectedChoiceIDs : paletteAddedIDs
+    }
+
+    private func startHappeningIntroduction() {
+        guard happeningQuestionsDayKey == dayCanvas.dayKey,
+              happeningQuestionsScope == HappeningPersonalizationStore.scope else {
+            finishHappeningIntroduction(); return
+        }
+        // Keep the same palette host mounted so its tour presentation event
+        // is delivered once, before answers, and dismissed after a real addition.
+        showEventExplorer = true
+        // Establish the representation before refreshing its choices: the
+        // questionnaire has just ended, and ordinary Personal opens categories.
+        paletteMode = .all
+        showsHappeningIntroduction = true
+        // Survey seeds shape this introduction even after the user cleared
+        // today's Canvas. The durable cleared-day marker remains untouched.
+        rebuildPersonalEventField(usesSurveyIntroduction: true)
+        refreshEventTreePalette()
+        happeningReveal = nil
+        HappeningOnboardingCoordinator.shared.suspendsCanvasTour = true
+        let scores = HappeningPersonalizationStore.load().scores(dayKey: dayCanvas.dayKey)
+        let leaderIDs = eventTree.atlasNodes.prefix(6).map(\.id)
+        let catalog = Dictionary(uniqueKeysWithValues: model.selectableHappenings.map { ($0.id, $0) })
+        let remainder = HappeningEventTree.all.map(\.id).filter { !leaderIDs.contains($0) }.sorted {
+            // Actual use remains stronger than any preference seed.
+            let a = catalog["event_" + $0], b = catalog["event_" + $1]
+            if (a?.useCount ?? 0) != (b?.useCount ?? 0) { return (a?.useCount ?? 0) > (b?.useCount ?? 0) }
+            if a?.lastUsedAt != b?.lastUsedAt { return (a?.lastUsedAt ?? .distantPast) > (b?.lastUsedAt ?? .distantPast) }
+            let x = scores["event_" + $0, default: 0], y = scores["event_" + $1, default: 0]
+            return x == y ? $0 < $1 : x > y
+        }
+        let order = (leaderIDs + remainder).map { "event_" + $0 }
+        guard !reduceMotion else { return }
+        let reveal = HappeningFieldReveal(order: order)
+        happeningReveal = reveal
+        let expectedDay = dayCanvas.dayKey
+        let expectedScope = happeningQuestionsScope
+        happeningRevealTask = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(reveal.duration)) }
+            catch { return }
+            guard expectedDay == dayCanvas.dayKey,
+                  expectedScope == HappeningPersonalizationStore.scope, showHappeningPalette else { return }
+            // Only the clock stops. Full-size cells, world bounds, the hub and
+            // coach reservation have the same endpoints before and after this.
+            happeningReveal = nil
+            happeningRevealTask = nil
+        }
+    }
+
+    private func finishHappeningIntroduction() {
+        happeningRevealTask?.cancel(); happeningRevealTask = nil
+        showsHappeningIntroduction = false
+        happeningReveal = nil
+        HappeningOnboardingCoordinator.shared.suspendsCanvasTour = false
+    }
+
+    private var happeningRevealIsActive: Bool {
+        showsHappeningIntroduction && happeningReveal != nil
+    }
+
+    private func happeningChoiceCoachBottom(in viewport: GeometryProxy) -> CGFloat {
+        let idealHeight = HappeningTodayChoiceCoach.idealHeight(width: viewport.size.width,
+            dynamicTypeSize: paletteDynamicTypeSize)
+        let hostSize = CGSize(width: viewport.size.width,
+            height: max(1, viewport.size.height - canvasSafeInsets.top - canvasSafeInsets.bottom))
+        let frame = CanvasTourCardGeometry.frame(in: hostSize, idealHeight: idealHeight,
+            step: .happening, target: nil, navigationTop: nil)
+        return canvasSafeInsets.top + frame.maxY
     }
 
     private var personalEventFieldWasCleared: Bool {
@@ -604,6 +893,10 @@ struct GalleryView: View {
     @ViewBuilder
     private func happeningPaletteOverlay(layout: HappeningFieldLayout.Layout, compactLayout: HappeningFieldLayout.Layout, treeHubCenter: CGPoint?) -> some View {
         if (showHappeningPalette || showEventExplorer), !presentation.isWideCanvas {
+            let input = displayedEditorialRenderInput
+            let paletteArtwork = DayObjectsView(sceneInput: input.sceneInput,
+                digitalImpact: input.digitalImpact, isAnimating: isCanvasSelected,
+                soundPulseBus: canvasSoundPulseBus)
             HappeningPaletteView(
                 happenings: paletteHappenings,
                 assignments: paletteEditorialAssignments,
@@ -616,24 +909,24 @@ struct GalleryView: View {
                 ),
                 layout: layout,
                 mode: paletteMode,
-                compactLayout: showEventExplorer ? nil : compactLayout,
+                compactLayout: showEventExplorer || showsHappeningQuestions ? nil : compactLayout,
                 usesEventTree: showEventExplorer,
                 artworkForLayout: { displayedLayout, isExpanding, visibleRect in
-                    AnyView(DayObjectsView(
-                        sceneInput: displayedEditorialRenderInput.sceneInput,
-                        digitalImpact: displayedEditorialRenderInput.digitalImpact,
-                        isAnimating: isCanvasSelected,
-                        soundPulseBus: canvasSoundPulseBus,
-                        presentationMode: paletteRenderMode(layout: displayedLayout,
-                            viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
-                            visibleRect: showEventExplorer ? visibleRect : nil)
-                    ))
+                    AnyView(paletteArtwork.presented(as: paletteRenderMode(layout: displayedLayout,
+                        viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
+                        visibleRect: showEventExplorer ? visibleRect : nil)))
                 },
                 interaction: paletteInteraction,
-                addedIDs: paletteAddedIDs,
+                addedIDs: fieldSelectedIDs,
                 fixedIDs: paletteHealthIDs,
                 instruction: paletteInstruction,
-                onActivate: handlePaletteActivation,
+                onActivate: { happening in
+                    if showsHappeningQuestions {
+                        handleHappeningQuestionActivation(happening)
+                    } else if let category = PersonalHappeningCategory.category(forChoiceID: happening.id) {
+                        openPersonalCategory(category)
+                    } else { handlePaletteActivation(happening) }
+                },
                 onSaveSelection: handlePaletteSelectionSave,
                 onPanelPresentationChange: onPalettePanelPresentationChange,
                 onReroll: {
@@ -642,12 +935,14 @@ struct GalleryView: View {
                     else { refreshHappeningPalette() }
                 },
                 dateHubCenter: treeHubCenter,
-                treeFocusID: showEventExplorer && paletteMode == .frequent
-                    ? eventTree.expandedIDs.last.map { "event_" + $0 } : nil,
+                treeFocusID: nil,
+                fieldIdentity: happeningFieldIdentity,
                 dateHubInk: .resolve(state: .available,
                     background: DayObjectScene.make(input: displayedEditorialRenderInput.sceneInput).meshGradientStyle.colors,
                     material: nil),
-                addedEventCount: todayEventCount
+                addedEventCount: todayEventCount,
+                isSurvey: showsHappeningQuestions,
+                reveal: happeningReveal
             )
             .transition(.opacity)
             .onAppear {
@@ -684,7 +979,7 @@ struct GalleryView: View {
         let input = displayedEditorialRenderInput.sceneInput
         let background = DayObjectScene.make(input: input).meshGradientStyle.colors
         return Dictionary(uniqueKeysWithValues: paletteHappenings.map { happening in
-            let state = paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs)
+            let state = paletteInteraction.visualState(for: happening.id, addedIDs: fieldSelectedIDs)
             var material: MetalShapeMaterialUniforms?
             if state != .available,
                let assignment = paletteEditorialAssignments[happening.id],
@@ -711,8 +1006,11 @@ struct GalleryView: View {
             + HappeningPaletteChromeLayout.panelTopInset(
                 topCardHeight: topCardHeight, hidesSurroundingChrome: true
             ) + 10
+        if showsHappeningIntroduction {
+            contentTopInset = max(contentTopInset, happeningChoiceCoachBottom(in: viewport) + 12)
+        }
         let tour = CanvasTour.shared
-        if tour.isActive, tour.step == .happening, tour.cardBottomGlobalY > 0 {
+        if (showsHappeningQuestions || (tour.isActive && !HappeningOnboardingCoordinator.shared.suspendsCanvasTour && tour.step == .happening)), tour.cardBottomGlobalY > 0 {
             // The coach has a fixed top position independent of this field.
             // Convert its measured bottom into this viewport exactly once,
             // then let the product's existing packing algorithm fit below it.
@@ -722,6 +1020,15 @@ struct GalleryView: View {
             )
         }
         if showEventExplorer {
+            if showsPersonalCategories {
+                if personalBrowser.category != nil {
+                    let headerTop = personalCategoryHeaderTop(in: viewport)
+                    contentTopInset = max(contentTopInset, headerTop + 56)
+                }
+                return HappeningEventTreeLayout.layout(nodes: personalBrowser.placedChoices,
+                    in: viewport.size, safeInsets: canvasSafeInsets, contentTopInset: contentTopInset,
+                    dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }).layout
+            }
             let tree = eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
             let placed = Dictionary(uniqueKeysWithValues: zip(eventTree.atlasNodes, tree.sources).map { ($0.0.id, $0.1) })
             let visible = Set(eventTree.nodes.map(\.id))
@@ -737,14 +1044,19 @@ struct GalleryView: View {
             result.dateHubCenter = tree.dateHubCenter
             return result
         }
+        // The shared packer already reserves 120pt above the Add dock. That
+        // same space houses the survey footer; adding another bottom inset
+        // would shrink the six-choice triangle twice.
+        let fieldInsets = canvasSafeInsets
         var layout = HappeningFieldLayout.layout(
             count: compact && !showEventExplorer ? min(10, paletteHappenings.count) : paletteHappenings.count,
             in: viewport.size,
-            safeInsets: canvasSafeInsets,
+            safeInsets: fieldInsets,
             dynamicTypeSize: paletteDynamicTypeSize,
             contentTopInset: contentTopInset,
             dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY },
-            allowsAccessibleScrolling: compact
+            allowsAccessibleScrolling: compact || showsHappeningQuestions,
+            rowPattern: showsHappeningQuestions ? (paletteHappenings.count == 6 ? [3, 2, 1] : nil) : nil
         )
         // Compact layouts have viewport coordinates too; Metal needs a real
         // drawable size even when there is no overflow to scroll.
@@ -778,7 +1090,7 @@ struct GalleryView: View {
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
-                visualState: paletteInteraction.visualState(for: happening.id, addedIDs: paletteAddedIDs),
+                visualState: paletteInteraction.visualState(for: happening.id, addedIDs: fieldSelectedIDs),
                 source: layout.sources[index]
             )
         }
@@ -817,19 +1129,43 @@ struct GalleryView: View {
     }
 
     private func handlePaletteActivation(_ happening: Happening) {
-        guard let assignment = paletteEditorialAssignments[happening.id] else { return }
+        guard !showsHappeningQuestions, !happeningRevealIsActive,
+              HappeningDefaults.builtInIds.contains(happening.id),
+              let assignment = paletteEditorialAssignments[happening.id] else { return }
+        #if DEBUG
+        AppLogger.ui.info("Happening activation id=\(happening.id, privacy: .public) mode=\(self.paletteMode.rawValue, privacy: .public) selected=\(self.paletteAddedIDs.contains(happening.id)) count=\(self.todayEventCount)")
+        #endif
         let isTourAddition = CanvasTour.shared.isActive && CanvasTour.shared.step == .happening
-        if isTourAddition && paletteAddedIDs.contains(happening.id) {
-            CanvasTour.shared.report("Happening already exists today; choose another or continue with the existing day")
+        let isOnboardingChoice = isTourAddition || showsHappeningIntroduction
+        if isOnboardingChoice && paletteAddedIDs.contains(happening.id),
+           let recorded = dayCanvas.elements.first(where: {
+               HappeningDefaults.canonicalID(HappeningPaletteSelection.choiceID($0.optionId)) == happening.id
+           }) {
+            // An explicit real-event tap fulfills the tutorial even at 10/10.
+            // Keep its durable entry and actor; this is never a removal gesture.
+            CanvasTour.shared.send(.happeningChosen(recorded.id.uuidString))
+            closeHappeningPalette()
             return
         }
         paletteConfirmationTask?.cancel()
         paletteErrorID = nil
         switch paletteInteraction.tap(id: happening.id, addedIDs: paletteAddedIDs) {
         case .armed:
+            #if DEBUG
+            AppLogger.ui.info("Happening removal preview armed id=\(happening.id, privacy: .public) count=\(self.todayEventCount)")
+            #endif
             beginPaletteTransition()
             lightHapticTick &+= 1
         case let .perform(mutation):
+            #if DEBUG
+            let plannedKind: String
+            let plannedID: String
+            switch mutation {
+            case let .add(id): plannedKind = "add"; plannedID = id
+            case let .remove(id): plannedKind = "remove"; plannedID = id
+            }
+            AppLogger.ui.info("Happening mutation planned kind=\(plannedKind, privacy: .public) id=\(plannedID, privacy: .public) count=\(self.todayEventCount)")
+            #endif
             let succeeded: Bool
             switch mutation {
             case .add:
@@ -851,6 +1187,9 @@ struct GalleryView: View {
                     succeeded = false
                 }
             }
+            #if DEBUG
+            AppLogger.ui.info("Happening mutation result kind=\(plannedKind, privacy: .public) id=\(plannedID, privacy: .public) success=\(succeeded) count=\(self.todayEventCount)")
+            #endif
             paletteInteraction.resolve(mutation, succeeded: succeeded)
             beginPaletteTransition()
             guard succeeded else {
@@ -876,7 +1215,7 @@ struct GalleryView: View {
                     argument: "\(happening.localizedTitle()). \(String(localized: "Removed from Canvas"))"
                 )
             }
-            if isTourAddition, case .add = mutation {
+            if isOnboardingChoice, case .add = mutation {
                 closeHappeningPalette()
                 return
             }
@@ -1150,6 +1489,43 @@ struct GalleryView: View {
             .overlay {
                 happeningPaletteOverlay(layout: paletteLayout, compactLayout: happeningPaletteLayout(in: viewport, compact: true),
                     treeHubCenter: paletteLayout.dateHubCenter)
+                    .mask {
+                        if showsHappeningIntroduction {
+                            VStack(spacing: 0) {
+                                Color.clear.frame(height: happeningChoiceCoachBottom(in: viewport) + 12)
+                                Rectangle()
+                                Color.clear.frame(height: canvasSafeInsets.bottom + 72)
+                            }
+                        } else { Rectangle() }
+                    }
+            }
+            .overlay(alignment: .top) {
+                if showHappeningPalette && showsPersonalCategories && personalBrowser.category != nil {
+                    personalCategoryHeader(topInset: personalCategoryHeaderTop(in: viewport))
+                }
+            }
+            .overlay(alignment: .top) {
+                if showsHappeningQuestions && showHappeningPalette {
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .preference(key: CanvasTourAnchors.self, value: CanvasTourOverlayPreferences(
+                            question: CanvasTourQuestionCoach(
+                                identity: happeningQuestionProfile.hasStarted ? happeningQuestionProfile.question.rawValue : "invitation",
+                                content: AnyView(happeningQuestionChrome.header))))
+                } else if showsHappeningIntroduction && showHappeningPalette {
+                    Color.clear.frame(width: 0, height: 0)
+                        .preference(key: CanvasTourAnchors.self, value: CanvasTourOverlayPreferences(
+                            question: CanvasTourQuestionCoach(identity: "chooseToday",
+                                content: AnyView(HappeningTodayChoiceCoach()))))
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if showsHappeningQuestions && showHappeningPalette {
+                    happeningQuestionChrome.footer
+                        .foregroundStyle(happeningQuestionInk)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, canvasSafeInsets.bottom + 72)
+                }
             }
         }
         .ignoresSafeArea()
@@ -1352,6 +1728,8 @@ struct GalleryView: View {
         }
         .onChange(of: dayCanvas.elements.count) { refreshAddHint() }
         .onChange(of: dayCanvas.dayKey) {
+            if showsHappeningQuestions { closeHappeningPalette() }
+            finishHappeningIntroduction()
             if showEventExplorer {
                 eventTreeDayKey = dayCanvas.dayKey
                 eventTreeExpandedIDs = ""
@@ -1374,12 +1752,14 @@ struct GalleryView: View {
                 send(.exitFullScreen)
                 send(.hideData)
                 closeHappeningPalette()
+            } else if showsHappeningQuestions || showsHappeningIntroduction {
+                closeHappeningPalette()
             }
             refreshAddHint()
         }
         .onChange(of: CanvasTour.shared.step) { _, step in
-            // Continue with an existing day also closes the real palette. This
-            // only prepares the next context; it never adds or removes a moment.
+            // Dismiss the real palette when an explicit event action advances
+            // the tour, without modifying any other recorded moment.
             guard CanvasTour.shared.isActive else { return }
             if step == .welcome || step == .momentResult || step == .balance {
                 send(.exitFullScreen)
@@ -1566,10 +1946,25 @@ struct GalleryView: View {
             }
             Button(String(localized: "Cancel"), role: .cancel) { pendingDeleteElementId = nil }
         }
+        .onChange(of: happeningsAuthentication.currentUser?.id) { _, _ in
+            // Keep a newly requested full replay armed while authentication
+            // restores during Welcome. An already opened survey is scoped and
+            // must close before a different account can interact with it.
+            if !HappeningOnboardingCoordinator.shared.freshQuestionsPending {
+                HappeningOnboardingCoordinator.shared.cancelReplay()
+            }
+            if showHappeningPalette { closeHappeningPalette() }
+            else { finishHappeningIntroduction() }
+        }
+        .onChange(of: HappeningOnboardingCoordinator.shared.replayRevision) { _, _ in consumeHappeningReplay() }
+        .onChange(of: isCanvasSelected) { _, selected in if selected { consumeHappeningReplay() } }
+        .onAppear { consumeHappeningReplay() }
         .onChange(of: toolbar.showShareSheet) { _, isPresented in
             if !isPresented { toolbar.shareImage = nil }
         }
         .onDisappear {
+            if showsHappeningQuestions { closeHappeningPalette() }
+            else { finishHappeningIntroduction() }
             playbackChromeHideTask?.cancel()
             lunarPhysicsPlayback = CanvasLunarPhysicsPlaybackState()
             if presentation.isEditing && dayCanvas.artworkRecipe != nil { saveCanvasLocally() }
@@ -1654,7 +2049,9 @@ struct GalleryView: View {
                         suggestions: model.pendingActivitySuggestions,
                         onAccept: { suggestion in
                             guard let optionId = model.acceptActivitySuggestion(suggestion) else { return }
-                            addAndSpawnHappening(optionId: optionId)
+                            if addAndSpawnHappening(optionId: optionId) {
+                                model.completeActivitySuggestion(suggestion)
+                            }
                         },
                         onDismiss: { model.dismissActivitySuggestion($0) }
                     )
@@ -1806,27 +2203,26 @@ struct GalleryView: View {
                 && model.pendingActivitySuggestions.isEmpty ? activeHintWindow.prompt : nil,
             onSound: handleCanvasSoundControl,
             onOpenHappeningList: {
-                guard !showEventExplorer else { return }
+                guard !showEventExplorer, !showsHappeningQuestions else { return }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     happeningPalettePanel = .chooser
                 }
             },
             onToggleHappeningPalette: {
                 if showHappeningPalette { closeHappeningPalette() }
-                else { openEventTreePalette() }
+                else { openEventTreePalette(offerQuestions: true) }
             },
-            happeningMode: showHappeningPalette ? paletteMode : nil,
-            usesEventTree: showEventExplorer,
+            happeningMode: showHappeningPalette && !showsHappeningQuestions ? paletteMode : nil,
+            usesEventTree: showEventExplorer || showsHappeningQuestions,
             onSelectHappeningMode: { mode in
-                guard mode != paletteMode else { return }
+                guard !showsHappeningQuestions, !happeningRevealIsActive, mode != paletteMode else { return }
                 paletteConfirmationTask?.cancel()
                 paletteTransitionTask?.cancel()
-                if !showEventExplorer {
-                    paletteInteraction = HappeningPaletteInteractionState()
-                }
+                paletteInteraction = HappeningPaletteInteractionState()
                 paletteErrorID = nil
                 paletteTransitionActive = false
                 paletteMode = mode
+                if showEventExplorer { refreshEventTreePalette() }
             }
         )
     }
@@ -2388,7 +2784,10 @@ struct GalleryView: View {
         if presentationOrigin != nil {
             animateSpawnToDestination(elementID: element.id)
         }
-        if showHappeningPalette {
+        if showEventExplorer {
+            if !showsHappeningIntroduction { rebuildPersonalEventField() }
+            refreshEventTreePalette()
+        } else if showHappeningPalette {
             refreshHappeningPalette()
         }
         CanvasTour.shared.send(.happeningAdded(result.entry.id), token: tourOperation)
@@ -2434,10 +2833,13 @@ struct GalleryView: View {
         if result.canvas.elements.isEmpty {
             eventTreeDayKey = result.canvas.dayKey
             eventTreeExpandedIDs = ""
+            personalBrowser.showCategories()
             eventTreeClearedDayKey = result.canvas.dayKey
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
-                eventTree = HappeningEventTreeState()
-                paletteMode = .frequent
+            if !showsHappeningIntroduction {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                    eventTree = HappeningEventTreeState()
+                    paletteMode = .frequent
+                }
             }
         }
         refreshHappeningPalette()

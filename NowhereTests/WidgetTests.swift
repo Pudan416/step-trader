@@ -5,6 +5,40 @@ import ManagedSettings
 
 final class WidgetTests: XCTestCase {
 
+    func testWidgetLaunchDoesNotInferAppFromAnEditableGroupName() throws {
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let group = TicketGroup(name: "Instagram", selection: selection,
+                                settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20))
+        let savedSelection = try JSONEncoder().encode(group.selection)
+        // Editing the Instagram preset's selection clears templateApp, while
+        // preserving the user's name. That name no longer identifies its app.
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: group.templateApp, selectionData: savedSelection))
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: "unknown.app", selectionData: savedSelection))
+        XCTAssertEqual(AppGroupIdentity.widgetLaunchBundleId(templateApp: "com.google.ios.youtube", selectionData: savedSelection), "com.google.ios.youtube")
+    }
+
+    func testWidgetLaunchRequiresOneAppAndNoOtherTargets() throws {
+        var selection = FamilyActivitySelection()
+        let templateApp = "com.burbn.instagram"
+        func target() throws -> String? {
+            AppGroupIdentity.widgetLaunchBundleId(templateApp: templateApp, selectionData: try JSONEncoder().encode(selection))
+        }
+        XCTAssertNil(try target())
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        XCTAssertEqual(try target(), templateApp)
+        selection.categoryTokens = [try JSONDecoder().decode(ActivityCategoryToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        XCTAssertNil(try target())
+        selection.categoryTokens = []
+        selection.webDomainTokens = [try JSONDecoder().decode(WebDomainToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        XCTAssertNil(try target())
+        selection.webDomainTokens = []
+        selection.applicationTokens.insert(try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8)))
+        XCTAssertNil(try target())
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: templateApp, selectionData: Data("invalid".utf8)))
+        XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: templateApp, selectionData: nil))
+    }
+
     func testWidgetPickerUsesPersistedUserNameAndIgnoresUnsupportedShieldCache() throws {
         let suite = "widget-picker-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -534,5 +568,172 @@ final class ExtensionDeploymentTargetTests: XCTestCase {
                 + "it will be silently missing on every system below \(minimum)"
             )
         }
+    }
+}
+
+final class TargetResolverLaunchTests: XCTestCase {
+    @MainActor
+    func testUninstalledUniversalLinkReturnsFailureInsteadOfOpeningBrowser() async {
+        #if targetEnvironment(simulator)
+        let finished = expectation(description: "Opening reports failure")
+        AppLauncher.open(bundleId: "com.supercell.laser") { success in
+            XCTAssertFalse(success)
+            finished.fulfill()
+        }
+        await fulfillment(of: [finished], timeout: 10)
+        #endif
+    }
+
+    func testGrailedUsesVerifiedFeedUniversalLinkWithoutGuessedScheme() {
+        let bundleID = "com.grailed.production"
+        XCTAssertEqual(TargetResolver.bundleId(from: "grailed"), bundleID)
+        XCTAssertTrue(TargetResolver.canOpen(bundleId: bundleID))
+        XCTAssertEqual(TargetResolver.universalLinks(forBundleId: bundleID), ["https://www.grailed.com/feed/"])
+        XCTAssertTrue(TargetResolver.primaryAndFallbackSchemes(for: bundleID).isEmpty)
+        XCTAssertNil(TargetResolver.urlScheme(forBundleId: bundleID))
+    }
+    func testExpandedCatalogSupportsSingleAppWidgetHandoffs() throws {
+        let targets: [(name: String, bundle: String, link: String)] = [
+            ("Threads", "com.burbn.barcelona", "https://www.threads.com/"),
+            ("Discord", "com.hammerandchisel.discord", "https://discord.com/app"),
+            ("Twitch", "tv.twitch", "https://www.twitch.tv/home"),
+            ("Bluesky", "xyz.blueskyweb.app", "https://bsky.app/"),
+            ("Spotify", "com.spotify.client", "https://open.spotify.com/home"),
+            ("Netflix", "com.netflix.Netflix", "https://www.netflix.com/browse"),
+            ("YouTube Music", "com.google.ios.youtubemusic", "https://music.youtube.com/"),
+            ("Temu", "com.einnovation.temu", "https://www.temu.com/?_p_dp=1"),
+            ("SHEIN", "zzkko.com.ZZKKO", "https://api-shein.shein.com/h5/sharejump/appjump"),
+            ("Etsy", "com.etsy.etsyforios", "https://www.etsy.com/"),
+            ("Depop", "com.garageitaly.garage", "https://www.depop.com/"),
+            ("Vinted", "lt.manodrabuziai.fr", "https://www.vinted.com/"),
+            ("StockX", "com.Campless.Campless", "https://stockx.com/"),
+            ("GOAT", "com.airgoat.goat.ios", "https://www.goat.com/"),
+            ("Duolingo", "com.duolingo.DuolingoMobile", "https://www.duolingo.com/home"),
+            ("Tinder", "com.cardify.tinder", "https://go.tinder.com/"),
+            ("Bumble", "com.moxco.bumble", "https://bumble.com/nav/"),
+            ("Hinge", "co.hinge.mobile.ios", "https://hinge.co/app/"),
+            ("Character.AI", "ai.character.app", "https://character.ai/profile/"),
+            ("ChatGPT", "com.openai.chat", "https://chatgpt.com/open-app"),
+            ("Brawl Stars", "com.supercell.laser", "https://link.brawlstars.com/"),
+            ("Clash Royale", "com.supercell.scroll", "https://link.clashroyale.com/"),
+            ("Clash of Clans", "com.supercell.magic", "https://link.clashofclans.com/"),
+            ("Hay Day", "com.supercell.soil", "https://link.haydaygame.com/"),
+        ]
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let data = try JSONEncoder().encode(selection)
+        for target in targets {
+            XCTAssertEqual(AppGroupIdentity.widgetLaunchBundleId(templateApp: target.bundle, selectionData: data), target.bundle, target.name)
+            XCTAssertEqual(AppGroupIdentity(name: "", templateApp: target.bundle, applicationCount: 1).title, target.name)
+            XCTAssertTrue(TargetResolver.canOpen(bundleId: target.bundle), target.name)
+            XCTAssertEqual(TargetResolver.universalLinks(forBundleId: target.bundle), [target.link], target.name)
+            XCTAssertTrue(TargetResolver.primaryAndFallbackSchemes(for: target.bundle).isEmpty, "New targets use their exact Universal Link owner")
+        }
+        selection.applicationTokens.insert(try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8)))
+        let groupData = try JSONEncoder().encode(selection)
+        for target in targets {
+            XCTAssertNil(AppGroupIdentity.widgetLaunchBundleId(templateApp: target.bundle, selectionData: groupData), target.name)
+        }
+    }
+
+    func testPinterestUsesPublicBundleIDAndPreservesLegacyAssociation() throws {
+        XCTAssertEqual(TargetResolver.bundleId(from: "pinterest"), "pinterest")
+        XCTAssertEqual(TargetResolver.bundleId(from: "com.pinterest"), "pinterest")
+        XCTAssertEqual(TargetResolver.displayName(for: "pinterest"), "Pinterest")
+        XCTAssertTrue(TargetResolver.canOpen(bundleId: "pinterest"))
+        XCTAssertEqual(TargetResolver.primaryAndFallbackSchemes(for: "pinterest"), ["pinterest://"])
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let data = try JSONEncoder().encode(selection)
+        XCTAssertEqual(AppGroupIdentity.widgetLaunchBundleId(templateApp: "com.pinterest", selectionData: data), "pinterest")
+        XCTAssertEqual(AppGroupIdentity(name: "", templateApp: "com.pinterest", applicationCount: 1).title, "Pinterest")
+        let group = TicketGroup(name: "My inspiration", selection: selection,
+            settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20), templateApp: "com.pinterest")
+        XCTAssertEqual(group.templateApp, "pinterest")
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(group)) as? [String: Any])
+        legacy["templateApp"] = "com.pinterest"
+        let decoded = try JSONDecoder().decode(TicketGroup.self, from: JSONSerialization.data(withJSONObject: legacy))
+        XCTAssertEqual(decoded.templateApp, "pinterest")
+        XCTAssertEqual(decoded.name, "My inspiration")
+        XCTAssertEqual(decoded.selection, selection)
+    }
+
+}
+
+
+final class AppGroupEditorDraftTests: XCTestCase {
+    private func singleSelection() throws -> FamilyActivitySelection {
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        return selection
+    }
+
+    func testOnlyOneApplicationCanSaveWithoutAName() throws {
+        var selection = try singleSelection()
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "  "))
+        selection.applicationTokens.insert(try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8)))
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: selection, name: "  "))
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "Social"))
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: FamilyActivitySelection(), name: "Social"))
+    }
+
+    func testWebsiteAndCategorySelectionsRequireName() throws {
+        var selection = try singleSelection()
+        selection.webDomainTokens = [try JSONDecoder().decode(WebDomainToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: selection, name: ""))
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "Reading"))
+        selection = try singleSelection()
+        selection.categoryTokens = [try JSONDecoder().decode(ActivityCategoryToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        XCTAssertFalse(AppGroupNamePolicy.canSave(selection: selection, name: ""))
+        XCTAssertTrue(AppGroupNamePolicy.canSave(selection: selection, name: "Social"))
+    }
+
+    func testWidgetChoiceSuggestsNameButPreservesUserEditsAndExistingNames() throws {
+        var draft = AppGroupEditorDraft(selection: try singleSelection(), name: "", launchTarget: nil, isEditing: false)
+        draft.chooseLaunchTarget("com.grailed.production")
+        XCTAssertEqual(draft.name, "Grailed")
+        draft.chooseLaunchTarget("com.burbn.instagram")
+        XCTAssertEqual(draft.name, "Instagram")
+        draft.editName("My feed")
+        draft.chooseLaunchTarget("com.google.ios.youtube")
+        XCTAssertEqual(draft.name, "My feed")
+        draft = AppGroupEditorDraft(selection: try singleSelection(), name: "Instagram", launchTarget: "com.burbn.instagram", isEditing: true)
+        draft.chooseLaunchTarget("com.grailed.production")
+        XCTAssertEqual(draft.name, "Instagram", "An existing name is always user-owned")
+    }
+
+    func testChangingAppsOrClearingWidgetTargetRemovesOnlySuggestedName() throws {
+        var draft = AppGroupEditorDraft(selection: try singleSelection(), name: "", launchTarget: nil, isEditing: false)
+        draft.chooseLaunchTarget("com.burbn.instagram")
+        var changed = try singleSelection()
+        changed.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"Ag=="}"#.utf8))]
+        draft.updateSelection(changed)
+        XCTAssertEqual(draft.name, "")
+        XCTAssertEqual(draft.launchTarget, "")
+        draft.chooseLaunchTarget("com.grailed.production")
+        draft.chooseLaunchTarget("")
+        XCTAssertEqual(draft.name, "")
+        draft.editName("My name")
+        draft.chooseLaunchTarget("com.burbn.instagram")
+        draft.chooseLaunchTarget("")
+        draft.updateSelection(try singleSelection())
+        XCTAssertEqual(draft.name, "My name")
+    }
+
+    func testChangingStepsKeepsDraftButChangingAppsClearsAssociation() throws {
+        let original = try singleSelection()
+        var draft = AppGroupEditorDraft(selection: original, name: "Focus", launchTarget: "com.grailed.production", isEditing: true)
+        XCTAssertEqual(draft.step, .details)
+        draft.step = .selection
+        draft.updateSelection(original)
+        draft.step = .details
+        XCTAssertEqual(draft.launchTarget, "com.grailed.production")
+        XCTAssertEqual(draft.name, "Focus")
+        var updated = original
+        updated.applicationTokens.removeAll()
+        draft.updateSelection(updated)
+        XCTAssertEqual(draft.launchTarget, "")
+        XCTAssertEqual(draft.name, "Focus")
+        XCTAssertEqual(original.applicationTokens.count, 1, "Discarding the draft must leave the source selection unchanged")
     }
 }

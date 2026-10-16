@@ -74,6 +74,8 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
 
     /// A is opt-in: nil retains the exact archived appearance and motion.
     var appearancePolicyVersion: Int? = nil
+    /// New recipes boost pigment chroma; nil keeps archived colors unchanged.
+    var pigmentChromaPolicyVersion: Int? = nil
     /// Missing in archives: their shared contour and narrow rotation stay exact.
     var silhouettePolicyVersion: Int? = nil
     var usesIndividualSilhouettes: Bool { silhouettePolicyVersion == 1 }
@@ -519,11 +521,16 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
         let colors = neighboringPigments.flatMap { $0.isEmpty ? nil : $0 }
             ?? (palette.isEmpty ? [SIMD3<Float>(repeating: 0.5)] : palette)
         let role = max(0, slot) % 4
-        let slotPigment = colors[max(0, slot) % colors.count]
-        // Picker identities carry a variant even before a reroll. Keep the
-        // slot's dominant pigment and let those identities tint it gently.
+        let identityPigment = HappeningEditorialColorVariant.pigmentIndex(colorVariant)
+        let pigmentSlot = identityPigment ?? max(0, slot)
+        let slotPigment = colors[pigmentSlot % colors.count]
+        // New picker variants choose a leading daily pigment by identity,
+        // independent of the shared prospective slot. Previously stored tint
+        // variants still keep their frozen slot's dominant pigment.
         let pigment: DayObjectRGB
-        if let colorVariant {
+        if identityPigment != nil {
+            pigment = DayObjectRGB(linearRGB: slotPigment)
+        } else if let colorVariant {
             let tintIndex = Int(UInt(bitPattern: colorVariant) % UInt(colors.count))
             var tintRNG = SeededRNG(seed: UInt64(truncatingIfNeeded: colorVariant) ^ 0x5449_4E54_524F_4C45)
             let tint = Float(tintRNG.nextDouble(in: 0.10...0.18))
@@ -541,11 +548,17 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
             : family == .rays ? (role == 1 ? 0.70 : 0.79)
             : min(max(pigment.perceptualOKLab.x + (mean > 0.65 ? -0.035 : 0.07), 0.48), 0.84)
         let usesRoundVisuals = roundScalePolicyVersion == 2
+        let usesVividPigments = pigmentChromaPolicyVersion == 1
+        func fitted(_ color: DayObjectRGB, to lightness: Float, chromaFraction: Float) -> DayObjectRGB {
+            usesVividPigments
+                ? color.vividlyFittingPerceptualLightness(to: lightness)
+                : color.fittingPerceptualLightness(to: lightness, chromaFraction: chromaFraction)
+        }
         let usesVividRoundContrast = usesRoundVisuals && (collection.map { $0.usesRoundScale && !$0.isGlowingContour } ?? false)
         let resolvedLightness: Float = usesVividRoundContrast
             ? (mean > 0.58 ? 0.42 : 0.82)
             : lightness
-        let first = SIMD4(pigment.fittingPerceptualLightness(to: resolvedLightness + variation,
+        let first = SIMD4(fitted(pigment, to: resolvedLightness + variation,
             chromaFraction: usesRoundVisuals ? 1 : 0.92).linearRGB, 1)
         if usesReferenceMaterials {
             if usesRoundVisuals, source.materialIndex == 9 {
@@ -553,8 +566,8 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
                 // them anchored to this day's palette while retaining enough
                 // chroma for the halo to read as multicolored on muted days.
                 func glowColor(offset: Int, lightness: Float) -> SIMD4<Float> {
-                    let anchor = colors[(max(0, slot) + offset) % colors.count]
-                    return SIMD4(DayObjectRGB(linearRGB: anchor).fittingPerceptualLightness(
+                    let anchor = colors[(pigmentSlot + offset) % colors.count]
+                    return SIMD4(fitted(DayObjectRGB(linearRGB: anchor),
                         to: lightness, chromaFraction: 1).linearRGB, 1)
                 }
                 var metadata = source.metadata
@@ -566,9 +579,9 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
                              params3: source.params3, metadata: metadata)
             }
             func relatedColor(offset: Int, lightnessShift: Float) -> SIMD4<Float> {
-                let neighbor = colors[(max(0, slot) + offset) % colors.count]
+                let neighbor = colors[(pigmentSlot + offset) % colors.count]
                 let mixed = pigment.linearRGB + (neighbor - pigment.linearRGB) * 0.16
-                return SIMD4(DayObjectRGB(linearRGB: mixed).fittingPerceptualLightness(
+                return SIMD4(fitted(DayObjectRGB(linearRGB: mixed),
                     to: min(max(resolvedLightness + lightnessShift + variation, usesRoundVisuals ? 0.36 : 0.42), 0.88),
                     chromaFraction: usesVividRoundContrast ? 1 : 0.78).linearRGB, 1)
             }
@@ -585,7 +598,7 @@ struct NativeAtlasDailyStyle: Codable, Equatable {
                          params0: source.params0, params1: source.params1, params2: source.params2,
                          params3: source.params3, metadata: metadata)
         }
-        let second = isTwo ? SIMD4(pigment.fittingPerceptualLightness(to: lightness + 0.08 + variation, chromaFraction: 0.65).linearRGB, 1) : first
+        let second = isTwo ? SIMD4(fitted(pigment, to: lightness + 0.08 + variation, chromaFraction: 0.65).linearRGB, 1) : first
         return .init(color0: first, color1: second, color2: second,
                      params0: source.params0, params1: source.params1, params2: source.params2,
                      params3: source.params3, metadata: source.metadata)

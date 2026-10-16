@@ -7,14 +7,14 @@ and primary scheme are named Nowhere. Energy and steps remain domain concepts.
 | --- | --- | --- |
 | Startup, dependency wiring, app lifecycle | `Nowhere/NowhereApp.swift`, `DIContainer.swift`, `AppModel.swift` | `AuthSessionRestoreTests`, `AuthSignInLoadingStateTests` |
 | Tabs and navigation | `Views/MainTabView.swift`, `Views/GalleryView.swift`, `Views/MeView.swift`, `Views/AppsPageSimplified.swift` | `MainTabSelectionTests`, `CanvasPresentationStateTests` |
-| Onboarding and tours | `Views/Onboarding/`, `Views/CoachMark/` | `CanvasOnboardingStateTests` |
+| Onboarding and tours | `Views/Onboarding/` (including `HappeningPersonalization.swift` and `HappeningOnboardingView.swift`), `Views/CoachMark/` | `CanvasOnboardingStateTests` |
 | Happenings, Personal recommendations, daily colors and Health inputs | `AppModel+DailyEnergy.swift`, `AppModel+WorkoutSuggestions.swift`, `Models/ActivitySuggestion.swift`, `Models/HappeningDefaults.swift`, `Models/HappeningEventTree.swift`, `Models/EnergyDefaults.swift`, `Models/Happening.swift`, `Stores/HealthStore.swift`, `Stores/HappeningStore.swift` | `PersonalHappeningRecommendationsTests`, `DailyEnergyLogicTests`, `EnergyRecalcTests`, `HappeningAdditionsTests`, `HealthKitTests` |
 | Palette selection and adding/removing objects | `Views/Palette/`, `Models/CanvasElement.swift`, `Models/DayCanvas.swift` | `HappeningPaletteSelectionTests`, `CanvasPersistenceRegressionTests` |
 | Canvas rendering, gestures, saved artwork | `Views/GalleryView.swift`, `Views/Gallery/`, `Experiments/DayObjects/`, `Experiments/ShapeGenome/`, `Metal/` | `DayCanvasArtworkRoutingTests`, `MetalShapeCompatibilityTests`, `CanvasRemixTests` |
 | Music | `Experiments/DayObjects/Sound/` — Director, Domain, Engine, Playback, Lab, Diagnostics | `DeterministicMusicDirectorTests`, `DayObjectsMusicPlaybackEngineTests`, `DayObjectsAudioResourceTests` |
 | Feed groups and purchases | `Views/Feeds/`, `Views/PayGateView.swift`, `AppModel+TicketManagement.swift`, `Stores/BlockingStore.swift`, `Stores/UserEconomyStore.swift` | `PaymentTests`, `BudgetEngineTests`, `TicketGroupCostTests` |
 | Actual Screen Time usage and shielding | `Shared/ShieldRebuildHelper.swift`, `DeviceActivityMonitor/`, `ShieldAction/`, `ShieldConfiguration/`; locate budget operations with `rg 'UsageBudget' Nowhere Shared` | `UsageBudgetScheduleTests`, `AppGroupRMWConcurrencyTests`, `UnspentUsageBudgetTests` |
-| Widgets and wallpaper | `UnlockWidget/`, `Intents/ExportCanvasWallpaperIntent.swift`, `Services/CanvasStorageService.swift` | `WidgetTests`, `GateArtworkTests` |
+| Widgets and wallpaper | [App opening](widget-app-opening.md), `TargetResolver.swift`, `Models/TicketGroup.swift`, `UnlockWidget/`, `Intents/ExportCanvasWallpaperIntent.swift`, `Services/CanvasStorageService.swift` | `WidgetTests`, `GateArtworkTests` |
 | Authentication, local persistence and cloud sync | `Services/AuthenticationService.swift`, `Services/CanvasStorageService.swift`, `Services/SupabaseSyncService*.swift`, `Stores/PreferencesStore.swift` | `RetryQueueClassificationTests`, `PreferencesStoreTests`, `CanvasPersistenceRegressionTests` |
 | Analytics event schema and runtime context | `Services/SupabaseSyncService+Analytics.swift`, `supabase/migrations/` | [Analytics event contract](analytics-events.md) |
 | Appearance, typography and copy | `Views/Settings/`, `Theme/`, `Utilities/Font+Custom.swift`, `Fonts/`, `Localizable.xcstrings` | `AppTypographyTests`, `SettingsAppearanceDraftTests`, `DailyInterfaceColorTests` |
@@ -26,23 +26,44 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
-- `HappeningDefaults.builtIns` derives the fixed 100 choices from `HappeningEventTree.all`.
+- `HappeningDefaults.builtIns` derives the fixed 106 choices from `HappeningEventTree.all`.
   `HappeningStore.selectable` attaches usage metadata to authoritative English copy;
   `all` also contains historical/imported records and must not feed new-choice UI.
   Canonical selection aliases never rewrite saved entry IDs or Canvas labels.
   Removal resolves the current-day entry by UUID, then exact option ID, then
   canonical alias, and deletes using the entry's original durable ID.
-- `PersonalHappeningRecommendations` ranks local counters and restored snapshots;
-  it does not mutate the catalog. `GalleryView` combines familiar, Health and added
-  IDs when opening the field. `HappeningEventTreeState.atlasNodes` holds the shared
-  Personal/All map for that opening, with six roots and shared intersections fixed.
-  Later additions reveal their canonical paths without moving the open map.
-  Successful removal of the final Canvas element resets the field and its saved
-  expansion IDs. A local cleared-day marker suppresses recommendation prereveals
-  while that Canvas remains empty; normal recommendations resume on addition.
+- `HappeningPersonalizationStore` keeps account-scoped committed survey preferences
+  separate from resumable drafts. `GalleryView` gates only the explicit Add action,
+  then reveals the existing All atlas without changing its cells. Survey seeds never
+  enter `HappeningStore`; temporary emotion scores expire by logical day. The Debug
+  coordinator prepares a fresh survey draft for a Debug replay and starts the
+  existing CanvasTour at welcome. The same HappeningPaletteView stays mounted
+  across six questions and the All reveal. Synthetic IDs own only survey answers;
+  explicit representative catalog IDs reuse the full authoritative Editorial
+  assignment snapshot, including frozen current-day actors. Survey taps reuse
+  HappeningPaletteInteractionState's removal preview and confirmation, without
+  invoking Canvas mutation paths. Headings and the persistent first-All choice
+  prompt contribute to the same CanvasTourHost coach surface. The coach publishes
+  its destination geometry rather than every animation frame; content changes
+  atomically. HappeningFieldReveal samples an immutable schedule in the leaf
+  TimelineView, preserving the full All world and Today hub. Palette presentation
+  copies reuse the prepared DayObjects scene rather than deriving it per frame. A real
+  addition or explicit tap on an already recorded happening, followed by palette
+  dismissal, advances to Health, Feeds and Me. Recorded event taps acknowledge
+  the durable entry without a mutation, including at the ten-addition limit.
+- `PersonalHappeningCategory` owns six presentation-only navigation IDs and
+  overlapping membership covering all 106 canonical events. `PersonalHappeningBrowser`
+  freezes ranked IDs on category entry and reuses native atlas cells. `GalleryView`
+  intercepts category taps before mutation and maps their visual assignments from
+  canonical representatives without replacing the full assignment snapshot.
+  Category browsing never writes Canvas, counters or Health links. All and survey
+  introduction retain `HappeningEventTreeState.atlasNodes`; the existing sphere
+  ranking prepares that complete atlas. Browser field identities reset transitions
+  and focus between category home, details and All. Final removal returns Personal
+  to category home; saved element IDs and frozen actors retain their identities.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
-  must not rebuild all 100 candidates. `DayObjectPaletteSet.make` shares a bounded
+  must not rebuild all catalog candidates. `DayObjectPaletteSet.make` shares a bounded
   16-entry palette cache keyed by root seed, normalized categories, day and identity.
   Its lock protects lookup/publication, while palette derivation runs outside the lock.
 - `MePosterEventLedger.unlocks` retains four immutable full-ledger requests so live
@@ -55,6 +76,9 @@ Test names live in `NowhereTests/` unless stated otherwise.
 - The app and extensions are separate processes. Preserve App Group identifiers, persisted
   keys, atomic read/modify/write operations and the existing lock ordering. An actor in one
   process does not synchronize another process.
+  All shield assignments route through `ShieldRebuildHelper.rebuild`; the usage-budget
+  state lock spans the persisted snapshot and ManagedSettings write. DeviceActivity
+  registration always happens after that lock is released.
 - `DayCanvas` and versioned recipes are durable data. Older render paths and textures are
   still required by saved artwork and export. Preserve decoder defaults, stable IDs, random
   consumption order and Metal uniform layouts. See [Canvas components](canvas-components.md).

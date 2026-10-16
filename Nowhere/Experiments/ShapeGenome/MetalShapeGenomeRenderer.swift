@@ -1,4 +1,3 @@
-#if DEBUG || INTERNAL_BUILD
 import CoreGraphics
 import Metal
 import UIKit
@@ -158,4 +157,3 @@ enum MetalShapeGenomeRenderer {
         return UIImage(cgImage: cgImage, scale: scale, orientation: .up)
     }
 }
-#endif

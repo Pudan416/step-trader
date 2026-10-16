@@ -351,51 +351,82 @@ enum ShieldRebuildHelper {
             return
         }
 
-        var allApps = Set<ApplicationToken>()
-        var allCategories = Set<ActivityCategoryToken>()
+        // The app and monitor callbacks share the purchase state lock from
+        // their first budget read through the actual settings assignment. An
+        // obsolete snapshot can therefore never land after a newer purchase.
+        let groups: [GroupTuple]
+        do {
+            groups = try withUsageBudgetLock {
+                defaults.synchronize()
+                var allApps = Set<ApplicationToken>()
+                var allCategories = Set<ActivityCategoryToken>()
+                var activeBudgetApps = Set<ApplicationToken>()
 
-        let groups = loadGroups(defaults: defaults)
+                let groups = loadGroups(defaults: defaults)
 
-        for group in groups where group.active {
-            if shouldSkipShieldingDueToActiveUsageBudget(defaults: defaults, groupId: group.id) {
-                continue
-            }
+                for group in groups where group.active {
+                    if shouldSkipShieldingDueToActiveUsageBudget(defaults: defaults, groupId: group.id) {
+                        if let selectionData = group.selectionData,
+                           let selection = cachedSelection(for: group.id, data: selectionData) {
+                            activeBudgetApps.formUnion(selection.applicationTokens)
+                        }
+                        continue
+                    }
 
-            guard let selectionData = group.selectionData else { continue }
-            guard let sel = cachedSelection(for: group.id, data: selectionData) else { continue }
+                    guard let selectionData = group.selectionData else { continue }
+                    guard let sel = cachedSelection(for: group.id, data: selectionData) else { continue }
 
-            allApps.formUnion(sel.applicationTokens)
-            allCategories.formUnion(sel.categoryTokens)
-        }
-
-        // Legacy per-app selections
-        if let data = defaults.data(forKey: SharedKeys.appUnlockSettings),
-           let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
-            for (bundleId, settings) in decoded where settings.familyControlsModeEnabled == true {
-                let key = SharedKeys.timeAccessSelectionKey(bundleId)
-                if let selData = defaults.data(forKey: key),
-                   let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selData) {
                     allApps.formUnion(sel.applicationTokens)
                     allCategories.formUnion(sel.categoryTokens)
                 }
+
+                // Legacy per-app selections
+                if let data = defaults.data(forKey: SharedKeys.appUnlockSettings),
+                   let decoded = try? JSONDecoder().decode([String: StoredUnlockSettings].self, from: data) {
+                    for (bundleId, settings) in decoded where settings.familyControlsModeEnabled == true {
+                        let key = SharedKeys.timeAccessSelectionKey(bundleId)
+                        if let selData = defaults.data(forKey: key),
+                           let sel = try? JSONDecoder().decode(FamilyActivitySelection.self, from: selData) {
+                            allApps.formUnion(sel.applicationTokens)
+                            allCategories.formUnion(sel.categoryTokens)
+                        }
+                    }
+                }
+
+                let store = ManagedSettingsStore(named: .init("shield"))
+                store.shield.applications = allApps.isEmpty ? nil : allApps
+                store.shield.applicationCategories = allCategories.isEmpty
+                    ? nil
+                    : .specific(allCategories)
+
+                // Readback describes our configured store. Effective enforcement still
+                // requires a device check; iOS can enforce settings from other stores.
+                let storedApps = store.shield.applications ?? []
+                let activeBudgetAppsStillShielded = activeBudgetApps.intersection(storedApps).count
+
+                defaults.set(0, forKey: SharedKeys.shieldState)
+
+                logDiagnostic(
+                    defaults: defaults,
+                    apps: allApps.count,
+                    categories: allCategories.count,
+                    budgetApps: activeBudgetApps.count,
+                    budgetAppsStillShielded: activeBudgetAppsStillShielded
+                )
+                defaults.synchronize()
+                return groups
             }
+        } catch {
+            Logger(subsystem: "com.personalproject.StepsTrader", category: "ShieldRebuild")
+                .error("Shield state lock unavailable — preserving existing shields: \(error.localizedDescription)")
+            return
         }
 
-        let store = ManagedSettingsStore(named: .init("shield"))
-        store.shield.applications = allApps.isEmpty ? nil : allApps
-        store.shield.applicationCategories = allCategories.isEmpty
-            ? nil
-            : .specific(allCategories)
-
-        defaults.set(0, forKey: SharedKeys.shieldState)
-
-        // DeviceActivity callbacks must return before another monitor replacement.
-        // The app can opt in (the default); the extension explicitly opts out.
+        // Registration can synchronously deliver callbacks that need the state
+        // lock. Always release it before contacting the Screen Time daemon.
         if startPendingBudgets {
             startPendingWidgetBudgets(defaults: defaults, groups: groups)
         }
-
-        logDiagnostic(defaults: defaults, apps: allApps.count, categories: allCategories.count)
         #endif
     }
 
@@ -766,9 +797,15 @@ enum ShieldRebuildHelper {
         return f
     }()
 
-    private static func logDiagnostic(defaults: UserDefaults, apps: Int, categories: Int) {
+    private static func logDiagnostic(
+        defaults: UserDefaults,
+        apps: Int,
+        categories: Int,
+        budgetApps: Int,
+        budgetAppsStillShielded: Int
+    ) {
         let ts = isoFormatter.string(from: Date())
-        let entry = "[\(ts)] [helper] apps=\(apps) cats=\(categories)"
+        let entry = "[\(ts)] [helper] apps=\(apps) cats=\(categories) budgetApps=\(budgetApps) budgetAppsStillShielded=\(budgetAppsStillShielded)"
 
         var history = defaults.stringArray(forKey: SharedKeys.shieldDiagHistory) ?? []
         history.append(entry)

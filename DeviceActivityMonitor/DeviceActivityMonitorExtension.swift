@@ -264,10 +264,9 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             }
         }
         
-        // Setup shield to show custom shield instead of system blocking
-        let store = ManagedSettingsStore(named: .init("shield"))
-        store.shield.applications = allApps.isEmpty ? nil : allApps
-        store.shield.applicationCategories = allCategories.isEmpty ? nil : .specific(allCategories)
+        // This pass supplies legacy metadata only. Apply the shield from a
+        // fresh persisted snapshot under the same lock as purchase commits.
+        rebuildBlockFromExtension()
         
         // Save blocked apps info for ShieldActionExtension to use
         if let firstApp = allApps.first {
@@ -317,7 +316,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             }
         }
         
-        MonitorLogger.info("Shield applied: \(allApps.count) apps, \(allCategories.count) categories")
+        MonitorLogger.info("Minute mode metadata: \(allApps.count) apps, \(allCategories.count) categories; shield reconciled by shared helper")
     }
     #else
     private func setupBlockForMinuteMode() {}

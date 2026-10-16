@@ -70,6 +70,17 @@ struct HappeningEditorialAssignmentSnapshot: Equatable {
     let assignments: [String: HappeningEditorialAssignment]
 }
 
+/// Opt-in stored pigment policy for newly added native actors. Legacy variants
+/// remain the small tint values they were when those actors were recorded.
+enum HappeningEditorialColorVariant {
+    static let identityPigmentMarker = 1 << 20
+
+    static func pigmentIndex(_ variant: Int?) -> Int? {
+        guard let variant, variant >= identityPigmentMarker else { return nil }
+        return variant - identityPigmentMarker
+    }
+}
+
 enum HappeningEditorialAssignmentResolver {
     private static let colorVariationCount = 97
 
@@ -115,11 +126,13 @@ enum HappeningEditorialAssignmentResolver {
             if let committedElement {
                 colorVariant = committedElement.editorialColorVariant
             } else {
-                colorVariant = Self.colorVariant(
+                let variant = Self.colorVariant(
                     happeningID: happening.id,
                     dayKey: request.baseInput.dayKey,
                     nonce: request.colorNonce
                 )
+                colorVariant = nativeRecipe?.dailyStyle?.usesApprovedAppearance == true
+                    ? HappeningEditorialColorVariant.identityPigmentMarker + variant : variant
             }
             let eventID = elementID.uuidString.lowercased()
             let input = prospectiveInput(

@@ -70,7 +70,7 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(preview.gpuAppearance, assignment.material.gpuAppearance)
         XCTAssertEqual(added.gpuActor.presentationSaturation, 1, accuracy: 0.001)
         XCTAssertEqual(removal.gpuActor.removalEmphasis, 1)
-        XCTAssertEqual(frame.postProcess.grainIntensity, 0.05)
+        XCTAssertEqual(frame.postProcess.grainIntensity, 0, "The transparent palette overlay does not duplicate Canvas grain")
         XCTAssertEqual(frame.postProcess.blurRadius, 0)
     }
 
@@ -355,5 +355,60 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
                 placement: .depthField
             )
         )
+    }
+}
+
+
+final class DayObjectsPaletteResizeHandoffTests: XCTestCase {
+    @MainActor
+    func testDrawableResizeMatchesCurrentBoundsWithoutHidingTheNativeView() {
+        let view = DayObjectsDrawableView(frame: .zero, device: nil)
+        view.autoResizeDrawable = false
+        for size in [CGSize(width: 393, height: 852), CGSize(width: 1852, height: 2136)] {
+            view.configurePaletteViewportSize(size)
+            view.bounds = CGRect(origin: .zero, size: size)
+            view.setNeedsLayout()
+            view.layoutIfNeeded()
+            XCTAssertTrue(view.drawableMatchesBounds)
+            XCTAssertLessThanOrEqual(max(view.drawableSize.width, view.drawableSize.height), 4096)
+            XCTAssertFalse(view.isHidden)
+            XCTAssertEqual(view.alpha, 1)
+        }
+    }
+
+    func testOnlyTheRequestedPaletteSizeCanCompleteAResize() {
+        let questionnaire = CGSize(width: 393, height: 852)
+        let all = CGSize(width: 1852, height: 2136)
+        let later = CGSize(width: 1974, height: 2347)
+        var handoff = DayObjectsPaletteResizeHandoff()
+        handoff.request(viewportSize: questionnaire)
+        XCTAssertTrue(handoff.isPending)
+        XCTAssertTrue(handoff.didPresent(viewportSize: questionnaire))
+        XCTAssertFalse(handoff.isPending)
+        handoff.request(viewportSize: all)
+        XCTAssertTrue(handoff.isPending)
+        XCTAssertFalse(handoff.canPresent(viewportSize: all, boundsSize: questionnaire))
+        XCTAssertTrue(handoff.canPresent(viewportSize: all, boundsSize: all))
+        XCTAssertFalse(handoff.didPresent(viewportSize: questionnaire))
+        XCTAssertTrue(handoff.isPending)
+        handoff.request(viewportSize: later)
+        XCTAssertFalse(handoff.didPresent(viewportSize: all), "An older submitted frame cannot complete a newer resize")
+        XCTAssertTrue(handoff.isPending)
+        XCTAssertTrue(handoff.didPresent(viewportSize: later))
+        XCTAssertFalse(handoff.isPending)
+    }
+
+    func testRepeatedAnimationSamplesDoNotRequestAnotherResize() {
+        let size = CGSize(width: 1852, height: 2136)
+        var handoff = DayObjectsPaletteResizeHandoff()
+        handoff.request(viewportSize: size)
+        handoff.didPresent(viewportSize: size)
+        for _ in 0..<120 {
+            handoff.request(viewportSize: size)
+            XCTAssertFalse(handoff.isPending)
+        }
+        handoff.request(viewportSize: nil)
+        XCTAssertFalse(handoff.isPending)
+        XCTAssertNil(handoff.presentedViewportSize)
     }
 }

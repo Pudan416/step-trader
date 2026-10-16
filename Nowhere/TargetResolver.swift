@@ -7,93 +7,7 @@ enum TargetResolver {
 
     // MARK: - Single-source registry
 
-    private struct AppTarget {
-        let targets: [String]
-        let bundleId: String
-        let displayName: String
-        let scheme: String
-        let fallbackSchemes: [String]
-        /// Apple-verified Universal Links (https). Preferred over custom schemes when
-        /// re-opening a blocked app: iOS routes them to the exact app that owns the
-        /// domain, so a third-party app squatting a custom scheme (e.g. `x://`) can't
-        /// intercept them. Empty = no known Universal Link, custom schemes only.
-        ///
-        /// `var`, not `let`: a `let` with an inline default is dropped from the
-        /// memberwise initializer, so entries passing `universalLinks:` wouldn't compile.
-        var universalLinks: [String] = []
-    }
-
-    private static let registry: [AppTarget] = [
-        AppTarget(targets: ["instagram"],
-                  bundleId: "com.burbn.instagram",
-                  displayName: "Instagram",
-                  scheme: "instagram://",
-                  fallbackSchemes: ["instagram://app", "instagram://", "instagram://feed", "instagram://camera"]),
-
-        AppTarget(targets: ["tiktok"],
-                  bundleId: "com.zhiliaoapp.musically",
-                  displayName: "TikTok",
-                  scheme: "tiktok://",
-                  fallbackSchemes: ["tiktok://"]),
-
-        AppTarget(targets: ["youtube"],
-                  bundleId: "com.google.ios.youtube",
-                  displayName: "YouTube",
-                  scheme: "youtube://",
-                  fallbackSchemes: ["youtube://"]),
-
-        AppTarget(targets: ["telegram"],
-                  bundleId: "ph.telegra.Telegraph",
-                  displayName: "Telegram",
-                  scheme: "tg://",
-                  fallbackSchemes: ["tg://", "telegram://"]),
-
-        AppTarget(targets: ["whatsapp"],
-                  bundleId: "net.whatsapp.WhatsApp",
-                  displayName: "WhatsApp",
-                  scheme: "whatsapp://",
-                  fallbackSchemes: ["whatsapp://"]),
-
-        AppTarget(targets: ["snapchat"],
-                  bundleId: "com.toyopagroup.picaboo",
-                  displayName: "Snapchat",
-                  scheme: "snapchat://",
-                  fallbackSchemes: ["snapchat://"]),
-
-        AppTarget(targets: ["facebook"],
-                  bundleId: "com.facebook.Facebook",
-                  displayName: "Facebook",
-                  scheme: "fb://",
-                  fallbackSchemes: ["fb://", "facebook://"]),
-
-        AppTarget(targets: ["linkedin"],
-                  bundleId: "com.linkedin.LinkedIn",
-                  displayName: "LinkedIn",
-                  scheme: "linkedin://",
-                  fallbackSchemes: ["linkedin://"]),
-
-        AppTarget(targets: ["x", "twitter"],
-                  bundleId: "com.atebits.Tweetie2",
-                  displayName: "X",
-                  scheme: "twitter://",
-                  // `x://` intentionally removed — it's a generic scheme other apps
-                  // (e.g. Standoff 2) register, which hijacked the re-open and launched
-                  // the wrong app. Universal Links below open the real X app reliably.
-                  fallbackSchemes: ["twitter://"],
-                  universalLinks: ["https://x.com", "https://twitter.com"]),
-
-        AppTarget(targets: ["reddit"],
-                  bundleId: "com.reddit.Reddit",
-                  displayName: "Reddit",
-                  scheme: "reddit://",
-                  fallbackSchemes: ["reddit://"]),
-
-        AppTarget(targets: ["pinterest"],
-                  bundleId: "com.pinterest",
-                  displayName: "Pinterest",
-                  scheme: "pinterest://",
-                  fallbackSchemes: ["pinterest://"])
-    ]
+    private static let registry = AppLaunchCatalog.targets
 
     // MARK: - Derived lookup tables (built once, lazily)
 
@@ -113,8 +27,8 @@ enum TargetResolver {
         return map
     }()
 
-    private static let bundleToEntry: [String: AppTarget] = {
-        var map: [String: AppTarget] = [:]
+    private static let bundleToEntry: [String: AppLaunchCatalog.Target] = {
+        var map: [String: AppLaunchCatalog.Target] = [:]
         for entry in registry { map[entry.bundleId] = entry }
         return map
     }()
@@ -123,12 +37,13 @@ enum TargetResolver {
 
     static func bundleId(from target: String?) -> String? {
         guard let target else { return nil }
-        if target.contains(".") { return target }
-        return targetToBundleId[target.lowercased()] ?? target
+        let canonical = AppLaunchCatalog.canonicalBundleId(target)
+        if canonical.contains(".") { return canonical }
+        return targetToBundleId[canonical.lowercased()] ?? canonical
     }
 
     static func displayName(for bundleId: String) -> String {
-        bundleToEntry[bundleId]?.displayName ?? bundleId
+        bundleToEntry[AppLaunchCatalog.canonicalBundleId(bundleId)]?.displayName ?? bundleId
     }
 
     static func urlScheme(for target: String) -> String? {
@@ -136,26 +51,26 @@ enum TargetResolver {
     }
 
     static func urlScheme(forBundleId bundleId: String) -> String? {
-        bundleToEntry[bundleId]?.scheme
+        bundleToEntry[AppLaunchCatalog.canonicalBundleId(bundleId)]?.scheme
     }
 
     static func primaryAndFallbackSchemes(for bundleId: String) -> [String] {
-        if let entry = bundleToEntry[bundleId] {
+        if let entry = bundleToEntry[AppLaunchCatalog.canonicalBundleId(bundleId)] {
             return entry.fallbackSchemes
         }
         return []
     }
 
     /// Apple-verified Universal Links for a target app, preferred over custom schemes
-    /// when re-opening it (see `AppTarget.universalLinks`). Empty for apps with none.
+    /// when re-opening it (see `AppLaunchCatalog.Target.universalLinks`). Empty for apps with none.
     static func universalLinks(forBundleId bundleId: String) -> [String] {
-        bundleToEntry[bundleId]?.universalLinks ?? []
+        bundleToEntry[AppLaunchCatalog.canonicalBundleId(bundleId)]?.universalLinks ?? []
     }
 
     /// Whether we know how to re-open this app (has at least one Universal Link or
     /// custom scheme). Callers gate their "open" affordance on this.
     static func canOpen(bundleId: String) -> Bool {
-        guard let entry = bundleToEntry[bundleId] else { return false }
+        guard let entry = bundleToEntry[AppLaunchCatalog.canonicalBundleId(bundleId)] else { return false }
         return !entry.universalLinks.isEmpty || !entry.fallbackSchemes.isEmpty
     }
 

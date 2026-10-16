@@ -12,6 +12,7 @@ struct HappeningShapeField: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var labelInks: [String: HappeningPaletteLabelInk] = [:]
     var fitsTreeLabels = false
+    var isSurvey = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -28,16 +29,16 @@ struct HappeningShapeField: View {
         source: HappeningFieldLayout.Source
     ) -> some View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
-        let existingTourMoment = CanvasTour.shared.isActive
+        let isCategory = PersonalHappeningCategory.category(forChoiceID: happening.id) != nil
+        let existingTourMoment = !isSurvey && CanvasTour.shared.isActive
             && CanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
-        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil || existingTourMoment
+        let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
         let side = max(44, source.radius * 2 / max(0.001, source.appearanceScale))
+        let hitSize = HappeningPickerHitShape.size(side: side, showsAction: state.awaitsConfirmation)
         let ink = labelInks[happening.id] ?? .dark
 
         return ZStack {
-            Button {
-                onActivate(happening)
-            } label: {
+            Button { onActivate(happening) } label: {
                 Text(happening.localizedTitle())
                     .font(.onest(size: min(26, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize), weight: .semibold))
                     .multilineTextAlignment(.center)
@@ -59,28 +60,29 @@ struct HappeningShapeField: View {
                                 systemImage: state == .additionPreview ? "plus" : "trash"
                             )
                                 .font(.geist(size: 13, weight: .bold))
-                                .padding(.horizontal, 11)
-                                .padding(.vertical, 6)
+                                .frame(width: HappeningPickerHitShape.actionSize.width,
+                                       height: HappeningPickerHitShape.actionSize.height)
                                 .foregroundStyle(.white)
                                 .background(.black.opacity(0.94), in: Capsule())
                                 .overlay(Capsule().strokeBorder(.white.opacity(0.95), lineWidth: 1.5))
                                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                                 .accessibilityIdentifier("happening_action_\(happening.id)")
-                                .offset(y: min(side * 0.31, 38))
+                                .offset(y: HappeningPickerHitShape.actionOffset(side: side))
                         }
                     }
                     .foregroundStyle(ink.color)
-                    .frame(width: side, height: side)
-                    .contentShape(HappeningPickerShape())
+                    .frame(width: hitSize.width, height: hitSize.height)
+                    .contentShape(HappeningPickerHitShape(side: side, showsAction: state.awaitsConfirmation))
             }
             .buttonStyle(.plain)
             .disabled(locked)
+            .allowsHitTesting(!locked)
             .accessibilityLabel(happening.localizedTitle())
-            .accessibilityValue(HappeningPaletteAccessibility.value(for: state))
-            .accessibilityHint(existingTourMoment
-                ? String(localized: "Already in your day. Choose another happening, or continue with your existing day.")
+            .accessibilityValue(isCategory ? "Category" : isSurvey ? surveyValue(for: state) : HappeningPaletteAccessibility.value(for: state))
+            .accessibilityHint(isCategory ? "Open events in this category." : isSurvey ? surveyHint(for: state) : existingTourMoment
+                ? String(localized: "Already in your day. Tap to continue the tour.")
                 : hint(for: state, locked: locked))
-            .accessibilityIdentifier("happening_choice_\(happening.id)")
+            .accessibilityIdentifier(!isSurvey ? "happening_choice_\(happening.id)" : "happenings.onboarding.\(happening.id.replacingOccurrences(of: "survey:", with: "").replacingOccurrences(of: ":", with: "."))")
 
             if state == .added {
                 Image(systemName: "checkmark")
@@ -97,8 +99,28 @@ struct HappeningShapeField: View {
         }
         .frame(width: side, height: side)
         .scaleEffect(source.appearanceScale)
+        // Metal raises the confirmation actor too. Its visible action must win
+        // an overlap with a neighboring cell in the transparent hit layer.
+        .zIndex(state.awaitsConfirmation ? 1 : 0)
         .canvasTourAnchor("canvas.happening.\(happening.id)")
         .position(source.center)
+    }
+
+    private func surveyValue(for state: HappeningPaletteSlotVisualState) -> String {
+        switch state {
+        case .available: "Not selected"
+        case .added: "Selected"
+        case .removalPreview: "Previewing deselection"
+        case .additionPreview: "Previewing selection"
+        }
+    }
+
+    private func surveyHint(for state: HappeningPaletteSlotVisualState) -> String {
+        switch state {
+        case .available, .additionPreview: "Tap to select."
+        case .added: "Tap to preview deselection."
+        case .removalPreview: "Tap again to deselect."
+        }
     }
 
     private var tourLabelScale: CGFloat {
@@ -113,6 +135,34 @@ struct HappeningShapeField: View {
         case .added: return String(localized: "Activate to preview removing from Canvas")
         case .removalPreview: return String(localized: "Activate again to remove from Canvas")
         }
+    }
+}
+
+/// The action is offset below the caption, so its lower corners can extend
+/// beyond the figure. Keep its full visible capsule inside the same button.
+struct HappeningPickerHitShape: Shape {
+    static let actionSize = CGSize(width: 100, height: 44)
+    let side: CGFloat
+    let showsAction: Bool
+
+    static func actionOffset(side: CGFloat) -> CGFloat { min(side * 0.31, 38) }
+
+    static func size(side: CGFloat, showsAction: Bool) -> CGSize {
+        guard showsAction else { return CGSize(width: side, height: side) }
+        return CGSize(width: max(side, actionSize.width),
+                      height: max(side, 2 * actionOffset(side: side) + actionSize.height))
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = HappeningPickerShape().path(in: CGRect(
+            x: rect.midX - side / 2, y: rect.midY - side / 2, width: side, height: side))
+        if showsAction {
+            path.addPath(Capsule().path(in: CGRect(
+                x: rect.midX - Self.actionSize.width / 2,
+                y: rect.midY + Self.actionOffset(side: side) - Self.actionSize.height / 2,
+                width: Self.actionSize.width, height: Self.actionSize.height)))
+        }
+        return path
     }
 }
 

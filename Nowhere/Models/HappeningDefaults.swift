@@ -53,7 +53,7 @@ enum HappeningDefaults {
         Happening(id: "happening_listened", title: "Listened", isBuiltIn: true)
     ]
 
-    static let maximumCatalogCount = 100
+    static let maximumCatalogCount = 106
     static let allowsCustomCreation = false
 
     // Retired choices still resolve in archived days and restored entries.
@@ -95,9 +95,11 @@ enum HappeningDefaults {
         if id.hasPrefix("health_workout_"), let type = UInt(id.dropFirst(15)) {
             // Persisted HKWorkoutActivityType raw values, confirmed against the SDK.
             switch type {
+            case 13: return "event_cycling"
             case 52: return "event_walk"
             case 37: return "event_run"
             case 46: return "event_swam"
+            case 57: return "event_yoga"
             case 14, 77, 78: return "event_danced"
             case 62: return "event_stretched"
             default: return "event_workout"

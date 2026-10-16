@@ -282,7 +282,7 @@ enum HappeningFieldLabelTypography {
         )
     }
 
-    private static func contentSizeCategory(
+    static func contentSizeCategory(
         for dynamicTypeSize: DynamicTypeSize
     ) -> UIContentSizeCategory {
         switch dynamicTypeSize {

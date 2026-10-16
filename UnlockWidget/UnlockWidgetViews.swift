@@ -279,7 +279,7 @@ struct NowhereWidgetContent: View {
 
     @ViewBuilder
     private func activeGroupLink<Content: View>(_ group: UnlockEntry.GroupSnapshot, @ViewBuilder content: () -> Content) -> some View {
-        if group.isUnlocked, let bundle = group.templateApp,
+        if group.isUnlocked, let bundle = group.launchBundleId,
            let url = URL(string: "steps-trader://openapp?bundleId=\(bundle)") {
             Link(destination: url, label: content)
         } else {

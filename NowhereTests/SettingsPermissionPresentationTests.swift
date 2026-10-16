@@ -3,14 +3,14 @@ import XCTest
 @testable import Nowhere
 
 final class SettingsPermissionPresentationTests: XCTestCase {
-    func testHealthWithoutVisibleDataIsNeutralNotMissing() {
+    func testHealthWithoutVisibleDataUsesNeutralNoDataState() {
         let state = SettingsPermissionPresentation.health(
             isAvailable: true,
             hasVisibleData: false
         )
-        XCTAssertEqual(state.status, .checkAccess)
+        XCTAssertEqual(state.status, .noData)
         XCTAssertFalse(state.contributesToWarning)
-        XCTAssertEqual(state.action, .checkAccess)
+        XCTAssertEqual(state.action, .showHealthGuide)
     }
 
     func testVisibleHealthDataCountsAsConnected() {

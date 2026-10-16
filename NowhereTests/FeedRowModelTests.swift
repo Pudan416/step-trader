@@ -192,19 +192,17 @@ final class FeedInlineExpansionTests: XCTestCase {
         XCTAssertEqual(current.collapsing(groupID: "instagram"), FeedInlineExpansion())
     }
 
-    func testAutoScrollOnlyStartsWhenOptionsReachTheTabBar() {
+    func testAutoScrollUsesViewportAlreadyReducedByFixedFooter() {
         XCTAssertFalse(
             FeedInlineLayout.needsAutoScroll(
                 optionsBottom: 450,
-                viewportHeight: 640,
-                tabBarHeight: 90
+                viewportHeight: 540
             )
         )
         XCTAssertTrue(
             FeedInlineLayout.needsAutoScroll(
                 optionsBottom: 550,
-                viewportHeight: 640,
-                tabBarHeight: 90
+                viewportHeight: 540
             )
         )
     }

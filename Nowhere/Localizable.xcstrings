@@ -1956,6 +1956,9 @@
     "No data" : {
       "comment" : "GradientPreview – preview mode empty state"
     },
+    "No data yet" : {
+      "comment" : "Health permission status when no Health samples are visible"
+    },
     "No data for this day." : {
       "comment" : "DayCanvasViewer – empty state"
     },

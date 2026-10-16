@@ -268,7 +268,7 @@ struct NotificationSettingsView: View {
             .green
         case .notRequested, .offInSystemSettings, .actionNeeded:
             .orange
-        case .checkAccess, .unavailable:
+        case .checkAccess, .noData, .unavailable:
             theme.adaptiveMutedText
         }
     }

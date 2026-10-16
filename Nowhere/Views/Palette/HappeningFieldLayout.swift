@@ -58,7 +58,8 @@ enum HappeningFieldLayout {
         dynamicTypeSize: DynamicTypeSize = .large,
         contentTopInset: CGFloat? = nil,
         dockCenterY: CGFloat? = nil,
-        allowsAccessibleScrolling: Bool = false
+        allowsAccessibleScrolling: Bool = false,
+        rowPattern: [Int]? = nil
     ) -> Layout {
         let safeBounds = safeBounds(in: size, safeInsets: safeInsets)
         guard !safeBounds.isEmpty else {
@@ -74,7 +75,10 @@ enum HappeningFieldLayout {
             max(safeBounds.midY, dockCenterY ?? defaultDockY)
         )
         let dockAnchor = CGPoint(x: safeBounds.midX, y: resolvedDockY)
-        let itemCount = min(max(count, 0), rowPatterns.count - 1)
+        let customRows = rowPattern.flatMap { rows in
+            !rows.isEmpty && rows.allSatisfy { $0 > 0 } && rows.reduce(0, +) == count ? rows : nil
+        }
+        let itemCount = customRows == nil ? min(max(count, 0), rowPatterns.count - 1) : max(0, count)
         let contentTop = min(
             dockAnchor.y - dockContentGap - 44,
             max(safeBounds.minY + edgeClearance, contentTopInset ?? safeBounds.minY + edgeClearance)
@@ -105,7 +109,7 @@ enum HappeningFieldLayout {
             )
         }
 
-        if count > 10 {
+        if count > 10 && customRows == nil {
             let radius = max(68, min(96, HappeningFieldLabelTypography.scaledUIFont(for: dynamicTypeSize).pointSize / 14 * 68))
             let gap: CGFloat = 8
             let step = radius * 2 + gap
@@ -155,24 +159,23 @@ enum HappeningFieldLayout {
         }
 
         return standardLayout(
-            itemCount: itemCount,
             safeBounds: safeBounds,
             contentTop: contentTop,
             contentBottom: contentBottom,
-            dockAnchor: dockAnchor
+            dockAnchor: dockAnchor,
+            rows: customRows ?? rowPatterns[itemCount]
         )
     }
 
     private static func standardLayout(
-        itemCount: Int,
         safeBounds: CGRect,
         contentTop: CGFloat,
         contentBottom: CGFloat,
-        dockAnchor: CGPoint
+        dockAnchor: CGPoint,
+        rows: [Int]
     ) -> Layout {
         let fieldWidth = safeBounds.width - edgeClearance * 2
         let fieldHeight = max(88, contentBottom - contentTop)
-        let rows = rowPatterns[itemCount]
         let widestRow = rows.max() ?? 1
         let rowFactors = zip(rows, rows.dropFirst()).map { current, next in
             current == next ? CGFloat(1) : sqrt(3) / 2
@@ -494,5 +497,47 @@ struct HappeningEventFieldTransition {
         let p = progress(at: date)
         if from.dateHubCenter != nil, to.dateHubCenter != nil { return 1 }
         return to.dateHubCenter == nil ? 1 - p : p
+    }
+}
+
+/// One immutable reveal schedule drives the native figures and their labels.
+/// It scales cells in their final positions without resizing the scroll world
+/// or publishing a parent Gallery update for every catalog event.
+struct HappeningFieldReveal: Equatable {
+    static let growthDuration: TimeInterval = 0.58
+    let startedAt: Date
+    private let offsets: [String: TimeInterval]
+    let duration: TimeInterval
+
+    init(order: [String], startedAt: Date = .now) {
+        self.startedAt = startedAt
+        var offsets: [String: TimeInterval] = [:]
+        for (index, id) in order.enumerated() {
+            offsets[id] = index < 6 ? Double(index) * 0.12 : 0.72 + Double(index - 6) * 0.015
+        }
+        self.offsets = offsets
+        duration = (offsets.values.max() ?? 0) + Self.growthDuration
+    }
+
+    func scale(for id: String, at date: Date) -> CGFloat {
+        guard let offset = offsets[id] else { return 1 }
+        // Compare absolute endpoints before subtracting Date values. Floating
+        // point cancellation must not leave the final cell microscopically small.
+        if date >= startedAt.addingTimeInterval(offset + Self.growthDuration) { return 1 }
+        if date <= startedAt.addingTimeInterval(offset) { return 0 }
+        let phase = min(1, max(0, (date.timeIntervalSince(startedAt) - offset) / Self.growthDuration))
+        return CGFloat(phase * phase * (3 - 2 * phase))
+    }
+
+    func layout(_ final: HappeningFieldLayout.Layout, ids: [String], at date: Date) -> HappeningFieldLayout.Layout {
+        let sources = final.sources.enumerated().map { index, source in
+            let scale = index < ids.count ? self.scale(for: ids[index], at: date) : 1
+            return HappeningFieldLayout.Source(index: source.index, center: source.center,
+                radius: source.radius * scale, appearanceScale: source.appearanceScale * scale)
+        }
+        var sampled = HappeningFieldLayout.makeLayout(sources: sources, dockAnchor: final.dockAnchor)
+        sampled.contentSize = final.contentSize
+        sampled.dateHubCenter = final.dateHubCenter
+        return sampled
     }
 }

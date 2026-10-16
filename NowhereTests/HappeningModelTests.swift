@@ -6,8 +6,9 @@ final class HappeningModelTests: XCTestCase {
 
     // MARK: - Built-in set
 
-    func testBuiltInSetIsExactlyOneHundred() {
-        XCTAssertEqual(HappeningDefaults.builtIns.count, 100)
+    func testBuiltInSetMatchesTheReviewedCatalogCount() {
+        XCTAssertEqual(HappeningDefaults.builtIns.count, 106)
+        XCTAssertEqual(HappeningDefaults.builtIns.count, HappeningDefaults.maximumCatalogCount)
     }
 
     func testBuiltInIdsAreUnique() {
@@ -121,6 +122,77 @@ final class HappeningModelTests: XCTestCase {
                 happening.localizedTitle().isEmpty,
                 "\(happening.id) resolved to an empty title"
             )
+        }
+    }
+}
+
+
+final class HappeningPersonalizationRegressionTests: XCTestCase {
+    func testEverySurveyChoiceUsesASyntheticIDAndAnAuthoritativeRepresentative() throws {
+        for (index, question) in HappeningPersonalizationQuestion.allCases.enumerated() {
+            var profile = HappeningPersonalizationProfile()
+            profile.hasStarted = true
+            profile.questionIndex = index
+            XCTAssertEqual(profile.fieldChoices.count, question.choices.count)
+            XCTAssertTrue(profile.fieldChoices.allSatisfy { $0.id.hasPrefix("survey:") && !$0.isBuiltIn && $0.useCount == 0 })
+            for choice in question.choices {
+                let representative = try XCTUnwrap(choice.visualHappeningID, choice.id)
+                XCTAssertTrue(HappeningDefaults.builtInIds.contains(representative), choice.id)
+            }
+        }
+        XCTAssertEqual(HappeningPersonalizationQuestion.unwind.choices.count, 8)
+        XCTAssertEqual(HappeningPersonalizationQuestion.people.choices.count, 6)
+        XCTAssertEqual(HappeningPersonalizationQuestion.aspirations.choices.count, 6)
+    }
+
+    func testAlcoholPreferencesAndLegacyBeerAnswersKeepDistinctMeaning() throws {
+        var profile = HappeningPersonalizationProfile()
+        profile.answers["habits"] = ["beer"]
+        let decoded = try JSONDecoder().decode(HappeningPersonalizationProfile.self,
+            from: JSONEncoder().encode(profile))
+        XCTAssertEqual(decoded.answers["habits"], ["beer"])
+        XCTAssertEqual(decoded.scores(dayKey: "today")["event_beer"], 3)
+        XCTAssertNil(decoded.scores(dayKey: "today")["event_drink"])
+        XCTAssertNil(decoded.scores(dayKey: "today")["event_wasted"])
+        profile.answers["habits"] = ["alcohol", "drunk"]
+        let scores = profile.scores(dayKey: "today")
+        XCTAssertEqual(scores["event_drink"], 3)
+        XCTAssertEqual(scores["event_beer"], 3)
+        XCTAssertEqual(scores["event_wasted"], 3)
+        XCTAssertEqual(HappeningDefaults.canonicalID("event_beer"), "event_beer")
+        XCTAssertEqual(HappeningDefaults.canonicalID("event_wasted"), "event_wasted")
+        XCTAssertEqual(HappeningDefaults.canonicalID("happening_drinks"), "happening_drinks")
+    }
+
+    func testEmotionsExpireWithoutRemovingDurablePreferences() {
+        var profile = HappeningPersonalizationProfile()
+        profile.answers = ["feelings": ["tired"], "routine": ["walk"]]
+        profile.emotionDayKey = "yesterday"
+        let scores = profile.scores(dayKey: "today")
+        XCTAssertNil(scores["event_tired"])
+        XCTAssertEqual(scores["event_walk"], 3)
+        XCTAssertEqual(profile.answers["feelings"], ["tired"])
+    }
+
+    func testCatalogTopUpKeepsBeerAndIntoxicationCountersIndependent() throws {
+        let suite = "HappeningAlcoholTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let stored = [
+            Happening(id: "event_beer", title: "Had a beer", isBuiltIn: true, useCount: 4),
+            Happening(id: "event_wasted", title: "Got wasted", isBuiltIn: true, useCount: 2)
+        ]
+        defaults.set(try JSONEncoder().encode(stored), forKey: SharedKeys.happeningCatalog)
+        let store = HappeningStore(defaults: defaults)
+        store.load()
+        XCTAssertEqual(store.selectable.first { $0.id == "event_beer" }?.useCount, 4)
+        XCTAssertEqual(store.selectable.first { $0.id == "event_wasted" }?.useCount, 2)
+        XCTAssertEqual(store.selectable.first { $0.id == "event_drink" }?.useCount, 0)
+        XCTAssertEqual(store.selectable.first { $0.id == "event_wasted" }?.title, "Got drunk")
+        XCTAssertEqual(store.all.first { $0.id == "event_wasted" }?.title, "Got wasted")
+        for id in ["beer", "drink", "wasted"] {
+            XCTAssertTrue(HappeningEventTree.tags(for: id).contains("alcohol"))
+            XCTAssertEqual(HappeningEventTree.personalSphereIndex(for: id), 3)
         }
     }
 }
