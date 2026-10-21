@@ -83,7 +83,7 @@ fragment float4 dayObjectsBlurVertical(
     );
 }
 
-static float3 dayObjectsDisplayColor(float3 source, float2 uv, constant DayObjectsPostUniforms &uniforms, bool photographic = false) {
+static float3 dayObjectsDisplayColor(float3 source, float2 uv, constant DayObjectsPostUniforms &uniforms, bool photographic = false, float2 grainOrigin = float2(0.0)) {
     float3 color = max(source, 0.0);
 
     const float sourceLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
@@ -97,7 +97,7 @@ static float3 dayObjectsDisplayColor(float3 source, float2 uv, constant DayObjec
     if (photographic) {
         // Static, monochrome silver-like grains at final drawable resolution.
         // No time/phase input: the texture never boils over still artwork.
-        const float2 pixel = saturate(uv) * max(uniforms.resolution, float2(1.0));
+        const float2 pixel = saturate(uv) * max(uniforms.resolution, float2(1.0)) + grainOrigin;
         const float fine = dayObjectsGrainHash01(uint2(floor(pixel / 1.5)), uniforms.grainSeed);
         const float clusters = dayObjectsSmoothGrainField(pixel, 3.5, uniforms.grainSeed ^ 0xA511E9B3u);
         const float noise = (fine * 0.8 + clusters * 0.2) * 2.0 - 1.0;
@@ -116,10 +116,10 @@ static float3 dayObjectsDisplayColor(float3 source, float2 uv, constant DayObjec
 
 // Apply finish to straight color, then premultiply in the drawable's sRGB
 // space for Core Animation. The sRGB target encodes the returned linear RGB.
-static float4 happeningOverlayDisplayColor(float4 sample, float2 uv, constant DayObjectsPostUniforms &uniforms, bool photographic) {
+static float4 happeningOverlayDisplayColor(float4 sample, float2 uv, constant DayObjectsPostUniforms &uniforms, bool photographic, float2 grainOrigin = float2(0.0)) {
     const float alpha = saturate(sample.a);
     if (alpha <= 0.00001) return float4(0.0);
-    const float3 straight = dayObjectsDisplayColor(sample.rgb / alpha, uv, uniforms, photographic);
+    const float3 straight = dayObjectsDisplayColor(sample.rgb / alpha, uv, uniforms, photographic, grainOrigin);
     const float3 encoded = select(1.055 * pow(straight, float3(1.0 / 2.4)) - 0.055, straight * 12.92, straight <= 0.0031308);
     const float3 premultiplied = encoded * alpha;
     const float3 linear = select(pow((premultiplied + 0.055) / 1.055, float3(2.4)), premultiplied / 12.92, premultiplied <= 0.04045);
@@ -152,9 +152,14 @@ fragment float4 nativeAtlasFinishFragment(
     DayObjectsPostVertexOut in [[stage_in]],
     texture2d<float> sceneTexture [[texture(0)]],
     constant DayObjectsPostUniforms &uniforms [[buffer(0)]],
-    constant uint &transparentOverlay [[buffer(1)]]
+    constant uint &transparentOverlay [[buffer(1)]],
+    constant float2 &paletteGrainOrigin [[buffer(2)]]
 ) {
     constexpr sampler linearSampler(coord::normalized, address::clamp_to_edge, filter::linear);
-    if (transparentOverlay != 0u) return happeningOverlayDisplayColor(sceneTexture.sample(linearSampler, in.uv), in.uv, uniforms, true);
+    if (transparentOverlay != 0u) {
+        // Finish/grain coordinates stay continuous across fixed world tiles.
+        return happeningOverlayDisplayColor(sceneTexture.sample(linearSampler, in.uv),
+            in.uv, uniforms, true, paletteGrainOrigin);
+    }
     return float4(dayObjectsDisplayColor(sceneTexture.sample(linearSampler, in.uv).rgb, in.uv, uniforms, true), 1.0);
 }

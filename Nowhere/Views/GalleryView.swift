@@ -855,6 +855,7 @@ struct GalleryView: View {
                 mode: paletteMode,
                 compactLayout: showEventExplorer || showsHappeningQuestions ? nil : compactLayout,
                 usesEventTree: showEventExplorer,
+                artworkUsesFixedWorldTiles: true,
                 artworkForLayout: { displayedLayout, isExpanding, visibleRect in
                     AnyView(paletteArtwork.presented(as: paletteRenderMode(layout: displayedLayout,
                         viewportSize: visibleRect.size, isExpanding: isExpanding,
@@ -1011,37 +1012,28 @@ struct GalleryView: View {
 
     private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false, visibleRect: CGRect? = nil) -> DayObjectsPresentationMode {
         guard showHappeningPalette else { return .canvas }
-        let camera = visibleRect?.origin ?? .zero
-        let renderLayout = layout.translated(by: camera)
         let selectedIDs = fieldSelectedIDs
         let assignments = paletteEditorialAssignments
-        let renderBounds = (visibleRect ?? CGRect(origin: .zero, size: viewportSize))
-            .insetBy(dx: -96, dy: -96)
         let slots = paletteHappenings.enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
             guard index < layout.sources.count, layout.sources[index].appearanceScale > 0.001,
                   let assignment = assignments[happening.id] else { return nil }
-            let source = layout.sources[index]
-            let bounds = CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius, width: source.radius * 2, height: source.radius * 2)
-            // Cull in world coordinates
-            // around the native scroll viewport so every event
-            // has a rendered ball when reached, with one cell of overscan.
-            guard bounds.intersects(renderBounds) else { return nil }
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
                 visualState: paletteInteraction.visualState(for: happening.id, addedIDs: selectedIDs),
-                source: renderLayout.sources[index]
+                source: layout.sources[index]
             )
         }
         return .happeningPalette(HappeningPaletteRenderPresentation(
             slots: slots,
-            viewportSize: viewportSize,
+            viewportSize: CGSize(width: max(viewportSize.width, layout.contentSize.width),
+                                 height: max(viewportSize.height, layout.contentSize.height)),
             reduceMotion: reduceMotion,
             isTransitionActive: paletteTransitionActive || isExpanding,
             backgroundRevision: UInt64(max(0, localMutationCounter)),
             usesSharedGeometry: true,
-            cameraOrigin: camera
+            visibleRect: visibleRect ?? CGRect(origin: .zero, size: viewportSize)
         ))
     }
 

@@ -18,6 +18,8 @@ struct HappeningPaletteRenderPresentation: Equatable {
     /// World origin subtracted from sources; also identifies the drawable that
     /// may be shown at the viewport layer's corresponding world position.
     var cameraOrigin: CGPoint = .zero
+    /// Non-nil selects fixed world tiles; viewportSize/sources then describe the world.
+    var visibleRect: CGRect? = nil
 }
 
 enum DayObjectsPresentationMode: Equatable {
@@ -251,10 +253,11 @@ enum HappeningPaletteRenderFrame {
         presentation: HappeningPaletteRenderPresentation,
         scene: DayObjectScene,
         elapsed rawElapsed: Double,
-        timeline: HappeningPaletteTransitionTimeline? = nil
+        timeline: HappeningPaletteTransitionTimeline? = nil,
+        sampledSlots: HappeningPaletteRenderSample? = nil
     ) -> DayObjectRenderFrame {
         let elapsed = normalizedElapsed(rawElapsed)
-        let sample = timeline?.sample(at: elapsed) ?? HappeningPaletteRenderSample(
+        let sample = sampledSlots ?? timeline?.sample(at: elapsed) ?? HappeningPaletteRenderSample(
             slots: presentation.slots.map {
                 .init(
                     happeningID: $0.happeningID,

@@ -73,24 +73,30 @@ struct DayObjectsView: View {
                     endPoint: .bottomTrailing
                 )
             }
-            DayObjectsMetalView(
-                scene: scene,
-                environment: environment,
-                digitalImpact: digitalImpact,
-                isAnimating: isAnimating && scenePhase == .active,
-                animatesContinuously: animatesContinuously,
-                soundPulseBus: soundPulseBus,
-                presentationMode: presentationMode,
-                ambientMotionIsEnabled: !reduceMotion,
-                lunarPhysicsIsActive: lunarPhysicsIsActive,
-                lunarAngularMotionIsEnabled: DayObjectLunarMotionPolicy.angularMotionIsEnabled(
-                    playbackIsActive: lunarPhysicsIsActive,
-                    reduceMotion: reduceMotion
-                ),
-                lunarInteractionBus: lunarInteractionBus,
-                onWallImpact: onWallImpact,
-                onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
-            )
+            if case let .happeningPalette(presentation) = presentationMode,
+               presentation.visibleRect != nil, scene.input.nativeAtlasRecipe?.isSupported == true {
+                HappeningPaletteMetalView(scene: scene, presentation: presentation,
+                    isActive: isAnimating && scenePhase == .active)
+            } else {
+                DayObjectsMetalView(
+                    scene: scene,
+                    environment: environment,
+                    digitalImpact: digitalImpact,
+                    isAnimating: isAnimating && scenePhase == .active,
+                    animatesContinuously: animatesContinuously,
+                    soundPulseBus: soundPulseBus,
+                    presentationMode: presentationMode,
+                    ambientMotionIsEnabled: !reduceMotion,
+                    lunarPhysicsIsActive: lunarPhysicsIsActive,
+                    lunarAngularMotionIsEnabled: DayObjectLunarMotionPolicy.angularMotionIsEnabled(
+                        playbackIsActive: lunarPhysicsIsActive,
+                        reduceMotion: reduceMotion
+                    ),
+                    lunarInteractionBus: lunarInteractionBus,
+                    onWallImpact: onWallImpact,
+                    onLunarPhysicsReturnCompleted: onLunarPhysicsReturnCompleted
+                )
+            }
         }
         .clipped()
         .accessibilityElement(children: .ignore)

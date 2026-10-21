@@ -223,6 +223,8 @@
 		D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000005 /* DayObjectChoreographyTests.swift */; };
 		D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */; };
 		A5E500000000000000000002 /* HappeningPaletteRenderFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E500000000000000000001 /* HappeningPaletteRenderFrameTests.swift */; };
+		386851C1D0056E32B06FF479 /* HappeningPaletteTileSurfaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14EE43983BD85E96A6EDB94C /* HappeningPaletteTileSurfaceTests.swift */; };
+		5A416B7B64DD6FB530F82324 /* HappeningPaletteTilePlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3295BFFDFB3889CD9A78D565 /* HappeningPaletteTilePlanTests.swift */; };
 		D0B100000000000000000009 /* DayObjectsLabUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B10000000000000000000A /* DayObjectsLabUITests.swift */; };
 		D0B100000000000000000021 /* DayObjectTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000011 /* DayObjectTypes.swift */; };
 		D0B100000000000000000022 /* DayObjectScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B100000000000000000012 /* DayObjectScene.swift */; };
@@ -412,6 +414,8 @@
 		DA0020002000200020000011 /* HappeningShapeTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0020002000200020000010 /* HappeningShapeTile.swift */; };
 		DA0027002700270027000011 /* HappeningTileLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0027002700270027000010 /* HappeningTileLayout.swift */; };
 		DA0031003100310031000011 /* HappeningShapeField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0031003100310031000010 /* HappeningShapeField.swift */; };
+		7AF7AB3CE9CE73327AEE16DD /* HappeningPaletteMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 634AA08FCBE10F761DCC360B /* HappeningPaletteMetalView.swift */; };
+		8CD93F7209B20F80DE1994B0 /* HappeningPaletteTilePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E542257CACE206B2000B2 /* HappeningPaletteTilePlan.swift */; };
 		DA0032003200320032000011 /* ShakeDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0032003200320032000010 /* ShakeDetection.swift */; };
 		DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */; };
 		30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30CA0004300000000000CA04 /* GenerativeCanvasView.swift */; };
@@ -857,6 +861,8 @@
 		D0B100000000000000000005 /* DayObjectChoreographyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectChoreographyTests.swift; sourceTree = "<group>"; };
 		D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectRenderFrameTests.swift; sourceTree = "<group>"; };
 		A5E500000000000000000001 /* HappeningPaletteRenderFrameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteRenderFrameTests.swift; sourceTree = "<group>"; };
+		14EE43983BD85E96A6EDB94C /* HappeningPaletteTileSurfaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteTileSurfaceTests.swift; sourceTree = "<group>"; };
+		3295BFFDFB3889CD9A78D565 /* HappeningPaletteTilePlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteTilePlanTests.swift; sourceTree = "<group>"; };
 		D0B10000000000000000000A /* DayObjectsLabUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectsLabUITests.swift; sourceTree = "<group>"; };
 		D0B100000000000000000011 /* DayObjectTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectTypes.swift; sourceTree = "<group>"; };
 		D0B100000000000000000012 /* DayObjectScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayObjectScene.swift; sourceTree = "<group>"; };
@@ -1046,6 +1052,8 @@
 		DA0020002000200020000010 /* HappeningShapeTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeTile.swift; sourceTree = "<group>"; };
 		DA0027002700270027000010 /* HappeningTileLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningTileLayout.swift; sourceTree = "<group>"; };
 		DA0031003100310031000010 /* HappeningShapeField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningShapeField.swift; sourceTree = "<group>"; };
+		634AA08FCBE10F761DCC360B /* HappeningPaletteMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteMetalView.swift; sourceTree = "<group>"; };
+		1C4E542257CACE206B2000B2 /* HappeningPaletteTilePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningPaletteTilePlan.swift; sourceTree = "<group>"; };
 		DA0032003200320032000010 /* ShakeDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShakeDetection.swift; sourceTree = "<group>"; };
 		DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HappeningFreeTextField.swift; sourceTree = "<group>"; };
 		30CA0004300000000000CA04 /* GenerativeCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerativeCanvasView.swift; sourceTree = "<group>"; };
@@ -2097,6 +2105,8 @@
 				D0B100000000000000000005 /* DayObjectChoreographyTests.swift */,
 				D0B100000000000000000007 /* DayObjectRenderFrameTests.swift */,
 				A5E500000000000000000001 /* HappeningPaletteRenderFrameTests.swift */,
+				14EE43983BD85E96A6EDB94C /* HappeningPaletteTileSurfaceTests.swift */,
+				3295BFFDFB3889CD9A78D565 /* HappeningPaletteTilePlanTests.swift */,
 				91F0A0013100000000000001 /* AppTypographyTests.swift */,
 				AA000001AA000001AA000003 /* TestHelpers */,
 				T1E5T5B12E71A18F00ABF5FA /* BudgetEngineTests.swift */,
@@ -2198,6 +2208,8 @@
 				DA0020002000200020000010 /* HappeningShapeTile.swift */,
 				DA0027002700270027000010 /* HappeningTileLayout.swift */,
 				DA0031003100310031000010 /* HappeningShapeField.swift */,
+				634AA08FCBE10F761DCC360B /* HappeningPaletteMetalView.swift */,
+				1C4E542257CACE206B2000B2 /* HappeningPaletteTilePlan.swift */,
 				DA0032003200320032000010 /* ShakeDetection.swift */,
 				DA000F000F000F000F0000F0 /* HappeningFreeTextField.swift */,
 			);
@@ -2844,6 +2856,8 @@
 				DA0020002000200020000011 /* HappeningShapeTile.swift in Sources */,
 				DA0027002700270027000011 /* HappeningTileLayout.swift in Sources */,
 				DA0031003100310031000011 /* HappeningShapeField.swift in Sources */,
+				7AF7AB3CE9CE73327AEE16DD /* HappeningPaletteMetalView.swift in Sources */,
+				8CD93F7209B20F80DE1994B0 /* HappeningPaletteTilePlan.swift in Sources */,
 				DA0032003200320032000011 /* ShakeDetection.swift in Sources */,
 				DA000F000F000F000F0000F1 /* HappeningFreeTextField.swift in Sources */,
 				30CA0003300000000000CA03 /* GenerativeCanvasView.swift in Sources */,
@@ -3048,6 +3062,8 @@
 				D0B100000000000000000006 /* DayObjectChoreographyTests.swift in Sources */,
 				D0B100000000000000000008 /* DayObjectRenderFrameTests.swift in Sources */,
 				A5E500000000000000000002 /* HappeningPaletteRenderFrameTests.swift in Sources */,
+				386851C1D0056E32B06FF479 /* HappeningPaletteTileSurfaceTests.swift in Sources */,
+				5A416B7B64DD6FB530F82324 /* HappeningPaletteTilePlanTests.swift in Sources */,
 				91F0A0023100000000000002 /* AppTypographyTests.swift in Sources */,
 				AA000001AA000001AA000002 /* SharedMocks.swift in Sources */,
 				201816142F33C8CC0006B350 /* DayBoundaryTests.swift in Sources */,

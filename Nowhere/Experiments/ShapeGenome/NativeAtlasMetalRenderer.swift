@@ -112,7 +112,7 @@ final class NativeAtlasMetalRenderer {
         return DayObjectRenderFrame(choreographyTime: frame.choreographyTime, actors: actors, postProcess: frame.postProcess)
     }
 
-    func encode(commandBuffer: MTLCommandBuffer, output: MTLTexture, recipe: NativeAtlasRecipe, frame: DayObjectRenderFrame, damage: Float, scene: DayObjectScene, elapsed: Double, pointToPixelScale: Float, isPalette: Bool, colorVariants: [String: Int] = [:]) -> Bool {
+    func encode(commandBuffer: MTLCommandBuffer, output: MTLTexture, recipe: NativeAtlasRecipe, frame: DayObjectRenderFrame, damage: Float, scene: DayObjectScene, elapsed: Double, pointToPixelScale: Float, isPalette: Bool, colorVariants: [String: Int] = [:], paletteWorldOrigin: CGPoint = .zero) -> Bool {
         // Bring low and medium spend into view earlier while keeping zero
         // spend completely clean and full strength bounded at one.
         let traceStrength = isPalette ? 0 : pow(min(max(damage, 0), 1), 0.72)
@@ -229,6 +229,9 @@ final class NativeAtlasMetalRenderer {
         finalEncoder.setFragmentBytes(&post, length: DayObjectsPostUniforms.metalStride, index: 0)
         var transparentOverlay: UInt32 = isPalette ? 1 : 0
         finalEncoder.setFragmentBytes(&transparentOverlay, length: MemoryLayout<UInt32>.stride, index: 1)
+        var grainOrigin = SIMD2<Float>(Float(paletteWorldOrigin.x) * pointToPixelScale,
+                                       Float(paletteWorldOrigin.y) * pointToPixelScale)
+        finalEncoder.setFragmentBytes(&grainOrigin, length: MemoryLayout<SIMD2<Float>>.stride, index: 2)
         finalEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         finalEncoder.endEncoding()
         return true

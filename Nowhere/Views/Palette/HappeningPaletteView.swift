@@ -104,6 +104,7 @@ struct HappeningPaletteView: View {
     let artwork: AnyView
     let compactLayout: HappeningFieldLayout.Layout?
     let usesEventTree: Bool
+    let artworkUsesFixedWorldTiles: Bool
     let artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)?
     @State private var modeTransition: HappeningFieldModeTransition?
     @State private var eventTransition: HappeningEventFieldTransition?
@@ -145,6 +146,7 @@ struct HappeningPaletteView: View {
         mode: HappeningPaletteMode = .all,
         compactLayout: HappeningFieldLayout.Layout? = nil,
         usesEventTree: Bool = false,
+        artworkUsesFixedWorldTiles: Bool = false,
         artworkForLayout: ((HappeningFieldLayout.Layout, Bool, CGRect) -> AnyView)? = nil,
         interaction: HappeningPaletteInteractionState,
         addedIDs: Set<String>,
@@ -173,6 +175,7 @@ struct HappeningPaletteView: View {
         self.artwork = artwork
         self.compactLayout = compactLayout
         self.usesEventTree = usesEventTree
+        self.artworkUsesFixedWorldTiles = artworkUsesFixedWorldTiles
         self.artworkForLayout = artworkForLayout
         _activePanel = activePanel
         self.layout = layout
@@ -329,6 +332,10 @@ struct HappeningPaletteView: View {
         }
     }
 
+    private var usesNativeTileScrolling: Bool {
+        artworkUsesFixedWorldTiles && usesEventTree && dateHubCenter != nil
+    }
+
     private func animatedField(viewport: CGSize) -> some View {
         let worldWidth = max(viewport.width, layout.contentSize.width, eventTransition?.from.contentSize.width ?? 0)
         let worldHeight = max(viewport.height, layout.contentSize.height,
@@ -345,10 +352,12 @@ struct HappeningPaletteView: View {
         // Native scrolling also moves a paused Timeline's compositor. Observe
         // the unchanged world container so its camera keeps sampling on iOS 17.
         .background(alignment: .topLeading) {
-            HappeningFieldViewportProbe(onChange: updateVisibleFieldRect)
-                .frame(width: worldWidth, height: worldHeight, alignment: .topLeading)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            if !usesNativeTileScrolling {
+                HappeningFieldViewportProbe(onChange: updateVisibleFieldRect)
+                    .frame(width: worldWidth, height: worldHeight, alignment: .topLeading)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
     }
 
@@ -365,6 +374,10 @@ struct HappeningPaletteView: View {
             // Cull in the same local coordinates used by Metal, labels and hits.
             // The outer Timeline can retain larger bounds during a transition.
             .onGeometryChange(for: CGRect.self) { content in
+                // Fixed tiles observe native residency themselves. The event
+                // tree has no viewport-dependent geometry, so scrolling does
+                // not invalidate its SwiftUI labels or run a 60Hz Timeline.
+                guard !usesNativeTileScrolling else { return .zero }
                 let origin = content.frame(in: .named("happeningViewport")).origin
                 return CGRect(x: -origin.x, y: -origin.y,
                               width: viewport.width, height: viewport.height)
@@ -396,16 +409,15 @@ struct HappeningPaletteView: View {
     }
 
     private func fieldArtwork(layout: HappeningFieldLayout.Layout, visibleRect: CGRect) -> AnyView {
-        let isMoving = modeTransition != nil || eventTransition != nil || reveal != nil || isFieldScrolling
+        let isMoving = modeTransition != nil || eventTransition != nil || reveal != nil
         return artworkForLayout?(layout, isMoving, visibleRect) ?? artwork
     }
 
     private func fieldContent(layout: HappeningFieldLayout.Layout, visibleRect: CGRect,
                               viewport: CGSize, hubCenter: CGPoint?, at date: Date) -> some View {
         ZStack(alignment: .topLeading) {
-            // Keep the SwiftUI ancestor fixed in world coordinates. The native
-            // presenter moves its viewport-sized Metal child only when the matching
-            // camera frame is submitted, in the same layer transaction.
+            // Artwork tiles, labels and targets all retain fixed world coordinates.
+            // Native scrolling moves their existing pixels without a GPU camera.
             fieldArtwork(layout: layout, visibleRect: visibleRect)
                 .frame(width: max(viewport.width, layout.contentSize.width),
                        height: max(viewport.height, layout.contentSize.height), alignment: .topLeading)

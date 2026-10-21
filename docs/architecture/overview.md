@@ -75,25 +75,28 @@ Test names live in `NowhereTests/` unless stated otherwise.
   day and account changes invalidate expansion state.
   Stationary inline expansion keeps existing targets interactive while neighbors
   grow; transitions that move or shrink targets retain their interaction gate.
-- Happenings artwork has a fixed world-sized `DayObjectsSurfaceView` host with
-  a viewport-sized Metal child. Only render sources subtract the camera origin;
-  labels, captions, confirmation targets and native scrolling retain world coordinates.
-  SwiftUI never positions an artwork ancestor at the requested camera. The native
-  child retains its last submitted camera's world origin until the renderer commits
-  its replacement image and child frame in one layer transaction. Host layout also
-  retains that submitted origin, so delayed viewport delivery cannot move old pixels
-  away from native labels. The host allocates no world-sized Metal texture; Canvas
-  mode returns the child to the host's full bounds.
-  A native offset/bounds probe samples the camera even when the leaf Timeline is
-  paused. Drawable handoff includes both viewport size and camera origin: fresh
-  camera frames and subsequent unchanged-camera frames all present through the
-  layer transaction. The palette keeps `presentsWithTransaction` enabled until
-  dismissal, so asynchronously queued images cannot cross a camera transaction;
-  Canvas restores asynchronous presentation. Delayed stale frames cannot expose
-  old artwork at a new origin. Failed camera draws hide stale
-  artwork and explicitly retry independently of the MTK display link. Scheduling
-  and execution honor active scene/tab presentation; resume and window reattachment
-  retry the latest camera without rendering while inactive.
+- Live Happenings artwork uses a fixed world-sized `HappeningPaletteTileSurfaceView`
+  with 256-point world-aligned Metal tiles. Labels, capsules and hit targets retain
+  the same world coordinates; scrolling never moves a surviving tile or changes
+  its source projection. Native offset/bounds observation changes residency only.
+  The event-tree field does not sample scroll offsets through SwiftUI or animate
+  a Timeline while static artwork is being panned.
+  The native host samples one transition timeline. One serial GPU worker shares
+  the prepared scene, Native Atlas pipelines, command queue and three scratch
+  textures. Drawable acquisition and encoding run outside the main thread. At most
+  one batch is in flight until GPU completion; it acquires every required drawable
+  before presenting any, with atomic cancellation against submission. A batch
+  encodes dirty tiles with one sampled time and one command buffer. Tile-local
+  projection preserves controls and assignments; finish grain uses world pixels.
+  Static pan renders new tiles only. Morphs, reduced-motion fades and confirmation
+  breaths render their exact terminal frame before the display link stops.
+  Residency covers the viewport plus 64 points. Pan-independent scale limits
+  resident outputs to 12 Mi pixels, with two drawables per tile and one shared
+  scratch set (three RGBA16Float textures); one older residency can be retained
+  by the sole in-flight batch during pan/resize. No world-sized Metal texture is allocated.
+  Scene/tab inactivity stops rendering; detachment/dismissal releases tile residency.
+  Canvas retains its existing renderer. The legacy viewport presentation path still
+  gates pending size/camera draws and is separate from the live fixed-tile picker.
   Personal domain ranking freezes on opening (and rebuilds on day change), while
   additions reveal current paths without reading or ranking history again.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
