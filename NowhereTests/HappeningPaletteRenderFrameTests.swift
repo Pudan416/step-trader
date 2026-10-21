@@ -155,6 +155,76 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
         XCTAssertEqual(drawable.bounds.height, scroll.bounds.height, accuracy: 1)
     }
 
+    /// Checks actual successful draw routing, not whether a drawable has appeared onscreen.
+    @MainActor
+    func testUnchangedPaletteDrawsKeepTransactionPresentationWhileCanvasRemainsAsynchronous() async throws {
+        await Task.detached(priority: .userInitiated) { DayObjectsRenderer.prepareResources() }.value
+        let presentation = makePresentation(reduceMotion: true)
+        let input = DayObjectSceneInput(dayKey: "2026-10-21", identity: "palette-presentation-routing", eventIDs: [],
+            motionEnergy: 0.5, visualClarity: 1, usesEditorialField: true,
+            nativeAtlasRecipe: .makeDaily(dayKey: "2026-10-21", paletteCategories: ModernPaletteSelection.all, collection: .circles))
+        let scene = DayObjectScene.make(input: input)
+        let environment = DayObjectEnvironment(motionEnergy: 0.5, visualClarity: 1)
+        let renderer = try XCTUnwrap(DayObjectsRenderer.create(scene: scene, environment: environment,
+            presentationMode: .happeningPalette(presentation)))
+        renderer.setAnimating(false)
+        let probe = DayObjectsRendererPerformanceProbe()
+        renderer.installPerformanceProbe(probe)
+        let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: windowScene)
+        let controller = UIViewController()
+        window.frame = CGRect(origin: .zero, size: presentation.viewportSize)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; window.rootViewController = nil }
+        let view = DayObjectsDrawableView(frame: .zero, device: renderer.device)
+        view.autoResizeDrawable = false
+        view.isPaused = true
+        view.enableSetNeedsDisplay = true
+        view.delegate = renderer
+        DayObjectsRenderer.configureDisplay(view)
+        let surface = DayObjectsSurfaceView(drawableView: view)
+        surface.frame = window.bounds
+        controller.view.addSubview(surface)
+        view.configurePaletteViewportSize(presentation.viewportSize, cameraOrigin: presentation.cameraOrigin)
+        surface.configurePaletteViewportSize(presentation.viewportSize)
+        surface.layoutIfNeeded()
+        view.synchronizePaletteResizeIfNeeded()
+        XCTAssertFalse(view.paletteResizeHandoff.isPending, "Initial real camera draw must complete its handoff")
+        XCTAssertGreaterThan(probe.snapshot.submittedFrames, 0)
+        XCTAssertTrue(view.presentsWithTransaction, "Palette layer mode must remain synchronized between draws")
+
+        let selector = NSSelectorFromString("setPresentsWithTransaction:")
+        let method = try XCTUnwrap(class_getInstanceMethod(MTKView.self, selector))
+        let originalIMP = method_getImplementation(method)
+        typealias SetPresentation = @convention(c) (AnyObject, Selector, Bool) -> Void
+        let original = unsafeBitCast(originalIMP, to: SetPresentation.self)
+        var requestedModes: [Bool] = []
+        let block: @convention(block) (AnyObject, Bool) -> Void = { object, value in
+            if object === view { requestedModes.append(value) }
+            original(object, selector, value)
+        }
+        let replacementIMP = imp_implementationWithBlock(block)
+        method_setImplementation(method, replacementIMP)
+        defer { method_setImplementation(method, originalIMP); imp_removeBlock(replacementIMP) }
+        let beforePalette = probe.snapshot.submittedFrames
+        view.draw()
+        view.draw()
+        XCTAssertEqual(probe.snapshot.submittedFrames - beforePalette, 2, "Both unchanged-camera draws must encode successfully")
+        XCTAssertTrue(requestedModes.contains(true), "Successful palette draws must use transaction presentation")
+        XCTAssertFalse(requestedModes.contains(false), "Palette draws must not return the layer to asynchronous mode")
+        XCTAssertTrue(view.presentsWithTransaction, "Keep the transaction mode until the palette is dismissed")
+
+        requestedModes.removeAll()
+        view.configurePaletteViewportSize(nil)
+        surface.configurePaletteViewportSize(nil)
+        renderer.update(scene: scene, environment: environment)
+        let beforeCanvas = probe.snapshot.submittedFrames
+        view.draw()
+        XCTAssertEqual(probe.snapshot.submittedFrames - beforeCanvas, 1, "Canvas control must encode successfully")
+        XCTAssertFalse(requestedModes.contains(true), "Canvas retains its asynchronous presentation path")
+    }
+
     func testConfirmationPreviewsStayNeutralDuringRevealAndKeepBreathing() throws {
         let scene = makeScene()
         for state in [HappeningPaletteSlotVisualState.additionPreview, .removalPreview] {

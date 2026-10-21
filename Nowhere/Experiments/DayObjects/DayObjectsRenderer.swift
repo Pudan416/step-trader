@@ -1406,15 +1406,16 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             // yet. Never render that world's coordinates into the old surface.
             return
         }
-        let synchronizesResize = view.presentsWithTransaction
-            || (drawableView?.paletteResizeHandoff.isPending == true && paletteViewportSize != nil)
+        let usesTransactionPresentation = paletteViewportSize != nil || view.presentsWithTransaction
         // Own the transaction for every entry path, including display-link
-        // retries. SwiftUI ancestors never move this viewport independently.
-        if synchronizesResize {
+        // retries and unchanged-camera frames. Mixing queued and transactional
+        // palette drawables can separate their pixels from the layer position.
+        // SwiftUI ancestors never move this viewport independently.
+        if usesTransactionPresentation {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
         }
-        defer { if synchronizesResize { CATransaction.commit() } }
+        defer { if usesTransactionPresentation { CATransaction.commit() } }
         performanceProbe?.recordAttempt()
         let elapsedTime = clock.elapsedTime
         guard let drawable = view.currentDrawable,
@@ -1425,7 +1426,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
                   drawableSize: view.drawableSize,
                   pointToPixelScale: Float(view.contentScaleFactor),
                   elapsedTime: elapsedTime,
-                  present: synchronizesResize ? nil : drawable
+                  present: usesTransactionPresentation ? nil : drawable
               )
         else {
             performanceProbe?.recordResourceDrop()
@@ -1433,7 +1434,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
         lastDisplayedTime = elapsedTime
         commandBuffer.commit()
-        if synchronizesResize {
+        if usesTransactionPresentation {
             // CAMetalLayer's transaction path requires scheduling first, then
             // presenting the drawable directly (not commandBuffer.present).
             // https://developer.apple.com/documentation/quartzcore/cametallayer/presentswithtransaction

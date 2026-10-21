@@ -407,6 +407,10 @@ final class DayObjectsDrawableView: MTKView {
 
     func configurePaletteViewportSize(_ size: CGSize?, cameraOrigin: CGPoint = .zero, isActive: Bool = true) {
         palettePresentationIsActive = isActive
+        // Every palette image shares Core Animation's scrolling transaction.
+        // Returning to asynchronous presentation between camera changes can
+        // display queued pixels against a newer layer position.
+        presentsWithTransaction = size != nil
         paletteResizeHandoff.request(viewportSize: size, cameraOrigin: cameraOrigin)
         updatePendingCameraVisibility()
         schedulePaletteCameraRetryIfNeeded()
@@ -426,7 +430,7 @@ final class DayObjectsDrawableView: MTKView {
         defer { isSynchronizingPaletteResize = false }
         // Camera changes, just like size changes, must join the layer's new
         // position transaction. Reuse scheduled presentation; never wait for
-        // GPU completion. Normal unchanged-camera frames remain asynchronous.
+        // GPU completion. Palette presentation remains transactional between draws.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let prior = presentsWithTransaction

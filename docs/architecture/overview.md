@@ -86,8 +86,11 @@ Test names live in `NowhereTests/` unless stated otherwise.
   mode returns the child to the host's full bounds.
   A native offset/bounds probe samples the camera even when the leaf Timeline is
   paused. Drawable handoff includes both viewport size and camera origin: fresh
-  camera frames present with the layer-position transaction; delayed stale frames
-  cannot expose old artwork at a new origin. Failed camera draws hide stale
+  camera frames and subsequent unchanged-camera frames all present through the
+  layer transaction. The palette keeps `presentsWithTransaction` enabled until
+  dismissal, so asynchronously queued images cannot cross a camera transaction;
+  Canvas restores asynchronous presentation. Delayed stale frames cannot expose
+  old artwork at a new origin. Failed camera draws hide stale
   artwork and explicitly retry independently of the MTK display link. Scheduling
   and execution honor active scene/tab presentation; resume and window reattachment
   retry the latest camera without rendering while inactive.
