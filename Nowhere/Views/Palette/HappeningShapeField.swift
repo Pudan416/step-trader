@@ -40,7 +40,6 @@ struct HappeningShapeField: View {
         source: HappeningFieldLayout.Source
     ) -> some View {
         let state = interaction.visualState(for: happening.id, addedIDs: addedIDs)
-        let isCategory = PersonalHappeningCategory.category(forChoiceID: happening.id) != nil
         let existingTourMoment = !isSurvey && CanvasTour.shared.isActive
             && CanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
         let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
@@ -93,8 +92,8 @@ struct HappeningShapeField: View {
             .disabled(locked)
             .allowsHitTesting(!locked)
             .accessibilityLabel(happening.localizedTitle())
-            .accessibilityValue(isCategory ? "Category" : isSurvey ? surveyValue(for: state) : HappeningPaletteAccessibility.value(for: state))
-            .accessibilityHint(isCategory ? "Open events in this category." : isSurvey ? surveyHint(for: state) : existingTourMoment
+            .accessibilityValue(isSurvey ? surveyValue(for: state) : HappeningPaletteAccessibility.value(for: state))
+            .accessibilityHint(isSurvey ? surveyHint(for: state) : existingTourMoment
                 ? String(localized: "Already in your day. Tap to continue the tour.")
                 : hint(for: state, locked: locked))
             .accessibilityIdentifier(!isSurvey ? "happening_choice_\(happening.id)" : "happenings.onboarding.\(happening.id.replacingOccurrences(of: "survey:", with: "").replacingOccurrences(of: ":", with: "."))")

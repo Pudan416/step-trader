@@ -451,6 +451,24 @@ struct HappeningEventFieldTransition {
     let to: HappeningFieldLayout.Layout
     let startedAt: Date
 
+    /// Inline neighbors grow in fixed cells. Existing visible targets keep
+    /// their geometry, so the next intentional tap need not wait for growth.
+    var permitsStationaryExpansionInteraction: Bool {
+        guard from.contentSize == to.contentSize,
+              from.dateHubCenter == to.dateHubCenter,
+              from.dockAnchor == to.dockAnchor,
+              from.sources.count == to.sources.count,
+              to.sources.filter({ $0.appearanceScale > 0.001 }).count
+                > from.sources.filter({ $0.appearanceScale > 0.001 }).count else { return false }
+        return zip(from.sources, to.sources).allSatisfy { origin, destination in
+            guard origin.index == destination.index, origin.center == destination.center else { return false }
+            guard origin.appearanceScale > 0.001 else { return true }
+            guard destination.appearanceScale >= origin.appearanceScale else { return false }
+            return abs(origin.radius / origin.appearanceScale
+                - destination.radius / destination.appearanceScale) < 0.001
+        }
+    }
+
     func progress(at date: Date) -> CGFloat {
         CGFloat(min(1, max(0, date.timeIntervalSince(startedAt) / Self.duration)))
     }

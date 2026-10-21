@@ -350,9 +350,6 @@ final class CanvasSimplificationUITests: XCTestCase {
         let all = app.buttons["happening_mode_all"]
         XCTAssertTrue(personal.waitForExistence(timeout: 5))
         personal.tap()
-        let movement = app.buttons["happening_choice_personal_category_movement"]
-        XCTAssertTrue(movement.waitForExistence(timeout: 5))
-        movement.tap()
         let swam = app.buttons["happening_choice_event_swam"]
         XCTAssertTrue(swam.waitForExistence(timeout: 5))
         XCTAssertEqual(personal.label, "Personal")
@@ -364,11 +361,8 @@ final class CanvasSimplificationUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["happening_palette_count_hub"].exists)
         personal.tap()
         XCTAssertEqual(swam.value as? String, "On Canvas")
-        app.buttons["happening_category_back"].tap()
-        let categories = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_personal_category_'"))
-        XCTAssertEqual(categories.count, 6)
-        XCTAssertTrue(movement.exists)
-        XCTAssertTrue(app.buttons["happening_choice_personal_category_work"].exists)
+        XCTAssertFalse(app.buttons["happening_category_back"].exists)
+        XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].exists)
     }
 
     func testFullScreenHidesChromeAndDoesNotStartEditing() {
@@ -583,19 +577,9 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
             app.buttons["canvas_palette_close_button"].tap()
             app.buttons["canvas_add_button"].tap()
         }
-        enterWorkCategoryIfNeeded(app)
-    }
-
-    private func enterWorkCategoryIfNeeded(_ app: XCUIApplication) {
-        let work = app.buttons["happening_choice_personal_category_work"]
-        if work.waitForExistence(timeout: 2) {
-            work.tap()
-            XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].waitForExistence(timeout: 5))
-        }
     }
 
     private func chooseRealHappening(_ app: XCUIApplication) {
-        enterWorkCategoryIfNeeded(app)
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_event_"))
         XCTAssertTrue(choices.firstMatch.waitForExistence(timeout: 5))
         let usableField = CGRect(x: 0, y: 220, width: app.frame.width, height: app.frame.height - 320)
@@ -629,7 +613,7 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 3), .completed)
     }
 
-    func testCategoryBackAfterClosingFirstAllKeepsOnboardingActive() {
+    func testPersonalAfterClosingFirstAllKeepsOnboardingActiveUntilRealChoice() {
         let app = XCUIApplication()
         app.launchArguments = ["ui-testing", "debug-happenings-onboarding", "debug-canvas-tour-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -643,22 +627,14 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         app.buttons["canvas_palette_close_button"].tap()
         XCTAssertTrue(app.buttons["canvas_add_button"].waitForExistence(timeout: 5))
         app.buttons["canvas_add_button"].tap()
-        let work = app.buttons["happening_choice_personal_category_work"]
-        XCTAssertTrue(work.waitForExistence(timeout: 5))
-        work.tap()
-        let back = app.buttons["happening_category_back"]
-        XCTAssertTrue(back.waitForExistence(timeout: 5))
-        let count = app.descendants(matching: .any)["happening_palette_count_hub"].firstMatch
-        let before = count.label
-        back.tap()
-        XCTAssertTrue(work.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["canvas_tour.exit.confirm"].waitForExistence(timeout: 1))
+        let worked = app.buttons["happening_choice_event_root_worked"]
+        XCTAssertTrue(worked.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["happening_category_back"].exists)
+        XCTAssertFalse(app.buttons["canvas_tour.exit.confirm"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["canvas_tour.card.happening"].firstMatch.exists)
-        XCTAssertEqual(count.label, before)
-        work.tap()
         chooseRealHappening(app)
         XCTAssertTrue(app.buttons["canvas_tour.momentNext"].waitForExistence(timeout: 8))
-        capture(app, "category-back-keeps-tour-active")
+        capture(app, "personal-inline-keeps-tour-active")
     }
 
     func testFullReplayAsksOnNativeFieldThenContinuesStoryToFinish() {
@@ -723,19 +699,12 @@ final class DebugCanvasOnboardingUITests: XCTestCase {
         let count = app.descendants(matching: .any)["happening_palette_count_hub"]
         let beforeBrowsing = count.label
         app.buttons["happening_mode_frequent"].tap()
-        let workCategory = app.buttons["happening_choice_personal_category_work"]
-        XCTAssertTrue(workCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["happening_choice_event_root_worked"].waitForExistence(timeout: 5))
         XCTAssertTrue(prompt.exists)
-        workCategory.tap()
-        let categoryBack = app.buttons["happening_category_back"]
-        XCTAssertTrue(categoryBack.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(categoryBack.frame.minY, coach.frame.maxY,
-                                    "Category navigation must leave the first-choice coach clear")
-        XCTAssertEqual(count.label, beforeBrowsing, "Opening a category cannot log a tour choice")
+        XCTAssertFalse(app.buttons["happening_category_back"].exists)
+        XCTAssertEqual(count.label, beforeBrowsing, "Changing modes cannot log a tour choice")
         XCTAssertFalse(app.buttons["canvas_tour.momentNext"].exists)
-        capture(app, "personalization-native-personal-category")
-        categoryBack.tap()
-        XCTAssertTrue(workCategory.waitForExistence(timeout: 5))
+        capture(app, "personalization-native-personal-inline")
         app.buttons["happening_mode_all"].tap()
         XCTAssertTrue(prompt.exists)
         let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "happening_choice_"))

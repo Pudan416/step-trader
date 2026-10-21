@@ -192,7 +192,7 @@ final class HappeningPersonalizationRegressionTests: XCTestCase {
         XCTAssertEqual(store.all.first { $0.id == "event_wasted" }?.title, "Got wasted")
         for id in ["beer", "drink", "wasted"] {
             XCTAssertTrue(HappeningEventTree.tags(for: id).contains("alcohol"))
-            XCTAssertEqual(HappeningEventTree.personalSphereIndex(for: id), 3)
+            XCTAssertEqual(HappeningEventTree.personalSphereIndex(for: id), 4)
         }
     }
 }

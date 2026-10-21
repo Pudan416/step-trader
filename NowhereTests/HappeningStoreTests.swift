@@ -382,6 +382,36 @@ final class FrequentHappeningSelectionTests: XCTestCase {
 final class PersonalHappeningRecommendationsTests: XCTestCase {
     private let now = ISO8601DateFormatter().date(from: "2026-10-04T12:00:00Z")!
 
+    func testPersonalColdStartCoversSixThemesWithActualCanonicalEvents() {
+        let state = HappeningEventTreeState()
+        XCTAssertEqual(Set(state.nodes.map(\.id)), Set(["root_worked", "root_chilled", "root_home", "walk", "coffee", "friend"]))
+        XCTAssertEqual(state.nodes.count, 6)
+        XCTAssertTrue(state.nodes.allSatisfy { HappeningDefaults.builtInIds.contains("event_" + $0.id) })
+        XCTAssertEqual(state.atlasNodes.count, 106)
+        XCTAssertEqual(Set(state.atlasNodes.map(\.id)).count, 106)
+    }
+
+    func testUsedProfileKeepsActionableStartersAndRecommendsFamiliarWorkInline() {
+        var catalog = HappeningDefaults.builtIns
+        for id in ["event_email", "event_family", "event_swam", "event_cleaned", "event_rage", "event_train"] {
+            let index = catalog.firstIndex { $0.id == id }!
+            catalog[index].useCount = 4
+            catalog[index].lastUsedAt = now
+        }
+        let ranked = PersonalHappeningRecommendations.rankedEventIDs(catalog: catalog,
+            historyByDay: [:], todayIDs: [], dayKey: "2026-10-04", at: now)
+        var state = HappeningEventTreeState(rankedHappeningIDs: ranked)
+        XCTAssertEqual(state.nodes.count, 6)
+        XCTAssertEqual(Set(state.nodes.prefix(6).map(\.id)), Set(["root_worked", "root_chilled", "root_home", "walk", "coffee", "friend"]),
+                       "Familiar leaves belong after the broad actionable starters")
+        let opening = state.atlasNodes
+        state.expand("root_worked")
+        XCTAssertTrue(state.nodes.contains { $0.id == "email" && $0.parentID == "root_worked" })
+        state.expand("email")
+        XCTAssertEqual(state.atlasNodes, opening, "Recording and expanding must not move opening cells")
+        XCTAssertEqual(Set(state.nodes.map(\.id)).count, state.nodes.count)
+    }
+
     func testEmptyHistoryKeepsOneColdStartLeaderPerSphere() {
         XCTAssertEqual(
             PersonalHappeningRecommendations.sphereLeaders(catalog: HappeningDefaults.builtIns, at: now),
@@ -402,9 +432,9 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
         ]
         let leaders = PersonalHappeningRecommendations.sphereLeaders(catalog: catalog, at: now)
         XCTAssertEqual(leaders,
-            ["event_root_worked", "event_rage", "event_doomscroll", "event_walk", "event_walked", "event_friend"])
+            ["event_root_worked", "event_rage", "event_doomscroll", "event_walk", "event_coffee", "event_friend"])
         XCTAssertEqual(Set(leaders).count, 6, "Each sphere keeps one distinct leader")
-        XCTAssertFalse(leaders.contains("event_coffee"), "One use cannot replace a cold-start leader")
+        XCTAssertEqual(leaders[4], "event_coffee", "One use keeps the food starter")
         XCTAssertFalse(leaders.contains("user_saved"), "Archived custom events cannot enter the selectable field")
         // Old usage still leads when it is a sphere's only eligible event.
         // Recency determines the winner when that same sphere has alternatives.
@@ -416,7 +446,7 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
         let history = ["2026-10-01": ["happening_danced"], "2026-10-02": ["health_workout_14"]]
         XCTAssertEqual(
             PersonalHappeningRecommendations.sphereLeaders(catalog: HappeningDefaults.builtIns, historyByDay: history, at: now),
-            ["event_root_worked", "event_danced", "event_root_home", "event_walk", "event_walked", "event_friend"]
+            ["event_root_worked", "event_danced", "event_root_home", "event_walk", "event_coffee", "event_friend"]
         )
     }
 
@@ -452,7 +482,7 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
     }
 
     func testSixLearnedSphereLeadersKeepCompleteStableAtlasWithHealthAndTodayPaths() {
-        let learnedIDs = ["event_email", "event_rage", "event_cleaned", "event_yoga", "event_train", "event_family"]
+        let learnedIDs = ["event_email", "event_rage", "event_cleaned", "event_yoga", "event_tea", "event_family"]
         let catalog = HappeningDefaults.builtIns.map { original -> Happening in
             var event = original
             if learnedIDs.contains(event.id) {
@@ -467,7 +497,7 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
         var state = HappeningEventTreeState(recommendedHappeningIDs: recommendations)
         let atlas = state.atlasNodes
         let byID = Dictionary(uniqueKeysWithValues: atlas.map { ($0.id, $0) })
-        XCTAssertEqual(Array(state.nodes.prefix(6)).map(\.id), learnedIDs.map { String($0.dropFirst(6)) })
+        XCTAssertEqual(Array(state.nodes.prefix(6)).map(\.id), ["root_worked", "root_chilled", "root_home", "walk", "coffee", "friend"])
         XCTAssertEqual(Array(state.nodes.prefix(6)).map(\.cell), HappeningEventTreeState.Cell.directions)
         XCTAssertEqual(Set(atlas.map(\.id)), Set(HappeningEventTree.all.map(\.id)))
         XCTAssertEqual(Set(atlas.map(\.cell)), Set(HappeningEventTreeState.allNodes.map(\.cell)))
@@ -536,84 +566,59 @@ final class PersonalHappeningRecommendationsTests: XCTestCase {
     }
 }
 
-final class PersonalHappeningCategoryBrowserTests: XCTestCase {
+final class PersonalHappeningInlineRankingTests: XCTestCase {
     private let now = ISO8601DateFormatter().date(from: "2026-10-15T12:00:00Z")!
 
-    func testSixNavigationChoicesCoverTheCompleteRealCatalog() {
-        let categories = PersonalHappeningCategory.allCases
-        XCTAssertEqual(categories.map(\.title), ["Work & Study", "Rest & Sleep", "Food & Drink", "Movement", "People", "Home & Everyday"])
-        XCTAssertTrue(Set(categories.map(\.id)).isDisjoint(with: HappeningDefaults.builtInIds))
-        XCTAssertEqual(Set(categories.flatMap(\.eventIDs)), HappeningDefaults.builtInIds)
-        for category in categories {
-            XCTAssertEqual(category.eventIDs.count, Set(category.eventIDs).count)
-            XCTAssertTrue(category.eventIDs.contains(category.representativeID))
-            XCTAssertNil(HappeningEventTree.eventID(forHappeningID: category.id))
-        }
-        XCTAssertTrue(PersonalHappeningCategory.rest.eventIDs.contains("event_slept"))
-        XCTAssertTrue(PersonalHappeningCategory.food.eventIDs.contains("event_coffee"))
-        XCTAssertTrue(PersonalHappeningCategory.work.eventIDs.contains("event_root_worked"))
-    }
-
-    func testOpeningAndReturningFromCategoriesDoesNotWriteHistoryOrUsage() throws {
-        let suite = "PersonalCategoryBrowserTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let store = HappeningStore(defaults: defaults)
-        store.load()
-        store.recordUse(id: "event_coffee", at: now)
-        let savedCatalog = defaults.data(forKey: SharedKeys.happeningCatalog)
-        let before = store.all
-        var browser = PersonalHappeningBrowser()
-        XCTAssertEqual(browser.choices.count, 6)
-        for choice in browser.choices {
-            let category = try XCTUnwrap(PersonalHappeningCategory.category(forChoiceID: choice.id))
-            browser.open(category, catalog: store.selectable, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
-            XCTAssertTrue(browser.choices.allSatisfy { HappeningDefaults.builtInIds.contains($0.id) })
-            browser.showCategories()
-        }
-        XCTAssertEqual(store.all, before)
-        XCTAssertEqual(defaults.data(forKey: SharedKeys.happeningCatalog), savedCatalog)
-        XCTAssertEqual(browser.choices.map(\.id), PersonalHappeningCategory.allCases.map(\.id))
-    }
-
-    func testFamiliarEventsRankAheadOfSurveyAndColdStartWithoutDoubleCountingHistory() {
+    func testRecordedUseOutranksSurveyAndHistoryAliasesCountOncePerDay() {
         var catalog = HappeningDefaults.builtIns
         let teaIndex = catalog.firstIndex { $0.id == "event_tea" }!
         catalog[teaIndex].useCount = 3
         catalog[teaIndex].lastUsedAt = now
         let history = ["2026-10-13": ["event_coffee", "event_coffee"], "2026-10-14": ["event_coffee"]]
-        let ranked = PersonalHappeningRecommendations.rankedCategoryIDs(.food, catalog: catalog,
+        let ranked = PersonalHappeningRecommendations.rankedEventIDs(catalog: catalog,
             historyByDay: history, todayIDs: [], dayKey: "2026-10-15", at: now,
             surveyScores: ["event_meal_breakfast": 100])
         XCTAssertEqual(Array(ranked.prefix(3)), ["event_tea", "event_coffee", "event_meal_breakfast"])
-        XCTAssertEqual(Set(ranked), Set(PersonalHappeningCategory.food.eventIDs))
+        XCTAssertEqual(Set(ranked), HappeningDefaults.builtInIds)
     }
 
-    func testOpenCategoryFreezesOrderAndNativeCellsUntilNextEntry() {
-        var catalog = HappeningDefaults.builtIns
-        var browser = PersonalHappeningBrowser()
-        browser.open(.food, catalog: catalog, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
-        let opening = browser.placedChoices
-        XCTAssertEqual(browser.eventIDs.first, "event_coffee")
-        XCTAssertEqual(Array(opening.prefix(6)).map(\.cell), HappeningEventTreeState.Cell.directions)
-        let dinner = catalog.firstIndex { $0.id == "event_meal_dinner" }!
-        catalog[dinner].useCount = 5
-        catalog[dinner].lastUsedAt = now
-        XCTAssertEqual(browser.placedChoices, opening, "Changing usage outside the browser cannot move an open category")
-        browser.open(.food, catalog: catalog, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
-        XCTAssertEqual(browser.eventIDs.first, "event_meal_dinner")
-        XCTAssertEqual(browser.placedChoices.map(\.cell), opening.map(\.cell))
-        XCTAssertEqual(Set(browser.placedChoices.map(\.cell)).count, browser.choices.count)
+    func testRankingChangesOutwardSuggestionsWhileKeepingSixStartersAndOpeningCells() {
+        let history = ["2026-10-13": ["event_made", "happening_wrote", "mind_writing"],
+                       "2026-10-14": ["event_made"]]
+        let ranking = PersonalHappeningRecommendations.rankedEventIDs(catalog: HappeningDefaults.builtIns,
+            historyByDay: history, todayIDs: [], dayKey: "2026-10-15", at: now,
+            surveyScores: ["event_meeting": 100])
+        var state = HappeningEventTreeState(rankedHappeningIDs: ranking)
+        XCTAssertEqual(state.nodes.count, 6)
+        let opening = state.atlasNodes
+        let starterCells = state.nodes
+        XCTAssertEqual(state.expand("root_worked"), 3)
+        XCTAssertTrue(state.nodes.contains { $0.id == "made" && $0.parentID == "root_worked" })
+        state.expand("made")
+        XCTAssertEqual(state.atlasNodes, opening)
+        XCTAssertEqual(Array(state.nodes.prefix(6)), starterCells)
+        let replay = HappeningEventTreeState(expandedIDs: state.expandedIDs, rankedHappeningIDs: ranking)
+        XCTAssertEqual(replay, state)
+        state.resetVisibleEvents()
+        XCTAssertEqual(state.nodes, starterCells)
+        XCTAssertEqual(state.atlasNodes, opening, "Final removal retains every native cell for returning contours")
+        XCTAssertTrue(state.expandedIDs.isEmpty)
     }
 
-    func testBrowsingDoesNotChangeTheAllAtlasOrSurveyCatalog() {
-        let atlas = HappeningEventTreeState().atlasNodes
-        var browser = PersonalHappeningBrowser()
-        browser.open(.rest, catalog: HappeningDefaults.builtIns, historyByDay: [:], todayIDs: [], dayKey: "2026-10-15", at: now)
-        browser.showCategories()
-        XCTAssertEqual(HappeningEventTreeState().atlasNodes, atlas)
-        XCTAssertEqual(atlas.count, 106)
-        XCTAssertEqual(HappeningDefaults.builtIns.count, 106)
-        XCTAssertEqual(Set(atlas.map { "event_" + $0.id }), HappeningDefaults.builtInIds)
+    func testEveryRankedDomainRemainsReachableWithoutDuplicateOrCyclicIDs() {
+        let ranked = HappeningEventTree.all.reversed().map { "event_" + $0.id }
+        var state = HappeningEventTreeState(rankedHappeningIDs: ranked)
+        let opening = state.atlasNodes
+        var index = 0
+        while index < state.nodes.count {
+            XCTAssertLessThanOrEqual(state.expand(state.nodes[index].id), 3)
+            index += 1
+        }
+        XCTAssertEqual(state.nodes.count, 106)
+        XCTAssertEqual(Set(state.nodes.map { "event_" + $0.id }), HappeningDefaults.builtInIds)
+        XCTAssertEqual(Set(state.nodes.map(\.cell)).count, 106)
+        XCTAssertEqual(state.atlasNodes, opening)
+        state.revealHappenings(["health_workout_52", "happening_walk", "event_walk"])
+        XCTAssertEqual(state.nodes.filter { $0.id == "walk" }.count, 1)
     }
 }

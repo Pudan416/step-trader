@@ -105,7 +105,6 @@ struct GalleryView: View {
     @State private var showEventExplorer = false
     @State private var hasHappeningPaletteChanges = false
     @State private var eventTree = HappeningEventTreeState()
-    @State private var personalBrowser = PersonalHappeningBrowser()
     @AppStorage("happeningEventTreeDayKey") private var eventTreeDayKey = ""
     @AppStorage("happeningEventTreeExpandedIDs") private var eventTreeExpandedIDs = ""
     @AppStorage("happeningEventTreeClearedDayKey") private var eventTreeClearedDayKey = ""
@@ -242,11 +241,7 @@ struct GalleryView: View {
 
     private var paletteEditorialAssignments: [String: HappeningEditorialAssignment] {
         if showsHappeningQuestions { return questionDisplayAssignments }
-        let canonical = paletteAssignmentSnapshot?.assignments ?? [:]
-        guard showsPersonalCategories, personalBrowser.category == nil else { return canonical }
-        return Dictionary(uniqueKeysWithValues: PersonalHappeningCategory.allCases.compactMap { category in
-            canonical[category.representativeID].map { (category.id, $0) }
-        })
+        return paletteAssignmentSnapshot?.assignments ?? [:]
     }
 
     private var displayedEditorialRenderInput: EditorialCanvasRenderInput {
@@ -543,7 +538,6 @@ struct GalleryView: View {
             eventTreeDayKey = dayCanvas.dayKey
             eventTreeExpandedIDs = ""
         }
-        personalBrowser.showCategories()
         rebuildPersonalEventField()
         paletteAssignmentSnapshot = nil
         refreshEventTreePalette()
@@ -564,7 +558,7 @@ struct GalleryView: View {
         let happenings = HappeningEventTree.all.compactMap { catalog["event_" + $0.id] }
         paletteCatalog = happenings
         paletteSelectedIDs = model.selectedPaletteHappeningIDs()
-        paletteHappenings = showsPersonalCategories ? personalBrowser.choices : happenings
+        paletteHappenings = happenings
         let request = HappeningEditorialAssignmentRequest(
             happenings: happenings,
             baseInput: editorialRenderInput.sceneInput,
@@ -581,66 +575,12 @@ struct GalleryView: View {
         }
     }
 
-    private var showsPersonalCategories: Bool {
-        !showsHappeningQuestions && paletteMode == .frequent
-    }
-
     private var happeningFieldIdentity: String {
-        if showsHappeningQuestions { return "questionnaire" }
-        guard showsPersonalCategories else { return "all" }
-        return personalBrowser.category?.id ?? "personal_categories"
-    }
-
-    private func openPersonalCategory(_ category: PersonalHappeningCategory) {
-        #if DEBUG
-        AppLogger.ui.info("Happening category tap id=\(category.id, privacy: .public) mode=\(self.paletteMode.rawValue, privacy: .public) selected=false count=\(self.todayEventCount)")
-        #endif
-        cancelPaletteInteraction()
-        personalBrowser.open(category, catalog: model.selectableHappenings,
-            historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
-            todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now,
-            surveyScores: HappeningPersonalizationStore.load().scores(dayKey: dayCanvas.dayKey, includeMood: false))
-        refreshEventTreePalette()
-    }
-
-    private func personalCategoryHeaderTop(in viewport: GeometryProxy) -> CGFloat {
-        if showsHappeningIntroduction { return happeningChoiceCoachBottom(in: viewport) + 12 }
-        return canvasSafeInsets.top + HappeningPaletteChromeLayout.panelTopInset(
-            topCardHeight: topCardHeight, hidesSurroundingChrome: true)
-    }
-
-    private func personalCategoryHeader(topInset: CGFloat) -> some View {
-        HStack(spacing: 12) {
-            if let category = personalBrowser.category {
-                Button {
-                    cancelPaletteInteraction()
-                    personalBrowser.showCategories()
-                    refreshEventTreePalette()
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("happening_category_back")
-                .canvasTourControl("canvas.paletteCategoryBack")
-                Spacer()
-                Text(category.title).font(.onest(size: 17, weight: .medium))
-                Spacer()
-            }
-        }
-        .foregroundStyle(happeningQuestionInk)
-        .padding(.horizontal, 24)
-        .padding(.top, topInset)
+        showsHappeningQuestions ? "questionnaire" : "event_field"
     }
 
     private func rebuildPersonalEventField(usesSurveyIntroduction: Bool = false) {
-        if personalEventFieldWasCleared && !usesSurveyIntroduction {
-            eventTree = HappeningEventTreeState(
-                expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init)
-            )
-            return
-        }
-        let leaders = PersonalHappeningRecommendations.sphereLeaders(
+        let ranking = PersonalHappeningRecommendations.rankedEventIDs(
             catalog: model.selectableHappenings,
             historyByDay: model.loadPastDaySnapshots().mapValues(\.happeningIds),
             todayIDs: model.todayAdditions.map(\.optionId), dayKey: dayCanvas.dayKey, at: .now,
@@ -648,8 +588,11 @@ struct GalleryView: View {
         )
         eventTree = HappeningEventTreeState(
             expandedIDs: eventTreeExpandedIDs.split(separator: ",").map(String.init),
-            recommendedHappeningIDs: leaders + personalHealthRecommendationIDs + paletteAddedIDs.sorted()
+            rankedHappeningIDs: ranking
         )
+        if !personalEventFieldWasCleared || usesSurveyIntroduction {
+            eventTree.revealHappenings(personalHealthRecommendationIDs + paletteAddedIDs.sorted())
+        }
     }
 
     private func presentHappeningQuestions() {
@@ -811,7 +754,7 @@ struct GalleryView: View {
         // is delivered once, before answers, and dismissed after a real addition.
         showEventExplorer = true
         // Establish the representation before refreshing its choices: the
-        // questionnaire has just ended, and ordinary Personal opens categories.
+        // questionnaire has just ended, and Personal shares this same event atlas.
         paletteMode = .all
         showsHappeningIntroduction = true
         // Survey seeds shape this introduction even after the user cleared
@@ -924,8 +867,6 @@ struct GalleryView: View {
                 onActivate: { happening in
                     if showsHappeningQuestions {
                         handleHappeningQuestionActivation(happening)
-                    } else if let category = PersonalHappeningCategory.category(forChoiceID: happening.id) {
-                        openPersonalCategory(category)
                     } else { handlePaletteActivation(happening) }
                 },
                 onSaveSelection: handlePaletteSelectionSave,
@@ -1021,15 +962,6 @@ struct GalleryView: View {
             )
         }
         if showEventExplorer {
-            if showsPersonalCategories {
-                if personalBrowser.category != nil {
-                    let headerTop = personalCategoryHeaderTop(in: viewport)
-                    contentTopInset = max(contentTopInset, headerTop + 56)
-                }
-                return HappeningEventTreeLayout.layout(nodes: personalBrowser.placedChoices,
-                    in: viewport.size, safeInsets: canvasSafeInsets, contentTopInset: contentTopInset,
-                    dockCenterY: canvasAddButtonCenterY.map { $0 - viewport.frame(in: .global).minY }).layout
-            }
             let tree = eventTreeField(in: viewport, contentTopInset: contentTopInset).layout
             let placed = Dictionary(uniqueKeysWithValues: zip(eventTree.atlasNodes, tree.sources).map { ($0.0.id, $0.1) })
             let visible = Set(eventTree.nodes.map(\.id))
@@ -1504,11 +1436,6 @@ struct GalleryView: View {
                     }
             }
             .overlay(alignment: .top) {
-                if showHappeningPalette && showsPersonalCategories && personalBrowser.category != nil {
-                    personalCategoryHeader(topInset: personalCategoryHeaderTop(in: viewport))
-                }
-            }
-            .overlay(alignment: .top) {
                 if showsHappeningQuestions && showHappeningPalette {
                     Color.clear
                         .frame(width: 0, height: 0)
@@ -1959,6 +1886,9 @@ struct GalleryView: View {
             }
             if showHappeningPalette { closeHappeningPalette() }
             else { finishHappeningIntroduction() }
+            eventTreeExpandedIDs = ""
+            eventTreeDayKey = ""
+            eventTreeClearedDayKey = ""
         }
         .onChange(of: HappeningOnboardingCoordinator.shared.replayRevision) { _, _ in consumeHappeningReplay() }
         .onChange(of: isCanvasSelected) { _, selected in if selected { consumeHappeningReplay() } }
@@ -2838,11 +2768,10 @@ struct GalleryView: View {
         if result.canvas.elements.isEmpty {
             eventTreeDayKey = result.canvas.dayKey
             eventTreeExpandedIDs = ""
-            personalBrowser.showCategories()
             eventTreeClearedDayKey = result.canvas.dayKey
             if !showsHappeningIntroduction {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
-                    eventTree = HappeningEventTreeState()
+                    eventTree.resetVisibleEvents()
                     paletteMode = .frequent
                 }
             }

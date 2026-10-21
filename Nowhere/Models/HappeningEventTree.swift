@@ -48,12 +48,11 @@ enum HappeningEventTree {
         .init("feelings", "Feelings", [.init("rage", "Raged"), .init("happy", "Felt happy"), .init("tired", "Felt tired"), .init("anxious", "Felt anxious"), .init("angry", "Felt angry"), .init("calm", "Felt calm"), .init("lonely", "Felt lonely"), .init("curious", "Felt curious"), .init("okay", "Felt okay"), .init("mixed", "Had mixed feelings")])
     ]
 
-    // Cold-start leaders for the six Personal life spheres. Personal replaces
-    // these occupants with the user's most-used event in each sphere.
+    // Six actionable starters stay fixed; familiarity ranks their outward choices.
     static let startingEvents: [HappeningEventNode] = [
         .init("root_worked", "Worked"), .init("root_chilled", "Chilled"),
         .init("root_home", "Stayed home"), .init("walk", "Went for a walk"),
-        .init("walked", "Walked to work"), .init("friend", "Saw a friend")
+        .init("coffee", "Had coffee"), .init("friend", "Saw a friend")
     ]
 
     /// Shared events sit between neighboring spheres rather than belonging to
@@ -84,6 +83,7 @@ enum HappeningEventTree {
         case "root_worked": return 0
         case "root_chilled": return 1
         case "root_home": return 2
+        case "coffee": return 4
         default: break
         }
 
@@ -92,10 +92,14 @@ enum HappeningEventTree {
                 if node.id == eventID {
                     switch sphereIndex {
                     case 0: return 0 // Work & study
-                    case 1: return 3 // Body & wellbeing
+                    case 1:
+                        if ["slept", "bed", "shower", "stayedlate"].contains(eventID) { return 1 }
+                        let food = spheres[1].children.first { $0.id == "food" }!
+                        if leaves(food).contains(where: { $0.id == eventID }) { return 4 }
+                        return 3 // Movement
                     case 2: return 5 // People & connection
                     case 3: return 2 // Home & everyday
-                    case 4: return 4 // Getting around
+                    case 4: return 2 // Getting around shares everyday life
                     default: return 1 // Leisure, play & feelings
                     }
                 }
@@ -245,9 +249,8 @@ struct HappeningEventTreeState: Equatable {
     private(set) var nodes: [PlacedEvent]
     private(set) var expandedIDs: [String] = []
 
-    // The six root cells are life spheres. A Personal leader can take the
-    // root cell for its sphere; the former occupant moves to the leader's old
-    // cell, preserving every catalog identity and the complete atlas.
+    // The six starter cells remain fixed. Familiar choices occupy the outward
+    // cells of their domain, preserving every catalog identity.
     private static let outwardIDs = HappeningEventTree.routes.map { $0.dropFirst().first! }
     private static let intersectionIDs = HappeningEventTree.intersectionIDs
     static let allNodes: [PlacedEvent] = makeAtlas()
@@ -257,8 +260,8 @@ struct HappeningEventTreeState: Equatable {
         Dictionary(uniqueKeysWithValues: atlasNodes.map { ($0.id, $0) })
     }
 
-    init(expandedIDs: [String] = [], recommendedHappeningIDs: [String] = []) {
-        atlasNodes = Self.personalAtlas(recommendedHappeningIDs)
+    init(expandedIDs: [String] = [], recommendedHappeningIDs: [String] = [], rankedHappeningIDs: [String] = []) {
+        atlasNodes = Self.personalAtlas(recommendedHappeningIDs, rankedIDs: rankedHappeningIDs)
         nodes = Array(atlasNodes.prefix(6))
         // Replay the same starting field before its taps, including pre-revealed
         // recommendations, so reopening preserves node order and parent links.
@@ -311,42 +314,45 @@ struct HappeningEventTreeState: Equatable {
             }.prefix(3))
     }
 
-    private static func personalAtlas(_ happeningIDs: [String]) -> [PlacedEvent] {
-        let roots = HappeningEventTree.startingEvents.map(\.id)
-        var occupants = allNodes.map(\.event)
-        let leaders = happeningIDs.prefix(roots.count).compactMap {
-            HappeningEventTree.eventID(forHappeningID: $0)
-        }
-        let startsWithOneLeaderPerSphere = leaders.count == roots.count
-            && leaders.enumerated().allSatisfy { index, id in
-                HappeningEventTree.personalSphereIndex(for: id) == index
-            }
+    /// Reset the visible branch after the final removal without moving any
+    /// opening assignments or the returning preview's native contour.
+    mutating func resetVisibleEvents() {
+        nodes = Array(atlasNodes.prefix(6))
+        expandedIDs = []
+    }
 
-        if startsWithOneLeaderPerSphere {
-            for (sector, id) in leaders.enumerated() {
-                guard let from = allNodes.firstIndex(where: { $0.id == id }),
-                      let to = allNodes.firstIndex(where: { $0.cell == Cell.directions[sector] }),
-                      from != to else { continue }
-                occupants.swapAt(from, to)
+    private static func personalAtlas(_ happeningIDs: [String], rankedIDs: [String]) -> [PlacedEvent] {
+        let roots = Set(HappeningEventTree.startingEvents.map(\.id))
+        let anchored = roots.union(intersectionIDs)
+        var occupants = allNodes.map(\.event)
+        let ranked = rankedIDs.compactMap(HappeningEventTree.eventID(forHappeningID:))
+        let priority = Dictionary(ranked.enumerated().map { ($0.element, $0.offset) }, uniquingKeysWith: { min($0, $1) })
+        for sector in Cell.directions.indices {
+            let slots = allNodes.indices.filter {
+                !anchored.contains(allNodes[$0].id)
+                    && HappeningEventTree.personalSphereIndex(for: allNodes[$0].id) == sector
             }
-        } else {
-            // A standalone external or familiar recommendation still takes
-            // the first outward cell of its own sphere.
-            var promotedSpheres = Set<Int>()
-            for happeningID in happeningIDs {
-                guard let id = HappeningEventTree.eventID(forHappeningID: happeningID),
-                      !roots.contains(id), !intersectionIDs.contains(id),
-                      let sector = HappeningEventTree.personalSphereIndex(for: id),
-                      promotedSpheres.insert(sector).inserted,
-                      let from = allNodes.firstIndex(where: { $0.id == id }),
-                      let to = allNodes.firstIndex(where: { $0.id == outwardIDs[sector] }) else { continue }
-                occupants.swapAt(from, to)
-            }
+            let events = slots.map { occupants[$0] }.enumerated().sorted {
+                let a = priority[$0.element.id, default: Int.max]
+                let b = priority[$1.element.id, default: Int.max]
+                return a == b ? $0.offset < $1.offset : a < b
+            }.map(\.element)
+            for (slot, event) in zip(slots, events) { occupants[slot] = event }
+        }
+        // External recommendations keep their own identity and sector. The
+        // six ordinary starters never become narrow learned leaves.
+        var promotedSpheres = Set<Int>()
+        for happeningID in happeningIDs {
+            guard let id = HappeningEventTree.eventID(forHappeningID: happeningID),
+                  !anchored.contains(id),
+                  let sector = HappeningEventTree.personalSphereIndex(for: id),
+                  promotedSpheres.insert(sector).inserted,
+                  let from = occupants.firstIndex(where: { $0.id == id }),
+                  let to = allNodes.firstIndex(where: { $0.id == outwardIDs[sector] }) else { continue }
+            occupants.swapAt(from, to)
         }
         let newIDAtCell = Dictionary(uniqueKeysWithValues: zip(allNodes, occupants).map { ($0.0.cell, $0.1.id) })
         return zip(allNodes, occupants).map { slot, event in
-            // Parents follow the immutable cell graph, avoiding an ID cycle
-            // when an outer event trades places with its former ancestor.
             let parentID = slot.parentID.flatMap { defaultByID[$0]?.cell }.flatMap { newIDAtCell[$0] }
             return PlacedEvent(event: event, cell: slot.cell, parentID: parentID)
         }
@@ -423,89 +429,12 @@ struct HappeningEventTreeState: Equatable {
     }
 }
 
-/// Familiar events are recommended without replacing the six starting roots.
-/// Count is one successful-use day; recency decay lets a changed routine emerge.
-/// Navigation choices only: these IDs never enter the event catalog or stores.
-enum PersonalHappeningCategory: String, CaseIterable, Identifiable {
-    case work, rest, food, movement, people, home
-
-    var id: String { "personal_category_" + rawValue }
-    var title: String {
-        switch self {
-        case .work: "Work & Study"
-        case .rest: "Rest & Sleep"
-        case .food: "Food & Drink"
-        case .movement: "Movement"
-        case .people: "People"
-        case .home: "Home & Everyday"
-        }
-    }
-    var representativeID: String {
-        switch self {
-        case .work: "event_root_worked"
-        case .rest: "event_slept"
-        case .food: "event_coffee"
-        case .movement: "event_walk"
-        case .people: "event_friend"
-        case .home: "event_root_home"
-        }
-    }
-    var choice: Happening { Happening(id: id, title: title, isBuiltIn: false) }
-    static func category(forChoiceID id: String) -> Self? { allCases.first { $0.id == id } }
-
-    /// Derive membership from the authoritative tree, with intentional overlap
-    /// for events such as cooking, walking to work and visiting a café.
-    var eventIDs: [String] {
-        func leaves(_ sphereID: String, branch: String? = nil) -> [String] {
-            guard let sphere = HappeningEventTree.spheres.first(where: { $0.id == sphereID }) else { return [] }
-            let nodes = branch.map { id in sphere.children.filter { $0.id == id } } ?? sphere.children
-            return nodes.flatMap(HappeningEventTree.leaves).map(\.id)
-        }
-        let ids: [String]
-        switch self {
-        case .work: ids = ["root_worked"] + leaves("work")
-        case .rest: ids = ["slept", "nap", "bed", "break", "root_chilled", "stayedlate"] + leaves("play") + leaves("feelings")
-        case .food: ids = ["coffee", "meal_breakfast", "meal_lunch", "meal_dinner", "tea", "cooked", "cafe", "bar"] + leaves("body", branch: "food").filter { $0 != "smoked" }
-        case .movement: ids = leaves("body", branch: "move") + ["walked", "bike", "nature", "danced"]
-        case .people: ids = ["friend"] + leaves("people") + ["guests", "withkid"]
-        case .home: ids = ["root_home"] + leaves("home") + leaves("travel") + ["shower", "smoked", "errands"]
-        }
-        var seen = Set<String>()
-        return ids.filter { HappeningEventTree.event($0) != nil && seen.insert($0).inserted }.map { "event_" + $0 }
-    }
-}
-
-/// An opening freezes ranked choices. Canvas mutations refresh actors/selection,
-/// never the order or the native cells under the user's finger.
-struct PersonalHappeningBrowser: Equatable {
-    private(set) var category: PersonalHappeningCategory?
-    private(set) var eventIDs: [String] = []
-
-    mutating func open(_ category: PersonalHappeningCategory, catalog: [Happening],
-                       historyByDay: [String: [String]], todayIDs: [String], dayKey: String,
-                       at date: Date, surveyScores: [String: Double] = [:]) {
-        self.category = category
-        eventIDs = PersonalHappeningRecommendations.rankedCategoryIDs(category, catalog: catalog,
-            historyByDay: historyByDay, todayIDs: todayIDs, dayKey: dayKey, at: date, surveyScores: surveyScores)
-    }
-    mutating func showCategories() { category = nil; eventIDs = [] }
-
-    var choices: [Happening] {
-        guard category != nil else { return PersonalHappeningCategory.allCases.map(\.choice) }
-        let catalog = Dictionary(uniqueKeysWithValues: HappeningDefaults.builtIns.map { ($0.id, $0) })
-        return eventIDs.compactMap { catalog[$0] }
-    }
-    var placedChoices: [HappeningEventTreeState.PlacedEvent] {
-        zip(choices, HappeningEventTreeState.allNodes).map { choice, slot in
-            .init(event: .init(choice.id, choice.title), cell: slot.cell, parentID: nil)
-        }
-    }
-}
-
+/// Opening-only local ranking. Mutations consume the frozen atlas and do not
+/// reload history or rank the catalog under the user's finger.
 enum PersonalHappeningRecommendations {
-    static func rankedCategoryIDs(_ category: PersonalHappeningCategory, catalog: [Happening],
-                                  historyByDay: [String: [String]], todayIDs: [String], dayKey: String,
-                                  at date: Date, surveyScores: [String: Double] = [:]) -> [String] {
+    static func rankedEventIDs(catalog: [Happening], historyByDay: [String: [String]],
+                               todayIDs: [String], dayKey: String, at date: Date,
+                               surveyScores: [String: Double] = [:]) -> [String] {
         var usedDays: [String: Set<String>] = [:]
         var lastSeen: [String: Date] = [:]
         let formatter = DateFormatter()
@@ -525,7 +454,7 @@ enum PersonalHappeningRecommendations {
             lastSeen[id] = max(lastSeen[id] ?? .distantPast, date)
         }
         let byID = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let defaults = category.eventIDs
+        let defaults = HappeningEventTree.all.map { "event_" + $0.id }
         let scores = defaults.enumerated().map { index, id -> (id: String, frequency: Double, recency: Date, seed: Double, index: Int) in
             let count = max(byID[id]?.useCount ?? 0, usedDays[id]?.count ?? 0)
             let recent = [byID[id]?.lastUsedAt, lastSeen[id]].compactMap { $0 }.max() ?? .distantPast

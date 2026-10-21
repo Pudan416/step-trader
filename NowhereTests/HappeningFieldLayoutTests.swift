@@ -2146,6 +2146,45 @@ private struct HappeningScrollArtworkProbe: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {}
 }
 
+final class HappeningEventFieldInteractionTests: XCTestCase {
+    private func layout(secondVisible: Bool, firstCenter: CGPoint = CGPoint(x: 50, y: 80),
+                        firstRadius: CGFloat = 30, secondIndex: Int = 1,
+                        size: CGSize = CGSize(width: 300, height: 500)) -> HappeningFieldLayout.Layout {
+        var result = HappeningFieldLayout.makeLayout(sources: [
+            .init(index: 0, center: firstCenter, radius: firstRadius),
+            .init(index: secondIndex, center: CGPoint(x: 130, y: 80),
+                  radius: secondVisible ? 30 : 0, appearanceScale: secondVisible ? 1 : 0)
+        ], dockAnchor: CGPoint(x: 150, y: 450))
+        result.contentSize = size
+        result.dateHubCenter = CGPoint(x: 150, y: 250)
+        return result
+    }
+
+    func testStationaryInlineExpansionKeepsExistingTargetsInteractive() {
+        let transition = HappeningEventFieldTransition(from: layout(secondVisible: false),
+            to: layout(secondVisible: true), startedAt: .now)
+        XCTAssertTrue(transition.permitsStationaryExpansionInteraction)
+    }
+
+    func testMovingResizingOrReindexingAVisibleFieldKeepsInteractionLocked() {
+        let opening = layout(secondVisible: false)
+        for destination in [
+            layout(secondVisible: true, firstCenter: CGPoint(x: 51, y: 80)),
+            layout(secondVisible: true, firstRadius: 31),
+            layout(secondVisible: true, secondIndex: 2),
+            layout(secondVisible: true, size: CGSize(width: 301, height: 500))
+        ] {
+            XCTAssertFalse(HappeningEventFieldTransition(from: opening, to: destination,
+                startedAt: .now).permitsStationaryExpansionInteraction)
+        }
+    }
+
+    func testCollapsingTheFieldKeepsInteractionLocked() {
+        XCTAssertFalse(HappeningEventFieldTransition(from: layout(secondVisible: true),
+            to: layout(secondVisible: false), startedAt: .now).permitsStationaryExpansionInteraction)
+    }
+}
+
 final class HappeningFieldExpansionTests: XCTestCase {
     func testExpansionRetainsTenIdentitiesAndRevealsEveryOtherSlotAroundThem() {
         let viewport = CGSize(width: 390, height: 844)
@@ -2247,7 +2286,7 @@ final class HappeningEventTreeRegressionTests: XCTestCase {
         let state = HappeningEventTreeState()
         XCTAssertEqual(state.nodes.count, 6)
         XCTAssertEqual(state.nodes.map(\.event.title), [
-            "Worked", "Chilled", "Stayed home", "Went for a walk", "Walked to work", "Saw a friend"
+            "Worked", "Chilled", "Stayed home", "Went for a walk", "Had coffee", "Saw a friend"
         ])
         XCTAssertTrue(state.nodes.allSatisfy { $0.cell.distanceSquared == 1 && $0.parentID == nil })
         XCTAssertFalse(state.nodes.contains { $0.cell == .origin })

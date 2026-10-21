@@ -77,10 +77,10 @@ selection and confirmation sequence. Back and close retain a local
 account-scoped draft. Skip questions marks this introduction as skipped. Completed
 answers seed preferences only: they create no history, usage counters or colors.
 Relationship context never implies an actual call or text. Emotion context expires
-at the logical day boundary. Existing recorded uses outrank preference seeds;
-without seeds, the existing two-use-day learning threshold remains in place.
+at the logical day boundary. Existing recorded uses outrank preference seeds. Outward suggestions can reflect
+one recorded day; the six actionable starter events remain fixed.
 
-Completion reveals **All**, first six distinct domain leaders, then remaining
+Completion reveals **All**, first the six actual starter events, then remaining
 canonical events in relevance order, at the same map positions used for selection.
 The same framed coach displays **Choose one thing you’ve done today.** throughout
 the reveal and while scrolling or exploring the field, until an explicit real
@@ -109,35 +109,41 @@ the energy pill's pull gesture as well as the drawer's 44pt handle target.
 Committed preferences survive cancellation until replacement answers are completed.
 Recorded days and legacy onboarding completion are retained.
 
-Subsequent uses of the Canvas add control open **Personal** with six category
-circles: **Work & Study**, **Rest & Sleep**, **Food & Drink**, **Movement**,
-**People**, and **Home & Everyday**. The shared native field and DayObjects renderer
-surround the current day's added-event count, such as **3 / 10**, with a small
-**Today** label above it. A category tap only opens its concrete events; it never
-records a happening, changes usage counters or creates colors. Rest & Sleep
-includes Slept, and Food & Drink includes Had coffee. Events can appear in more
-than one category; every one of the 106 canonical choices is reachable.
+Subsequent uses of the Canvas add control open **Personal** with six actual
+happenings: **Worked**, **Chilled**, **Stayed home**, **Went for a walk**,
+**Had coffee**, and **Saw a friend**. These are actionable starter events for
+work, rest, home, movement, food and drink, and people. The shared native field
+and DayObjects renderer surround the current day's added-event count, such as
+**3 / 10**, with a small **Today** label above it. Tapping an available starter
+records that event once through the ordinary addition path and reveals up to
+three relevant neighboring events in the same continuous field. Further actual
+event additions unfold their neighbors. There are no category screens or Back
+controls. The six starters remain stable even with a familiar usage profile.
 
-Each category puts familiar events nearest Today, using frequency with a 21-day
-recency half-life. Restored snapshots canonicalize aliases and count each event
-once per day, combined with local counters by their maximum. Recorded usage
-ranks before survey preferences; unused choices retain a deterministic useful
-order. Category order and cells stay fixed during additions, deletion previews,
-removals and Personal/All switches. Entering a category again recalculates its
-order. The category title and Back control sit below the energy card. Back returns
-to the six categories, and reopening Personal starts there.
-During the first All introduction, switching to Personal opens the same categories
-while retaining the first-choice coach. Category navigation sits below that coach;
-only an explicit real event tap completes this step.
+Outward suggestions rank once when the field opens, within their domains, using
+frequency with a 21-day recency half-life. Restored snapshots canonicalize aliases
+and count each event once per day, combined with local counters by their maximum.
+Recorded usage ranks before survey preferences; unused choices retain a
+deterministic useful order. Rest and leisure share a direction; travel remains
+with everyday life. Ranking changes suggestion occupants without changing the
+six starters, catalog identities, or saved artwork. Health suggestions and today's
+added events reveal their canonical paths without logging extra events.
 
 **All** retains the complete 106-event atlas and the first onboarding reveal.
-Its actors and the category browser share the authoritative full catalog assignment
-snapshot, including frozen actors for today's saved UUIDs. Navigation IDs are
-presentation only and never enter Canvas, stores, Health links or use counts.
+Personal and All use the same opening atlas, native cells and authoritative
+assignment snapshot, including frozen actors for today's saved UUIDs. Their
+positions stay fixed during additions, deletion previews, removals and mode
+switches. Expansion consumes the opening map without rereading history or
+ranking the catalog again. Reopening ranks suggestions again and restores that
+day's expanded paths; a day change clears those paths. Authentication changes
+close the field and clear the previous account's expansion state.
+
 Actual event taps retain the existing atomic addition/removal path and ten-addition
-limit. Removing the final event returns Personal to its six category circles.
-The native radial field remains pannable; changing between categories and All
-resets field focus without morphing unrelated event indices.
+limit. Removing the final event resets Personal visibility to its six starter
+events while retaining the opening atlas and native actor assignments. The native
+field remains pannable. During the first All introduction, switching to Personal
+uses the same actual events and retains the first-choice coach; only an explicit
+real event tap completes that step. Survey answers never log events.
 
 Health walking, running, swimming, dance, flexibility, yoga and cycling resolve
 to Went for a walk, Went for a run, Swam, Danced, Stretched, Did yoga and Went

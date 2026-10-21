@@ -209,7 +209,9 @@ struct HappeningPaletteView: View {
                     .accessibilityIdentifier("happening_field_scroll")
                     .accessibilityValue(reveal == nil ? "Ready" : "Revealing")
                     .accessibilityHidden(activePanel != nil)
-                    .allowsHitTesting(activePanel == nil && modeTransition == nil && eventTransition == nil && reveal == nil)
+                    .allowsHitTesting(activePanel == nil && modeTransition == nil && reveal == nil
+                        && (eventTransition == nil || (usesEventTree && mode == .frequent
+                            && eventTransition?.permitsStationaryExpansionInteraction == true)))
                     .onChange(of: mode) { oldMode, newMode in
                         guard !usesEventTree else { return }
                         guard compactLayout != nil else { return }

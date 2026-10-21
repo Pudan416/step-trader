@@ -61,16 +61,20 @@ Test names live in `NowhereTests/` unless stated otherwise.
   immediately stops receiving taps. Available neighbors retain the nominal picker
   contour. `MetalShapeContour`
   samples saved uniforms through a bounded cache rather than regenerating presets.
-- `PersonalHappeningCategory` owns six presentation-only navigation IDs and
-  overlapping membership covering all 106 canonical events. `PersonalHappeningBrowser`
-  freezes ranked IDs on category entry and reuses native atlas cells. `GalleryView`
-  intercepts category taps before mutation and maps their visual assignments from
-  canonical representatives without replacing the full assignment snapshot.
-  Category browsing never writes Canvas, counters or Health links. All and survey
-  introduction retain `HappeningEventTreeState.atlasNodes`; the existing sphere
-  ranking prepares that complete atlas. Browser field identities reset transitions
-  and focus between category home, details and All. Final removal returns Personal
-  to category home; saved element IDs and frozen actors retain their identities.
+- `HappeningEventTree.startingEvents` owns six fixed canonical starter events
+  for work, rest, home, movement, food/drink and people. Personal uses
+  `HappeningEventTreeState.nodes` to reveal the same complete `atlasNodes` used by
+  All. `PersonalHappeningRecommendations.rankedEventIDs` ranks the full catalog
+  once on opening from usage, canonical restored history and survey scores.
+  Nonstarter occupants rank within their domain's immutable cells; parent IDs
+  follow the cell graph. Successful additions commit the actual canonical event
+  and expand at most three neighbors; there are no synthetic navigation IDs or
+  category screens. Today/Health paths reveal without another mutation. Final
+  removal calls `resetVisibleEvents`, retaining the opening atlas and frozen
+  actors. Reopening replays stored expansion IDs using fresh opening ranking;
+  day and account changes invalidate expansion state.
+  Stationary inline expansion keeps existing targets interactive while neighbors
+  grow; transitions that move or shrink targets retain their interaction gate.
 - Happenings artwork uses a viewport-sized Metal drawable positioned at the
   visible world rect. Only render sources subtract that rect's origin; labels,
   captions, confirmation targets and native scrolling retain world coordinates.
@@ -81,7 +85,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
   artwork and explicitly retry independently of the MTK display link. Scheduling
   and execution honor active scene/tab presentation; resume and window reattachment
   retry the latest camera without rendering while inactive.
-  Personal sphere ranking freezes on opening (and rebuilds on day change), while
+  Personal domain ranking freezes on opening (and rebuilds on day change), while
   additions reveal current paths without reading or ranking history again.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
