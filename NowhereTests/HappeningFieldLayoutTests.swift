@@ -1777,6 +1777,154 @@ final class HappeningScrollableFieldTests: XCTestCase {
     }
 }
 
+final class HappeningPaletteFigureTargetTests: XCTestCase {
+    func testRemovalPreviewOwnsItsVisibleSoftSquareEdgeWithoutClaimingNeighborCenter() throws {
+        let assignment = try softSquare()
+        let shape = HappeningPickerHitShape.make(side: 112, assignment: assignment,
+                                                 state: .removalPreview, reduceMotion: false)
+        let bounds = CGRect(origin: .zero, size: shape.size)
+        let hit = shape.path(in: bounds)
+        // Literal native reproduction: A r56, B one hex step up/right.
+        XCTAssertTrue(hit.contains(CGPoint(x: bounds.midX + 32.75, y: bounds.midY - 56.72466)))
+        XCTAssertFalse(hit.contains(CGPoint(x: bounds.midX + 61, y: bounds.midY - 105.6551)))
+        XCTAssertFalse(hit.contains(CGPoint(x: bounds.midX + 51, y: bounds.midY - 75.6551)))
+        XCTAssertTrue(hit.contains(CGPoint(x: bounds.midX + 42,
+            y: bounds.midY + HappeningPickerHitShape.actionOffset(side: 112) + 14)))
+    }
+
+    func testAddedFigureOwnsItsUnscaledNativeCornerAndKeepsCaptionTappable() throws {
+        let shape = HappeningPickerHitShape.make(side: 112, assignment: try softSquare(),
+                                                 state: .added, reduceMotion: false)
+        let bounds = CGRect(origin: .zero, size: shape.size)
+        let hit = shape.path(in: bounds)
+        // Inside n3.5 but outside the nominal n2.2 target.
+        XCTAssertTrue(hit.contains(CGPoint(x: bounds.midX + 42, y: bounds.midY - 42)))
+        XCTAssertTrue(hit.contains(CGPoint(x: bounds.midX, y: bounds.midY)))
+        XCTAssertFalse(hit.contains(CGPoint(x: bounds.midX + 55, y: bounds.midY - 55)))
+    }
+
+    func testReduceMotionUsesStaticPreviewExtentAndAvailableTargetNeverInheritsNativeCorners() throws {
+        let assignment = try softSquare()
+        let moving = HappeningPickerHitShape.make(side: 112, assignment: assignment,
+                                                  state: .removalPreview, reduceMotion: false)
+        let reduced = HappeningPickerHitShape.make(side: 112, assignment: assignment,
+                                                   state: .removalPreview, reduceMotion: true)
+        let available = HappeningPickerHitShape.make(side: 112, assignment: assignment,
+                                                     state: .available, reduceMotion: false)
+        func contains(_ shape: HappeningPickerHitShape, _ delta: CGPoint) -> Bool {
+            let bounds = CGRect(origin: .zero, size: shape.size)
+            return shape.path(in: bounds).contains(CGPoint(x: bounds.midX + delta.x, y: bounds.midY + delta.y))
+        }
+        XCTAssertTrue(contains(moving, CGPoint(x: 0, y: -59)))
+        XCTAssertFalse(contains(reduced, CGPoint(x: 0, y: -59)))
+        XCTAssertTrue(contains(reduced, CGPoint(x: 42, y: -42)))
+        XCTAssertFalse(contains(available, CGPoint(x: 42, y: -42)))
+        XCTAssertTrue(contains(available, CGPoint(x: 0, y: 0)))
+    }
+
+    func testActiveDeleteWinsOverLaterRetiringNativeFigure() throws {
+        let assignment = try softSquare()
+        let active = HappeningPickerHitShape.make(side: 112, assignment: assignment,
+            state: .removalPreview, reduceMotion: false)
+        let retiring = HappeningPickerHitShape.make(side: 112, assignment: assignment,
+            state: .added, reduceMotion: false, retiringState: .removalPreview)
+        let deletePoint = CGPoint(x: 39, y: 48)
+        let candidates = [(id: "home", shape: active, center: CGPoint.zero),
+                          (id: "walk", shape: retiring, center: CGPoint(x: 61, y: 105.6551))]
+        let hits = candidates.enumerated().filter { _, candidate in
+            let bounds = CGRect(origin: .zero, size: candidate.shape.size)
+            return candidate.shape.path(in: bounds).contains(CGPoint(
+                x: bounds.midX + deletePoint.x - candidate.center.x,
+                y: bounds.midY + deletePoint.y - candidate.center.y))
+        }
+        XCTAssertEqual(hits.count, 2, "The fixture must reproduce the actual overlapping touch targets")
+        // SwiftUI's later sibling wins a priority tie. The live action must
+        // outrank that sibling even while its old figure is still shrinking.
+        let winner = hits.max { lhs, rhs in
+            lhs.element.shape.priority == rhs.element.shape.priority
+                ? lhs.offset < rhs.offset : lhs.element.shape.priority < rhs.element.shape.priority
+        }
+        XCTAssertEqual(winner?.element.id, "home")
+    }
+
+    func testReturningPreviewRetainsItsFigureButDropsItsInvisibleAction() throws {
+        let assignment = try softSquare()
+        for state in [HappeningPaletteSlotVisualState.available, .added] {
+            let shape = HappeningPickerHitShape.make(side: 112, assignment: assignment,
+                state: state, reduceMotion: false, retiringState: .removalPreview)
+            let bounds = CGRect(origin: .zero, size: shape.size)
+            XCTAssertTrue(shape.path(in: bounds).contains(
+                CGPoint(x: bounds.midX + 32.75, y: bounds.midY - 56.72466)))
+        }
+        let small = HappeningPickerHitShape.make(side: 64, assignment: assignment,
+            state: .available, reduceMotion: false, retiringState: .removalPreview)
+        let bounds = CGRect(origin: .zero, size: small.size)
+        XCTAssertFalse(small.path(in: bounds).contains(CGPoint(x: bounds.midX + 42,
+            y: bounds.midY + HappeningPickerHitShape.actionOffset(side: 64) + 14)),
+            "The departed Delete capsule must not retain an invisible target")
+    }
+
+    func testRapidPreviewSwitchesExpireEachRetiredEnvelopeByItsOwnToken() {
+        var retiring = HappeningPaletteRetiringPreviews()
+        let firstA = retiring.retire(.remove("a"))
+        let b = retiring.retire(.add("b"))
+        let secondA = retiring.retire(.remove("a"))
+        retiring.expire(id: "a", token: firstA)
+        XCTAssertEqual(retiring.state(for: "a"), .removalPreview)
+        XCTAssertEqual(retiring.state(for: "b"), .additionPreview)
+        retiring.expire(id: "b", token: b)
+        XCTAssertNil(retiring.state(for: "b"))
+        XCTAssertEqual(retiring.state(for: "a"), .removalPreview)
+        retiring.expire(id: "a", token: secondA)
+        XCTAssertNil(retiring.state(for: "a"))
+    }
+
+    func testHitContourUsesPaletteDirectionInsteadOfSavedCanvasRotation() throws {
+        let geometry = MetalShapeGenomeUniforms(
+            superformula: SIMD4(2, 1, 1, 1), harmonic0: .zero, harmonic1: .zero, harmonic2: .zero,
+            anisotropyOffset: SIMD4(1.18, 0.82, 0, 0),
+            transform: SIMD4(0, 1, 1, 0), metadata: SIMD4(1, 0, 1, 0), reserved: .zero)
+        for (silhouette, inside, outside) in [
+            (DayObjectSilhouette.legacy, CGPoint(x: 0, y: 64), CGPoint(x: 64, y: 0)),
+            (DayObjectSilhouette(variant: 1, aspect: 1, rotation: 0), CGPoint(x: 64, y: 0), CGPoint(x: 0, y: 64))
+        ] {
+            let shape = HappeningPickerHitShape.make(side: 112,
+                assignment: try softSquare(geometry: geometry, silhouette: silhouette), state: .added, reduceMotion: false)
+            let bounds = CGRect(origin: .zero, size: shape.size)
+            let path = shape.path(in: bounds)
+            XCTAssertTrue(path.contains(CGPoint(x: bounds.midX + inside.x, y: bounds.midY + inside.y)))
+            XCTAssertFalse(path.contains(CGPoint(x: bounds.midX + outside.x, y: bounds.midY + outside.y)))
+        }
+    }
+
+    func testFrozenNativeContourPreservesUniformTransformWithoutRegeneratingPreset() {
+        let geometry = MetalShapeGenomeUniforms(
+            superformula: SIMD4(2, 1, 1, 1), harmonic0: .zero, harmonic1: .zero, harmonic2: .zero,
+            anisotropyOffset: SIMD4(1.18, 0.82, 0.1, -0.05),
+            transform: SIMD4(Float.pi / 2, 1, 1, 0), metadata: SIMD4(1, 0, 1, 0), reserved: .zero)
+        let points = MetalShapeContour.sample(uniforms: geometry, count: 4)
+        XCTAssertEqual(points[0].x, 0.1, accuracy: 0.0001)
+        XCTAssertEqual(points[0].y, 1.13, accuracy: 0.0001)
+        XCTAssertEqual(points[1].x, -0.72, accuracy: 0.0001)
+        XCTAssertEqual(points[1].y, -0.05, accuracy: 0.0001)
+        XCTAssertEqual(MetalShapeContour.sample(uniforms: geometry, count: 4), points)
+    }
+
+    private func softSquare(geometry: MetalShapeGenomeUniforms? = nil,
+                            silhouette: DayObjectSilhouette = .legacy) throws -> HappeningEditorialAssignment {
+        let preset = try XCTUnwrap(MetalShapeGenomeCatalog.presets.first { $0.id == "legacy.soft-square" })
+        let frame = MetalShapeGenomeFrame.make(preset: preset, material: .solid, seed: 42)
+        let material = DayObjectEditorialMaterialV1(family: .gradient, mechanism: .smoothRadial,
+            colors: [SIMD3(repeating: 0.5)], fields: [], baseOpacity: 1, edgeSoftness: 0,
+            contourWidth: 0, contourCount: 0, counterformRadius: nil, counterformSoftness: 0,
+            structuralParameters: .zero)
+        return HappeningEditorialAssignment(elementID: UUID(), shape: .roundedSquare,
+            material: material, colorVariant: nil, silhouette: silhouette,
+            nativeActor: .init(eventID: "a", presetID: preset.id, materialID: .solid, seedHex: "2a",
+                geometry: geometry ?? frame.geometry, material: frame.material, position: .zero, size: 1, rotation: 0.7, slot: 0))
+    }
+}
+
 final class HappeningPaletteRemovalTargetTests: XCTestCase {
     func testVisibleDeleteEdgeIsInsideCapsuleAndOutsideFigure() {
         let side: CGFloat = 112

@@ -126,3 +126,31 @@ struct HappeningPaletteInteractionState: Equatable {
         return addedIDs.contains(id) ? .added : .available
     }
 }
+
+/// A returning renderer preview stays raised while its geometry shrinks. Tokens
+/// prevent an older expiry from removing a more recently disarmed preview.
+struct HappeningPaletteRetiringPreviews {
+    private struct Entry {
+        let state: HappeningPaletteSlotVisualState
+        let token: UUID
+    }
+    private var entries: [String: Entry] = [:]
+
+    func state(for id: String) -> HappeningPaletteSlotVisualState? { entries[id]?.state }
+
+    mutating func retire(_ mutation: HappeningPaletteMutation) -> UUID {
+        let token = UUID()
+        let state: HappeningPaletteSlotVisualState
+        switch mutation {
+        case .add: state = .additionPreview
+        case .remove: state = .removalPreview
+        }
+        entries[mutation.id] = Entry(state: state, token: token)
+        return token
+    }
+
+    mutating func expire(id: String, token: UUID) {
+        guard entries[id]?.token == token else { return }
+        entries.removeValue(forKey: id)
+    }
+}

@@ -9,6 +9,8 @@ struct HappeningShapeField: View {
     let interaction: HappeningPaletteInteractionState
     let addedIDs: Set<String>
     let onActivate: (Happening) -> Void
+    @State private var retiringPreviews = HappeningPaletteRetiringPreviews()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var labelInks: [String: HappeningPaletteLabelInk] = [:]
     var fitsTreeLabels = false
@@ -20,6 +22,15 @@ struct HappeningShapeField: View {
                 if index < layout.sources.count, layout.sources[index].appearanceScale > 0.001 {
                     happeningButton(happening, source: layout.sources[index])
                 }
+            }
+        }
+        .onChange(of: interaction.armedMutation) { old, new in
+            guard let old, old != new else { return }
+            let token = retiringPreviews.retire(old)
+            let delay = HappeningPaletteTransitionTimeline.hitRetirementDuration(reduceMotion: reduceMotion)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                retiringPreviews.expire(id: old.id, token: token)
             }
         }
     }
@@ -34,7 +45,11 @@ struct HappeningShapeField: View {
             && CanvasTour.shared.step == .happening && addedIDs.contains(happening.id)
         let locked = assignments[happening.id] == nil || interaction.pendingMutation != nil
         let side = max(44, source.radius * 2 / max(0.001, source.appearanceScale))
-        let hitSize = HappeningPickerHitShape.size(side: side, showsAction: state.awaitsConfirmation)
+        let retiringState = retiringPreviews.state(for: happening.id)
+        let hitShape = HappeningPickerHitShape.make(
+            side: side, assignment: assignments[happening.id], state: state, reduceMotion: reduceMotion,
+            retiringState: retiringState)
+        let hitSize = hitShape.size
         let ink = labelInks[happening.id] ?? .dark
 
         return ZStack {
@@ -72,7 +87,7 @@ struct HappeningShapeField: View {
                     }
                     .foregroundStyle(ink.color)
                     .frame(width: hitSize.width, height: hitSize.height)
-                    .contentShape(HappeningPickerHitShape(side: side, showsAction: state.awaitsConfirmation))
+                    .contentShape(hitShape)
             }
             .buttonStyle(.plain)
             .disabled(locked)
@@ -99,9 +114,9 @@ struct HappeningShapeField: View {
         }
         .frame(width: side, height: side)
         .scaleEffect(source.appearanceScale)
-        // Metal raises the confirmation actor too. Its visible action must win
-        // an overlap with a neighboring cell in the transparent hit layer.
-        .zIndex(state.awaitsConfirmation ? 1 : 0)
+        // The current visible action owns overlaps, including a previous
+        // preview's returning envelope; ordinary neighbors stay below both.
+        .zIndex(hitShape.priority)
         .canvasTourAnchor("canvas.happening.\(happening.id)")
         .position(source.center)
     }
@@ -144,6 +159,39 @@ struct HappeningPickerHitShape: Shape {
     static let actionSize = CGSize(width: 100, height: 44)
     let side: CGFloat
     let showsAction: Bool
+    var figurePoints: [SIMD2<Float>] = []
+    var figureScale: CGFloat = 1
+    var retainsPreviewEnvelope = false
+
+    var priority: Double { showsAction ? 2 : retainsPreviewEnvelope ? 1 : 0 }
+
+    var size: CGSize {
+        let base = Self.size(side: side, showsAction: showsAction)
+        let reachX = figurePoints.reduce(CGFloat(0)) { max($0, abs(CGFloat($1.x))) } * side * figureScale
+        let reachY = figurePoints.reduce(CGFloat(0)) { max($0, abs(CGFloat($1.y))) } * side * figureScale
+        return CGSize(width: max(base.width, reachX), height: max(base.height, reachY))
+    }
+
+    static func make(side: CGFloat, assignment: HappeningEditorialAssignment?,
+                     state: HappeningPaletteSlotVisualState, reduceMotion: Bool,
+                     retiringState: HappeningPaletteSlotVisualState? = nil) -> Self {
+        let envelopeState = state.awaitsConfirmation ? state : retiringState ?? state
+        return Self(side: side, showsAction: state.awaitsConfirmation,
+             figurePoints: envelopeState == .available ? [] : assignment.map(figurePoints) ?? [],
+             figureScale: CGFloat(HappeningPaletteRenderControls.hitScale(for: envelopeState, reduceMotion: reduceMotion)),
+             retainsPreviewEnvelope: retiringState != nil)
+    }
+
+    /// The native renderer rotates the frozen contour by its GPU direction,
+    /// which is deliberately independent of the original Canvas placement.
+    private static func figurePoints(_ assignment: HappeningEditorialAssignment) -> [SIMD2<Float>] {
+        guard let native = assignment.nativeActor else { return [] }
+        let rotation: Float = assignment.silhouette.variant == 0 ? .pi / 2 : -assignment.silhouette.rotation
+        let cosine = cos(rotation), sine = sin(rotation)
+        return MetalShapeContour.sample(uniforms: native.geometry).map { point in
+            SIMD2(point.x * cosine - point.y * sine, point.x * sine + point.y * cosine)
+        }
+    }
 
     static func actionOffset(side: CGFloat) -> CGFloat { min(side * 0.31, 38) }
 
@@ -156,6 +204,20 @@ struct HappeningPickerHitShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = HappeningPickerShape().path(in: CGRect(
             x: rect.midX - side / 2, y: rect.midY - side / 2, width: side, height: side))
+        // Keep the nominal label target as well: concave or contour artwork
+        // must not punch holes through its caption. Only revealed figures add
+        // their own contour; available neighbors retain the original target.
+        if let first = figurePoints.first {
+            var figure = Path()
+            func point(_ value: SIMD2<Float>) -> CGPoint {
+                CGPoint(x: rect.midX + CGFloat(value.x) * side / 2 * figureScale,
+                        y: rect.midY + CGFloat(value.y) * side / 2 * figureScale)
+            }
+            figure.move(to: point(first))
+            for value in figurePoints.dropFirst() { figure.addLine(to: point(value)) }
+            figure.closeSubpath()
+            path.addPath(figure)
+        }
         if showsAction {
             path.addPath(Capsule().path(in: CGRect(
                 x: rect.midX - Self.actionSize.width / 2,

@@ -41,6 +41,13 @@ struct HappeningPaletteRenderControls: Equatable {
     let opacity: Double
     let depth: Double
 
+    static let maximumConfirmationBreath = 1.025
+
+    /// Stable touch envelope includes the whole quiet breath without moving labels.
+    static func hitScale(for state: HappeningPaletteSlotVisualState, reduceMotion: Bool) -> Double {
+        target(for: state).scale * (state.awaitsConfirmation && !reduceMotion ? maximumConfirmationBreath : 1)
+    }
+
     static func target(for state: HappeningPaletteSlotVisualState) -> Self {
         switch state {
         case .available:
@@ -85,6 +92,12 @@ struct HappeningPaletteRenderSample: Equatable {
 struct HappeningPaletteTransitionTimeline {
     private static let transitionDuration = 0.34
     private static let reducedMotionFadeDuration = 0.10
+
+    static func hitRetirementDuration(reduceMotion: Bool) -> Double {
+        // One frame of allowance covers the renderer consuming the new state.
+        (reduceMotion ? reducedMotionFadeDuration * 2 : transitionDuration) + 1.0 / 30
+    }
+
 
     private struct PriorSlot {
         let assignment: HappeningEditorialAssignment
@@ -255,7 +268,7 @@ enum HappeningPaletteRenderFrame {
             // A quiet 1.6-second breath belongs only to the unconfirmed figure.
             // Text/hit targets stay still; Reduce Motion has a static endpoint.
             let breath = isPending && !presentation.reduceMotion
-                ? 1 + 0.025 * (1 - cos(elapsed * 2 * .pi / 1.6)) / 2
+                ? 1 + (HappeningPaletteRenderControls.maximumConfirmationBreath - 1) * (1 - cos(elapsed * 2 * .pi / 1.6)) / 2
                 : 1
             let position = SIMD2<Float>(
                 Float((slot.source.center.x - presentation.viewportSize.width / 2) / shortSide),

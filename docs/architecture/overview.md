@@ -51,6 +51,16 @@ Test names live in `NowhereTests/` unless stated otherwise.
   addition or explicit tap on an already recorded happening, followed by palette
   dismissal, advances to Health, Feeds and Me. Recorded event taps acknowledge
   the durable entry without a mutation, including at the ten-addition limit.
+- `HappeningShapeField` keeps the nominal picker and caption target, then adds
+  revealed Native Atlas actors' frozen contours using the renderer's rotation and
+  feedback scale. Confirmation targets include the peak breathing extent and the
+  full Add/Delete capsule. The current confirmation action outranks returning
+  previews, which outrank ordinary neighbors. Returning previews retain their
+  figure envelope for the renderer's
+  transition duration, with independent expiry tokens; the departed action capsule
+  immediately stops receiving taps. Available neighbors retain the nominal picker
+  contour. `MetalShapeContour`
+  samples saved uniforms through a bounded cache rather than regenerating presets.
 - `PersonalHappeningCategory` owns six presentation-only navigation IDs and
   overlapping membership covering all 106 canonical events. `PersonalHappeningBrowser`
   freezes ranked IDs on category entry and reuses native atlas cells. `GalleryView`
