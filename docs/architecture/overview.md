@@ -75,9 +75,15 @@ Test names live in `NowhereTests/` unless stated otherwise.
   day and account changes invalidate expansion state.
   Stationary inline expansion keeps existing targets interactive while neighbors
   grow; transitions that move or shrink targets retain their interaction gate.
-- Happenings artwork uses a viewport-sized Metal drawable positioned at the
-  visible world rect. Only render sources subtract that rect's origin; labels,
-  captions, confirmation targets and native scrolling retain world coordinates.
+- Happenings artwork has a fixed world-sized `DayObjectsSurfaceView` host with
+  a viewport-sized Metal child. Only render sources subtract the camera origin;
+  labels, captions, confirmation targets and native scrolling retain world coordinates.
+  SwiftUI never positions an artwork ancestor at the requested camera. The native
+  child retains its last submitted camera's world origin until the renderer commits
+  its replacement image and child frame in one layer transaction. Host layout also
+  retains that submitted origin, so delayed viewport delivery cannot move old pixels
+  away from native labels. The host allocates no world-sized Metal texture; Canvas
+  mode returns the child to the host's full bounds.
   A native offset/bounds probe samples the camera even when the leaf Timeline is
   paused. Drawable handoff includes both viewport size and camera origin: fresh
   camera frames present with the layer-position transaction; delayed stale frames

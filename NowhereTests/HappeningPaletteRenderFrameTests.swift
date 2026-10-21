@@ -1,6 +1,8 @@
 import XCTest
 import UIKit
 import MetalKit
+import SwiftUI
+import ObjectiveC
 @testable import Nowhere
 
 final class HappeningPaletteRenderFrameTests: XCTestCase {
@@ -34,6 +36,123 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
             XCTAssertEqual(projected.sources[0].radius, 64)
             XCTAssertEqual(presentation.viewportSize, CGSize(width: 390, height: 844))
         }
+    }
+
+    /// This checks the real native hierarchy and the last submitted frame's
+    /// camera, not GPU presentation time (unavailable on the simulator SDK).
+    @MainActor
+    func testNativeScrollKeepsDrawableWorldOriginAtLastSubmittedCameraWhileNextFrameIsDelayed() async throws {
+        await Task.detached(priority: .userInitiated) { DayObjectsRenderer.prepareResources() }.value
+        let viewport = CGSize(width: 390, height: 844)
+        let layout = HappeningFieldLayout.layout(count: 106, in: viewport, safeInsets: EdgeInsets())
+        let happenings = (0..<10).map { Happening(id: "h\($0)", title: "Happening \($0)", isBuiltIn: true) }
+        let assignments = Dictionary(uniqueKeysWithValues: makePresentation().slots.map { ($0.happeningID, $0.assignment) })
+        let input = editorialInput()
+        let palette = HappeningPaletteView(happenings: happenings, assignments: assignments,
+            layout: layout, artworkForLayout: { world, moving, rect in
+                let projected = world.translated(by: rect.origin)
+                let slots = happenings.enumerated().map { index, happening in
+                    HappeningPaletteRenderSlot(happeningID: happening.id, assignment: assignments[happening.id]!,
+                        visualState: .available, source: projected.sources[index])
+                }
+                return AnyView(DayObjectsView(sceneInput: input, presentationMode: .happeningPalette(
+                    HappeningPaletteRenderPresentation(slots: slots, viewportSize: rect.size,
+                        reduceMotion: true, isTransitionActive: moving, backgroundRevision: 0,
+                        usesSharedGeometry: true, cameraOrigin: rect.origin))))
+            }, interaction: HappeningPaletteInteractionState(), addedIDs: [], instruction: nil, onActivate: { _ in })
+        let host = UIHostingController(rootView: palette.ignoresSafeArea().environment(\.scenePhase, .active))
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = try XCTUnwrap(scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(origin: .zero, size: viewport)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; window.rootViewController = nil }
+        func descendant<T: UIView>(_ type: T.Type, in view: UIView) -> T? {
+            if let match = view as? T { return match }
+            return view.subviews.lazy.compactMap { descendant(type, in: $0) }.first
+        }
+        func flushLayout() {
+            window.setNeedsLayout(); window.layoutIfNeeded()
+            host.view.setNeedsLayout(); host.view.layoutIfNeeded()
+            CATransaction.flush()
+        }
+        flushLayout()
+        var readyView: DayObjectsDrawableView?
+        for _ in 0..<100 {
+            try await Task.sleep(for: .milliseconds(20))
+            flushLayout()
+            if let view = descendant(DayObjectsDrawableView.self, in: host.view),
+               view.paletteResizeHandoff.presentedCameraOrigin != nil,
+               !view.paletteResizeHandoff.isPending { readyView = view; break }
+        }
+        let drawable = try XCTUnwrap(readyView, "The real renderer must submit its initial frame")
+        let scroll = try XCTUnwrap(descendant(UIScrollView.self, in: host.view))
+        let initialCamera = try XCTUnwrap(drawable.paletteResizeHandoff.presentedCameraOrigin)
+        var nativeWorld: UIView = drawable
+        while let parent = nativeWorld.superview, parent !== scroll { nativeWorld = parent }
+        XCTAssertTrue(nativeWorld.superview === scroll)
+        // A real, fixed reference beside the SwiftUI field (not inside the
+        // movable artwork ancestor) makes layer-to-world separation observable.
+        let worldReference = UIView(frame: CGRect(x: 200, y: 300, width: 1, height: 1))
+        worldReference.isUserInteractionEnabled = false
+        nativeWorld.addSubview(worldReference)
+        defer { worldReference.removeFromSuperview() }
+        let initialWorldOrigin = drawable.convert(CGPoint.zero, to: worldReference)
+        let initialOffset = scroll.contentOffset
+        // Withhold this fixture's actual renderer entry point. Coordinator
+        // updates may reinstall its delegate, so replacing the delegate alone
+        // cannot delay a frame. No presentation result is manufactured.
+        let selector = NSSelectorFromString("drawInMTKView:")
+        let method = try XCTUnwrap(class_getInstanceMethod(DayObjectsRenderer.self, selector))
+        let originalIMP = method_getImplementation(method)
+        typealias Draw = @convention(c) (AnyObject, Selector, MTKView) -> Void
+        let original = unsafeBitCast(originalIMP, to: Draw.self)
+        var withholdsFrames = true
+        let block: @convention(block) (AnyObject, MTKView) -> Void = { object, view in
+            if view === drawable && withholdsFrames { return }
+            original(object, selector, view)
+        }
+        let replacementIMP = imp_implementationWithBlock(block)
+        method_setImplementation(method, replacementIMP)
+        defer {
+            method_setImplementation(method, originalIMP)
+            imp_removeBlock(replacementIMP)
+        }
+        for delta in [CGPoint(x: 80, y: 60), CGPoint(x: 140, y: 110), CGPoint(x: -20, y: -30)] {
+            let previousRequest = drawable.paletteResizeHandoff.requestedCameraOrigin
+            scroll.setContentOffset(CGPoint(x: initialOffset.x + delta.x, y: initialOffset.y + delta.y), animated: false)
+            let beforeDelivery = drawable.convert(CGPoint.zero, to: worldReference)
+            XCTAssertEqual(beforeDelivery.x, initialWorldOrigin.x, accuracy: 1)
+            XCTAssertEqual(beforeDelivery.y, initialWorldOrigin.y, accuracy: 1)
+            // Deliver the async viewport observation/layout, but no new frame.
+            for _ in 0..<100 {
+                try await Task.sleep(for: .milliseconds(10))
+                flushLayout()
+                if drawable.paletteResizeHandoff.requestedCameraOrigin != previousRequest { break }
+            }
+            XCTAssertNotEqual(drawable.paletteResizeHandoff.requestedCameraOrigin, previousRequest,
+                "The real scroll observation must deliver the changed viewport")
+            XCTAssertEqual(drawable.paletteResizeHandoff.presentedCameraOrigin, initialCamera)
+            let afterDelivery = drawable.convert(CGPoint.zero, to: worldReference)
+            XCTAssertEqual(afterDelivery.x, initialWorldOrigin.x, accuracy: 1,
+                "A new requested camera must not move the old image away from native world labels")
+            XCTAssertEqual(afterDelivery.y, initialWorldOrigin.y, accuracy: 1)
+        }
+        withholdsFrames = false
+        drawable.synchronizePaletteResizeIfNeeded()
+        for _ in 0..<100 {
+            try await Task.sleep(for: .milliseconds(10))
+            flushLayout()
+            if !drawable.paletteResizeHandoff.isPending { break }
+        }
+        XCTAssertFalse(drawable.paletteResizeHandoff.isPending, "Settled viewport coverage must recover")
+        let latestCamera = try XCTUnwrap(drawable.paletteResizeHandoff.presentedCameraOrigin)
+        let latestOrigin = drawable.convert(CGPoint.zero, to: worldReference)
+        XCTAssertEqual(latestOrigin.x - latestCamera.x, initialWorldOrigin.x - initialCamera.x, accuracy: 1)
+        XCTAssertEqual(latestOrigin.y - latestCamera.y, initialWorldOrigin.y - initialCamera.y, accuracy: 1)
+        XCTAssertEqual(drawable.bounds.width, scroll.bounds.width, accuracy: 1)
+        XCTAssertEqual(drawable.bounds.height, scroll.bounds.height, accuracy: 1)
     }
 
     func testConfirmationPreviewsStayNeutralDuringRevealAndKeepBreathing() throws {
@@ -394,6 +513,44 @@ final class HappeningPaletteRenderFrameTests: XCTestCase {
 
 
 final class DayObjectsPaletteResizeHandoffTests: XCTestCase {
+    @MainActor
+    func testWorldHostRetainsSubmittedOriginAcrossRequestsAndReturnsCanvasToItsBounds() {
+        let viewport = CGSize(width: 393, height: 852)
+        let view = DayObjectsDrawableView(frame: .zero, device: nil)
+        view.autoResizeDrawable = false
+        let host = DayObjectsSurfaceView(drawableView: view)
+        host.frame = CGRect(x: 0, y: 0, width: 1852, height: 2136)
+        let first = CGPoint(x: 300, y: 400)
+        let next = CGPoint(x: 380, y: 460)
+        view.configurePaletteViewportSize(viewport, cameraOrigin: first)
+        host.configurePaletteViewportSize(viewport)
+        XCTAssertEqual(view.frame, CGRect(origin: .zero, size: viewport))
+        view.didPresentPaletteFrame(viewportSize: viewport, cameraOrigin: first)
+        XCTAssertEqual(view.frame, CGRect(origin: first, size: viewport))
+
+        view.configurePaletteViewportSize(viewport, cameraOrigin: next)
+        host.setNeedsLayout(); host.layoutIfNeeded()
+        XCTAssertEqual(view.frame, CGRect(origin: first, size: viewport),
+            "Native layout cannot move an image to a camera it does not contain")
+        XCTAssertTrue(view.isHidden)
+        let resized = CGSize(width: 430, height: 932)
+        view.configurePaletteViewportSize(resized, cameraOrigin: next)
+        host.configurePaletteViewportSize(resized)
+        XCTAssertEqual(view.frame.origin, first)
+        XCTAssertEqual(view.bounds.size, resized)
+        XCTAssertTrue(view.isHidden, "A resized old image must wait for replacement")
+        view.didPresentPaletteFrame(viewportSize: resized, cameraOrigin: next)
+        XCTAssertEqual(view.frame, CGRect(origin: next, size: resized))
+        XCTAssertFalse(view.isHidden)
+
+        host.frame = CGRect(origin: .zero, size: viewport)
+        view.configurePaletteViewportSize(nil)
+        host.configurePaletteViewportSize(nil)
+        host.setNeedsLayout(); host.layoutIfNeeded()
+        XCTAssertEqual(view.frame, host.bounds, "Canvas uses its complete native bounds with no scroll camera")
+        XCTAssertFalse(view.paletteResizeHandoff.isPending)
+    }
+
     @MainActor
     func testDrawableResizeMatchesCurrentBoundsWithoutHidingTheNativeView() {
         let view = DayObjectsDrawableView(frame: .zero, device: nil)

@@ -98,7 +98,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
         )
     }
 
-    func makeUIView(context: Context) -> MTKView {
+    func makeUIView(context: Context) -> DayObjectsSurfaceView {
         let renderer = context.coordinator.renderer
         let view = DayObjectsDrawableView(frame: .zero, device: renderer?.device)
         view.autoResizeDrawable = false
@@ -111,9 +111,10 @@ struct DayObjectsMetalView: UIViewRepresentable {
         view.backgroundColor = .clear
         view.isUserInteractionEnabled = false
 
+        let surface = DayObjectsSurfaceView(drawableView: view)
         context.coordinator.mtkView = view
-        updateUIView(view, context: context)
-        return view
+        updateUIView(surface, context: context)
+        return surface
     }
 
     static func configureAnimationFrameRate(_ view: MTKView, prefersSixtyFPS: Bool = false) {
@@ -124,9 +125,9 @@ struct DayObjectsMetalView: UIViewRepresentable {
         }
     }
 
-    func updateUIView(_ uiView: MTKView, context: Context) {
+    func updateUIView(_ uiView: DayObjectsSurfaceView, context: Context) {
         context.coordinator.update(
-            uiView,
+            uiView.drawableView,
             scene: scene,
             environment: environment,
             digitalImpact: digitalImpact,
@@ -143,7 +144,8 @@ struct DayObjectsMetalView: UIViewRepresentable {
         )
     }
 
-    static func dismantleUIView(_ uiView: MTKView, coordinator: Coordinator) {
+    static func dismantleUIView(_ surface: DayObjectsSurfaceView, coordinator: Coordinator) {
+        let uiView = surface.drawableView
         coordinator.cancelPreparation()
         coordinator.motionInput.stop()
         coordinator.renderer?.setAnimating(false)
@@ -294,6 +296,7 @@ struct DayObjectsMetalView: UIViewRepresentable {
                     cameraOrigin = presentation.cameraOrigin
                 } else { viewportSize = nil; cameraOrigin = .zero }
                 drawableView.configurePaletteViewportSize(viewportSize, cameraOrigin: cameraOrigin, isActive: isAnimating)
+                (drawableView.superview as? DayObjectsSurfaceView)?.configurePaletteViewportSize(viewportSize)
                 drawableView.synchronizePaletteResizeIfNeeded()
             }
         }
@@ -301,10 +304,58 @@ struct DayObjectsMetalView: UIViewRepresentable {
 }
 
 
+/// A fixed world-sized host allocates no Metal surface. Its child stays
+/// viewport-sized and retains the last submitted camera's world origin until
+/// a replacement image and native layer position can commit together.
+final class DayObjectsSurfaceView: UIView {
+    let drawableView: DayObjectsDrawableView
+    private var paletteViewportSize: CGSize?
+
+    init(drawableView: DayObjectsDrawableView) {
+        self.drawableView = drawableView
+        super.init(frame: .zero)
+        isOpaque = false
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        addSubview(drawableView)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configurePaletteViewportSize(_ size: CGSize?) {
+        paletteViewportSize = size
+        layoutDrawable()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutDrawable()
+    }
+
+    private func layoutDrawable() {
+        let frame: CGRect
+        if let size = paletteViewportSize {
+            frame = CGRect(origin: drawableView.paletteResizeHandoff.presentedCameraOrigin ?? .zero, size: size)
+        } else {
+            frame = bounds
+        }
+        if drawableView.frame != frame { drawableView.frame = frame }
+    }
+
+    /// Called inside the drawable's presentation transaction, after scheduling.
+    func commitPaletteFrame(viewportSize: CGSize, cameraOrigin: CGPoint) {
+        guard paletteViewportSize == viewportSize else { return }
+        let frame = CGRect(origin: cameraOrigin, size: viewportSize)
+        if drawableView.frame != frame { drawableView.frame = frame }
+    }
+}
+
 /// A resized CAMetalLayer must not stretch its previous questionnaire frame
 /// across the All world while waiting for the display link. A camera move at
 /// the same size also needs a fresh frame before its layer can move. Only the
 /// requested viewport and camera together can complete this handoff.
+// "Presented" records successful submission to the layer transaction; actual
+// on-screen presentation timing is measured separately on physical devices.
 struct DayObjectsPaletteResizeHandoff: Equatable {
     private(set) var requestedViewportSize: CGSize?
     private(set) var presentedViewportSize: CGSize?
@@ -392,6 +443,7 @@ final class DayObjectsDrawableView: MTKView {
 
     func didPresentPaletteFrame(viewportSize: CGSize, cameraOrigin: CGPoint = .zero) {
         guard paletteResizeHandoff.didPresent(viewportSize: viewportSize, cameraOrigin: cameraOrigin) else { return }
+        (superview as? DayObjectsSurfaceView)?.commitPaletteFrame(viewportSize: viewportSize, cameraOrigin: cameraOrigin)
         updatePendingCameraVisibility()
     }
 
@@ -399,11 +451,11 @@ final class DayObjectsDrawableView: MTKView {
         // Normally draw() resolves this in the same transaction, so no hidden
         // frame reaches the screen. If drawable acquisition/encoding fails,
         // labels keep scrolling while stale artwork is withheld and retried.
-        isHidden = paletteResizeHandoff.isCameraChangePending
+        isHidden = paletteResizeHandoff.isPending && paletteResizeHandoff.presentedViewportSize != nil
     }
 
     private func schedulePaletteCameraRetryIfNeeded() {
-        guard palettePresentationIsActive, paletteResizeHandoff.isCameraChangePending,
+        guard palettePresentationIsActive, paletteResizeHandoff.isPending,
               window != nil, !isPaletteCameraRetryScheduled else { return }
         isPaletteCameraRetryScheduled = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 60) { [weak self] in

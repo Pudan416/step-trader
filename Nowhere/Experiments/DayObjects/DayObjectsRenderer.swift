@@ -1408,6 +1408,13 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         }
         let synchronizesResize = view.presentsWithTransaction
             || (drawableView?.paletteResizeHandoff.isPending == true && paletteViewportSize != nil)
+        // Own the transaction for every entry path, including display-link
+        // retries. SwiftUI ancestors never move this viewport independently.
+        if synchronizesResize {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+        }
+        defer { if synchronizesResize { CATransaction.commit() } }
         performanceProbe?.recordAttempt()
         let elapsedTime = clock.elapsedTime
         guard let drawable = view.currentDrawable,
@@ -1433,10 +1440,12 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             let prior = view.presentsWithTransaction
             view.presentsWithTransaction = true
             commandBuffer.waitUntilScheduled()
+            if let paletteViewportSize {
+                drawableView?.didPresentPaletteFrame(viewportSize: paletteViewportSize, cameraOrigin: paletteCameraOrigin)
+            }
             drawable.present()
             view.presentsWithTransaction = prior
-        }
-        if let paletteViewportSize {
+        } else if let paletteViewportSize {
             drawableView?.didPresentPaletteFrame(viewportSize: paletteViewportSize, cameraOrigin: paletteCameraOrigin)
         }
         configureAnimation(view, elapsedTime: elapsedTime, requestsStaticFrame: false)

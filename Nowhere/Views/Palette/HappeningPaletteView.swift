@@ -403,12 +403,12 @@ struct HappeningPaletteView: View {
     private func fieldContent(layout: HappeningFieldLayout.Layout, visibleRect: CGRect,
                               viewport: CGSize, hubCenter: CGPoint?, at date: Date) -> some View {
         ZStack(alignment: .topLeading) {
-            // A viewport-sized drawable rides inside native scrolling content.
-            // Only render sources subtract this camera; labels and hit paths keep
-            // world coordinates and receive ScrollView's transform exactly once.
+            // Keep the SwiftUI ancestor fixed in world coordinates. The native
+            // presenter moves its viewport-sized Metal child only when the matching
+            // camera frame is submitted, in the same layer transaction.
             fieldArtwork(layout: layout, visibleRect: visibleRect)
-                .frame(width: visibleRect.width, height: visibleRect.height)
-                .position(x: visibleRect.midX, y: visibleRect.midY)
+                .frame(width: max(viewport.width, layout.contentSize.width),
+                       height: max(viewport.height, layout.contentSize.height), alignment: .topLeading)
                 .accessibilityHidden(true)
                 .allowsHitTesting(false)
             HappeningShapeField(happenings: happenings, assignments: assignments, layout: layout,

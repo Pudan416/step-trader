@@ -6850,12 +6850,13 @@ extension DayObjectRenderFrameTests {
             soundPulseBus: nil, lunarPhysicsIsActive: true
         )
         XCTAssertNil(coordinator.renderer)
-        let view = MTKView(frame: .zero)
+        let view = DayObjectsDrawableView(frame: .zero, device: nil)
+        let surface = DayObjectsSurfaceView(drawableView: view)
         coordinator.update(view, scene: scene, environment: environment,
             digitalImpact: .none, soundPulseBus: nil, presentationMode: .canvas,
             isAnimating: false, lunarPhysicsIsActive: false,
             onLunarPhysicsReturnCompleted: { completed.fulfill() })
-        defer { DayObjectsMetalView.dismantleUIView(view, coordinator: coordinator) }
+        defer { DayObjectsMetalView.dismantleUIView(surface, coordinator: coordinator) }
         await fulfillment(of: [completed], timeout: 1)
     }
 

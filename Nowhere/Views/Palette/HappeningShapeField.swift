@@ -63,8 +63,7 @@ struct HappeningShapeField: View {
                     // Keep selected labels directly on the figure. A small
                     // contrasting halo preserves legibility without the old
                     // opaque rounded rectangle behind the text.
-                    .shadow(color: ink == .light ? .black.opacity(0.8) : .white.opacity(0.8), radius: 2, x: 0, y: 0)
-                    .shadow(color: ink == .light ? .black.opacity(0.55) : .white.opacity(0.55), radius: 4, x: 0, y: 1)
+                    .modifier(HappeningFigureLabelHalo(isEnabled: state != .available || retiringState != nil, ink: ink))
                     // Preview actions are high contrast and remain outside the
                     // title's layout so the figure and caption do not jump.
                     .overlay {
@@ -148,6 +147,24 @@ struct HappeningShapeField: View {
         case .additionPreview: return String(localized: "Activate again to add to Canvas")
         case .added: return String(localized: "Activate to preview removing from Canvas")
         case .removalPreview: return String(localized: "Activate again to remove from Canvas")
+        }
+    }
+}
+
+/// Plain circles supply a light backing. Reserve the two offscreen shadow
+/// passes for labels on revealed pigments, where the halo preserves contrast.
+private struct HappeningFigureLabelHalo: ViewModifier {
+    let isEnabled: Bool
+    let ink: HappeningPaletteLabelInk
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .shadow(color: ink == .light ? .black.opacity(0.8) : .white.opacity(0.8), radius: 2, x: 0, y: 0)
+                .shadow(color: ink == .light ? .black.opacity(0.55) : .white.opacity(0.55), radius: 4, x: 0, y: 1)
+        } else {
+            content
         }
     }
 }
