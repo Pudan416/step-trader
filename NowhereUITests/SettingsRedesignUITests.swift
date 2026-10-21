@@ -523,7 +523,7 @@ final class SettingsRedesignUITests: XCTestCase {
     func testZeroHealthDataDoesNotClaimConnectionOrProduceUrgentWarning() {
         let app = launchSettings(extraArguments: ["ui-testing-health-zero-success"])
         app.buttons["settings.destination.permissions"].tap()
-        XCTAssertTrue(app.staticTexts["Check access"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No data yet"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["Health not granted"].exists)
     }
 
