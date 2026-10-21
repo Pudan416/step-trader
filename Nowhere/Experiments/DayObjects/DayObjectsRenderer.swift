@@ -797,6 +797,13 @@ struct DayObjectInsertionTimeline: Equatable {
     private var departingActorsByID: [DayObjectActorID: DayObjectActor] = [:]
     private var departureOrder: [DayObjectActorID] = []
 
+    private struct PreparedTransitionScene: Equatable {
+        let source: DayObjectScene
+        let actors: [DayObjectActor]
+        let scene: DayObjectScene
+    }
+    private var preparedTransitionScene: PreparedTransitionScene?
+
     init(scene: DayObjectScene) {
         rootSeed = scene.rootSeed
         admittedActorIDs = Set(scene.actorIDs)
@@ -913,8 +920,24 @@ struct DayObjectInsertionTimeline: Equatable {
         precondition(actors.count <= DayObjectScene.maxActors)
         refreshEventSummaries(renderedActors: actors)
 
+        let renderScene: DayObjectScene
+        if actors == activeScene.actors {
+            // Expired departures return to the source scene and its storage.
+            preparedTransitionScene = nil
+            renderScene = activeScene
+        } else if let prepared = preparedTransitionScene,
+                  prepared.source == activeScene, prepared.actors == actors {
+            // Elapsed animation time changes frame envelopes, not materials.
+            renderScene = prepared.scene
+        } else {
+            renderScene = activeScene.replacingActors(actors)
+            preparedTransitionScene = PreparedTransitionScene(
+                source: activeScene, actors: actors, scene: renderScene
+            )
+        }
+
         return DayObjectTransitionRenderState(
-            scene: activeScene.replacingActors(actors),
+            scene: renderScene,
             insertions: timestamps,
             removals: removalTimestamps,
             actorInsertions: actorTimestamps,
@@ -926,6 +949,7 @@ struct DayObjectInsertionTimeline: Equatable {
         rootSeed = scene.rootSeed
         admittedActorIDs = Set(scene.actorIDs)
         admittedActorsByID = Dictionary(uniqueKeysWithValues: scene.actors.map { ($0.id, $0) })
+        preparedTransitionScene = nil
         pendingActorIDs.removeAll(keepingCapacity: true)
         departingActorsByID.removeAll(keepingCapacity: true)
         departureOrder.removeAll(keepingCapacity: true)

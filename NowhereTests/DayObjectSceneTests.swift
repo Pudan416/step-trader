@@ -1431,4 +1431,58 @@ final class DayObjectSceneReuseTests: XCTestCase {
         XCTAssertTrue(frame.actorInsertions.isEmpty)
         XCTAssertTrue(frame.actorRemovals.isEmpty)
     }
+
+    func testActiveRemovalReusesPreparedMaterialsAndInvalidatesForSourceChangesAndExpiry() throws {
+        let identity = UUID().uuidString
+        let initial = DayObjectScene.make(input: input(identity: identity))
+        let active = DayObjectScene.make(input: input(identity: identity, events: ["walk"]))
+        var timeline = DayObjectInsertionTimeline(scene: initial)
+        timeline.update(scene: active, elapsed: 10)
+        var recipes: [DayObjectSceneRecipeV1] = []
+        var costs: [TimeInterval] = []
+        for index in 0..<48 {
+            let elapsed = 10.05 + Double(index) * 0.005
+            let start = Date.timeIntervalSinceReferenceDate
+            let state = timeline.renderState(activeScene: active, elapsed: elapsed)
+            costs.append(Date.timeIntervalSinceReferenceDate - start)
+            XCTAssertEqual(Set(state.scene.actors.map(\.eventID)), ["walk", "coffee"])
+            XCTAssertEqual(state.removals, ["coffee": 10])
+            recipes.append(try XCTUnwrap(state.scene.sceneRecipeV1))
+        }
+        let sorted = costs.sorted()
+        print("[HAPPENINGS_CPU_REUSE] activeRemovalFrames count=\(costs.count) totalMs=\(costs.reduce(0, +) * 1000) p95Ms=\(sorted[Int(Double(sorted.count - 1) * 0.95)] * 1000)")
+        let first = try XCTUnwrap(recipes.first)
+        let last = try XCTUnwrap(recipes.last)
+        XCTAssertEqual(last, first, "Only animation time changes within this removal interval")
+        first.actors.withUnsafeBufferPointer { original in
+            last.actors.withUnsafeBufferPointer { reused in
+                XCTAssertEqual(reused.baseAddress, original.baseAddress,
+                    "Active removal frames must reuse their unchanged prepared recipe rather than rerun composition planning")
+            }
+        }
+
+        // A color change does not change the active IDs. It must still replace
+        // the cached transition recipe while preserving the departing actor.
+        let changed = DayObjectScene.make(input: input(identity: identity, events: ["walk"], variant: 1))
+        XCTAssertEqual(changed.actorIDs, active.actorIDs)
+        XCTAssertNotEqual(changed.sceneRecipeV1, active.sceneRecipeV1)
+        timeline.update(scene: changed, elapsed: 10.3)
+        let changedState = timeline.renderState(activeScene: changed, elapsed: 10.31)
+        let changedRecipe = try XCTUnwrap(changedState.scene.sceneRecipeV1)
+        XCTAssertEqual(Set(changedState.scene.actors.map(\.eventID)), ["walk", "coffee"])
+        XCTAssertNotEqual(changedRecipe, first, "The full source scene must invalidate reuse even when IDs match")
+
+        let expired = timeline.renderState(activeScene: changed, elapsed: 12)
+        XCTAssertEqual(expired.scene, changed)
+        XCTAssertTrue(expired.removals.isEmpty)
+        XCTAssertTrue(expired.actorRemovals.isEmpty)
+        let sourceRecipe = try XCTUnwrap(changed.sceneRecipeV1)
+        let expiredRecipe = try XCTUnwrap(expired.scene.sceneRecipeV1)
+        sourceRecipe.actors.withUnsafeBufferPointer { original in
+            expiredRecipe.actors.withUnsafeBufferPointer { reused in
+                XCTAssertEqual(reused.baseAddress, original.baseAddress,
+                    "After expiry, the transition must return the current source scene without a stale departure")
+            }
+        }
+    }
 }

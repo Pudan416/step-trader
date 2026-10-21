@@ -920,11 +920,13 @@ struct GalleryView: View {
     private var paletteLabelInks: [String: HappeningPaletteLabelInk] {
         let input = displayedEditorialRenderInput.sceneInput
         let background = DayObjectScene.make(input: input).meshGradientStyle.colors
+        let selectedIDs = fieldSelectedIDs
+        let assignments = paletteEditorialAssignments
         return Dictionary(uniqueKeysWithValues: paletteHappenings.map { happening in
-            let state = paletteInteraction.visualState(for: happening.id, addedIDs: fieldSelectedIDs)
+            let state = paletteInteraction.visualState(for: happening.id, addedIDs: selectedIDs)
             var material: MetalShapeMaterialUniforms?
             if state != .available,
-               let assignment = paletteEditorialAssignments[happening.id],
+               let assignment = assignments[happening.id],
                let actor = assignment.nativeActor ?? input.nativeAtlasRecipe?.prospectiveActor(
                    eventID: assignment.elementID.uuidString.lowercased()
                ) {
@@ -1011,21 +1013,24 @@ struct GalleryView: View {
         guard showHappeningPalette else { return .canvas }
         let camera = visibleRect?.origin ?? .zero
         let renderLayout = layout.translated(by: camera)
+        let selectedIDs = fieldSelectedIDs
+        let assignments = paletteEditorialAssignments
+        let renderBounds = (visibleRect ?? CGRect(origin: .zero, size: viewportSize))
+            .insetBy(dx: -96, dy: -96)
         let slots = paletteHappenings.enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
             guard index < layout.sources.count, layout.sources[index].appearanceScale > 0.001,
-                  let assignment = paletteEditorialAssignments[happening.id] else { return nil }
+                  let assignment = assignments[happening.id] else { return nil }
             let source = layout.sources[index]
             let bounds = CGRect(x: source.center.x - source.radius, y: source.center.y - source.radius, width: source.radius * 2, height: source.radius * 2)
             // Cull in world coordinates
             // around the native scroll viewport so every event
             // has a rendered ball when reached, with one cell of overscan.
-            let renderBounds = visibleRect ?? CGRect(origin: .zero, size: viewportSize)
-            guard bounds.intersects(renderBounds.insetBy(dx: -96, dy: -96)) else { return nil }
+            guard bounds.intersects(renderBounds) else { return nil }
             return HappeningPaletteRenderSlot(
                 happeningID: happening.id,
                 assignment: assignment,
-                visualState: paletteInteraction.visualState(for: happening.id, addedIDs: fieldSelectedIDs),
+                visualState: paletteInteraction.visualState(for: happening.id, addedIDs: selectedIDs),
                 source: renderLayout.sources[index]
             )
         }

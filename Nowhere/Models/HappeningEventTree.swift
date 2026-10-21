@@ -322,6 +322,9 @@ struct HappeningEventTreeState: Equatable {
     }
 
     private static func personalAtlas(_ happeningIDs: [String], rankedIDs: [String]) -> [PlacedEvent] {
+        // SwiftUI evaluates State initial values when recreating GalleryView.
+        // No priorities or promotions means the canonical immutable atlas.
+        guard !happeningIDs.isEmpty || !rankedIDs.isEmpty else { return allNodes }
         let roots = Set(HappeningEventTree.startingEvents.map(\.id))
         let anchored = roots.union(intersectionIDs)
         var occupants = allNodes.map(\.event)

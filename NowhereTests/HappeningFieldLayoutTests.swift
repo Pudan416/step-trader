@@ -2438,3 +2438,38 @@ final class HappeningFieldRevealTests: XCTestCase {
         }
     }
 }
+
+final class HappeningDefaultAtlasReuseTests: XCTestCase {
+    func testRepeatedDefaultStatesShareTheCanonicalAtlasWithoutChangingItsIdentitiesOrCells() {
+        let canonical = HappeningEventTreeState.allNodes
+        XCTAssertEqual(canonical.count, 106)
+        var atlases: [[HappeningEventTreeState.PlacedEvent]] = []
+        var costs: [TimeInterval] = []
+        for _ in 0..<32 {
+            let start = Date.timeIntervalSinceReferenceDate
+            let state = HappeningEventTreeState()
+            costs.append(Date.timeIntervalSinceReferenceDate - start)
+            atlases.append(state.atlasNodes)
+            XCTAssertEqual(state.nodes, Array(canonical.prefix(6)))
+        }
+        let sorted = costs.sorted()
+        print("[HAPPENINGS_CPU_REUSE] defaultAtlasInit count=\(costs.count) totalMs=\(costs.reduce(0, +) * 1000) p95Ms=\(sorted[Int(Double(sorted.count - 1) * 0.95)] * 1000)")
+        for atlas in atlases {
+            XCTAssertEqual(atlas.map(\.id), canonical.map(\.id))
+            XCTAssertEqual(atlas.map(\.cell), canonical.map(\.cell))
+            XCTAssertEqual(atlas.map(\.parentID), canonical.map(\.parentID))
+        }
+        // Retaining all arrays above makes this a structural reuse assertion,
+        // independent of allocator reuse or a machine-specific time ceiling.
+        canonical.withUnsafeBufferPointer { original in
+            atlases.first!.withUnsafeBufferPointer { first in
+                XCTAssertEqual(first.baseAddress, original.baseAddress,
+                    "A default SwiftUI State initializer must reuse the immutable canonical atlas")
+            }
+            atlases.last!.withUnsafeBufferPointer { last in
+                XCTAssertEqual(last.baseAddress, original.baseAddress,
+                    "Repeated GalleryView initialization must not rebuild an unranked atlas")
+            }
+        }
+    }
+}
