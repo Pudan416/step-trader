@@ -1731,7 +1731,7 @@ final class HappeningScrollableFieldTests: XCTestCase {
     }
 
     @MainActor
-    func testScrollableArtworkAllocatesOnlyTheVisibleViewport() async throws {
+    func testScrollableArtworkKeepsWorldGeometryAcrossPanAndReattachment() async throws {
         let artwork = UIView()
         let layout = HappeningFieldLayout.layout(count: 106, in: CGSize(width: 390, height: 844), safeInsets: EdgeInsets())
         let view = HappeningPaletteView(
@@ -1759,27 +1759,44 @@ final class HappeningScrollableFieldTests: XCTestCase {
         host.view.layoutIfNeeded()
         try await Task.sleep(for: .milliseconds(300))
         flushLayout(in: window)
-        XCTAssertLessThanOrEqual(artwork.bounds.width, 390.5, "The renderer must not allocate a world-sized drawable")
-        XCTAssertLessThanOrEqual(artwork.bounds.height, 844.5)
-        XCTAssertGreaterThan(artwork.bounds.width, 300)
-        XCTAssertGreaterThan(artwork.bounds.height, 600)
+        // This UIView represents the fixed world container, not a drawable.
+        // HappeningPaletteTilePlanTests.testScaleBudgetsWorstCaseResidentPixelsAndDoesNotChangeDuringPan
+        // covers the GPU residency budget; HappeningPaletteTileSurfaceTests checks
+        // native tile movement, frame submission and residency release on detach.
         func findScroll(_ view: UIView) -> UIScrollView? {
             if let scroll = view as? UIScrollView { return scroll }
             return view.subviews.lazy.compactMap { findScroll($0) }.first
         }
         let scroll = try XCTUnwrap(findScroll(host.view))
+        func assertWorldGeometry(in scroll: UIScrollView, window: UIWindow) {
+            XCTAssertTrue(artwork.isDescendant(of: scroll), "Artwork and targets must share native scrolling content")
+            XCTAssertEqual(artwork.bounds.width, layout.contentSize.width, accuracy: 1)
+            XCTAssertEqual(artwork.bounds.height, layout.contentSize.height, accuracy: 1)
+            XCTAssertEqual(scroll.contentSize.width, layout.contentSize.width, accuracy: 1)
+            XCTAssertEqual(scroll.contentSize.height, layout.contentSize.height, accuracy: 1)
+            let worldOrigin = artwork.convert(artwork.bounds.origin, to: scroll)
+            XCTAssertEqual(worldOrigin.x, 0, accuracy: 1)
+            XCTAssertEqual(worldOrigin.y, 0, accuracy: 1)
+            let renderedWorld = artwork.convert(artwork.bounds, to: window)
+            let nativeViewport = scroll.convert(scroll.bounds, to: window)
+            XCTAssertEqual(renderedWorld.minX, nativeViewport.minX - scroll.contentOffset.x, accuracy: 1)
+            XCTAssertEqual(renderedWorld.minY, nativeViewport.minY - scroll.contentOffset.y, accuracy: 1)
+        }
+        assertWorldGeometry(in: scroll, window: window)
         let size = artwork.bounds.size
+        let beforePan = artwork.convert(artwork.bounds, to: window)
         let offset = scroll.contentOffset
         scroll.setContentOffset(CGPoint(x: offset.x + 80, y: offset.y + 60), animated: false)
+        // Existing world pixels must move synchronously, before SwiftUI or GPU work.
+        let afterPan = artwork.convert(artwork.bounds, to: window)
+        XCTAssertEqual(afterPan.minX, beforePan.minX - 80, accuracy: 0.5)
+        XCTAssertEqual(afterPan.minY, beforePan.minY - 60, accuracy: 0.5)
         try await Task.sleep(for: .milliseconds(300))
         flushLayout(in: window)
         XCTAssertEqual(artwork.bounds.width, size.width, accuracy: 0.5)
         XCTAssertEqual(artwork.bounds.height, size.height, accuracy: 0.5)
-        let renderedViewport = artwork.convert(artwork.bounds, to: window)
-        let nativeViewport = scroll.convert(scroll.bounds, to: window)
-        XCTAssertEqual(renderedViewport.minX, nativeViewport.minX, accuracy: 1)
-        XCTAssertEqual(renderedViewport.minY, nativeViewport.minY, accuracy: 1)
-        // A detached host must reacquire KVO without retaining the old window.
+        assertWorldGeometry(in: scroll, window: window)
+        // A detached host must retain the same world after acquiring a new viewport.
         let secondWindow = UIWindow(windowScene: scene)
         secondWindow.frame = CGRect(x: 0, y: 0, width: 420, height: 900)
         defer { secondWindow.isHidden = true }
@@ -1794,12 +1811,11 @@ final class HappeningScrollableFieldTests: XCTestCase {
         reattachedScroll.setContentOffset(CGPoint(x: -20, y: -30), animated: false)
         try await Task.sleep(for: .milliseconds(300))
         flushLayout(in: secondWindow)
-        let resizedArtwork = artwork.convert(artwork.bounds, to: secondWindow)
-        let resizedViewport = reattachedScroll.convert(reattachedScroll.bounds, to: secondWindow)
-        XCTAssertEqual(artwork.bounds.width, reattachedScroll.bounds.width, accuracy: 1)
-        XCTAssertEqual(artwork.bounds.height, reattachedScroll.bounds.height, accuracy: 1)
-        XCTAssertEqual(resizedArtwork.minX, resizedViewport.minX, accuracy: 1)
-        XCTAssertEqual(resizedArtwork.minY, resizedViewport.minY, accuracy: 1)
+        XCTAssertEqual(reattachedScroll.bounds.width, secondWindow.bounds.width, accuracy: 1)
+        XCTAssertEqual(reattachedScroll.bounds.height, secondWindow.bounds.height, accuracy: 1)
+        XCTAssertEqual(reattachedScroll.contentOffset.x, -20, accuracy: 1)
+        XCTAssertEqual(reattachedScroll.contentOffset.y, -30, accuracy: 1)
+        assertWorldGeometry(in: reattachedScroll, window: secondWindow)
     }
 
     @MainActor
