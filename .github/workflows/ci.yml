@@ -50,6 +50,9 @@ jobs:
       - name: Verify Screen Time callback contract
         run: python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 
+      - name: Verify Canvas palette rollover contract
+        run: python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
+
       - name: Verify zero-data Health UI
         # This first simulator invocation also builds the app and test bundles.
         timeout-minutes: 20

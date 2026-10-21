@@ -361,6 +361,7 @@ enum ShieldRebuildHelper {
                 var allApps = Set<ApplicationToken>()
                 var allCategories = Set<ActivityCategoryToken>()
                 var activeBudgetApps = Set<ApplicationToken>()
+                var activeBudgetCategories = Set<ActivityCategoryToken>()
 
                 let groups = loadGroups(defaults: defaults)
 
@@ -369,6 +370,7 @@ enum ShieldRebuildHelper {
                         if let selectionData = group.selectionData,
                            let selection = cachedSelection(for: group.id, data: selectionData) {
                             activeBudgetApps.formUnion(selection.applicationTokens)
+                            activeBudgetCategories.formUnion(selection.categoryTokens)
                         }
                         continue
                     }
@@ -393,11 +395,16 @@ enum ShieldRebuildHelper {
                     }
                 }
 
+                // An active purchase grants access even when another group or
+                // legacy selection contains the same token. Keep unrelated
+                // blockers, and exempt paid apps from remaining category shields.
+                allApps.subtract(activeBudgetApps)
+                allCategories.subtract(activeBudgetCategories)
                 let store = ManagedSettingsStore(named: .init("shield"))
                 store.shield.applications = allApps.isEmpty ? nil : allApps
                 store.shield.applicationCategories = allCategories.isEmpty
                     ? nil
-                    : .specific(allCategories)
+                    : .specific(allCategories, except: activeBudgetApps)
 
                 // Readback describes our configured store. Effective enforcement still
                 // requires a device check; iOS can enforce settings from other stores.

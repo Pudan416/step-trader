@@ -422,6 +422,7 @@ extension AppModel {
         dailySleepHours = 0
         stepsToday = 0
         healthStore.hasStepsData = false
+        healthStore.hasSleepData = false
         healthStore.clearCachedStepCount()
         g.removeObject(forKey: SharedKeys.cachedStepsToday)
         g.set(false, forKey: SharedKeys.hasStepsData)

@@ -5,6 +5,8 @@ import HealthKit
 // MARK: - Parameterized Mock (P14)
 
 final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
+    var stepsFetch: ((Date, Date) async throws -> Double)?
+    var sleepFetch: ((Date, Date) async throws -> Double)?
     var stepsToReturn: Double = 0
     var sleepToReturn: Double = 0
     var stepsError: Error?
@@ -23,6 +25,7 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     private var observerHandler: ((Double) -> Void)?
 
     func fetchSleep(from: Date, to: Date) async throws -> Double {
+        if let sleepFetch { return try await sleepFetch(from, to) }
         if let error = sleepError { throw error }
         return sleepToReturn
     }
@@ -40,6 +43,7 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     }
 
     func fetchSteps(from: Date, to: Date) async throws -> Double {
+        if let stepsFetch { return try await stepsFetch(from, to) }
         if let error = stepsError { throw error }
         #if DEBUG
         if returnsStepCacheAfterQueryFailure { HealthQueryTrace.current?.recordFailure() }
@@ -71,6 +75,30 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     /// Simulate a step observation update (for testing the callback path).
     func simulateStepUpdate(_ steps: Double) {
         observerHandler?(steps)
+    }
+}
+
+/// Controls only the external HealthKit completion; the store and its cache remain real.
+private actor PendingHealthQueries {
+    private var results: [CheckedContinuation<Double, Error>] = []
+    private var arrivals: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    func fetch() async throws -> Double {
+        try await withCheckedThrowingContinuation { continuation in
+            results.append(continuation)
+            let ready = arrivals.filter { results.count >= $0.0 }
+            arrivals.removeAll { results.count >= $0.0 }
+            for (_, waiter) in ready { waiter.resume() }
+        }
+    }
+
+    func waitForQueries(_ count: Int) async {
+        if results.count >= count { return }
+        await withCheckedContinuation { arrivals.append((count, $0)) }
+    }
+
+    func complete(_ index: Int, with result: Result<Double, Error>) {
+        results[index].resume(with: result)
     }
 }
 
@@ -459,6 +487,24 @@ final class SleepIntervalMergingTests: XCTestCase {
         ))
     }
 
+    func testRecentPreviousDayQueryCannotUseLiveStepCacheAfterBoundary() throws {
+        let defaults = UserDefaults.nowhere()
+        let originalHour = defaults.object(forKey: SharedKeys.dayEndHour)
+        let originalMinute = defaults.object(forKey: SharedKeys.dayEndMinute)
+        defer {
+            defaults.set(originalHour, forKey: SharedKeys.dayEndHour)
+            defaults.set(originalMinute, forKey: SharedKeys.dayEndMinute)
+        }
+        defaults.set(6, forKey: SharedKeys.dayEndHour)
+        defaults.set(0, forKey: SharedKeys.dayEndMinute)
+        let now = try XCTUnwrap(Calendar.current.date(from: DateComponents(
+            year: 2026, month: 10, day: 22, hour: 6, minute: 0, second: 30
+        )))
+        XCTAssertFalse(HealthKitService.shouldUseLiveStepCache(
+            queryEnd: now.addingTimeInterval(-60), now: now
+        ), "A query from the previous logical day is stale even inside the five-minute window")
+    }
+
     private func date(_ hour: Int, _ minute: Int = 0) -> Date {
         var comps = DateComponents()
         comps.year = 2026
@@ -577,6 +623,135 @@ final class HealthStoreTests: XCTestCase {
         defaults.removeObject(forKey: SharedKeys.hasStepsData)
         defaults.removeObject(forKey: "cachedSleepHoursToday")
         super.tearDown()
+    }
+
+    func testOlderStepSuccessCannotReplaceNewerResultOrCache() async {
+        let queries = PendingHealthQueries()
+        mock.stepsFetch = { _, _ in try await queries.fetch() }
+        let older = Task { await store.refreshStepsIfAuthorized() }
+        await queries.waitForQueries(1)
+        let newer = Task { await store.refreshStepsIfAuthorized() }
+        await queries.waitForQueries(2)
+        await queries.complete(1, with: .success(100))
+        await newer.value
+        await queries.complete(0, with: .success(12_000))
+        await older.value
+
+        XCTAssertEqual(store.stepsToday, 100)
+        XCTAssertEqual(defaults.double(forKey: SharedKeys.cachedStepsToday), 100)
+        XCTAssertEqual(store.stepsQueryOutcome, .available)
+        XCTAssertTrue(store.hasStepsData)
+    }
+
+    func testOlderSleepSuccessCannotReplaceNewerEmptyResultOrCache() async {
+        let queries = PendingHealthQueries()
+        mock.sleepFetch = { _, _ in try await queries.fetch() }
+        let older = Task { await store.refreshSleepIfAuthorized() }
+        await queries.waitForQueries(1)
+        let newer = Task { await store.refreshSleepIfAuthorized() }
+        await queries.waitForQueries(2)
+        await queries.complete(1, with: .success(0))
+        await newer.value
+        await queries.complete(0, with: .success(8))
+        await older.value
+
+        XCTAssertEqual(store.dailySleepHours, 0)
+        XCTAssertEqual(defaults.double(forKey: "cachedSleepHoursToday"), 0)
+        XCTAssertEqual(store.sleepQueryOutcome, .empty)
+        XCTAssertTrue(store.hasSleepData)
+    }
+
+    func testSupersededFailuresCannotResolveNewQueriesOrLoadCache() async {
+        let steps = PendingHealthQueries()
+        let sleep = PendingHealthQueries()
+        mock.stepsFetch = { _, _ in try await steps.fetch() }
+        mock.sleepFetch = { _, _ in try await sleep.fetch() }
+        let olderSteps = Task { await store.refreshStepsIfAuthorized() }
+        let olderSleep = Task { await store.refreshSleepIfAuthorized() }
+        await steps.waitForQueries(1)
+        await sleep.waitForQueries(1)
+        let newerSteps = Task { await store.refreshStepsIfAuthorized() }
+        let newerSleep = Task { await store.refreshSleepIfAuthorized() }
+        await steps.waitForQueries(2)
+        await sleep.waitForQueries(2)
+        defaults.set(12_000, forKey: SharedKeys.cachedStepsToday)
+        defaults.set(8, forKey: "cachedSleepHoursToday")
+        let denied = NSError(domain: HKErrorDomain, code: HKError.Code.errorAuthorizationDenied.rawValue)
+        await steps.complete(0, with: .failure(denied))
+        await sleep.complete(0, with: .failure(denied))
+        await olderSteps.value
+        await olderSleep.value
+
+        XCTAssertEqual(store.stepsToday, 0)
+        XCTAssertEqual(store.dailySleepHours, 0)
+        XCTAssertFalse(store.hasStepsData)
+        XCTAssertFalse(store.hasSleepData)
+        XCTAssertEqual(store.stepsQueryOutcome, .loading)
+        XCTAssertEqual(store.sleepQueryOutcome, .loading)
+        await steps.complete(1, with: .success(100))
+        await sleep.complete(1, with: .success(0))
+        await newerSteps.value
+        await newerSleep.value
+    }
+
+    func testDayResetDiscardsPendingHealthResultsWithoutReplacementQueries() async {
+        let steps = PendingHealthQueries()
+        let sleep = PendingHealthQueries()
+        mock.stepsFetch = { _, _ in try await steps.fetch() }
+        mock.sleepFetch = { _, _ in try await sleep.fetch() }
+        let pendingSteps = Task { await store.refreshStepsIfAuthorized() }
+        let pendingSleep = Task { await store.refreshSleepIfAuthorized() }
+        await steps.waitForQueries(1)
+        await sleep.waitForQueries(1)
+        // This is the Health lifecycle hook used by daily reset and sign-out.
+        store.clearCachedStepCount()
+        await steps.complete(0, with: .success(12_000))
+        await sleep.complete(0, with: .success(8))
+        await pendingSteps.value
+        await pendingSleep.value
+
+        XCTAssertEqual(store.stepsToday, 0)
+        XCTAssertEqual(store.dailySleepHours, 0)
+        XCTAssertFalse(store.hasStepsData)
+        XCTAssertFalse(store.hasSleepData)
+        XCTAssertEqual(store.stepsQueryOutcome, .idle)
+        XCTAssertEqual(store.sleepQueryOutcome, .idle)
+        XCTAssertNil(defaults.object(forKey: SharedKeys.cachedStepsToday))
+        XCTAssertNil(defaults.object(forKey: "cachedSleepHoursToday"))
+    }
+
+    func testChangedDayBoundaryDiscardsPendingSuccessAndFailure() async {
+        let originalHour = defaults.object(forKey: SharedKeys.dayEndHour)
+        let originalMinute = defaults.object(forKey: SharedKeys.dayEndMinute)
+        defer {
+            defaults.set(originalHour, forKey: SharedKeys.dayEndHour)
+            defaults.set(originalMinute, forKey: SharedKeys.dayEndMinute)
+        }
+        defaults.set(0, forKey: SharedKeys.dayEndHour)
+        defaults.set(0, forKey: SharedKeys.dayEndMinute)
+        let steps = PendingHealthQueries()
+        let sleep = PendingHealthQueries()
+        mock.stepsFetch = { _, _ in try await steps.fetch() }
+        mock.sleepFetch = { _, _ in try await sleep.fetch() }
+        let pendingSteps = Task { await store.refreshStepsIfAuthorized() }
+        let pendingSleep = Task { await store.refreshSleepIfAuthorized() }
+        await steps.waitForQueries(1)
+        await sleep.waitForQueries(1)
+        defaults.set(1, forKey: SharedKeys.dayEndHour)
+        await steps.complete(0, with: .success(12_000))
+        let denied = NSError(domain: HKErrorDomain, code: HKError.Code.errorAuthorizationDenied.rawValue)
+        await sleep.complete(0, with: .failure(denied))
+        await pendingSteps.value
+        await pendingSleep.value
+
+        XCTAssertEqual(store.stepsToday, 0)
+        XCTAssertEqual(store.dailySleepHours, 0)
+        XCTAssertFalse(store.hasStepsData)
+        XCTAssertFalse(store.hasSleepData)
+        XCTAssertEqual(store.stepsQueryOutcome, .idle)
+        XCTAssertEqual(store.sleepQueryOutcome, .idle)
+        XCTAssertNil(defaults.object(forKey: SharedKeys.cachedStepsToday))
+        XCTAssertNil(defaults.object(forKey: "cachedSleepHoursToday"))
     }
 
     // MARK: - Step fetching

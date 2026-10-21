@@ -51,12 +51,15 @@ final class HealthKitService: HealthKitServiceProtocol {
     /// would write to `lastStepCount` and call `updateHandler` *after* the
     /// caller logically stopped observing (e.g. mid-sign-out). (§3.6 / §3.9 / §5.3)
     @MainActor private var initialFetchTask: Task<Void, Never>?
+    @MainActor private var observationID: UUID?
 
     private let _stepCountLock = NSLock()
     private var _lastStepCountBacking: Double = 0
+    private var lastStepCountDayStart: Date?
+    private var liveStepQueryID = UUID()
+    private var liveStepQueryEnd = Date.distantPast
     private var lastStepCount: Double {
         get { _stepCountLock.withLock { _lastStepCountBacking } }
-        set { _stepCountLock.withLock { _lastStepCountBacking = newValue } }
     }
     
     init() {
@@ -70,7 +73,29 @@ final class HealthKitService: HealthKitServiceProtocol {
         queryEnd: Date,
         now: Date = .now
     ) -> Bool {
-        queryEnd >= now.addingTimeInterval(-5 * 60)
+        let (hour, minute) = DayBoundary.storedDayEnd()
+        return queryEnd >= now.addingTimeInterval(-5 * 60) &&
+            DayBoundary.currentDayStart(for: queryEnd, dayEndHour: hour, dayEndMinute: minute) ==
+            DayBoundary.currentDayStart(for: now, dayEndHour: hour, dayEndMinute: minute)
+    }
+
+    private func beginLiveStepQuery(endingAt end: Date) -> UUID {
+        _stepCountLock.withLock {
+            let queryID = UUID()
+            // Async calls can reach the service out of order. A query for an
+            // older endpoint must not supersede a more recent measurement.
+            if end >= liveStepQueryEnd {
+                liveStepQueryID = queryID
+                liveStepQueryEnd = end
+            }
+            return queryID
+        }
+    }
+
+    /// Called with the cache lock held, including immediately before publication.
+    private func isCurrentStepQuery(_ queryID: UUID, start: Date, end: Date) -> Bool {
+        liveStepQueryID == queryID && start == Date.startOfToday &&
+            Self.shouldUseLiveStepCache(queryEnd: end)
     }
 
     @MainActor
@@ -231,15 +256,25 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
     
     func fetchSteps(from start: Date, to end: Date) async throws -> Double {
+        try await fetchSteps(from: start, to: end, cacheQueryID: nil)
+    }
+
+    private func fetchSteps(from start: Date, to end: Date, cacheQueryID: UUID?) async throws -> Double {
         // Capture before entering HealthKit's callback; TaskLocal context is
         // not inherited by arbitrary framework completion handlers.
         let queryTrace = HealthQueryTrace.current
-        let usesLiveCache = Self.shouldUseLiveStepCache(queryEnd: end)
+        let usesLiveCache = Self.shouldUseLiveStepCache(queryEnd: end) && start == Date.startOfToday
+        let queryID = usesLiveCache ? (cacheQueryID ?? beginLiveStepQuery(endingAt: end)) : nil
         guard let stepType = stepType else {
             queryTrace?.recordFailure()
             if usesLiveCache {
                 log.warning("Step type not available, returning cached: \(self.lastStepCount)")
-                return lastStepCount
+                return try _stepCountLock.withLock {
+                    guard let queryID, isCurrentStepQuery(queryID, start: start, end: end) else {
+                        throw CancellationError()
+                    }
+                    return lastStepCountDayStart == start ? _lastStepCountBacking : 0
+                }
             }
             log.warning("Step type not available for historical query, returning 0")
             return 0
@@ -289,6 +324,16 @@ final class HealthKitService: HealthKitServiceProtocol {
                     continuation.resume(returning: 0)
                     return
                 }
+                // A request can finish after another refresh, reset or custom-day
+                // boundary. Validate before both fallback reads and cache writes.
+                let cached: Double? = self._stepCountLock.withLock {
+                    if let queryID, !self.isCurrentStepQuery(queryID, start: start, end: end) { return nil }
+                    return !usesLiveCache || self.lastStepCountDayStart == start ? self._lastStepCountBacking : 0
+                }
+                guard let cached else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
                 if let error = error {
                     let nsError = error as NSError
                     if nsError.code == 11 || // HKErrorCode 11 - no data available
@@ -299,8 +344,8 @@ final class HealthKitService: HealthKitServiceProtocol {
                     }
                     queryTrace?.recordFailure()
                     log.error("HealthKit error: \(error.localizedDescription)")
-                    if usesLiveCache, self.lastStepCount > 0 {
-                        continuation.resume(returning: self.lastStepCount)
+                    if usesLiveCache, cached > 0 {
+                        continuation.resume(returning: cached)
                     } else {
                         continuation.resume(throwing: error)
                     }
@@ -308,11 +353,19 @@ final class HealthKitService: HealthKitServiceProtocol {
                 }
 
                 let steps = stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0
-                let prevCached = self.lastStepCount
-                if usesLiveCache {
-                    self.lastStepCount = steps
+                if let queryID {
+                    let accepted = self._stepCountLock.withLock {
+                        guard self.isCurrentStepQuery(queryID, start: start, end: end) else { return false }
+                        self._lastStepCountBacking = steps
+                        self.lastStepCountDayStart = start
+                        return true
+                    }
+                    guard accepted else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
                 }
-                log.info("👣 fetchSteps RESULT: HK returned \(Int(steps)) steps (live cache: \(usesLiveCache), was: \(Int(prevCached)))")
+                log.info("👣 fetchSteps RESULT: HK returned \(Int(steps)) steps (live cache: \(usesLiveCache), was: \(Int(cached)))")
                 if steps > 0 {
                     self.logAuthorizationStatus(context: "fetchTodaySteps:data-available")
                 }
@@ -405,7 +458,7 @@ final class HealthKitService: HealthKitServiceProtocol {
     // MARK: - Background Updates
     @MainActor
     func startObservingSteps(updateHandler: @escaping (Double) -> Void) {
-        guard !isObserving else { return }
+        guard !isObserving, initialFetchTask == nil else { return }
         guard stepType != nil else {
             log.warning("Step type not available, cannot observe")
             return
@@ -415,14 +468,19 @@ final class HealthKitService: HealthKitServiceProtocol {
         // For read-only apps, sharingDenied is expected and doesn't mean read is denied.
         // We should just try to observe and fetch data.
 
+        let sessionID = UUID()
+        observationID = sessionID
+
         // Cancel any prior fetch (defensive — guard !isObserving above should make this no-op).
         initialFetchTask?.cancel()
         initialFetchTask = Task { [weak self] in
-            guard let self = self else { return }
+            guard let self, !Task.isCancelled, self.observationID == sessionID else { return }
             // Initial fetch so UI has fresh value before observer fires
             let dayStart = Date.startOfToday
             log.info("👣 startObservingSteps: initial fetch dayStart=\(dayStart)")
-            if let steps = try? await self.fetchSteps(from: dayStart, to: Date.now) {
+            let end = Date.now
+            let queryID = self.beginLiveStepQuery(endingAt: end)
+            if let steps = try? await self.fetchSteps(from: dayStart, to: end, cacheQueryID: queryID) {
                 // Bail if stopObservingSteps() cancelled us while fetching. Otherwise
                 // we'd resurrect a previous user's step count after sign-out. (§5.3)
                 guard !Task.isCancelled else {
@@ -430,9 +488,9 @@ final class HealthKitService: HealthKitServiceProtocol {
                     return
                 }
                 log.info("👣 startObservingSteps: initial fetch returned \(Int(steps)), pushing to UI")
-                self.lastStepCount = steps
                 await MainActor.run {
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled, self.observationID == sessionID,
+                          self._stepCountLock.withLock({ self.isCurrentStepQuery(queryID, start: dayStart, end: end) }) else { return }
                     updateHandler(steps)
                 }
             } else {
@@ -440,8 +498,8 @@ final class HealthKitService: HealthKitServiceProtocol {
             }
             // Same gate before installing the live observer — don't start
             // observation if the caller already stopped. (§3.9)
-            guard !Task.isCancelled else { return }
-            await self.beginObservation(updateHandler: updateHandler)
+            guard !Task.isCancelled, self.observationID == sessionID else { return }
+            await self.beginObservation(sessionID: sessionID, updateHandler: updateHandler)
             await MainActor.run { self.initialFetchTask = nil }
         }
     }
@@ -455,6 +513,11 @@ final class HealthKitService: HealthKitServiceProtocol {
         //    lastStepCount + updateHandler after observerQuery is gone.
         // 3. Stop + nil the actual HK query.
         isObserving = false
+        observationID = nil
+        _stepCountLock.withLock {
+            liveStepQueryID = UUID()
+            liveStepQueryEnd = .now
+        }
         initialFetchTask?.cancel()
         initialFetchTask = nil
 
@@ -465,11 +528,16 @@ final class HealthKitService: HealthKitServiceProtocol {
     }
 
     func clearLastStepCount() {
-        lastStepCount = 0
+        _stepCountLock.withLock {
+            liveStepQueryID = UUID()
+            liveStepQueryEnd = .now
+            _lastStepCountBacking = 0
+            lastStepCountDayStart = nil
+        }
     }
 
     @MainActor
-    private func beginObservation(updateHandler: @escaping (Double) -> Void) async {
+    private func beginObservation(sessionID: UUID, updateHandler: @escaping (Double) -> Void) async {
         guard !isObserving else { return }
         guard let stepType = stepType else {
             log.warning("Step type not available, cannot begin observation")
@@ -502,19 +570,28 @@ final class HealthKitService: HealthKitServiceProtocol {
                 defer { completionHandler() }
                 let refetchStart = Date.startOfToday
                 log.info("👣 OBSERVER FIRED: re-fetching from \(refetchStart)")
+                let end = Date.now
+                let queryID = await MainActor.run { () -> UUID? in
+                    guard self.isObserving, self.observationID == sessionID else { return nil }
+                    return self.beginLiveStepQuery(endingAt: end)
+                }
+                guard let queryID else { return }
                 do {
-                    let steps = try await self.fetchSteps(from: refetchStart, to: Date.now)
+                    let steps = try await self.fetchSteps(from: refetchStart, to: end, cacheQueryID: queryID)
                     // If stopObservingSteps() flipped isObserving while we were
                     // fetching, drop this update — pushing it would resurrect
                     // last-cancelled UI state (e.g. after sign-out). (§3.6)
-                    let stillObserving = await MainActor.run { self.isObserving }
+                    let stillObserving = await MainActor.run { self.isObserving && self.observationID == sessionID }
                     guard stillObserving else {
                         log.info("👣 OBSERVER re-fetch discarded — observation stopped mid-flight")
                         return
                     }
                     log.info("👣 OBSERVER re-fetch: \(Int(steps)) steps, pushing to UI")
-                    self.lastStepCount = steps
-                    await MainActor.run { updateHandler(steps) }
+                    await MainActor.run {
+                        guard self.isObserving, self.observationID == sessionID,
+                              self._stepCountLock.withLock({ self.isCurrentStepQuery(queryID, start: refetchStart, end: end) }) else { return }
+                        updateHandler(steps)
+                    }
                 } catch {
                     log.error("👣 OBSERVER re-fetch FAILED: \(error.localizedDescription), lastStepCount=\(self.lastStepCount)")
                 }

@@ -14,6 +14,8 @@ extra fallback grants.
 
 The configured day boundary can differ from calendar midnight. Existing `steps*`
 and `energy*` storage names are compatibility identifiers, not a second currency.
+Health refreshes publish and cache only their current logical day's latest result;
+late responses from a previous refresh, observation session or day are discarded.
 
 ## Surfaces
 
@@ -214,6 +216,10 @@ The rejected generation cannot spend further minutes. Recovery runs when the app
 returns to the foreground or the user retries through the widget/Feeds, without
 charging again, within the existing custom-day expiry. Healthy monitors are retained
 on top-up so Apple's partial-minute usage is not reset.
+
+A valid paid selection overrides overlapping group and legacy blockers for the
+same application or category tokens. Paid applications remain exceptions to any
+other blocked categories. Paused or expired budgets grant no such exception.
 
 The app and Screen Time callbacks apply shields through one shared rebuild. Its
 budget read and settings write hold the same cross-process lock as purchase
