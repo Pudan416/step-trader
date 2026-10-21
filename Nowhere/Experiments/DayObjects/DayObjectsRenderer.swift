@@ -1366,12 +1366,17 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     func draw(in view: MTKView) {
         let drawableView = view as? DayObjectsDrawableView
         let paletteViewportSize: CGSize?
+        let paletteCameraOrigin: CGPoint
         if case let .happeningPalette(presentation) = presentationMode {
             paletteViewportSize = presentation.viewportSize
-        } else { paletteViewportSize = nil }
+            paletteCameraOrigin = presentation.cameraOrigin
+        } else { paletteViewportSize = nil; paletteCameraOrigin = .zero }
+        if let drawableView, paletteViewportSize != nil, !drawableView.palettePresentationIsActive {
+            return
+        }
         if let drawableView, drawableView.paletteResizeHandoff.isPending,
            let paletteViewportSize,
-           (!drawableView.paletteResizeHandoff.canPresent(viewportSize: paletteViewportSize, boundsSize: view.bounds.size)
+           (!drawableView.paletteResizeHandoff.canPresent(viewportSize: paletteViewportSize, boundsSize: view.bounds.size, cameraOrigin: paletteCameraOrigin)
             || !drawableView.drawableMatchesBounds) {
             // SwiftUI has supplied the new world, but UIKit has not laid it out
             // yet. Never render that world's coordinates into the old surface.
@@ -1408,7 +1413,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             view.presentsWithTransaction = prior
         }
         if let paletteViewportSize {
-            drawableView?.didPresentPaletteFrame(viewportSize: paletteViewportSize)
+            drawableView?.didPresentPaletteFrame(viewportSize: paletteViewportSize, cameraOrigin: paletteCameraOrigin)
         }
         configureAnimation(view, elapsedTime: elapsedTime, requestsStaticFrame: false)
     }

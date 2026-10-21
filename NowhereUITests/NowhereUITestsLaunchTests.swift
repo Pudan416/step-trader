@@ -1216,6 +1216,70 @@ final class NowhereUITestsLaunchTests: XCTestCase {
         XCTAssertEqual(count.label, before)
     }
 
+    func testAllViewportPanAddDeleteAndModeSwitchPreserveHitAlignment() throws {
+        let app = launchTask7App()
+        openPersonalCategories(in: app)
+        // Keep one recorded event so deleting the probe does not intentionally
+        // invoke the product's final-removal return to Personal home.
+        app.buttons["happening_choice_personal_category_work"].tap()
+        let keeper = app.buttons["happening_choice_event_root_worked"]
+        XCTAssertTrue(keeper.waitForExistence(timeout: 5))
+        if (keeper.value as? String) == "Available" { keeper.tap() }
+        XCTAssertEqual(keeper.value as? String, "On Canvas")
+        app.buttons["happening_category_back"].tap()
+        app.buttons["happening_mode_all"].tap()
+        let choices = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'happening_choice_event_'"))
+        XCTAssertTrue(waitForChoiceCount(106, in: app))
+        let field = app.scrollViews["happening_field_scroll"]
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.70, dy: 0.65))
+            .press(forDuration: 0.05, thenDragTo: field.coordinate(withNormalizedOffset: CGVector(dx: 0.42, dy: 0.43)))
+        let screen = app.windows.firstMatch.frame
+        let chosen = try XCTUnwrap(choices.allElementsBoundByIndex.first {
+            let frame = $0.frame
+            return frame.midX > screen.minX + 75 && frame.midX < screen.maxX - 75
+                && frame.midY > screen.minY + 250 && frame.midY < screen.maxY - 230
+                && ($0.value as? String) == "Available" && $0.isHittable
+        }, "All must expose a central available choice after a two-axis pan")
+        let initialFrame = chosen.frame
+        // A local sample plus exact chosen state/count catches a neighboring
+        // mutation without querying every offscreen accessibility element.
+        let neighbors = choices.allElementsBoundByIndex.prefix(10).filter { $0.identifier != chosen.identifier }
+        let values = Dictionary(uniqueKeysWithValues: neighbors.map { ($0.identifier, $0.value as? String) })
+        let frames = Dictionary(uniqueKeysWithValues: neighbors.map { ($0.identifier, $0.frame) })
+        let hub = app.descendants(matching: .any)["happening_palette_count_hub"]
+        let initialSelected = try XCTUnwrap(hub.label.components(separatedBy: CharacterSet.decimalDigits.inverted)
+            .compactMap(Int.init).first)
+        chosen.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertEqual(chosen.value as? String, "On Canvas")
+        XCTAssertTrue(hub.label.contains("\(initialSelected + 1) of 10"))
+        for neighbor in neighbors {
+            XCTAssertEqual(neighbor.value as? String, values[neighbor.identifier] ?? nil, neighbor.identifier)
+            let before = try XCTUnwrap(frames[neighbor.identifier])
+            XCTAssertEqual(neighbor.frame.midX, before.midX, accuracy: 1, neighbor.identifier)
+            XCTAssertEqual(neighbor.frame.midY, before.midY, accuracy: 1, neighbor.identifier)
+        }
+        XCTAssertEqual(chosen.frame.midX, initialFrame.midX, accuracy: 1)
+        XCTAssertEqual(chosen.frame.midY, initialFrame.midY, accuracy: 1)
+        chosen.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertEqual(chosen.value as? String, "Previewing removal from Canvas")
+        XCTAssertTrue(chosen.staticTexts["Delete"].exists)
+        attachScreenshot(named: "all-viewport-panned-delete-edge")
+        let actionOffset = min(initialFrame.width * 0.31, 38)
+        chosen.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: 42, dy: actionOffset + 14)).tap()
+        XCTAssertEqual(chosen.value as? String, "Available")
+        XCTAssertTrue(hub.label.contains("\(initialSelected) of 10"))
+        for neighbor in neighbors {
+            XCTAssertEqual(neighbor.value as? String, values[neighbor.identifier] ?? nil, neighbor.identifier)
+        }
+        app.buttons["happening_mode_frequent"].tap()
+        XCTAssertTrue(app.buttons["happening_choice_personal_category_work"].waitForExistence(timeout: 5))
+        app.buttons["happening_mode_all"].tap()
+        XCTAssertTrue(waitForChoiceCount(106, in: app))
+        XCTAssertEqual(app.buttons[chosen.identifier].value as? String, "Available")
+        attachScreenshot(named: "all-viewport-after-personal-round-trip")
+    }
+
     func testPersonalDeleteCapsuleRemovesOnlyItsOriginalEvent() throws {
         let app = launchTask7App()
         openPersonalCategories(in: app)

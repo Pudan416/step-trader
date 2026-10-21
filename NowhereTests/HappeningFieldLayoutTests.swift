@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import QuartzCore
 import XCTest
 @testable import Nowhere
 
@@ -1727,6 +1728,78 @@ final class HappeningScrollableFieldTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(hypot(source.center.x - other.center.x, source.center.y - other.center.y), source.radius + other.radius)
             }
         }
+    }
+
+    @MainActor
+    func testScrollableArtworkAllocatesOnlyTheVisibleViewport() async throws {
+        let artwork = UIView()
+        let layout = HappeningFieldLayout.layout(count: 106, in: CGSize(width: 390, height: 844), safeInsets: EdgeInsets())
+        let view = HappeningPaletteView(
+            happenings: HappeningDefaults.builtIns,
+            artwork: AnyView(HappeningScrollArtworkProbe(view: artwork)),
+            layout: layout, interaction: HappeningPaletteInteractionState(), addedIDs: [], instruction: nil,
+            onActivate: { _ in }, onCreate: { _ in .failed }
+        )
+        // Gallery's palette overlay inherits its full-screen Canvas viewport.
+        let host = UIHostingController(rootView: view.ignoresSafeArea())
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = try XCTUnwrap(scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        func flushLayout(in window: UIWindow) {
+            window.setNeedsLayout()
+            window.layoutIfNeeded()
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            CATransaction.flush()
+        }
+        host.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+        flushLayout(in: window)
+        XCTAssertLessThanOrEqual(artwork.bounds.width, 390.5, "The renderer must not allocate a world-sized drawable")
+        XCTAssertLessThanOrEqual(artwork.bounds.height, 844.5)
+        XCTAssertGreaterThan(artwork.bounds.width, 300)
+        XCTAssertGreaterThan(artwork.bounds.height, 600)
+        func findScroll(_ view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            return view.subviews.lazy.compactMap { findScroll($0) }.first
+        }
+        let scroll = try XCTUnwrap(findScroll(host.view))
+        let size = artwork.bounds.size
+        let offset = scroll.contentOffset
+        scroll.setContentOffset(CGPoint(x: offset.x + 80, y: offset.y + 60), animated: false)
+        try await Task.sleep(for: .milliseconds(300))
+        flushLayout(in: window)
+        XCTAssertEqual(artwork.bounds.width, size.width, accuracy: 0.5)
+        XCTAssertEqual(artwork.bounds.height, size.height, accuracy: 0.5)
+        let renderedViewport = artwork.convert(artwork.bounds, to: window)
+        let nativeViewport = scroll.convert(scroll.bounds, to: window)
+        XCTAssertEqual(renderedViewport.minX, nativeViewport.minX, accuracy: 1)
+        XCTAssertEqual(renderedViewport.minY, nativeViewport.minY, accuracy: 1)
+        // A detached host must reacquire KVO without retaining the old window.
+        let secondWindow = UIWindow(windowScene: scene)
+        secondWindow.frame = CGRect(x: 0, y: 0, width: 420, height: 900)
+        defer { secondWindow.isHidden = true }
+        window.rootViewController = nil
+        secondWindow.rootViewController = host
+        secondWindow.makeKeyAndVisible()
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+        flushLayout(in: secondWindow)
+        let reattachedScroll = try XCTUnwrap(findScroll(host.view))
+        reattachedScroll.setContentOffset(CGPoint(x: -20, y: -30), animated: false)
+        try await Task.sleep(for: .milliseconds(300))
+        flushLayout(in: secondWindow)
+        let resizedArtwork = artwork.convert(artwork.bounds, to: secondWindow)
+        let resizedViewport = reattachedScroll.convert(reattachedScroll.bounds, to: secondWindow)
+        XCTAssertEqual(artwork.bounds.width, reattachedScroll.bounds.width, accuracy: 1)
+        XCTAssertEqual(artwork.bounds.height, reattachedScroll.bounds.height, accuracy: 1)
+        XCTAssertEqual(resizedArtwork.minX, resizedViewport.minX, accuracy: 1)
+        XCTAssertEqual(resizedArtwork.minY, resizedViewport.minY, accuracy: 1)
     }
 
     @MainActor

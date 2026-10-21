@@ -4,6 +4,122 @@ import XCTest
 @MainActor
 final class HappeningShapeAssignmentModelTests: XCTestCase {
 
+    func testNativeAdditionRetainsOpeningChoicesAndRefreshesCommittedActor() throws {
+        let day = "2026-10-08"
+        let catalog = HappeningDefaults.builtIns
+        let recipe = NativeAtlasRecipe.makeDaily(dayKey: day, paletteCategories: ModernPaletteSelection.all, collection: .circles)
+        func request(_ elements: [CanvasElement], _ recipe: NativeAtlasRecipe) -> HappeningEditorialAssignmentRequest {
+            .init(happenings: catalog, baseInput: .init(dayKey: day, identity: "primary-canvas",
+                eventIDs: elements.map { $0.id.uuidString.lowercased() }, motionEnergy: 0.5,
+                visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe),
+                committedElements: elements, colorNonce: 19)
+        }
+        let opening = HappeningEditorialAssignmentResolver.snapshot(request: request([], recipe))
+        let walk = try XCTUnwrap(opening.assignments["event_walk"])
+        var element = CanvasElement.spawn(id: walk.elementID, optionId: "event_walk", label: "Walk",
+            existingElements: [], dayKey: day, composition: DayComposition.forDay(dayKey: day, happeningCount: 0))
+        element.editorialColorVariant = walk.colorVariant
+        let committedRecipe = recipe.reconciled(eventIDs: [walk.elementID.uuidString.lowercased()])
+        let added = HappeningEditorialAssignmentResolver.snapshot(request: request([element], committedRecipe), retaining: opening)
+        for happening in catalog where happening.id != "event_walk" {
+            XCTAssertEqual(added.assignments[happening.id], opening.assignments[happening.id],
+                "An addition must not regenerate unrelated opening choices")
+        }
+        XCTAssertEqual(added.assignments["event_walk"]?.nativeActor,
+            committedRecipe.actors.first { $0.eventID == walk.elementID.uuidString.lowercased() })
+        XCTAssertEqual(added.request, request([element], committedRecipe))
+    }
+
+    func testNativeRemovalRetainsTheReturningFrozenContourAndReadditionUsesCurrentSlot() throws {
+        let day = "2026-10-08"
+        let catalog = Array(HappeningDefaults.builtIns.prefix(2))
+        let recipe = NativeAtlasRecipe.makeDaily(dayKey: day, paletteCategories: ModernPaletteSelection.all, collection: .circles)
+        func request(_ elements: [CanvasElement], _ recipe: NativeAtlasRecipe) -> HappeningEditorialAssignmentRequest {
+            .init(happenings: catalog, baseInput: .init(dayKey: day, identity: "primary-canvas",
+                eventIDs: elements.map { $0.id.uuidString.lowercased() }, motionEnergy: 0.5,
+                visualClarity: 1, usesEditorialField: true, nativeAtlasRecipe: recipe),
+                committedElements: elements, colorNonce: 19)
+        }
+        var snapshot = HappeningEditorialAssignmentResolver.snapshot(request: request([], recipe))
+        var elements: [CanvasElement] = []
+        var committedRecipe = recipe
+        for happening in catalog {
+            let assignment = try XCTUnwrap(snapshot.assignments[happening.id])
+            var element = CanvasElement.spawn(id: assignment.elementID, optionId: happening.id,
+                label: happening.title, existingElements: elements, dayKey: day,
+                composition: DayComposition.forDay(dayKey: day, happeningCount: elements.count))
+            element.editorialColorVariant = assignment.colorVariant
+            elements.append(element)
+            committedRecipe = committedRecipe.reconciled(eventIDs: elements.map { $0.id.uuidString.lowercased() })
+            snapshot = HappeningEditorialAssignmentResolver.snapshot(request: request(elements, committedRecipe), retaining: snapshot)
+        }
+        let second = try XCTUnwrap(snapshot.assignments[catalog[1].id])
+        XCTAssertEqual(second.nativeActor?.slot, 1)
+        let survivor = elements[1]
+        committedRecipe = committedRecipe.reconciled(eventIDs: [survivor.id.uuidString.lowercased()])
+        snapshot = HappeningEditorialAssignmentResolver.snapshot(request: request([survivor], committedRecipe), retaining: snapshot)
+        committedRecipe = committedRecipe.reconciled(eventIDs: [])
+        snapshot = HappeningEditorialAssignmentResolver.snapshot(request: request([], committedRecipe), retaining: snapshot)
+        XCTAssertEqual(snapshot.assignments[catalog[1].id], second,
+            "Returning removal artwork and its retiring hit contour must retain the same frozen figure")
+        committedRecipe = committedRecipe.reconciled(eventIDs: [survivor.id.uuidString.lowercased()])
+        snapshot = HappeningEditorialAssignmentResolver.snapshot(request: request([survivor], committedRecipe), retaining: snapshot)
+        XCTAssertEqual(snapshot.assignments[catalog[1].id]?.nativeActor, committedRecipe.actors.first)
+        XCTAssertEqual(snapshot.assignments[catalog[1].id]?.nativeActor?.slot, 0)
+    }
+
+    func testNativeIncrementalRefreshInvalidatesFullGenerationContextAndCommittedIdentity() throws {
+        let day = "2026-10-08"
+        let catalog = HappeningDefaults.builtIns
+        let recipe = NativeAtlasRecipe.makeDaily(dayKey: day, paletteCategories: ModernPaletteSelection.all, collection: .circles)
+        func request(day: String = "2026-10-08", identity: String = "primary-canvas",
+                     nonce: UInt64 = 19, recipe: NativeAtlasRecipe,
+                     elements: [CanvasElement] = [], palette: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
+                     motion: Double = 0.5) -> HappeningEditorialAssignmentRequest {
+            .init(happenings: catalog, baseInput: .init(dayKey: day, identity: identity,
+                eventIDs: elements.map { $0.id.uuidString.lowercased() }, motionEnergy: motion,
+                visualClarity: 1, paletteCategories: palette, usesEditorialField: true, nativeAtlasRecipe: recipe),
+                committedElements: elements, colorNonce: nonce)
+        }
+        let opening = HappeningEditorialAssignmentResolver.snapshot(request: request(recipe: recipe))
+        var changedMaterial = recipe
+        changedMaterial.dailyStyle?.orientation += 0.25
+        let requests = [
+            request(day: "2026-10-09", recipe: recipe),
+            request(identity: "another-account", recipe: recipe),
+            request(nonce: 20, recipe: recipe),
+            request(recipe: changedMaterial),
+            request(recipe: NativeAtlasRecipe.makeDaily(dayKey: day, paletteCategories: ModernPaletteSelection.all, collection: .squares)),
+            request(recipe: recipe, palette: []),
+            request(recipe: recipe, motion: 0.75),
+        ]
+        for changed in requests {
+            XCTAssertEqual(HappeningEditorialAssignmentResolver.snapshot(request: changed, retaining: opening),
+                HappeningEditorialAssignmentResolver.snapshot(request: changed),
+                "Generation context changes must invalidate the full atlas")
+        }
+        let happening = catalog[0]
+        var element = CanvasElement.spawn(id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            optionId: happening.id, label: happening.title, existingElements: [], dayKey: day,
+            composition: DayComposition.forDay(dayKey: day, happeningCount: 0))
+        element.editorialColorVariant = 37
+        var hydrated = recipe.reconciled(eventIDs: [element.id.uuidString.lowercased()])
+        let hydration = request(recipe: hydrated, elements: [element])
+        let snapshot = HappeningEditorialAssignmentResolver.snapshot(request: hydration, retaining: opening)
+        XCTAssertEqual(snapshot.assignments[happening.id], HappeningEditorialAssignmentResolver.snapshot(request: hydration).assignments[happening.id])
+        element.editorialColorVariant = 41
+        let rerolled = request(recipe: hydrated, elements: [element])
+        XCTAssertEqual(HappeningEditorialAssignmentResolver.snapshot(request: rerolled, retaining: snapshot).assignments[happening.id],
+            HappeningEditorialAssignmentResolver.snapshot(request: rerolled).assignments[happening.id])
+        // A restored frozen actor can change with the same UUID and palette nonce.
+        hydrated.actors = NativeAtlasRecipe.makeDaily(dayKey: day,
+            paletteCategories: ModernPaletteSelection.all, collection: .squares)
+            .reconciled(eventIDs: [element.id.uuidString.lowercased()]).actors
+        let restored = request(recipe: hydrated, elements: [element])
+        XCTAssertEqual(HappeningEditorialAssignmentResolver.snapshot(request: restored, retaining: snapshot).assignments[happening.id],
+            HappeningEditorialAssignmentResolver.snapshot(request: restored).assignments[happening.id])
+    }
+
     func testNativeCatalogSnapshotAvoidsLegacySceneConstruction() throws {
         let happenings = HappeningDefaults.builtIns
         XCTAssertEqual(happenings.count, HappeningDefaults.maximumCatalogCount)
@@ -154,9 +270,14 @@ final class HappeningShapeAssignmentModelTests: XCTestCase {
     /// the colour it was logged with however many times the field re-rolls.
     func testRerollDoesNotChangeAlreadyLoggedAdditions() {
         let model = makeModel()
-        let date = Date(timeIntervalSince1970: 1_786_176_000)
+        let date = Date.now
         model.loadDailyEnergyState()
-        _ = model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date)
+        // Startup recovery reads CanvasStorageService's independent directory;
+        // this unit test isolates the reroll from a previous test host's Canvas.
+        model.todayAdditions = []
+        let addition = model.addHappening(id: "happening_walk", colorHex: "#AABBCC", at: date, syncToCloud: false)
+        XCTAssertNotNil(addition)
+        XCTAssertEqual(model.todayAdditions.count, 1)
 
         model.rerollPaletteFigures(on: date)
 

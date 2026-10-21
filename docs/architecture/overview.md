@@ -71,9 +71,26 @@ Test names live in `NowhereTests/` unless stated otherwise.
   ranking prepares that complete atlas. Browser field identities reset transitions
   and focus between category home, details and All. Final removal returns Personal
   to category home; saved element IDs and frozen actors retain their identities.
+- Happenings artwork uses a viewport-sized Metal drawable positioned at the
+  visible world rect. Only render sources subtract that rect's origin; labels,
+  captions, confirmation targets and native scrolling retain world coordinates.
+  A native offset/bounds probe samples the camera even when the leaf Timeline is
+  paused. Drawable handoff includes both viewport size and camera origin: fresh
+  camera frames present with the layer-position transaction; delayed stale frames
+  cannot expose old artwork at a new origin. Failed camera draws hide stale
+  artwork and explicitly retry independently of the MTK display link. Scheduling
+  and execution honor active scene/tab presentation; resume and window reattachment
+  retry the latest camera without rendering while inactive.
+  Personal sphere ranking freezes on opening (and rebuilds on day change), while
+  additions reveal current paths without reading or ranking history again.
 - `GalleryView.refreshEventTreePalette` retains Editorial assignments while their
   complete request is unchanged; expansion and duplicate mutation/sync callbacks
-  must not rebuild all catalog candidates. `DayObjectPaletteSet.make` shares a bounded
+  must not rebuild all catalog candidates. Native available choices retain their
+  opening assignments; committed UUID/color/frozen-actor changes refresh only
+  affected choices. Removed choices retain their returning preview contour until
+  the next commit or opening. Actor-generation context changes (day, identity,
+  recipe/style/material, metrics, palette or nonce) invalidate the complete map.
+  Legacy scene recipes retain full resolution. `DayObjectPaletteSet.make` shares a bounded
   16-entry palette cache keyed by root seed, normalized categories, day and identity.
   Its lock protects lookup/publication, while palette derivation runs outside the lock.
 - `MePosterEventLedger.unlocks` retains four immutable full-ledger requests so live

@@ -331,18 +331,29 @@ struct HappeningPaletteView: View {
         let worldWidth = max(viewport.width, layout.contentSize.width, eventTransition?.from.contentSize.width ?? 0)
         let worldHeight = max(viewport.height, layout.contentSize.height,
             compactLayout?.contentSize.height ?? 0, eventTransition?.from.contentSize.height ?? 0)
+        // Capture camera outside the paused leaf: a native compositor scroll
+        // can change it without producing another animation timestamp.
+        let cameraRect = visibleFieldRect
         return TimelineView(.animation(minimumInterval: 1.0 / 60,
-            paused: modeTransition == nil && eventTransition == nil && reveal == nil)) { context in
-            sampledField(viewport: viewport, at: context.date)
+            paused: modeTransition == nil && eventTransition == nil && reveal == nil && !isFieldScrolling)) { context in
+            sampledField(viewport: viewport, at: context.date, cameraRect: cameraRect)
         }
         // Advertise the complete world to the native scroll surface.
         .frame(width: worldWidth, height: worldHeight)
+        // Native scrolling also moves a paused Timeline's compositor. Observe
+        // the unchanged world container so its camera keeps sampling on iOS 17.
+        .background(alignment: .topLeading) {
+            HappeningFieldViewportProbe(onChange: updateVisibleFieldRect)
+                .frame(width: worldWidth, height: worldHeight, alignment: .topLeading)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
-    private func sampledField(viewport: CGSize, at date: Date) -> some View {
+    private func sampledField(viewport: CGSize, at date: Date, cameraRect: CGRect) -> some View {
         let progress = modeTransition?.value(at: date) ?? (mode == .all ? 1 : 0)
         let expanded = sampledLayout(viewport: viewport, progress: progress, at: date)
-        let visibleRect = resolvedVisibleRect(layout: expanded, viewport: viewport)
+        let visibleRect = resolvedVisibleRect(layout: expanded, viewport: viewport, cameraRect: cameraRect)
         let edgeStrength: CGFloat = reduceMotion || artworkForLayout == nil || dateHubCenter != nil ? 0 : progress
         let displayed = HappeningFieldEdgeScale.apply(to: expanded, visibleRect: visibleRect, strength: edgeStrength)
         return fieldContent(layout: displayed, visibleRect: visibleRect, viewport: viewport,
@@ -375,8 +386,8 @@ struct HappeningPaletteView: View {
         return layout
     }
 
-    private func resolvedVisibleRect(layout: HappeningFieldLayout.Layout, viewport: CGSize) -> CGRect {
-        if !visibleFieldRect.isEmpty { return visibleFieldRect }
+    private func resolvedVisibleRect(layout: HappeningFieldLayout.Layout, viewport: CGSize, cameraRect: CGRect) -> CGRect {
+        if !cameraRect.isEmpty { return CGRect(origin: cameraRect.origin, size: viewport) }
         return CGRect(x: max(0, (layout.contentSize.width - viewport.width) / 2),
                       y: max(0, (layout.contentSize.height - viewport.height) / 2),
                       width: viewport.width, height: viewport.height)
@@ -390,7 +401,12 @@ struct HappeningPaletteView: View {
     private func fieldContent(layout: HappeningFieldLayout.Layout, visibleRect: CGRect,
                               viewport: CGSize, hubCenter: CGPoint?, at date: Date) -> some View {
         ZStack(alignment: .topLeading) {
+            // A viewport-sized drawable rides inside native scrolling content.
+            // Only render sources subtract this camera; labels and hit paths keep
+            // world coordinates and receive ScrollView's transform exactly once.
             fieldArtwork(layout: layout, visibleRect: visibleRect)
+                .frame(width: visibleRect.width, height: visibleRect.height)
+                .position(x: visibleRect.midX, y: visibleRect.midY)
                 .accessibilityHidden(true)
                 .allowsHitTesting(false)
             HappeningShapeField(happenings: happenings, assignments: assignments, layout: layout,
@@ -445,9 +461,9 @@ struct HappeningPaletteView: View {
     // Observe size only; positions use ScrollView's native transform.
     private func updateVisibleFieldRect(_ rect: CGRect) {
         guard !rect.isEmpty, rect != visibleFieldRect else { return }
-        let hasMoved = !visibleFieldRect.isEmpty
         visibleFieldRect = rect
-        guard hasMoved else { return }
+        // Initial focus and reattachment also need one sampling window so a
+        // paused Timeline cannot keep its previous camera projection.
         isFieldScrolling = true
         scrollSettleTask?.cancel()
         scrollSettleTask = Task { @MainActor in
@@ -475,6 +491,75 @@ struct HappeningPaletteView: View {
         }
     }
 
+}
+
+/// Reads the viewport in the full scrolling world's coordinates, independently
+/// of Timeline sampling. Own KVO observations never replace UIScrollView.delegate.
+private struct HappeningFieldViewportProbe: UIViewRepresentable {
+    let onChange: (CGRect) -> Void
+
+    func makeUIView(context: Context) -> Probe { Probe() }
+
+    func updateUIView(_ view: Probe, context: Context) {
+        view.onChange = onChange
+        view.scheduleObservation()
+    }
+
+    final class Probe: UIView {
+        var onChange: ((CGRect) -> Void)?
+        private weak var observedScroll: UIScrollView?
+        private var offsetObservation: NSKeyValueObservation?
+        private var boundsObservation: NSKeyValueObservation?
+        private var isScheduled = false
+        private var lastRect: CGRect?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window == nil {
+                offsetObservation = nil
+                boundsObservation = nil
+                observedScroll = nil
+                lastRect = nil
+            } else { scheduleObservation() }
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            scheduleObservation()
+        }
+
+        func scheduleObservation() {
+            guard window != nil, !isScheduled else { return }
+            isScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isScheduled = false
+                self.publishViewport()
+            }
+        }
+
+        private func publishViewport() {
+            guard window != nil else { return }
+            var ancestor = superview
+            while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+            guard let scroll = ancestor as? UIScrollView else { return }
+            if observedScroll !== scroll {
+                offsetObservation = nil
+                boundsObservation = nil
+                observedScroll = scroll
+                offsetObservation = scroll.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
+                    self?.scheduleObservation()
+                }
+                boundsObservation = scroll.observe(\.bounds, options: [.new]) { [weak self] _, _ in
+                    self?.scheduleObservation()
+                }
+            }
+            let rect = convert(scroll.bounds, from: scroll)
+            guard !rect.isEmpty, rect != lastRect else { return }
+            lastRect = rect
+            onChange?(rect)
+        }
+    }
 }
 
 /// The field is an absolute-positioned lattice, so row-based scroll targets do

@@ -545,6 +545,7 @@ struct GalleryView: View {
         }
         personalBrowser.showCategories()
         rebuildPersonalEventField()
+        paletteAssignmentSnapshot = nil
         refreshEventTreePalette()
         happeningPalettePanel = nil
         withAnimation(.easeInOut(duration: 0.2)) {
@@ -576,7 +577,7 @@ struct GalleryView: View {
             current: paletteAssignmentSnapshot,
             request: request
         ) {
-            paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request)
+            paletteAssignmentSnapshot = HappeningEditorialAssignmentResolver.snapshot(request: request, retaining: paletteAssignmentSnapshot)
         }
     }
 
@@ -913,8 +914,8 @@ struct GalleryView: View {
                 usesEventTree: showEventExplorer,
                 artworkForLayout: { displayedLayout, isExpanding, visibleRect in
                     AnyView(paletteArtwork.presented(as: paletteRenderMode(layout: displayedLayout,
-                        viewportSize: displayedLayout.contentSize, isExpanding: isExpanding,
-                        visibleRect: showEventExplorer ? visibleRect : nil)))
+                        viewportSize: visibleRect.size, isExpanding: isExpanding,
+                        visibleRect: visibleRect)))
                 },
                 interaction: paletteInteraction,
                 addedIDs: fieldSelectedIDs,
@@ -1076,6 +1077,8 @@ struct GalleryView: View {
 
     private func paletteRenderMode(layout: HappeningFieldLayout.Layout, viewportSize: CGSize, isExpanding: Bool = false, visibleRect: CGRect? = nil) -> DayObjectsPresentationMode {
         guard showHappeningPalette else { return .canvas }
+        let camera = visibleRect?.origin ?? .zero
+        let renderLayout = layout.translated(by: camera)
         let slots = paletteHappenings.enumerated().compactMap { index, happening
             -> HappeningPaletteRenderSlot? in
             guard index < layout.sources.count, layout.sources[index].appearanceScale > 0.001,
@@ -1091,7 +1094,7 @@ struct GalleryView: View {
                 happeningID: happening.id,
                 assignment: assignment,
                 visualState: paletteInteraction.visualState(for: happening.id, addedIDs: fieldSelectedIDs),
-                source: layout.sources[index]
+                source: renderLayout.sources[index]
             )
         }
         return .happeningPalette(HappeningPaletteRenderPresentation(
@@ -1100,7 +1103,8 @@ struct GalleryView: View {
             reduceMotion: reduceMotion,
             isTransitionActive: paletteTransitionActive || isExpanding,
             backgroundRevision: UInt64(max(0, localMutationCounter)),
-            usesSharedGeometry: true
+            usesSharedGeometry: true,
+            cameraOrigin: camera
         ))
     }
 
@@ -2785,7 +2789,8 @@ struct GalleryView: View {
             animateSpawnToDestination(elementID: element.id)
         }
         if showEventExplorer {
-            if !showsHappeningIntroduction { rebuildPersonalEventField() }
+            // Freeze Personal ranking and the All map for this opening. Reveal
+            // still tracks today's additions without rereading/ranking history.
             refreshEventTreePalette()
         } else if showHappeningPalette {
             refreshHappeningPalette()

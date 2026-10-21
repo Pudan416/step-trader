@@ -1,7 +1,41 @@
 import XCTest
+import UIKit
+import MetalKit
 @testable import Nowhere
 
 final class HappeningPaletteRenderFrameTests: XCTestCase {
+    func testViewportCameraKeepsNativeRenderCenterAndCapsuleHitAlignedIncludingOverscroll() throws {
+        let assignment = try XCTUnwrap(makePresentation().slots.first?.assignment)
+        let world = HappeningFieldLayout.Layout(sources: [.init(index: 0, center: CGPoint(x: 200, y: 300), radius: 64)],
+            labelFrames: [], contourBounds: .zero, dockAnchor: .zero, completionBounds: nil,
+            contentSize: CGSize(width: 1852, height: 1969))
+        for (camera, expectedCenter) in [(CGPoint(x: 80, y: 60), CGPoint(x: 120, y: 240)),
+                                         (CGPoint(x: -30, y: -50), CGPoint(x: 230, y: 350))] {
+            let viewport = CGSize(width: 390, height: 844)
+            let projected = world.translated(by: camera)
+            let presentation = HappeningPaletteRenderPresentation(slots: [.init(happeningID: "camera-probe",
+                assignment: assignment, visualState: .removalPreview, source: projected.sources[0])],
+                viewportSize: viewport, reduceMotion: true, isTransitionActive: false,
+                backgroundRevision: 0, usesSharedGeometry: true)
+            let actor = try XCTUnwrap(HappeningPaletteRenderFrame.make(presentation: presentation,
+                scene: makeScene(), elapsed: 1).actors.first)
+            let rendered = CGPoint(x: Double(actor.gpuActor.position.x) * 390 + 195,
+                                   y: 422 - Double(actor.gpuActor.position.y) * 390)
+            XCTAssertEqual(rendered.x, expectedCenter.x, accuracy: 0.001)
+            XCTAssertEqual(rendered.y, expectedCenter.y, accuracy: 0.001)
+            let hit = HappeningPickerHitShape.make(side: 128, assignment: assignment,
+                state: .removalPreview, reduceMotion: true)
+            let hitFrame = CGRect(x: expectedCenter.x - hit.size.width / 2,
+                y: expectedCenter.y - hit.size.height / 2, width: hit.size.width, height: hit.size.height)
+            XCTAssertTrue(hit.path(in: hitFrame).contains(rendered))
+            XCTAssertTrue(hit.path(in: hitFrame).contains(CGPoint(x: rendered.x + 42, y: rendered.y + 52)),
+                "The visible lower capsule edge follows the same camera as its rendered figure")
+            XCTAssertEqual(world.sources[0].center, CGPoint(x: 200, y: 300), "World labels and hit geometry stay unchanged")
+            XCTAssertEqual(projected.sources[0].radius, 64)
+            XCTAssertEqual(presentation.viewportSize, CGSize(width: 390, height: 844))
+        }
+    }
+
     func testConfirmationPreviewsStayNeutralDuringRevealAndKeepBreathing() throws {
         let scene = makeScene()
         for state in [HappeningPaletteSlotVisualState.additionPreview, .removalPreview] {
@@ -373,6 +407,108 @@ final class DayObjectsPaletteResizeHandoffTests: XCTestCase {
             XCTAssertLessThanOrEqual(max(view.drawableSize.width, view.drawableSize.height), 4096)
             XCTAssertFalse(view.isHidden)
             XCTAssertEqual(view.alpha, 1)
+        }
+    }
+
+    func testSameSizeCameraMoveRequiresItsOwnFrameAndRejectsDelayedPriorCamera() {
+        let viewport = CGSize(width: 393, height: 852)
+        let first = CGPoint(x: 300, y: 400)
+        let second = CGPoint(x: 380, y: 460)
+        let latest = CGPoint(x: -20, y: -30)
+        var handoff = DayObjectsPaletteResizeHandoff()
+        handoff.request(viewportSize: viewport, cameraOrigin: first)
+        XCTAssertTrue(handoff.didPresent(viewportSize: viewport, cameraOrigin: first))
+        handoff.request(viewportSize: viewport, cameraOrigin: second)
+        XCTAssertTrue(handoff.isPending, "The old camera's drawable cannot move to a new world origin")
+        XCTAssertFalse(handoff.canPresent(viewportSize: viewport, boundsSize: viewport, cameraOrigin: first))
+        XCTAssertFalse(handoff.didPresent(viewportSize: viewport, cameraOrigin: first),
+            "A delayed frame for the old camera must not complete the handoff")
+        handoff.request(viewportSize: viewport, cameraOrigin: latest)
+        XCTAssertFalse(handoff.didPresent(viewportSize: viewport, cameraOrigin: second))
+        XCTAssertTrue(handoff.isPending)
+        XCTAssertTrue(handoff.didPresent(viewportSize: viewport, cameraOrigin: latest))
+        XCTAssertFalse(handoff.isPending)
+    }
+
+    @MainActor
+    func testDelayedCameraFrameNeverExposesTheOldDrawableAtTheNewOrigin() {
+        let viewport = CGSize(width: 393, height: 852)
+        let oldCamera = CGPoint(x: 300, y: 400)
+        let newCamera = CGPoint(x: 380, y: 460)
+        let view = DayObjectsDrawableView(frame: CGRect(origin: .zero, size: viewport), device: nil)
+        view.configurePaletteViewportSize(viewport, cameraOrigin: oldCamera)
+        view.didPresentPaletteFrame(viewportSize: viewport, cameraOrigin: oldCamera)
+        XCTAssertFalse(view.isHidden)
+        view.configurePaletteViewportSize(viewport, cameraOrigin: newCamera)
+        // No renderer/drawable is available: the prior image must stay hidden
+        // for any number of delayed display-link turns at the new layer origin.
+        view.synchronizePaletteResizeIfNeeded()
+        XCTAssertTrue(view.isHidden)
+        view.didPresentPaletteFrame(viewportSize: viewport, cameraOrigin: oldCamera)
+        XCTAssertTrue(view.isHidden, "A delayed old-camera completion cannot reveal stale artwork")
+        view.didPresentPaletteFrame(viewportSize: viewport, cameraOrigin: newCamera)
+        XCTAssertFalse(view.isHidden)
+        XCTAssertFalse(view.paletteResizeHandoff.isPending)
+    }
+
+    @MainActor
+    func testPendingCameraDrawsPauseInBackgroundAndResumeAfterActivationAndReattachment() async throws {
+        let viewport = CGSize(width: 393, height: 852)
+        let first = CGPoint(x: 300, y: 400)
+        let second = CGPoint(x: 380, y: 460)
+        let third = CGPoint(x: 420, y: 520)
+        let device = try XCTUnwrap(MTLCreateSystemDefaultDevice())
+        let view = DayObjectsDrawableView(frame: CGRect(origin: .zero, size: viewport), device: device)
+        view.autoResizeDrawable = false
+        view.isPaused = true
+        view.enableSetNeedsDisplay = false
+        let window = UIWindow(frame: CGRect(origin: .zero, size: viewport))
+        let host = UIViewController()
+        window.rootViewController = host
+        host.view.addSubview(view)
+        window.makeKeyAndVisible()
+        host.view.layoutIfNeeded()
+        defer { window.isHidden = true; view.delegate = nil }
+        view.configurePaletteViewportSize(viewport, cameraOrigin: first)
+        view.didPresentPaletteFrame(viewportSize: viewport, cameraOrigin: first)
+        let attempts = PaletteFrameAttemptDelegate()
+        view.delegate = attempts
+        attempts.onDraw = { [weak view] in
+            view?.didPresentPaletteFrame(viewportSize: viewport, cameraOrigin: second)
+        }
+        // Queue a retry while active, then deactivate before it can execute.
+        view.configurePaletteViewportSize(viewport, cameraOrigin: second, isActive: true)
+        view.configurePaletteViewportSize(viewport, cameraOrigin: second, isActive: false)
+        view.synchronizePaletteResizeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(attempts.count, 0, "Queued and explicit camera draws must stop with inactive presentation")
+        view.configurePaletteViewportSize(viewport, cameraOrigin: second, isActive: true)
+        view.synchronizePaletteResizeIfNeeded()
+        XCTAssertEqual(attempts.count, 1, "Activation resumes the pending camera exactly once")
+        XCTAssertFalse(view.paletteResizeHandoff.isPending)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(attempts.count, 1)
+
+        attempts.onDraw = { [weak view] in
+            view?.didPresentPaletteFrame(viewportSize: viewport, cameraOrigin: third)
+        }
+        view.configurePaletteViewportSize(viewport, cameraOrigin: third, isActive: true)
+        view.removeFromSuperview()
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(attempts.count, 1, "Detached views must not consume a queued retry")
+        host.view.addSubview(view)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(attempts.count, 2, "Same-size reattachment resumes the pending camera")
+        XCTAssertFalse(view.paletteResizeHandoff.isPending)
+    }
+
+    private final class PaletteFrameAttemptDelegate: NSObject, MTKViewDelegate {
+        var count = 0
+        var onDraw: (() -> Void)?
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+        func draw(in view: MTKView) {
+            count += 1
+            onDraw?()
         }
     }
 

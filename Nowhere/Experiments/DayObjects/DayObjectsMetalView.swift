@@ -1,5 +1,6 @@
 import CoreMotion
 import MetalKit
+import QuartzCore
 import SwiftUI
 
 /// Supplies the projection of real gravity into portrait canvas coordinates.
@@ -287,10 +288,12 @@ struct DayObjectsMetalView: UIViewRepresentable {
             renderer.configureAnimation(view)
             if let drawableView = view as? DayObjectsDrawableView {
                 let viewportSize: CGSize?
+                let cameraOrigin: CGPoint
                 if case let .happeningPalette(presentation) = presentationMode {
                     viewportSize = presentation.viewportSize
-                } else { viewportSize = nil }
-                drawableView.configurePaletteViewportSize(viewportSize)
+                    cameraOrigin = presentation.cameraOrigin
+                } else { viewportSize = nil; cameraOrigin = .zero }
+                drawableView.configurePaletteViewportSize(viewportSize, cameraOrigin: cameraOrigin, isActive: isAnimating)
                 drawableView.synchronizePaletteResizeIfNeeded()
             }
         }
@@ -299,32 +302,46 @@ struct DayObjectsMetalView: UIViewRepresentable {
 
 
 /// A resized CAMetalLayer must not stretch its previous questionnaire frame
-/// across the All world while waiting for the display link. Only a frame for
-/// the requested viewport can complete this handoff.
+/// across the All world while waiting for the display link. A camera move at
+/// the same size also needs a fresh frame before its layer can move. Only the
+/// requested viewport and camera together can complete this handoff.
 struct DayObjectsPaletteResizeHandoff: Equatable {
     private(set) var requestedViewportSize: CGSize?
     private(set) var presentedViewportSize: CGSize?
+    private(set) var requestedCameraOrigin: CGPoint?
+    private(set) var presentedCameraOrigin: CGPoint?
 
     var isPending: Bool {
-        requestedViewportSize != nil && requestedViewportSize != presentedViewportSize
+        requestedViewportSize != nil && (requestedViewportSize != presentedViewportSize
+            || requestedCameraOrigin != presentedCameraOrigin)
     }
 
-    mutating func request(viewportSize: CGSize?) {
+    var isCameraChangePending: Bool {
+        requestedViewportSize != nil && presentedViewportSize != nil
+            && requestedCameraOrigin != presentedCameraOrigin
+    }
+
+    mutating func request(viewportSize: CGSize?, cameraOrigin: CGPoint = .zero) {
         requestedViewportSize = viewportSize
-        if viewportSize == nil { presentedViewportSize = nil }
+        requestedCameraOrigin = viewportSize == nil ? nil : cameraOrigin
+        if viewportSize == nil {
+            presentedViewportSize = nil
+            presentedCameraOrigin = nil
+        }
     }
 
-    func canPresent(viewportSize: CGSize, boundsSize: CGSize) -> Bool {
+    func canPresent(viewportSize: CGSize, boundsSize: CGSize, cameraOrigin: CGPoint = .zero) -> Bool {
         guard let requestedViewportSize else { return false }
-        return viewportSize == requestedViewportSize
+        return viewportSize == requestedViewportSize && cameraOrigin == requestedCameraOrigin
             && abs(boundsSize.width - viewportSize.width) < 0.5
             && abs(boundsSize.height - viewportSize.height) < 0.5
     }
 
     @discardableResult
-    mutating func didPresent(viewportSize: CGSize) -> Bool {
-        guard viewportSize == requestedViewportSize else { return false }
+    mutating func didPresent(viewportSize: CGSize, cameraOrigin: CGPoint = .zero) -> Bool {
+        guard viewportSize == requestedViewportSize, cameraOrigin == requestedCameraOrigin else { return false }
         presentedViewportSize = viewportSize
+        presentedCameraOrigin = cameraOrigin
         return true
     }
 }
@@ -334,29 +351,78 @@ struct DayObjectsPaletteResizeHandoff: Equatable {
 final class DayObjectsDrawableView: MTKView {
     private(set) var paletteResizeHandoff = DayObjectsPaletteResizeHandoff()
     private var isSynchronizingPaletteResize = false
+    private var isPaletteCameraRetryScheduled = false
+    private(set) var palettePresentationIsActive = true
 
-    func configurePaletteViewportSize(_ size: CGSize?) {
-        paletteResizeHandoff.request(viewportSize: size)
+    func configurePaletteViewportSize(_ size: CGSize?, cameraOrigin: CGPoint = .zero, isActive: Bool = true) {
+        palettePresentationIsActive = isActive
+        paletteResizeHandoff.request(viewportSize: size, cameraOrigin: cameraOrigin)
+        updatePendingCameraVisibility()
+        schedulePaletteCameraRetryIfNeeded()
     }
 
     func synchronizePaletteResizeIfNeeded() {
-        guard paletteResizeHandoff.isPending,
+        guard palettePresentationIsActive, paletteResizeHandoff.isPending,
+              // A paused/detached presentation keeps its latest request for
+              // resume; it must not bypass lifecycle gating with explicit draws.
+              (!paletteResizeHandoff.isCameraChangePending || window != nil),
               let size = paletteResizeHandoff.requestedViewportSize,
-              paletteResizeHandoff.canPresent(viewportSize: size, boundsSize: bounds.size),
+              let camera = paletteResizeHandoff.requestedCameraOrigin,
+              paletteResizeHandoff.canPresent(viewportSize: size, boundsSize: bounds.size, cameraOrigin: camera),
               delegate != nil, !isSynchronizingPaletteResize else { return }
         resizeDrawableToMatchBounds()
         isSynchronizingPaletteResize = true
         defer { isSynchronizingPaletteResize = false }
-        // The first fresh drawable joins the same transaction as the new view
-        // bounds. Normal display-link frames stay asynchronous afterward.
+        // Camera changes, just like size changes, must join the layer's new
+        // position transaction. Reuse scheduled presentation; never wait for
+        // GPU completion. Normal unchanged-camera frames remain asynchronous.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         let prior = presentsWithTransaction
         presentsWithTransaction = true
+        // A failed earlier attempt may have hidden the stale camera. An
+        // explicit draw must run independently of visibility/display-link state.
+        isHidden = false
         draw()
         presentsWithTransaction = prior
+        updatePendingCameraVisibility()
+        CATransaction.commit()
+        schedulePaletteCameraRetryIfNeeded()
     }
 
-    func didPresentPaletteFrame(viewportSize: CGSize) {
-        paletteResizeHandoff.didPresent(viewportSize: viewportSize)
+    func didPresentPaletteFrame(viewportSize: CGSize, cameraOrigin: CGPoint = .zero) {
+        guard paletteResizeHandoff.didPresent(viewportSize: viewportSize, cameraOrigin: cameraOrigin) else { return }
+        updatePendingCameraVisibility()
+    }
+
+    private func updatePendingCameraVisibility() {
+        // Normally draw() resolves this in the same transaction, so no hidden
+        // frame reaches the screen. If drawable acquisition/encoding fails,
+        // labels keep scrolling while stale artwork is withheld and retried.
+        isHidden = paletteResizeHandoff.isCameraChangePending
+    }
+
+    private func schedulePaletteCameraRetryIfNeeded() {
+        guard palettePresentationIsActive, paletteResizeHandoff.isCameraChangePending,
+              window != nil, !isPaletteCameraRetryScheduled else { return }
+        isPaletteCameraRetryScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 60) { [weak self] in
+            guard let self else { return }
+            self.isPaletteCameraRetryScheduled = false
+            // A previously queued retry must recheck both gates after a tab,
+            // scene-phase or window change, rather than drawing in background.
+            guard self.palettePresentationIsActive, self.window != nil else { return }
+            self.synchronizePaletteResizeIfNeeded()
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil, palettePresentationIsActive else { return }
+        // Reattachment may preserve size and skip layout/updateUIView. Resume
+        // a pending camera once its native drawable can be presented again.
+        synchronizePaletteResizeIfNeeded()
+        schedulePaletteCameraRetryIfNeeded()
     }
 
     static func displayScale(for size: CGSize, nativeScale: CGFloat) -> CGFloat {

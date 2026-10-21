@@ -15,6 +15,9 @@ struct HappeningPaletteRenderPresentation: Equatable {
     let isTransitionActive: Bool
     let backgroundRevision: UInt64
     var usesSharedGeometry: Bool = false
+    /// World origin subtracted from sources; also identifies the drawable that
+    /// may be shown at the viewport layer's corresponding world position.
+    var cameraOrigin: CGPoint = .zero
 }
 
 enum DayObjectsPresentationMode: Equatable {

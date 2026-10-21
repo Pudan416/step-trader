@@ -93,8 +93,43 @@ enum HappeningEditorialAssignmentResolver {
 
     static func snapshot(
         request: HappeningEditorialAssignmentRequest,
+        retaining current: HappeningEditorialAssignmentSnapshot? = nil,
         legacySceneFactory: (DayObjectSceneInput) -> DayObjectScene = DayObjectScene.make
     ) -> HappeningEditorialAssignmentSnapshot {
+        if let current {
+            if current.request == request { return current }
+            if request.baseInput.nativeAtlasRecipe?.isSupported == true,
+               request.baseInput.usesEditorialField,
+               current.request.happenings.map(\.id) == request.happenings.map(\.id),
+               current.request.colorNonce == request.colorNonce,
+               nativeAssignmentContext(current.request.baseInput) == nativeAssignmentContext(request.baseInput) {
+                // Available choices are nominal circles. Keep their opening atlas;
+                // only committed/recovered actors expose their frozen native figure.
+                let changed = request.happenings.filter { happening in
+                    guard current.assignments[happening.id] != nil else { return true }
+                    let before = committedElement(for: happening, in: current.request.committedElements)
+                    let after = committedElement(for: happening, in: request.committedElements)
+                    // A removed figure is still returning to its circle. Keep
+                    // that exact contour for the renderer and retiring hit path.
+                    if before != nil && after == nil { return false }
+                    guard before?.id == after?.id,
+                          before?.optionId == after?.optionId,
+                          before?.editorialColorVariant == after?.editorialColorVariant else { return true }
+                    guard let after else { return false }
+                    let id = after.id.uuidString.lowercased()
+                    return current.request.baseInput.nativeAtlasRecipe?.actors.first { $0.eventID == id }
+                        != request.baseInput.nativeAtlasRecipe?.actors.first { $0.eventID == id }
+                }
+                var assignments = current.assignments
+                if !changed.isEmpty {
+                    let updated = snapshot(request: .init(happenings: changed, baseInput: request.baseInput,
+                        committedElements: request.committedElements, colorNonce: request.colorNonce),
+                        legacySceneFactory: legacySceneFactory)
+                    for happening in changed { assignments[happening.id] = updated.assignments[happening.id] }
+                }
+                return .init(request: request, assignments: assignments)
+            }
+        }
         let direction = request.baseInput.nativeAtlasRecipe?.isSupported != true
             && request.baseInput.editorialLabConfiguration?.materialMode == .generativeDNA
             ? DayObjectArtDirectionScheduler.make(dayKey: request.baseInput.dayKey, identity: request.baseInput.identity)
@@ -172,6 +207,26 @@ enum HappeningEditorialAssignmentResolver {
             request: request,
             assignments: assignments
         )
+    }
+
+    private static func committedElement(for happening: Happening, in elements: [CanvasElement]) -> CanvasElement? {
+        elements.first { $0.optionId == happening.id } ?? elements.first {
+            HappeningPaletteSelection.choiceID($0.optionId) == HappeningPaletteSelection.choiceID(happening.id)
+        }
+    }
+
+    /// Remove only occupancy. Every recipe/style/material/palette/account input
+    /// remains in equality so a reroll, hydration or preference change refreshes.
+    private static func nativeAssignmentContext(_ input: DayObjectSceneInput) -> DayObjectSceneInput {
+        var recipe = input.nativeAtlasRecipe
+        recipe?.actors = []
+        return .init(dayKey: input.dayKey, identity: input.identity, eventIDs: [],
+            motionEnergy: input.motionEnergy, visualClarity: input.visualClarity,
+            uiExclusionRegion: input.uiExclusionRegion, canvasCoverage: input.canvasCoverage,
+            paletteCategories: input.paletteCategories, usesEditorialField: input.usesEditorialField,
+            editorialBackground: input.editorialBackground, lowSleep: input.lowSleep,
+            editorialPreview: input.editorialPreview, editorialLabConfiguration: input.editorialLabConfiguration,
+            nativeAtlasRecipe: recipe)
     }
 
     /// Retained for callers that only have uncommitted palette data. New code
