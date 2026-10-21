@@ -38,6 +38,10 @@ python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 bash Scripts/check-secrets-config.sh
 ```
 
+CI checks the zero-data Health permissions UI before the full unit suite and
+retains its log and result bundle. A supported device with no visible Health
+samples shows the neutral “No data yet” state without an urgent warning.
+
 The Screen Time contract checks run the production session and registration code
 against a deterministic daemon substitute. They cover delayed thresholds, concurrent
 top-ups/recovery, callback delivery during registration, failed purchases and rollback

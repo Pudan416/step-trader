@@ -3,7 +3,8 @@ name: CI
 # In-repo quality gate. Previously the only test automation was the Xcode Cloud
 # post-clone secret script, configured invisibly in App Store Connect — nothing
 # in the repo proved the tests ran. This workflow runs the iOS unit tests and
-# typechecks/lints the two TypeScript admin surfaces on every push and PR.
+# verifies the zero-data Health UI and typechecks/lints both TypeScript admin
+# surfaces on every push and PR.
 
 on:
   push:
@@ -20,7 +21,7 @@ jobs:
     # The app uses the iOS 26 Liquid Glass API (`Glass`), which Xcode 16 cannot
     # parse even behind @available. macOS 26 runners ship Xcode 26.
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +49,24 @@ jobs:
 
       - name: Verify Screen Time callback contract
         run: python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
+
+      - name: Verify zero-data Health UI
+        # This first simulator invocation also builds the app and test bundles.
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Nowhere.xcodeproj \
+            -scheme Nowhere \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -parallel-testing-enabled NO \
+            -only-testing:NowhereUITests/SettingsRedesignUITests/testZeroHealthDataDoesNotClaimConnectionOrProduceUrgentWarning \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 180 \
+            -resultBundlePath "$RUNNER_TEMP/HealthZeroDataUI.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/HealthZeroDataUI.log"
 
       - name: Run NowhereTests
         # The one live 100-remix deadline test runs in the required optimized
@@ -83,6 +102,8 @@ jobs:
         with:
           name: ios-test-results
           path: |
+            ${{ runner.temp }}/HealthZeroDataUI.xcresult
+            ${{ runner.temp }}/HealthZeroDataUI.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks
