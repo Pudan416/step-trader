@@ -278,6 +278,7 @@ jobs:
       - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm run lint
+      - run: node --test tests/admin-authorization.test.mjs
 
   tg-admin:
     name: tg-admin (typecheck)
