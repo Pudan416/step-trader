@@ -122,3 +122,27 @@ first and retrieve a specific old document only when the question requires it.
 Update existing maintained pages rather than adding a new report for each change.
 Never commit personal chat archives or machine-specific output paths. Do not rewrite
 shared Git history or delete dirty worktrees to reclaim disk space.
+
+## Backend migration regression
+
+`python3 supabase/tests/migration-replay.py` requires a localhost PostgreSQL
+server, `psql`/`createdb`/`dropdb` on PATH and Supabase CLI 2.121.0 (`supabase`,
+or set `SUPABASE_CLI`). Set `PGPORT`, `PGUSER` and `PGPASSWORD` for that local
+server as needed. The script creates/drops its own databases and refuses
+non-local hosts. CI runs PostgreSQL 17 and the pinned CLI.
+
+The real CLI applies every active migration against minimal Supabase-owned
+auth/storage fixtures. Tests cover a fresh baseline and both historical names
+for the recorded `20260711` version, check trigger-function permissions and
+profile synchronization, and preserve the existing ledger. This tests public
+SQL and CLI history handling, not the complete Supabase stack or production
+schema parity.
+
+Supabase keys migration history by numeric prefix. Both historical
+`20260711_*` files therefore collided (`schema_migrations_pkey`, 23505).
+Their complete security operation now lives under the retained
+`20260711_drop_public_leaderboard_read_policy.sql` identity; the original second
+file remains in `archive/`. A separate forward migration repeats both effects
+idempotently for projects that already recorded either name under `20260711`.
+No deployed migration-history repair is required. The obsolete auth helper is
+only locked down when present; fresh databases never recreate it.
