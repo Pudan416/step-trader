@@ -93,32 +93,10 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/HealthZeroDataUI.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/HealthZeroDataUI.log"
 
-      - name: Run isolated live-audio lifecycle regressions
-        # Run the Swift Testing audio suite in fresh hosts, three times each.
-        # Every failure still fails the gate; these are not failure retries.
-        timeout-minutes: 15
-        run: |
-          set -o pipefail
-          xcodebuild test \
-            -project Nowhere.xcodeproj \
-            -scheme Nowhere \
-            -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
-            -parallel-testing-enabled NO \
-            -only-testing:NowhereTests/DayObjectsLiveAudioLifecycleTests \
-            -test-iterations 3 \
-            -test-repetition-relaunch-enabled YES \
-            -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 180 \
-            -maximum-test-execution-time-allowance 180 \
-            -collect-test-diagnostics on-failure \
-            -resultBundlePath "$RUNNER_TEMP/AudioLifecycleTests.xcresult" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/AudioLifecycleTests.log"
-
       - name: Run NowhereTests
-        # The one live 100-remix deadline test runs in the required optimized
-        # Release job below; all other tests, including deterministic remix
-        # lifecycle/allocation coverage, remain in Debug.
+        # The live 100-remix deadline test and two heavy real-audio lifecycle
+        # scenarios run in the required optimized Release job below. All other
+        # tests, including deterministic lifecycle/allocation tests, stay in Debug.
         timeout-minutes: 80
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
         # hop) was fixed by polling deterministically, so the global
@@ -136,7 +114,8 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -only-testing:NowhereTests \
             -skip-testing:NowhereTests/DayObjectsRemixCoordinatorTests/testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts \
-            -skip-testing:NowhereTests/DayObjectsLiveAudioLifecycleTests \
+            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops \
+            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 900 \
             -maximum-test-execution-time-allowance 900 \
@@ -152,8 +131,6 @@ jobs:
           path: |
             ${{ runner.temp }}/HealthZeroDataUI.xcresult
             ${{ runner.temp }}/HealthZeroDataUI.log
-            ${{ runner.temp }}/AudioLifecycleTests.xcresult
-            ${{ runner.temp }}/AudioLifecycleTests.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks
@@ -229,9 +206,36 @@ jobs:
             'OTHER_SWIFT_FLAGS=$(inherited) -D INTERNAL_BUILD' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/ReleaseAudio.log"
 
-      - name: Confirm the live stress test executed
+      - name: Verify repeated Release audio lifecycle regressions
+        # Unoptimized DSP overload can starve Simulator RemoteIO and abort
+        # AVAudioPlayerNode ("player did not see an IO cycle"). Exercise the
+        # original assertions with shipped optimization, three fresh-host runs.
+        # Any failed repetition fails this gate; there are no failure retries.
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Nowhere.xcodeproj -scheme Nowhere -configuration Release \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -derivedDataPath "$RUNNER_TEMP/ReleaseAudio" \
+            -parallel-testing-enabled NO \
+            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops \
+            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords \
+            -test-iterations 3 \
+            -test-repetition-relaunch-enabled YES \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 180 \
+            -collect-test-diagnostics on-failure \
+            -resultBundlePath "$RUNNER_TEMP/AudioLifecycleTests.xcresult" \
+            ENABLE_TESTABILITY=YES ENABLE_CODE_COVERAGE=NO \
+            'OTHER_SWIFT_FLAGS=$(inherited) -D INTERNAL_BUILD' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/AudioLifecycleTests.log"
+
+      - name: Confirm all required live audio tests executed
         run: |
           xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/ReleaseSmudge.xcresult" --compact > "$RUNNER_TEMP/ReleaseAudioTests.json"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/AudioLifecycleTests.xcresult" --compact > "$RUNNER_TEMP/AudioLifecycleTests.json"
           python3 - <<'PYCODE'
           import json, os, pathlib
           expected = "DayObjectsRemixCoordinatorTests/testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts()"
@@ -246,6 +250,24 @@ jobs:
           visit(json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "ReleaseAudioTests.json").read_text()))
           assert found == ["Passed"], f"Required live stress test missing, skipped or failed: {found}"
           print("Required optimized 100-remix test passed")
+          lifecycle_names = {
+              "DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops()",
+              "DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords()",
+          }
+          lifecycle_results = {}
+          def visit_lifecycle(node):
+              if isinstance(node, dict):
+                  if node.get("nodeType") == "Test Case" and node.get("nodeIdentifier") in lifecycle_names:
+                      lifecycle_results[node["nodeIdentifier"]] = [
+                          child.get("result") for child in node.get("children", [])
+                          if child.get("nodeType") == "Repetition"
+                      ]
+                  for child in node.values(): visit_lifecycle(child)
+              elif isinstance(node, list):
+                  for child in node: visit_lifecycle(child)
+          visit_lifecycle(json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "AudioLifecycleTests.json").read_text()))
+          assert lifecycle_results == {name: ["Passed"] * 3 for name in lifecycle_names}, f"Required lifecycle repetitions missing, skipped or failed: {lifecycle_results}"
+          print("Both optimized audio lifecycle tests passed all three repetitions")
           PYCODE
 
       - name: Retain Release audio and Smudge test results
@@ -255,6 +277,9 @@ jobs:
           name: release-smudge-results
           path: |
             ${{ runner.temp }}/ReleaseSmudge.xcresult
+            ${{ runner.temp }}/AudioLifecycleTests.xcresult
+            ${{ runner.temp }}/AudioLifecycleTests.log
+            ${{ runner.temp }}/AudioLifecycleTests.json
             ${{ runner.temp }}/ReleaseAudio.log
             ${{ runner.temp }}/ReleaseAudioTests.json
             ${{ runner.temp }}/release-test-stacks
