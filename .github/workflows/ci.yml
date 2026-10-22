@@ -95,8 +95,9 @@ jobs:
 
       - name: Run NowhereTests
         # The live 100-remix deadline test and two heavy real-audio lifecycle
-        # scenarios run in the required optimized Release job below. All other
-        # tests, including deterministic lifecycle/allocation tests, stay in Debug.
+        # scenarios run in the required optimized Release job below. The two
+        # remaining live allocation tests run in fresh Debug hosts immediately
+        # after this bulk suite; all original assertions remain required.
         timeout-minutes: 80
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
         # hop) was fixed by polling deterministically, so the global
@@ -116,12 +117,65 @@ jobs:
             -skip-testing:NowhereTests/DayObjectsRemixCoordinatorTests/testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts \
             -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops \
             -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords \
+            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeTwentyFiveSoundCyclesPreserveRealFixedAllocationsAndDrain \
+            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeUsesFourMusicalAndFourMaterialPlayersWithOneSharedEngineStart \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 900 \
             -maximum-test-execution-time-allowance 900 \
             -collect-test-diagnostics on-failure \
             -resultBundlePath "$RUNNER_TEMP/NowhereTests.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/NowhereTests.log"
+
+      - name: Verify isolated Debug audio allocation regressions
+        # These original assertions aborted the async XCTest host after the long
+        # shared suite. Keep Debug optimization and all original assertions.
+        # Each repetition starts a new process; any failed repetition fails this job.
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Nowhere.xcodeproj -scheme Nowhere -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -parallel-testing-enabled NO \
+            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeTwentyFiveSoundCyclesPreserveRealFixedAllocationsAndDrain \
+            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeUsesFourMusicalAndFourMaterialPlayersWithOneSharedEngineStart \
+            -test-iterations 3 \
+            -test-repetition-relaunch-enabled YES \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 900 \
+            -maximum-test-execution-time-allowance 900 \
+            -collect-test-diagnostics on-failure \
+            -resultBundlePath "$RUNNER_TEMP/DebugAudioIsolation.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/DebugAudioIsolation.log"
+
+      - name: Confirm isolated Debug audio tests executed
+        run: |
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/DebugAudioIsolation.xcresult" --compact > "$RUNNER_TEMP/DebugAudioIsolationTests.json"
+          python3 - <<'PYCODE'
+          import json, os, pathlib
+          names = {
+              "DayObjectsMusicPlaybackEngineTests/testLiveRuntimeTwentyFiveSoundCyclesPreserveRealFixedAllocationsAndDrain()",
+              "DayObjectsMusicPlaybackEngineTests/testLiveRuntimeUsesFourMusicalAndFourMaterialPlayersWithOneSharedEngineStart()",
+          }
+          results = {name: [] for name in names}
+          def all_passed(node):
+              if isinstance(node, dict):
+                  return node.get("result", "Passed") == "Passed" and all(all_passed(child) for child in node.values())
+              if isinstance(node, list):
+                  return all(all_passed(child) for child in node)
+              return True
+          def visit(node):
+              if isinstance(node, dict):
+                  if node.get("nodeType") == "Test Case" and node.get("nodeIdentifier") in names:
+                      repetitions = [(child.get("nodeIdentifier"), child.get("result")) for child in node.get("children", []) if child.get("nodeType") == "Repetition"]
+                      results[node["nodeIdentifier"]].append((node.get("result"), repetitions, all_passed(node)))
+                  for child in node.values(): visit(child)
+              elif isinstance(node, list):
+                  for child in node: visit(child)
+          visit(json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "DebugAudioIsolationTests.json").read_text()))
+          assert results == {name: [("Passed", [(str(index), "Passed") for index in range(1, 4)], True)] for name in names}, f"Required isolated Debug repetitions missing, duplicated, skipped or failed: {results}"
+          print("Both Debug allocation tests passed all three fresh-host repetitions")
+          PYCODE
 
       - name: Retain iOS test results and crash diagnostics
         if: always()
@@ -133,6 +187,9 @@ jobs:
             ${{ runner.temp }}/HealthZeroDataUI.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
+            ${{ runner.temp }}/DebugAudioIsolation.xcresult
+            ${{ runner.temp }}/DebugAudioIsolation.log
+            ${{ runner.temp }}/DebugAudioIsolationTests.json
             ${{ runner.temp }}/test-stacks
             ${{ runner.temp }}/host-audio.json
             ${{ runner.temp }}/host-audio-routing.json
