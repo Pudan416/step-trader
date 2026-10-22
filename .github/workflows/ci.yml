@@ -53,6 +53,28 @@ jobs:
       - name: Verify Canvas palette rollover contract
         run: python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
 
+      - name: Verify host audio output
+        # Simulator RemoteIO depends on the runner's virtual CoreAudio device.
+        # Configure Debug live-audio tests too; an unconfigured route can hang
+        # RemoteIO while AVAudioEngine.stop waits for its IO thread to exit.
+        # Record and exercise it before launching tests; fail if it cannot play.
+        timeout-minutes: 2
+        run: |
+          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio.json"
+          swift Scripts/configure_ci_audio.swift > "$RUNNER_TEMP/host-audio-routing.json"
+          system_profiler SPAudioDataType -json > "$RUNNER_TEMP/host-audio-after.json"
+          python3 - <<'PY'
+          import os, pathlib, subprocess, wave
+          audio = pathlib.Path(os.environ["RUNNER_TEMP"]) / "audio-device-check.wav"
+          with wave.open(str(audio), "wb") as output:
+              output.setnchannels(2)
+              output.setsampwidth(2)
+              output.setframerate(44100)
+              output.writeframes(bytes(4410 * 4))
+          subprocess.run(["afplay", str(audio)], check=True, timeout=30)
+          print("Host audio playback completed")
+          PY
+
       - name: Verify zero-data Health UI
         # This first simulator invocation also builds the app and test bundles.
         timeout-minutes: 20
@@ -110,6 +132,9 @@ jobs:
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks
+            ${{ runner.temp }}/host-audio.json
+            ${{ runner.temp }}/host-audio-routing.json
+            ${{ runner.temp }}/host-audio-after.json
             ~/Library/Logs/DiagnosticReports
           retention-days: 7
           if-no-files-found: warn
