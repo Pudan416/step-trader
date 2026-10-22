@@ -643,22 +643,6 @@ final class HappeningFieldLayoutTests: XCTestCase {
         XCTAssertEqual(state.confirmation, .removed("event_walk"))
     }
 
-    func testDayRolloverPaletteStateClosesCreatorAndRestoresChrome() {
-        var state = CanvasPalettePresentationState(
-            isPresented: true,
-            activePanel: .creator
-        )
-
-        state.closeForDayRollover()
-
-        XCTAssertFalse(state.isPresented)
-        XCTAssertNil(state.activePanel)
-        XCTAssertFalse(CanvasPaletteRouteState.blocksTabBar(
-            isCanvasSelected: true,
-            isPaletteVisible: state.isPresented
-        ))
-    }
-
     func testFailedEmptyCanonicalSaveKeepsCanvasAndMatchingDomainAddition() {
         let date = Date(timeIntervalSince1970: 1_786_176_000)
         let model = makeRemovalModel()

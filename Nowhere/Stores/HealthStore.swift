@@ -13,6 +13,7 @@ enum HealthQueryOutcome: String, Equatable {
 final class HealthStore: ObservableObject {
     // Dependencies
     private let healthKitService: any HealthKitServiceProtocol
+    private let defaults: UserDefaults
     
     // Published State
     @Published var stepsToday: Double = 0
@@ -29,9 +30,11 @@ final class HealthStore: ObservableObject {
     @Published private(set) var sleepQueryOutcome: HealthQueryOutcome = .idle
     private var stepsQueryID: UUID?
     private var sleepQueryID: UUID?
+    private var stepsObservationID: UUID?
     
-    init(healthKitService: any HealthKitServiceProtocol) {
+    init(healthKitService: any HealthKitServiceProtocol, defaults: UserDefaults = .nowhere()) {
         self.healthKitService = healthKitService
+        self.defaults = defaults
         self.authorizationStatus = healthKitService.authorizationStatus()
         loadCachedStepsToday()
         loadCachedSleepToday()
@@ -62,22 +65,33 @@ final class HealthStore: ObservableObject {
         // or .sharingDenied, so guarding on .sharingAuthorized silently blocks step fetching
         // for most users.
         let before = stepsToday
+        let now = Date.now
+        let dayStart = currentDayStart(for: now)
         let queryID = UUID()
         stepsQueryID = queryID
         stepsQueryOutcome = .loading
+        defer {
+            if stepsQueryID == queryID, stepsQueryOutcome == .loading {
+                stepsQueryID = nil
+                stepsQueryOutcome = .idle
+            }
+        }
         do {
             let trace = HealthQueryTrace()
-            stepsToday = try await HealthQueryTrace.$current.withValue(trace) {
-                try await fetchStepsForCurrentDay()
+            let steps = try await HealthQueryTrace.$current.withValue(trace) {
+                try await healthKitService.fetchSteps(from: dayStart, to: now)
             }
-            if stepsQueryID == queryID {
-                stepsQueryOutcome = trace.didFail ? .failed : stepsToday > 0 ? .available : .empty
-            }
+            guard stepsQueryID == queryID, currentDayStart(for: .now) == dayStart,
+                  !Task.isCancelled else { return }
+            stepsToday = steps
+            stepsQueryOutcome = trace.didFail ? .failed : steps > 0 ? .available : .empty
             hasStepsData = true
             cacheStepsToday()
             AppLogger.healthKit.info("👣 refreshSteps: \(Int(before)) → \(Int(self.stepsToday)) (fetched OK, cached)")
         } catch {
-            if stepsQueryID == queryID { stepsQueryOutcome = .failed }
+            guard stepsQueryID == queryID, currentDayStart(for: .now) == dayStart,
+                  !Task.isCancelled, !(error is CancellationError) else { return }
+            stepsQueryOutcome = .failed
             AppLogger.healthKit.error("👣 refreshSteps FAILED: \(error.localizedDescription), was \(Int(before))")
             loadCachedStepsToday()
             if Self.isUnavailableHealthData(error) {
@@ -91,24 +105,33 @@ final class HealthStore: ObservableObject {
     }
     
     func refreshSleepIfAuthorized() async {
+        let now = Date.now
+        let dayStart = currentDayStart(for: now)
         let queryID = UUID()
         sleepQueryID = queryID
         sleepQueryOutcome = .loading
+        defer {
+            if sleepQueryID == queryID, sleepQueryOutcome == .loading {
+                sleepQueryID = nil
+                sleepQueryOutcome = .idle
+            }
+        }
         let status = healthKitService.sleepAuthorizationStatus()
         AppLogger.healthKit.debug("🛌 HealthKit sleep write-status: \(status.rawValue)")
         // authorizationStatus reports WRITE permission. Read access can still be allowed when status is denied.
         do {
-            let now = Date.now
-            let start = currentDayStart(for: now)
-            dailySleepHours = try await healthKitService.fetchSleep(from: start, to: now)
-            if sleepQueryID == queryID {
-                sleepQueryOutcome = dailySleepHours > 0 ? .available : .empty
-            }
+            let hours = try await healthKitService.fetchSleep(from: dayStart, to: now)
+            guard sleepQueryID == queryID, currentDayStart(for: .now) == dayStart,
+                  !Task.isCancelled else { return }
+            dailySleepHours = hours
+            sleepQueryOutcome = hours > 0 ? .available : .empty
             hasSleepData = true
             cacheSleepToday()
             AppLogger.healthKit.debug("🛌 Fetched sleep hours: \(String(format: "%.2f", self.dailySleepHours))h")
         } catch {
-            if sleepQueryID == queryID { sleepQueryOutcome = .failed }
+            guard sleepQueryID == queryID, currentDayStart(for: .now) == dayStart,
+                  !Task.isCancelled, !(error is CancellationError) else { return }
+            sleepQueryOutcome = .failed
             AppLogger.healthKit.error("⚠️ Failed to refresh sleep: \(error.localizedDescription)")
             loadCachedSleepToday()
             if Self.isUnavailableHealthData(error) {
@@ -159,20 +182,20 @@ final class HealthStore: ObservableObject {
 
     // MARK: - Helpers
     private func currentDayStart(for date: Date) -> Date {
-        let (hour, minute) = DayBoundary.storedDayEnd()
+        let (hour, minute) = DayBoundary.storedDayEnd(group: defaults)
         return DayBoundary.currentDayStart(for: date, dayEndHour: hour, dayEndMinute: minute)
     }
     
     // MARK: - Caching
     private func cacheStepsToday() {
-        let g = UserDefaults.nowhere()
+        let g = defaults
         g.set(stepsToday, forKey: SharedKeys.cachedStepsToday)
         g.set(true, forKey: SharedKeys.hasStepsData)
     }
     
     private func loadCachedStepsToday() {
-        let g = UserDefaults.nowhere()
-        let (hour, minute) = DayBoundary.storedDayEnd()
+        let g = defaults
+        let (hour, minute) = DayBoundary.storedDayEnd(group: defaults)
         if let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date,
            DayBoundary.isPersistedDayBehind(anchor: anchor, relativeTo: .now, dayEndHour: hour, dayEndMinute: minute) {
             AppLogger.healthKit.info("👣 loadCache: STALE anchor \(anchor), clearing to 0")
@@ -189,24 +212,33 @@ final class HealthStore: ObservableObject {
     private static let cachedSleepKey = "cachedSleepHoursToday"
 
     private func cacheSleepToday() {
-        UserDefaults.nowhere().set(dailySleepHours, forKey: Self.cachedSleepKey)
+        defaults.set(dailySleepHours, forKey: Self.cachedSleepKey)
     }
 
     private func loadCachedSleepToday() {
-        let cached = UserDefaults.nowhere().double(forKey: Self.cachedSleepKey)
+        let cached = defaults.double(forKey: Self.cachedSleepKey)
         if cached > 0 { dailySleepHours = cached }
     }
     
     func clearCachedStepCount() {
+        // Daily rollover and sign-out invalidate sleep as well as steps, even
+        // when no replacement refresh has started yet.
+        stopObservingSteps()
         healthKitService.clearLastStepCount()
     }
 
     // MARK: - Observation
     @MainActor
     func startObservingSteps() {
+        guard stepsObservationID == nil else { return }
+        let observationID = UUID()
+        stepsObservationID = observationID
+        let dayStart = currentDayStart(for: .now)
         healthKitService.startObservingSteps { [weak self] (steps: Double) in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, self.stepsObservationID == observationID,
+                      self.currentDayStart(for: .now) == dayStart else { return }
+                self.stepsQueryOutcome = steps > 0 ? .available : .empty
                 let before = self.stepsToday
                 self.stepsToday = steps
                 self.hasStepsData = true
@@ -218,6 +250,11 @@ final class HealthStore: ObservableObject {
     
     @MainActor
     func stopObservingSteps() {
+        stepsObservationID = nil
+        stepsQueryID = nil
+        sleepQueryID = nil
+        stepsQueryOutcome = .idle
+        sleepQueryOutcome = .idle
         healthKitService.stopObservingSteps()
     }
 }

@@ -35,6 +35,7 @@ xcodebuild -project Nowhere.xcodeproj -scheme Nowhere \
 python3 Scripts/check_canvas_audio_bundle.py \
   /tmp/nowhere-release/Build/Products/Release-iphoneos/Nowhere.app
 python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
+python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
 bash Scripts/check-secrets-config.sh
 ```
 
@@ -45,7 +46,10 @@ samples shows the neutral “No data yet” state without an urgent warning.
 The Screen Time contract checks run the production session and registration code
 against a deterministic daemon substitute. They cover delayed thresholds, concurrent
 top-ups/recovery, callback delivery during registration, failed purchases and rollback
-of widget balances. They do not validate delivery timing on a physical iPhone.
+of widget balances. Paid selections also override overlapping group blockers and
+remain exceptions to category shields. The palette rollover contract executes
+Gallery's actual close/reset methods, including the explorer and survey draft.
+These checks do not validate Screen Time delivery timing on a physical iPhone.
 
 The unsigned Release command verifies compilation and resources; it does not make
 an installable signed build. For device installation follow [AGENTS.md](../AGENTS.md):

@@ -2422,14 +2422,7 @@ struct GalleryView: View {
     /// this one reset so the palette, chooser, and hidden tab chrome
     /// cannot survive into a new day.
     private func rollOverCanvas(to newKey: String) {
-        var paletteState = CanvasPalettePresentationState(
-            isPresented: showHappeningPalette,
-            activePanel: happeningPalettePanel
-        )
-        paletteState.closeForDayRollover()
-        cancelPaletteInteraction()
-        happeningPalettePanel = paletteState.activePanel
-        showHappeningPalette = paletteState.isPresented
+        closeHappeningPalette()
         loadTask?.cancel()
         loadTask = nil
         activeDayKey = newKey

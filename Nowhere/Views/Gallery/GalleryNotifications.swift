@@ -347,16 +347,6 @@ enum CanvasHappeningEntryResolver {
     }
 }
 
-struct CanvasPalettePresentationState: Equatable {
-    var isPresented: Bool
-    var activePanel: HappeningPalettePanel?
-
-    mutating func closeForDayRollover() {
-        isPresented = false
-        activePanel = nil
-    }
-}
-
 /// Render-only launch positions. Canonical `DayCanvas` data always keeps the
 /// generated destination so an unrelated save can never persist a flight frame.
 struct CanvasSpawnPresentationState {
