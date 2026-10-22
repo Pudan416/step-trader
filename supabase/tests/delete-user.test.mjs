@@ -5,14 +5,14 @@ import vm from 'node:vm';
 import { stripTypeScriptTypes } from 'node:module';
 
 // Execute the actual handler with network/admin surfaces replaced by a recorder.
-function loadHandler() {
+function loadHandler({ avatarErrors = [], profileErrors = [], authErrors = [] } = {}) {
   let handler;
   const calls = [];
   const admin = {
     auth: { getUser: async () => ({data: {user: {id: 'caller'}}, error: null}),
-      admin: {deleteUser: async id => { calls.push(['auth-delete', id]); return {error:null}; }} },
-    storage: {from: () => ({remove: async paths => {calls.push(['avatar-delete',paths]); return {error:null};}})},
-    from: () => ({delete: () => ({eq: async (_,id) => {calls.push(['profile-delete',id]);return {error:null};}})})
+      admin: {deleteUser: async id => { calls.push(['auth-delete', id]); return {error:authErrors.shift() ?? null}; }} },
+    storage: {from: () => ({remove: async paths => {calls.push(['avatar-delete',paths]); return {data:[],error:avatarErrors.shift() ?? null};}})},
+    from: () => ({delete: () => ({eq: async (_,id) => {calls.push(['profile-delete',id]);return {error:profileErrors.shift() ?? null};}})})
   };
   const source = readFileSync(new URL('../functions/delete-user/index.ts', import.meta.url),'utf8')
     .replace(/^import .*;\n/gm, '');
@@ -38,4 +38,45 @@ test('POST deletes only authenticated caller, ignoring a forged body user id',as
   const response=await handler(new Request('https://example.test',{method:'POST',headers:{Authorization:'Bearer valid'},body:JSON.stringify({user_id:'victim'})}));
   assert.equal(response.status,200);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)),[['avatar-delete',['caller.jpg']],['profile-delete','caller'],['auth-delete','caller']]);
+});
+
+function deleteRequest() {
+  return new Request('https://example.test', {
+    method: 'POST', headers: { Authorization: 'Bearer valid' }
+  });
+}
+
+for (const stage of ['avatar', 'profile']) {
+  test(`${stage} cleanup failure preserves auth identity and allows retry`, async () => {
+    const { handler, calls } = loadHandler({
+      [`${stage}Errors`]: [{ message: 'Temporary cleanup failure' }, null]
+    });
+    const failed = await handler(deleteRequest());
+    assert.equal(failed.status, 500);
+    assert.equal((await failed.json()).success, undefined);
+    assert.equal(calls.some(([operation]) => operation === 'auth-delete'), false);
+    if (stage === 'avatar') {
+      assert.equal(calls.some(([operation]) => operation === 'profile-delete'), false);
+    }
+
+    calls.length = 0;
+    const retried = await handler(deleteRequest());
+    assert.equal(retried.status, 200);
+    assert.equal((await retried.json()).success, true);
+    assert.deepEqual(calls.map(([operation]) => operation),
+      ['avatar-delete', 'profile-delete', 'auth-delete']);
+  });
+}
+
+test('auth deletion failure reports failure and can retry after cleanup already succeeded', async () => {
+  const { handler, calls } = loadHandler({ authErrors: [{ message: 'Temporary auth failure' }, null] });
+  const failed = await handler(deleteRequest());
+  assert.equal(failed.status, 500);
+  assert.equal((await failed.json()).success, undefined);
+  calls.length = 0;
+  const retried = await handler(deleteRequest());
+  assert.equal(retried.status, 200);
+  assert.equal((await retried.json()).success, true);
+  assert.deepEqual(calls.map(([operation]) => operation),
+    ['avatar-delete', 'profile-delete', 'auth-delete']);
 });

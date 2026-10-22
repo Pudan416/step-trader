@@ -46,10 +46,19 @@ Deno.serve(async (req) => {
 
   const userId = user.id;
 
-  // Remove avatar from storage (ignore errors — file may not exist)
-  await supabaseAdmin.storage.from("avatars").remove([`${userId}.jpg`]);
+  // Complete required cleanup before deleting the identity needed to retry.
+  // Removing an already-absent object succeeds with an empty result.
+  const { error: avatarError } = await supabaseAdmin.storage
+    .from("avatars").remove([`${userId}.jpg`]);
+  if (avatarError) {
+    console.error("Failed to delete avatar:", avatarError.message);
+    return new Response(JSON.stringify({ error: "Account cleanup failed. Please try again." }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
-  // Delete public.users row explicitly (should cascade via FK, but be safe)
+  // public.users has no FK to auth.users; this cleanup must succeed explicitly.
   const { error: rowError } = await supabaseAdmin
     .from("users")
     .delete()
@@ -57,6 +66,10 @@ Deno.serve(async (req) => {
 
   if (rowError) {
     console.error("Failed to delete public.users row:", rowError.message);
+    return new Response(JSON.stringify({ error: "Account cleanup failed. Please try again." }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Delete the auth user — this cascades to all tables with ON DELETE CASCADE
