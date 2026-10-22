@@ -299,6 +299,80 @@ final class EnergyRecalcTests: XCTestCase {
         XCTAssertEqual(model.activityPointsToday, 5)
     }
 
+    func testColdRolloverArchivesPersistedHappeningsBeforeClearingToday() throws {
+        let snapshotURL = PersistenceManager.pastDaySnapshotsFileURL
+        let originalSnapshots = try? Data(contentsOf: snapshotURL)
+        defer {
+            if let originalSnapshots {
+                try? originalSnapshots.write(to: snapshotURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: snapshotURL)
+            }
+        }
+
+        for daysAgo in [1, 3] {
+            for boundaryHour in [0, 4] {
+                clearDefaults()
+                let model = makeModel()
+                model.dayEndHour = boundaryHour
+                model.dayEndMinute = 30
+                defaults.set(8.0, forKey: SharedKeys.userSleepTarget)
+                let oldDay = try XCTUnwrap(Calendar.current.date(
+                    byAdding: .day, value: -daysAgo, to: model.currentDayStart(for: .now)
+                ))
+                let oldKey = AppModel.dayKey(for: oldDay)
+                let entry = OptionEntry(
+                    id: UUID().uuidString, dayKey: oldKey, optionId: "event_walk",
+                    colorHex: "#CC5050", timestamp: oldDay, assetVariant: nil
+                )
+                let originalCanvas = CanvasStorageService.shared.loadCanvas(for: oldKey)
+                var canvas = DayCanvas(dayKey: oldKey)
+                canvas.elements = [CanvasElement.spawn(
+                    optionId: "event_walk", label: "Walking", existingElements: [], dayKey: oldKey,
+                    composition: DayComposition.forDay(dayKey: oldKey, happeningCount: 0)
+                )]
+                CanvasStorageService.shared.saveCanvas(canvas)
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = .sortedKeys
+                let savedElements = try encoder.encode(XCTUnwrap(
+                    CanvasStorageService.shared.loadCanvas(for: oldKey)?.elements
+                ))
+                defer {
+                    if let originalCanvas {
+                        CanvasStorageService.shared.saveCanvas(originalCanvas)
+                    } else {
+                        CanvasStorageService.shared.deleteCanvas(for: oldKey)
+                    }
+                }
+                defaults.set(try JSONEncoder().encode([entry]), forKey: SharedKeys.todayAdditions)
+                defaults.set(oldDay, forKey: SharedKeys.dailyEnergyAnchor)
+                defaults.set(8.0, forKey: SharedKeys.dailySleepHours)
+                defaults.set(31, forKey: SharedKeys.baseEnergyToday)
+                defaults.set(4, forKey: SharedKeys.spentStepsToday)
+                XCTAssertTrue(model.todayAdditions.isEmpty, "Start with a cold in-memory model")
+
+                model.loadDailyEnergyState()
+
+                let archived = try XCTUnwrap(model.loadPastDaySnapshots()[oldKey])
+                XCTAssertEqual(archived.happeningIds, ["event_walk"])
+                XCTAssertEqual(archived.inkEarned, 31)
+                XCTAssertEqual(archived.inkSpent, 4)
+                XCTAssertEqual(archived.happeningTagCounts,
+                               HappeningTagging.counts(for: ["event_walk"], catalog: model.happeningStore.all))
+                XCTAssertTrue(model.todayAdditions.isEmpty)
+                XCTAssertEqual(model.spentStepsToday, 0)
+                XCTAssertEqual(try encoder.encode(XCTUnwrap(
+                    CanvasStorageService.shared.loadCanvas(for: oldKey)?.elements
+                )), savedElements)
+                let persisted = try XCTUnwrap(defaults.data(forKey: SharedKeys.todayAdditions))
+                XCTAssertTrue(try JSONDecoder().decode([OptionEntry].self, from: persisted).isEmpty)
+                XCTAssertTrue(model.isSameCustomDay(
+                    try XCTUnwrap(defaults.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date), .now
+                ))
+            }
+        }
+    }
+
     // MARK: - Sleep points: assumed vs real
 
     func testSleepPointsToday_assumedWhenNoData() {
