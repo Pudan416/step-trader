@@ -15,7 +15,22 @@ class AuthenticationService: NSObject, ObservableObject {
     
     static let shared = AuthenticationService()
     // `internal` (not private) so the +SupabaseREST extension can reach it. (§9.2)
-    let network = NetworkClient.shared
+    let network: NetworkClient
+
+    /// Async responses may only publish into the session that started them.
+    private(set) var sessionGeneration = UUID()
+
+    func checkSessionGeneration(_ generation: UUID) throws {
+        try Task.checkCancellation()
+        guard sessionGeneration == generation else { throw CancellationError() }
+    }
+
+    @discardableResult
+    private func advanceSessionGeneration() -> UUID {
+        sessionGeneration = UUID()
+        isLoading = false
+        return sessionGeneration
+    }
 
     /// Weak reference set by AppModel on init so post-login can trigger a full sync.
     weak var postLoginSyncModel: AppModel?
@@ -46,8 +61,10 @@ class AuthenticationService: NSObject, ObservableObject {
     /// Returns a valid (possibly refreshed) access token, refreshing via GoTrue if expired.
     /// Use this instead of `accessToken` for any Supabase API call that can wait for a refresh.
     func freshAccessToken() async -> String? {
+        let generation = sessionGeneration
         guard let session = loadStoredSession() else { return nil }
-        guard let valid = try? await ensureValidSession(session) else { return session.accessToken }
+        let valid = (try? await ensureValidSession(session)) ?? session
+        guard (try? checkSessionGeneration(generation)) != nil else { return nil }
         if valid.accessToken != session.accessToken {
             storeSession(valid)
         }
@@ -80,8 +97,17 @@ class AuthenticationService: NSObject, ObservableObject {
     /// sign-out racing with sign-in doesn't leave a partial-state user. (§3.1)
     private var signInTask: Task<Void, Never>?
     
-    override init() {
+    override convenience init() {
+        self.init(network: .shared)
+    }
+
+    init(network: NetworkClient, restoreSession: Bool = true) {
+        self.network = network
         super.init()
+        guard restoreSession else {
+            isInitialized = true
+            return
+        }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("ui-testing-settings-account") {
             currentUser = AppUser(
@@ -97,8 +123,11 @@ class AuthenticationService: NSObject, ObservableObject {
             return
         }
         #endif
+        let generation = sessionGeneration
         Task { @MainActor in
-            await loadStoredSessionAndRefreshUser()
+            if generation == sessionGeneration {
+                await loadStoredSessionAndRefreshUser()
+            }
             isInitialized = true
             AppLogger.auth.debug("AuthenticationService initialized: isAuthenticated=\(self.isAuthenticated)")
             for continuation in pendingContinuations {
@@ -136,6 +165,7 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Public Methods
     
     func signOut() {
+        advanceSessionGeneration()
         // Cancel any in-flight sign-in OR post-login work first so it can't
         // write back to AppModel after we've flipped the user-facing state. (§3.1)
         signInTask?.cancel()
@@ -207,6 +237,7 @@ class AuthenticationService: NSObject, ObservableObject {
     /// the caller can surface a real error to the UI instead of leaving the
     /// app in a silently-unauthenticated state. (§5.3)
     private func signInAnonymously() async throws {
+        let generation = sessionGeneration
         let cfg = try SupabaseConfig.load()
         let url = cfg.baseURL.appendingPathComponent("auth/v1/signup")
 
@@ -220,6 +251,7 @@ class AuthenticationService: NSObject, ObservableObject {
             body: Data("{}".utf8)
         )
 
+        try checkSessionGeneration(generation)
         guard http.statusCode < 400 else {
             let msg = String(data: data, encoding: .utf8) ?? "Anonymous sign-in failed"
             AppLogger.auth.error("🔐 Anonymous sign-in failed: status \(http.statusCode), body: \(msg.prefix(300))")
@@ -227,6 +259,7 @@ class AuthenticationService: NSObject, ObservableObject {
         }
 
         let session = try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
+        advanceSessionGeneration()
         storeSession(session)
         isAnonymous = session.user.isAnonymous
 
@@ -245,6 +278,7 @@ class AuthenticationService: NSObject, ObservableObject {
         guard let session = loadStoredSession() else {
             throw AuthError.supabaseError("No active session")
         }
+        let generation = advanceSessionGeneration()
 
         // Cancel any in-flight sign-in / post-login work — the user we'd be
         // syncing for is about to stop existing. (§3.1)
@@ -265,6 +299,7 @@ class AuthenticationService: NSObject, ObservableObject {
             ]
         )
 
+        try checkSessionGeneration(generation)
         if http.statusCode >= 400 {
             let msg = String(data: data, encoding: .utf8) ?? "Account deletion failed"
             throw AuthError.supabaseError(msg)
@@ -285,6 +320,10 @@ class AuthenticationService: NSObject, ObservableObject {
 
         currentUser = nil
         isAuthenticated = false
+
+        // Also invalidate work that started while the deletion was pending.
+        advanceSessionGeneration()
+        isAnonymous = false
 
         // §5.1 / §5.2: remove the push-token row using the captured bearer.
         // The DELETE may 404 if the server-side cascade
@@ -351,11 +390,13 @@ class AuthenticationService: NSObject, ObservableObject {
         // Task inherits MainActor isolation from the enclosing @MainActor
         // class — no explicit `@MainActor in` annotation needed. (§3.1)
         signInTask?.cancel()
+        let generation = advanceSessionGeneration()
         signInTask = Task {
             await self.runSignIn(
                 idToken: idToken,
                 nonce: nonce,
                 appleFullName: appleFullName,
+                generation: generation,
                 exchange: { try await self.supabaseSignInWithApple(idToken: $0, nonce: $1) }
             )
         }
@@ -372,8 +413,12 @@ class AuthenticationService: NSObject, ObservableObject {
         nonce: String,
         appleFullName: String?,
         exchangeTimeout: Duration = .seconds(30),
+        generation requestedGeneration: UUID? = nil,
         exchange: @escaping @MainActor @Sendable (String, String) async throws -> SupabaseSessionResponse
     ) async {
+        guard !Task.isCancelled else { return }
+        var generation = requestedGeneration ?? advanceSessionGeneration()
+        guard generation == sessionGeneration else { return }
         isLoading = true
         error = nil
 
@@ -384,7 +429,7 @@ class AuthenticationService: NSObject, ObservableObject {
         // process-lifetime singleton, a leaked `true` is permanent — LoginView
         // keeps the Sign in with Apple button `.disabled` and the ProgressView
         // spinning until the app is killed. (§3.1)
-        defer { if isLoading { isLoading = false } }
+        defer { if generation == sessionGeneration { isLoading = false } }
 
         do {
             AppLogger.auth.debug("🔐 supabaseSignInWithApple — starting token exchange")
@@ -409,12 +454,15 @@ class AuthenticationService: NSObject, ObservableObject {
             if exchangeWasCancelled {
                 withUnsafeCurrentTask { $0?.cancel() }
             }
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled, generation == sessionGeneration else {
                 AppLogger.auth.debug("🔐 Sign-in cancelled after token exchange — discarding session")
                 return
             }
             AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
 
+            // Requests can start with the old account while Apple exchange is
+            // pending. Invalidate those too when the new identity is committed.
+            generation = advanceSessionGeneration()
             self.storeSession(session)
             self.isAnonymous = false
             if let name = appleFullName {
@@ -437,15 +485,17 @@ class AuthenticationService: NSObject, ObservableObject {
             do {
                 AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — fetching profile")
                 try await self.loadCurrentUserFromSupabase(session: session)
-                guard !Task.isCancelled else { return }
+                try checkSessionGeneration(generation)
                 AppLogger.auth.debug("🔐 loadCurrentUserFromSupabase — done, user: \(self.currentUser?.displayName ?? "nil")")
 
                 if let name = appleFullName {
                     await self.promoteAppleNameAsDefaultProfileNameIfNeeded(name, session: session)
-                    guard !Task.isCancelled else { return }
+                    try checkSessionGeneration(generation)
                 }
             } catch {
+                guard !Task.isCancelled, generation == sessionGeneration else { return }
                 if self.isSessionInvalidatingError(error) {
+                    advanceSessionGeneration()
                     AppLogger.auth.error("🔐 Profile fetch invalidated session: \(error.localizedDescription)")
                     self.clearStoredSession()
                     self.clearCachedProfile(for: session.user.id)
@@ -474,6 +524,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 }
             }
         } catch {
+            guard !Task.isCancelled, generation == sessionGeneration else { return }
             AppLogger.auth.error("🔐 Sign in FAILED: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
@@ -513,6 +564,7 @@ class AuthenticationService: NSObject, ObservableObject {
     // MARK: - Profile Update Methods
     
     func updateProfile(nickname: String?, country: String?, avatarData: Data?) {
+        let generation = sessionGeneration
         guard var user = currentUser else { return }
         let nickname = sanitizedNickname(nickname)
         let country = validatedCountry(country)
@@ -534,6 +586,7 @@ class AuthenticationService: NSObject, ObservableObject {
         
         Task { @MainActor in
             do {
+                try checkSessionGeneration(generation)
                 guard let session = loadStoredSession() else { return }
                 
                 if let data = avatarData, !data.isEmpty {
@@ -542,10 +595,13 @@ class AuthenticationService: NSObject, ObservableObject {
                     try? await deleteAvatarFromStorage(session: session, userId: user.id)
                 }
                 
+                try checkSessionGeneration(generation)
                 try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country)
+                try checkSessionGeneration(generation)
                 // Refresh from DB to keep canonical values
                 try await loadCurrentUserFromSupabase(session: session)
             } catch {
+                guard !Task.isCancelled, generation == sessionGeneration else { return }
                 self.error = error.localizedDescription
                 AppLogger.auth.error("❌ Profile update failed: \(error.localizedDescription)")
             }
@@ -558,6 +614,8 @@ class AuthenticationService: NSObject, ObservableObject {
     
     /// Async version for awaiting completion
     func updateProfileAsync(nickname: String?, country: String?, avatarData: Data?) async throws {
+        let generation = sessionGeneration
+        try checkSessionGeneration(generation)
         guard var user = currentUser else { return }
         let nickname = sanitizedNickname(nickname)
         let country = validatedCountry(country)
@@ -579,6 +637,7 @@ class AuthenticationService: NSObject, ObservableObject {
         
         guard let rawSession = loadStoredSession() else { return }
         let session = (try? await ensureValidSession(rawSession)) ?? rawSession
+        try checkSessionGeneration(generation)
         if session.accessToken != rawSession.accessToken { storeSession(session) }
 
         if let data = avatarData, !data.isEmpty {
@@ -587,7 +646,9 @@ class AuthenticationService: NSObject, ObservableObject {
             try? await deleteAvatarFromStorage(session: session, userId: user.id)
         }
 
+        try checkSessionGeneration(generation)
         try await patchUserProfile(session: session, userId: user.id, nickname: nickname, country: country)
+        try checkSessionGeneration(generation)
         try await loadCurrentUserFromSupabase(session: session)
     }
     
@@ -731,12 +792,15 @@ class AuthenticationService: NSObject, ObservableObject {
     }
 
     private func loadStoredSessionAndRefreshUser() async {
+        let generation = sessionGeneration
+        guard !Task.isCancelled else { return }
         AppLogger.auth.debug("🔐 loadStoredSessionAndRefreshUser called")
         guard let session = loadStoredSession() else {
             AppLogger.auth.debug("🔐 No stored session found in Keychain, signing in anonymously")
             do {
                 try await signInAnonymously()
             } catch {
+                guard !Task.isCancelled, generation == sessionGeneration else { return }
                 // Surface to the UI so the user knows something went wrong
                 // instead of seeing a permanently-empty app. (§5.3)
                 self.error = String(
@@ -757,18 +821,22 @@ class AuthenticationService: NSObject, ObservableObject {
 
         do {
             let validSession = try await ensureValidSession(session)
+            try checkSessionGeneration(generation)
             AppLogger.auth.debug("🔐 Session validated/refreshed successfully")
             if validSession.accessToken != session.accessToken {
                 AppLogger.auth.debug("🔐 Token was refreshed, storing new session")
                 storeSession(validSession)
             }
             try await loadCurrentUserFromSupabase(session: validSession)
+            try checkSessionGeneration(generation)
             isAuthenticated = (currentUser != nil)
             #if DEBUG
             AppLogger.auth.debug("🔐 Final state: isAuthenticated=\(self.isAuthenticated)")
             #endif
         } catch {
+            guard !Task.isCancelled, generation == sessionGeneration else { return }
             if isSessionInvalidatingError(error) {
+                advanceSessionGeneration()
                 AppLogger.auth.error("🔐 Session invalid — signing out locally: \(error.localizedDescription)")
                 clearStoredSession()
                 clearCachedProfile(for: session.user.id)
