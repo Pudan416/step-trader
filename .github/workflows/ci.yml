@@ -93,6 +93,30 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/HealthZeroDataUI.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/HealthZeroDataUI.log"
 
+      - name: Run isolated live-audio lifecycle regressions
+        # These async scenarios hit an XCTest/Swift task-allocator abort after
+        # the long shared audio run. Exercise them in fresh hosts, three times
+        # each, with every failure still failing the gate (no failure retries).
+        timeout-minutes: 15
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Nowhere.xcodeproj \
+            -scheme Nowhere \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -parallel-testing-enabled NO \
+            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops \
+            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords \
+            -test-iterations 3 \
+            -test-repetition-relaunch-enabled YES \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 180 \
+            -collect-test-diagnostics on-failure \
+            -resultBundlePath "$RUNNER_TEMP/AudioLifecycleTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/AudioLifecycleTests.log"
+
       - name: Run NowhereTests
         # The one live 100-remix deadline test runs in the required optimized
         # Release job below; all other tests, including deterministic remix
@@ -114,6 +138,8 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -only-testing:NowhereTests \
             -skip-testing:NowhereTests/DayObjectsRemixCoordinatorTests/testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts \
+            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops \
+            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 900 \
             -maximum-test-execution-time-allowance 900 \
@@ -129,6 +155,8 @@ jobs:
           path: |
             ${{ runner.temp }}/HealthZeroDataUI.xcresult
             ${{ runner.temp }}/HealthZeroDataUI.log
+            ${{ runner.temp }}/AudioLifecycleTests.xcresult
+            ${{ runner.temp }}/AudioLifecycleTests.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks
