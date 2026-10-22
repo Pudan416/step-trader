@@ -259,7 +259,7 @@ jobs:
           supabase/functions/send-push/index.ts
 
   admin-panel:
-    name: admin-panel (typecheck + lint)
+    name: admin-panel (typecheck + lint + smoke)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -278,6 +278,8 @@ jobs:
       - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm run lint
+      - run: npm run build
+      - run: npm test
 
   tg-admin:
     name: tg-admin (typecheck)
