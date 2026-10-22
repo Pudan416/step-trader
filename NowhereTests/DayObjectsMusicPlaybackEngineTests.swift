@@ -1,6 +1,7 @@
 #if DEBUG || INTERNAL_BUILD
 import AVFAudio
 import XCTest
+import Testing
 @testable import Nowhere
 
 @MainActor
@@ -1189,43 +1190,6 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertFalse(runtime.playbackPairMetricsForTesting.sharedEngineIsRunning)
         XCTAssertEqual(runtime.playbackPairMetricsForTesting.sharedEngineStopCount, 1)
         XCTAssertFalse(session.isActive)
-    }
-
-    func testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops() throws {
-        try requireLiveAudioOutput()
-        runInAudioTask { try await self.checkFailedUpgradeDemotionAndRetry() }
-    }
-
-    private func checkFailedUpgradeDemotionAndRetry() async throws {
-        for failure in [RealRuntimeFailureStage.fullPreparation, .transportStart] {
-            let log = PlaybackEngineCallLog()
-            let session = RecordingDayObjectsAudioSession(log: log)
-            let live = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
-            let runtime = FaultInjectingRealPlaybackRuntime(base: live, failureStage: failure)
-            let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
-            let firstID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 25))
-            let retryID = try XCTUnwrap(HappeningSoundRecipeID(rawValue: 28))
-            try await engine.auditionHappening(firstID)
-            let nodeIdentities = live.playbackPairMetricsForTesting.fixedSharedNodeIdentities
-
-            _ = try? await engine.start(plan: makePlaybackEnginePlan(seed: 0xFA12, happeningIDs: []))
-
-            XCTAssertEqual(engine.runtimeState, .sampleOnly, "\(failure)")
-            XCTAssertEqual(
-                live.playbackPairMetricsForTesting.lifecycleState,
-                failure == .fullPreparation ? .unprepared : .prepared,
-                "\(failure)"
-            )
-            XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 1, "\(failure)")
-            XCTAssertTrue(live.playbackPairMetricsForTesting.sharedEngineIsRunning, "\(failure)")
-            XCTAssertEqual(live.playbackPairMetricsForTesting.fixedSharedNodeIdentities, nodeIdentities, "\(failure)")
-            try await engine.auditionHappening(retryID)
-            await engine.stop()
-
-            XCTAssertFalse(live.playbackPairMetricsForTesting.sharedEngineIsRunning, "\(failure)")
-            XCTAssertEqual(live.playbackPairMetricsForTesting.individualStartedBankCount, 0, "\(failure)")
-            XCTAssertFalse(session.isActive, "\(failure)")
-        }
     }
 
     func testLiveRuntimeRepeatedColdFullEpochsKeepExplicitOwnershipAndStableCache() async throws {
@@ -2493,61 +2457,6 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         }
     }
 
-    func testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords() throws {
-        try requireLiveAudioOutput()
-        runInAudioTask { try await self.checkHappeningsAllocationLoops() }
-    }
-
-    private func checkHappeningsAllocationLoops() async throws {
-        let log = PlaybackEngineCallLog()
-        let session = RecordingDayObjectsAudioSession(log: log)
-        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
-        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
-        let emptyPlan = makePlaybackEnginePlan(seed: 0x10, happeningIDs: [])
-        let fullPlan = makePlaybackEnginePlan(
-            seed: 0x10,
-            happeningIDs: (1...10).map { "live-happening-\($0)" }
-        )
-        try await engine.start(plan: emptyPlan)
-        let baseline = runtime.allocationSnapshotForTesting
-        var ambientVoiceCountAfterRemoval: Int?
-
-        for cycle in 1...10 {
-            fullPlan.happenings.forEach { engine.addHappening($0, playBirth: true) }
-            XCTAssertEqual(runtime.happeningRecordIDsForTesting, Set(fullPlan.happenings.map(\.happeningID)), "add cycle \(cycle)")
-            XCTAssertEqual(runtime.playbackMetrics.activeHappeningCount, 10, "add cycle \(cycle)")
-            XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "add cycle \(cycle)")
-            XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 1, "add cycle \(cycle)")
-            XCTAssertTrue((1...6).contains(runtime.playbackMetrics.activeTaskCount), "bounded workers, add cycle \(cycle)")
-
-            fullPlan.happenings.forEach { engine.removeHappening(id: $0.happeningID) }
-            XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty, "remove cycle \(cycle)")
-            XCTAssertEqual(runtime.playbackMetrics.activeHappeningCount, 0, "remove cycle \(cycle)")
-            XCTAssertEqual(runtime.metrics.happeningTokenCount, 0, "remove cycle \(cycle)")
-            if let ambientVoiceCountAfterRemoval {
-                XCTAssertEqual(
-                    runtime.playbackMetrics.activeVoiceCount,
-                    ambientVoiceCountAfterRemoval,
-                    "remove cycle \(cycle)"
-                )
-            } else {
-                ambientVoiceCountAfterRemoval = runtime.playbackMetrics.activeVoiceCount
-            }
-            XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline, "remove cycle \(cycle)")
-            XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 1, "remove cycle \(cycle)")
-            XCTAssertTrue((1...6).contains(runtime.playbackMetrics.activeTaskCount), "bounded workers, remove cycle \(cycle)")
-        }
-
-        await engine.stop()
-        XCTAssertEqual(runtime.allocationSnapshotForTesting, baseline)
-        XCTAssertEqual(runtime.playbackMetrics.activeTaskCount, 0)
-        XCTAssertEqual(runtime.playbackMetrics.activeTransportCount, 0)
-        XCTAssertEqual(runtime.playbackMetrics.activeVoiceCount, 0)
-        XCTAssertEqual(runtime.metrics.leadTokenCount, 0)
-        XCTAssertEqual(runtime.metrics.happeningTokenCount, 0)
-        XCTAssertTrue(runtime.happeningRecordIDsForTesting.isEmpty)
-    }
-
     func testLiveRuntimeUsesFourMusicalAndFourMaterialPlayersWithOneSharedEngineStart() async throws {
         try requireLiveAudioOutput()
         let log = PlaybackEngineCallLog()
@@ -2568,27 +2477,6 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(metrics.sharedEngineStartCount, 1)
 
         await engine.stop()
-    }
-
-    /// Keep real-audio async lifetimes inside a Swift-owned task. The XCTest
-    /// async invocation bridge can abort in _swift_task_dealloc_specific while
-    /// observing errors, even when these scenarios run in a fresh test host.
-    private func runInAudioTask(
-        file: StaticString = #filePath,
-        line: UInt = #line,
-        _ operation: @escaping @MainActor () async throws -> Void
-    ) {
-        let finished = expectation(description: "Audio lifecycle task completed")
-        let task = Task { @MainActor in
-            defer { finished.fulfill() }
-            do {
-                try await operation()
-            } catch {
-                XCTFail("Unexpected audio lifecycle error: \(error)", file: file, line: line)
-            }
-        }
-        defer { task.cancel() }
-        wait(for: [finished], timeout: 180)
     }
 
     private func assertInjectedSampleStartFailure(
@@ -2622,6 +2510,91 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertFalse(session.isActive, file: file, line: line)
     }
 
+}
+
+// These real-audio lifecycles use Swift Testing to avoid XCTest's
+// XCTSwiftErrorObservation async task allocator abort. Keep their coverage
+// serialized because both scenarios own the process-wide audio session.
+@Suite(.serialized, .timeLimit(.minutes(3)))
+@MainActor
+struct DayObjectsLiveAudioLifecycleTests {
+    @Test
+    func testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops() async throws {
+        try requireLiveAudioOutput()
+        for failure in [RealRuntimeFailureStage.fullPreparation, .transportStart] {
+            let log = PlaybackEngineCallLog()
+            let session = RecordingDayObjectsAudioSession(log: log)
+            let live = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: DayObjectsMusicPlaybackEngineTests.self))
+            let runtime = FaultInjectingRealPlaybackRuntime(base: live, failureStage: failure)
+            let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+            let firstID = try #require(HappeningSoundRecipeID(rawValue: 25))
+            let retryID = try #require(HappeningSoundRecipeID(rawValue: 28))
+            try await engine.auditionHappening(firstID)
+            let nodeIdentities = live.playbackPairMetricsForTesting.fixedSharedNodeIdentities
+
+            _ = try? await engine.start(plan: makePlaybackEnginePlan(seed: 0xFA12, happeningIDs: []))
+
+            #expect(engine.runtimeState == .sampleOnly, "\(failure)")
+            #expect(live.playbackPairMetricsForTesting.lifecycleState == (failure == .fullPreparation ? .unprepared : .prepared), "\(failure)")
+            #expect(live.playbackPairMetricsForTesting.individualStartedBankCount == 1, "\(failure)")
+            #expect(live.playbackPairMetricsForTesting.sharedEngineIsRunning, "\(failure)")
+            #expect(live.playbackPairMetricsForTesting.fixedSharedNodeIdentities == nodeIdentities, "\(failure)")
+            try await engine.auditionHappening(retryID)
+            await engine.stop()
+
+            #expect(!live.playbackPairMetricsForTesting.sharedEngineIsRunning, "\(failure)")
+            #expect(live.playbackPairMetricsForTesting.individualStartedBankCount == 0, "\(failure)")
+            #expect(!session.isActive, "\(failure)")
+        }
+    }
+
+    @Test
+    func testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords() async throws {
+        try requireLiveAudioOutput()
+        let log = PlaybackEngineCallLog()
+        let session = RecordingDayObjectsAudioSession(log: log)
+        let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: DayObjectsMusicPlaybackEngineTests.self))
+        let engine = DayObjectsMusicPlaybackEngine(audioSession: session, runtime: runtime)
+        let emptyPlan = makePlaybackEnginePlan(seed: 0x10, happeningIDs: [])
+        let fullPlan = makePlaybackEnginePlan(
+            seed: 0x10,
+            happeningIDs: (1...10).map { "live-happening-\($0)" }
+        )
+        try await engine.start(plan: emptyPlan)
+        let baseline = runtime.allocationSnapshotForTesting
+        var ambientVoiceCountAfterRemoval: Int?
+
+        for cycle in 1...10 {
+            fullPlan.happenings.forEach { engine.addHappening($0, playBirth: true) }
+            #expect(runtime.happeningRecordIDsForTesting == Set(fullPlan.happenings.map(\.happeningID)), "add cycle \(cycle)")
+            #expect(runtime.playbackMetrics.activeHappeningCount == 10, "add cycle \(cycle)")
+            #expect(runtime.allocationSnapshotForTesting == baseline, "add cycle \(cycle)")
+            #expect(runtime.playbackMetrics.activeTransportCount == 1, "add cycle \(cycle)")
+            #expect((1...6).contains(runtime.playbackMetrics.activeTaskCount), "bounded workers, add cycle \(cycle)")
+
+            fullPlan.happenings.forEach { engine.removeHappening(id: $0.happeningID) }
+            #expect(runtime.happeningRecordIDsForTesting.isEmpty, "remove cycle \(cycle)")
+            #expect(runtime.playbackMetrics.activeHappeningCount == 0, "remove cycle \(cycle)")
+            #expect(runtime.metrics.happeningTokenCount == 0, "remove cycle \(cycle)")
+            if let ambientVoiceCountAfterRemoval {
+                #expect(runtime.playbackMetrics.activeVoiceCount == ambientVoiceCountAfterRemoval, "remove cycle \(cycle)")
+            } else {
+                ambientVoiceCountAfterRemoval = runtime.playbackMetrics.activeVoiceCount
+            }
+            #expect(runtime.allocationSnapshotForTesting == baseline, "remove cycle \(cycle)")
+            #expect(runtime.playbackMetrics.activeTransportCount == 1, "remove cycle \(cycle)")
+            #expect((1...6).contains(runtime.playbackMetrics.activeTaskCount), "bounded workers, remove cycle \(cycle)")
+        }
+
+        await engine.stop()
+        #expect(runtime.allocationSnapshotForTesting == baseline)
+        #expect(runtime.playbackMetrics.activeTaskCount == 0)
+        #expect(runtime.playbackMetrics.activeTransportCount == 0)
+        #expect(runtime.playbackMetrics.activeVoiceCount == 0)
+        #expect(runtime.metrics.leadTokenCount == 0)
+        #expect(runtime.metrics.happeningTokenCount == 0)
+        #expect(runtime.happeningRecordIDsForTesting.isEmpty)
+    }
 }
 
 @MainActor

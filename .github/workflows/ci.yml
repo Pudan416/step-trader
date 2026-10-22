@@ -94,9 +94,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/HealthZeroDataUI.log"
 
       - name: Run isolated live-audio lifecycle regressions
-        # Regression coverage for the XCTest async-bridge allocator abort:
-        # exercise the Swift-owned task boundary in fresh hosts, three times
-        # each, with every failure still failing the gate (no failure retries).
+        # Run the Swift Testing audio suite in fresh hosts, three times each.
+        # Every failure still fails the gate; these are not failure retries.
         timeout-minutes: 15
         run: |
           set -o pipefail
@@ -106,8 +105,7 @@ jobs:
             -configuration Debug \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -parallel-testing-enabled NO \
-            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops \
-            -only-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords \
+            -only-testing:NowhereTests/DayObjectsLiveAudioLifecycleTests \
             -test-iterations 3 \
             -test-repetition-relaunch-enabled YES \
             -test-timeouts-enabled YES \
@@ -138,8 +136,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -only-testing:NowhereTests \
             -skip-testing:NowhereTests/DayObjectsRemixCoordinatorTests/testOneHundredProductionCoordinatorRemixesRecycleBothWorldsAndPreservePhysicalGraphAcrossRestarts \
-            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops \
-            -skip-testing:NowhereTests/DayObjectsMusicPlaybackEngineTests/testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords \
+            -skip-testing:NowhereTests/DayObjectsLiveAudioLifecycleTests \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 900 \
             -maximum-test-execution-time-allowance 900 \
