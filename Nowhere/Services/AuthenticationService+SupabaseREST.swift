@@ -108,6 +108,7 @@ extension AuthenticationService {
     }
 
     func loadCurrentUserFromSupabase(session: SupabaseSessionResponse) async throws {
+        let generation = sessionGeneration
         let cfg = try SupabaseConfig.load()
 
         // Fetch canonical profile row from PostgREST: public.users
@@ -136,6 +137,7 @@ extension AuthenticationService {
             body: nil
         )
 
+        try checkSessionGeneration(generation)
         if http.statusCode == 401 || http.statusCode == 403 {
             throw AuthError.sessionExpired
         }
