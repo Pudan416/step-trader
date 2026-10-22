@@ -488,20 +488,16 @@ final class SleepIntervalMergingTests: XCTestCase {
     }
 
     func testRecentPreviousDayQueryCannotUseLiveStepCacheAfterBoundary() throws {
-        let defaults = UserDefaults.nowhere()
-        let originalHour = defaults.object(forKey: SharedKeys.dayEndHour)
-        let originalMinute = defaults.object(forKey: SharedKeys.dayEndMinute)
-        defer {
-            defaults.set(originalHour, forKey: SharedKeys.dayEndHour)
-            defaults.set(originalMinute, forKey: SharedKeys.dayEndMinute)
-        }
+        let suiteName = "SleepIntervalMergingTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(6, forKey: SharedKeys.dayEndHour)
         defaults.set(0, forKey: SharedKeys.dayEndMinute)
         let now = try XCTUnwrap(Calendar.current.date(from: DateComponents(
             year: 2026, month: 10, day: 22, hour: 6, minute: 0, second: 30
         )))
         XCTAssertFalse(HealthKitService.shouldUseLiveStepCache(
-            queryEnd: now.addingTimeInterval(-60), now: now
+            queryEnd: now.addingTimeInterval(-60), now: now, defaults: defaults
         ), "A query from the previous logical day is stale even inside the five-minute window")
     }
 
@@ -606,22 +602,25 @@ final class HealthStoreTests: XCTestCase {
     private var mock: ConfigurableHealthKitMock!
     private var store: HealthStore!
     private var defaults: UserDefaults!
+    private var suiteName: String!
 
     override func setUp() {
         super.setUp()
         mock = ConfigurableHealthKitMock()
-        defaults = UserDefaults.nowhere()
-        // Clear cached values before creating the store (init reads cache)
-        defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
-        defaults.removeObject(forKey: SharedKeys.hasStepsData)
-        defaults.removeObject(forKey: "cachedSleepHoursToday")
-        store = HealthStore(healthKitService: mock)
+        suiteName = "HealthStoreTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(0, forKey: SharedKeys.dayEndHour)
+        defaults.set(0, forKey: SharedKeys.dayEndMinute)
+        store = HealthStore(healthKitService: mock, defaults: defaults)
     }
 
     override func tearDown() {
-        defaults.removeObject(forKey: SharedKeys.cachedStepsToday)
-        defaults.removeObject(forKey: SharedKeys.hasStepsData)
-        defaults.removeObject(forKey: "cachedSleepHoursToday")
+        store.stopObservingSteps()
+        store = nil
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        suiteName = nil
+        mock = nil
         super.tearDown()
     }
 
@@ -799,7 +798,7 @@ final class HealthStoreTests: XCTestCase {
 
         // Now: fail the next fetch
         mock.stepsError = NSError(domain: "test", code: 99)
-        let newStore = HealthStore(healthKitService: mock)
+        let newStore = HealthStore(healthKitService: mock, defaults: defaults)
         await newStore.refreshStepsIfAuthorized()
 
         // Should fall back to cached value
@@ -896,19 +895,19 @@ final class HealthStoreTests: XCTestCase {
 
     func testAuthStatusNotDetermined() {
         mock.authStatus = .notDetermined
-        let newStore = HealthStore(healthKitService: mock)
+        let newStore = HealthStore(healthKitService: mock, defaults: defaults)
         XCTAssertEqual(newStore.authorizationStatus, .notDetermined)
     }
 
     func testAuthStatusSharingDenied() {
         mock.authStatus = .sharingDenied
-        let newStore = HealthStore(healthKitService: mock)
+        let newStore = HealthStore(healthKitService: mock, defaults: defaults)
         XCTAssertEqual(newStore.authorizationStatus, .sharingDenied)
     }
 
     func testAuthStatusSharingAuthorized() {
         mock.authStatus = .sharingAuthorized
-        let newStore = HealthStore(healthKitService: mock)
+        let newStore = HealthStore(healthKitService: mock, defaults: defaults)
         XCTAssertEqual(newStore.authorizationStatus, .sharingAuthorized)
     }
 

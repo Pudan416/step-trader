@@ -13,6 +13,7 @@ enum HealthQueryOutcome: String, Equatable {
 final class HealthStore: ObservableObject {
     // Dependencies
     private let healthKitService: any HealthKitServiceProtocol
+    private let defaults: UserDefaults
     
     // Published State
     @Published var stepsToday: Double = 0
@@ -31,8 +32,9 @@ final class HealthStore: ObservableObject {
     private var sleepQueryID: UUID?
     private var stepsObservationID: UUID?
     
-    init(healthKitService: any HealthKitServiceProtocol) {
+    init(healthKitService: any HealthKitServiceProtocol, defaults: UserDefaults = .nowhere()) {
         self.healthKitService = healthKitService
+        self.defaults = defaults
         self.authorizationStatus = healthKitService.authorizationStatus()
         loadCachedStepsToday()
         loadCachedSleepToday()
@@ -180,20 +182,20 @@ final class HealthStore: ObservableObject {
 
     // MARK: - Helpers
     private func currentDayStart(for date: Date) -> Date {
-        let (hour, minute) = DayBoundary.storedDayEnd()
+        let (hour, minute) = DayBoundary.storedDayEnd(group: defaults)
         return DayBoundary.currentDayStart(for: date, dayEndHour: hour, dayEndMinute: minute)
     }
     
     // MARK: - Caching
     private func cacheStepsToday() {
-        let g = UserDefaults.nowhere()
+        let g = defaults
         g.set(stepsToday, forKey: SharedKeys.cachedStepsToday)
         g.set(true, forKey: SharedKeys.hasStepsData)
     }
     
     private func loadCachedStepsToday() {
-        let g = UserDefaults.nowhere()
-        let (hour, minute) = DayBoundary.storedDayEnd()
+        let g = defaults
+        let (hour, minute) = DayBoundary.storedDayEnd(group: defaults)
         if let anchor = g.object(forKey: SharedKeys.dailyEnergyAnchor) as? Date,
            DayBoundary.isPersistedDayBehind(anchor: anchor, relativeTo: .now, dayEndHour: hour, dayEndMinute: minute) {
             AppLogger.healthKit.info("👣 loadCache: STALE anchor \(anchor), clearing to 0")
@@ -210,11 +212,11 @@ final class HealthStore: ObservableObject {
     private static let cachedSleepKey = "cachedSleepHoursToday"
 
     private func cacheSleepToday() {
-        UserDefaults.nowhere().set(dailySleepHours, forKey: Self.cachedSleepKey)
+        defaults.set(dailySleepHours, forKey: Self.cachedSleepKey)
     }
 
     private func loadCachedSleepToday() {
-        let cached = UserDefaults.nowhere().double(forKey: Self.cachedSleepKey)
+        let cached = defaults.double(forKey: Self.cachedSleepKey)
         if cached > 0 { dailySleepHours = cached }
     }
     

@@ -71,9 +71,10 @@ final class HealthKitService: HealthKitServiceProtocol {
     /// gallery queries must neither consume nor replace it.
     static func shouldUseLiveStepCache(
         queryEnd: Date,
-        now: Date = .now
+        now: Date = .now,
+        defaults: UserDefaults = .nowhere()
     ) -> Bool {
-        let (hour, minute) = DayBoundary.storedDayEnd()
+        let (hour, minute) = DayBoundary.storedDayEnd(group: defaults)
         return queryEnd >= now.addingTimeInterval(-5 * 60) &&
             DayBoundary.currentDayStart(for: queryEnd, dayEndHour: hour, dayEndMinute: minute) ==
             DayBoundary.currentDayStart(for: now, dayEndHour: hour, dayEndMinute: minute)
