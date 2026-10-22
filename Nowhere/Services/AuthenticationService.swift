@@ -259,6 +259,7 @@ class AuthenticationService: NSObject, ObservableObject {
         }
 
         let session = try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
+        advanceSessionGeneration()
         storeSession(session)
         isAnonymous = session.user.isAnonymous
 
@@ -416,7 +417,7 @@ class AuthenticationService: NSObject, ObservableObject {
         exchange: @escaping @MainActor @Sendable (String, String) async throws -> SupabaseSessionResponse
     ) async {
         guard !Task.isCancelled else { return }
-        let generation = requestedGeneration ?? advanceSessionGeneration()
+        var generation = requestedGeneration ?? advanceSessionGeneration()
         guard generation == sessionGeneration else { return }
         isLoading = true
         error = nil
@@ -459,6 +460,9 @@ class AuthenticationService: NSObject, ObservableObject {
             }
             AppLogger.auth.debug("🔐 supabaseSignInWithApple — success, userId: \(session.user.id.prefix(8))…, expiresAt: \(session.expiresAt)")
 
+            // Requests can start with the old account while Apple exchange is
+            // pending. Invalidate those too when the new identity is committed.
+            generation = advanceSessionGeneration()
             self.storeSession(session)
             self.isAnonymous = false
             if let name = appleFullName {
@@ -491,6 +495,7 @@ class AuthenticationService: NSObject, ObservableObject {
             } catch {
                 guard !Task.isCancelled, generation == sessionGeneration else { return }
                 if self.isSessionInvalidatingError(error) {
+                    advanceSessionGeneration()
                     AppLogger.auth.error("🔐 Profile fetch invalidated session: \(error.localizedDescription)")
                     self.clearStoredSession()
                     self.clearCachedProfile(for: session.user.id)
@@ -831,6 +836,7 @@ class AuthenticationService: NSObject, ObservableObject {
         } catch {
             guard !Task.isCancelled, generation == sessionGeneration else { return }
             if isSessionInvalidatingError(error) {
+                advanceSessionGeneration()
                 AppLogger.auth.error("🔐 Session invalid — signing out locally: \(error.localizedDescription)")
                 clearStoredSession()
                 clearCachedProfile(for: session.user.id)

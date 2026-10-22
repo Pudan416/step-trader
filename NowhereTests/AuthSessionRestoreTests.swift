@@ -174,6 +174,41 @@ final class AuthSessionGenerationTests: XCTestCase {
         assertSignedOut()
     }
 
+    func testRefreshStartedDuringAppleExchangeCannotReplaceNewAccount() async throws {
+        seed(try session(userA, expired: true))
+        let exchangeStarted = expectation(description: "Apple exchange started")
+        var exchangeResult: CheckedContinuation<SupabaseSessionResponse, Never>?
+        let signIn = Task {
+            await service.runSignIn(idToken: "test", nonce: "test", appleFullName: nil) { _, _ in
+                await withCheckedContinuation { continuation in
+                    exchangeResult = continuation
+                    exchangeStarted.fulfill()
+                }
+            }
+        }
+        await fulfillment(of: [exchangeStarted], timeout: 2)
+        let refreshStarted = expectation(description: "old token refresh started during exchange")
+        var oldRefresh: AuthRaceResponseProtocol?
+        AuthRaceResponseProtocol.onRequest = { request in
+            if request.request.url?.path == "/auth/v1/token" {
+                oldRefresh = request
+                refreshStarted.fulfill()
+            } else {
+                request.respond(data: Data("[]".utf8))
+            }
+        }
+        let refresh = Task { await service.freshAccessToken() }
+        await fulfillment(of: [refreshStarted], timeout: 2)
+        try XCTUnwrap(exchangeResult).resume(returning: session(userB))
+        await signIn.value
+        let newToken = SessionKeychain.loadSession()
+        try XCTUnwrap(oldRefresh).respond(data: try encoder.encode(session(userA)))
+        let staleToken = await refresh.value
+        XCTAssertNil(staleToken)
+        XCTAssertEqual(service.currentUser?.id, userB)
+        XCTAssertEqual(SessionKeychain.loadSession(), newToken)
+    }
+
     func testProfileUpdateCannotReloadUserAfterSignOut() async throws {
         seed(try session(userA))
         service.applyCachedSessionState(userId: userA, email: nil, createdAt: .now)
