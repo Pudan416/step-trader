@@ -114,22 +114,28 @@ final class HappeningPaletteTileSurfaceTests: XCTestCase {
         var withholdsDrawable = true
         var acquisitionCount = 0
         var acquiredOnMain = false
+        let drawableRequested = expectation(description: "The worker requests the unavailable tile")
         let block: @convention(block) (AnyObject) -> AnyObject? = { object in
-            let shouldWithhold = gateLock.withLock {
+            let request = gateLock.withLock { () -> (withhold: Bool, firstAcquisition: Bool) in
+                var firstAcquisition = false
                 if object === unavailableLayer {
                     acquisitionCount += 1
                     acquiredOnMain = acquiredOnMain || Thread.isMainThread
+                    firstAcquisition = acquisitionCount == 1
                 }
-                return withholdsDrawable
+                return (withholdsDrawable, firstAcquisition)
             }
-            if object === unavailableLayer && shouldWithhold { return nil }
+            if request.firstAcquisition { drawableRequested.fulfill() }
+            if object === unavailableLayer && request.withhold { return nil }
             return original(object, selector)
         }
         let replacement = imp_implementationWithBlock(block)
         method_setImplementation(method, replacement)
         defer { method_setImplementation(method, originalIMP); imp_removeBlock(replacement) }
         surface.update(scene: scene, presentation: presentation, isActive: true)
-        try await Task.sleep(for: .milliseconds(80))
+        // Scheduling the main-queue tick and preceding drawable acquisitions
+        // has no fixed deadline. Keep withholding until the worker reaches it.
+        await fulfillment(of: [drawableRequested], timeout: 5)
         XCTAssertEqual(surface.submittedFrameCount, submitted,
             "A missing tile must hold the whole dirty batch, never show adjacent tiles from different animation times")
         let acquisition = gateLock.withLock { () -> (Int, Bool) in
