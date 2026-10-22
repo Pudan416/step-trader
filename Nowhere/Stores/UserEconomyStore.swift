@@ -121,6 +121,14 @@ final class UserEconomyStore: ObservableObject {
     }
     
     
+    /// Server restore must update the current projection before persistence,
+    /// which copies it into the day history used by the next full sync.
+    func restoreDailySpend(totalSpent: Int, spentByApp: [String: Int]) {
+        spentSteps = totalSpent
+        appStepsSpentToday = spentByApp
+        persistAppStepsSpentToday()
+    }
+
     func persistAppStepsSpentToday() {
         let dayKey = AppModel.dayKey(for: Date.now)
         appStepsSpentByDay[dayKey] = appStepsSpentToday
