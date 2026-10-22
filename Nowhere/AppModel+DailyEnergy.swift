@@ -202,9 +202,11 @@ extension AppModel {
         let g = UserDefaults.nowhere()
         happeningStore.load()
         happeningPaletteSelectionStore.load(catalog: selectableHappenings)
-        loadTodayAdditions(from: g)
-        reconstituteHappeningsFromHistory()
         let rawAnchor = g.object(forKey: SharedKeys.dailyEnergyAnchor)
+        // A cold launch can still hold yesterday's persisted state. Restore
+        // that day's additions so resetDailyEnergyState archives them first.
+        loadTodayAdditions(from: g, on: rawAnchor as? Date ?? .now)
+        reconstituteHappeningsFromHistory()
         AppLogger.energy.debug("📥 loadDailyEnergyState: anchor raw=\(String(describing: rawAnchor)), as Date=\(String(describing: rawAnchor as? Date))")
         guard let anchor = rawAnchor as? Date else {
             AppLogger.energy.debug("📥 loadDailyEnergyState: NO anchor — seeding and loading persisted state")
@@ -242,14 +244,14 @@ extension AppModel {
         }
     }
 
-    private func loadTodayAdditions(from defaults: UserDefaults) {
+    private func loadTodayAdditions(from defaults: UserDefaults, on date: Date) {
         guard let data = defaults.data(forKey: SharedKeys.todayAdditions) else {
-            migrateLegacySelections(from: defaults)
+            migrateLegacySelections(from: defaults, on: date)
             return
         }
         do {
             let decoded = try JSONDecoder().decode([OptionEntry].self, from: data)
-            let todayKey = Self.dayKey(for: .now)
+            let todayKey = Self.dayKey(for: date)
             todayAdditions = decoded.filter { $0.dayKey == todayKey }
             if todayAdditions.count != decoded.count {
                 persistTodayAdditions()
@@ -276,11 +278,11 @@ extension AppModel {
         return defaults.stringArray(forKey: key) ?? []
     }
 
-    private func migrateLegacySelections(from defaults: UserDefaults) {
+    private func migrateLegacySelections(from defaults: UserDefaults, on date: Date) {
         let legacyIds = ["body", "mind", "heart"].flatMap {
             legacySelectionIds(defaults, category: $0)
         }
-        let todayKey = Self.dayKey(for: .now)
+        let todayKey = Self.dayKey(for: date)
         todayAdditions = legacyIds.map { optionId in
             OptionEntry(
                 id: UUID().uuidString,
