@@ -6,23 +6,12 @@ final class SpentRestoreTests: XCTestCase {
     private var directory: URL!
     private var previousDirectory: URL?
     private var previousDefaults: [String: Any]?
-    private var previousSession: Data?
-    private var previousLegacySession: Data?
-    private var previousUser: AppUser?
-    private var previousAuthenticated = false
-    private var previousAnonymous = false
     private var session: URLSession!
+    private var auth: SpentRestoreAuthentication!
     private let userID = "spent-restore-fixture"
 
     override func setUp() async throws {
         try await super.setUp()
-        let auth = AuthenticationService.shared
-        await auth.waitForInitialization()
-        previousUser = auth.currentUser
-        previousAuthenticated = auth.isAuthenticated
-        previousAnonymous = auth.isAnonymous
-        previousSession = SessionKeychain.loadSession()
-        previousLegacySession = UserDefaults.standard.data(forKey: "supabaseSession_v1")
         previousDefaults = UserDefaults.nowhere().persistentDomain(forName: SharedKeys.appGroupId)
         previousDirectory = PersistenceManager.storageDirectoryOverride
         directory = FileManager.default.temporaryDirectory
@@ -30,19 +19,12 @@ final class SpentRestoreTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data("{}".utf8).write(to: directory.appendingPathComponent("pastDaySnapshots.json"))
         PersistenceManager.storageDirectoryOverride = directory
-        let storedSession = Data("""
-        {"access_token":"fixture-token","refresh_token":"fixture-refresh","token_type":"bearer",
-        "expires_in":3600,"expires_at":"2099-01-01T00:00:00Z",
-        "user":{"id":"\(userID)","created_at":"2024-01-01T00:00:00Z","is_anonymous":false}}
-        """.utf8)
-        SessionKeychain.deleteSession()
-        UserDefaults.standard.set(storedSession, forKey: "supabaseSession_v1")
-        auth.currentUser = AppUser(id: userID, email: nil, createdAt: .now)
-        auth.isAuthenticated = true
-        auth.isAnonymous = false
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [SpentRestoreResponseProtocol.self]
         session = URLSession(configuration: configuration)
+        auth = SpentRestoreAuthentication(network: NetworkClient(session: session), restoreSession: false)
+        auth.currentUser = AppUser(id: userID, email: nil, createdAt: .now)
+        auth.isAuthenticated = true
         SpentRestoreResponseProtocol.reset(spentRow: try JSONEncoder().encode([
             DailySpentRow(userId: userID, dayKey: AppModel.dayKey(for: .now),
                           totalSpent: 12, spentByApp: ["fixture-feed": 12])
@@ -51,13 +33,7 @@ final class SpentRestoreTests: XCTestCase {
 
     override func tearDown() async throws {
         session.invalidateAndCancel()
-        let auth = AuthenticationService.shared
-        auth.currentUser = previousUser
-        auth.isAuthenticated = previousAuthenticated
-        auth.isAnonymous = previousAnonymous
-        SessionKeychain.deleteSession()
-        if let previousSession { _ = SessionKeychain.saveSession(previousSession) }
-        UserDefaults.standard.set(previousLegacySession, forKey: "supabaseSession_v1")
+        auth = nil
         UserDefaults.nowhere().setPersistentDomain(previousDefaults ?? [:], forName: SharedKeys.appGroupId)
         PersistenceManager.storageDirectoryOverride = previousDirectory
         try FileManager.default.removeItem(at: directory)
@@ -81,7 +57,7 @@ final class SpentRestoreTests: XCTestCase {
         model.appStepsSpentToday = previousToday
         model.appStepsSpentByDay = ["2000-01-01": ["historical-feed": 3]]
         model.stepsToday = 1_000 // A real local day admits daily-spend full sync.
-        let sync = SupabaseSyncService(network: NetworkClient(session: session))
+        let sync = SupabaseSyncService(network: NetworkClient(session: session), authentication: auth)
         let restored = await sync.restoreFromServer(model: model)
         XCTAssertTrue(restored)
         let today = AppModel.dayKey(for: .now)
@@ -160,4 +136,10 @@ private final class SpentRestoreResponseProtocol: URLProtocol, @unchecked Sendab
     }
 
     override func stopLoading() {}
+}
+
+@MainActor
+private final class SpentRestoreAuthentication: AuthenticationService {
+    override var accessToken: String? { "spent-restore-fixture-token" }
+    override func freshAccessToken() async -> String? { accessToken }
 }

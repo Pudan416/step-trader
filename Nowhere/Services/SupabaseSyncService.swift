@@ -178,12 +178,17 @@ actor SupabaseSyncService {
     nonisolated static let shared = SupabaseSyncService(network: .shared)
     
     let network: NetworkClient
+    private let authenticationOverride: AuthenticationService?
+    @MainActor var authenticationService: AuthenticationService {
+        authenticationOverride ?? AuthenticationService.shared
+    }
     let retryQueueStore: SupabaseRetryQueuePersistence
     let optionEntryIntentStore: OptionEntryIntentPersistence
     let optionEntryAttemptCoordinator = OptionEntryIntentAttemptCoordinator()
 
-    init(network: NetworkClient) {
+    init(network: NetworkClient, authentication: AuthenticationService? = nil) {
         self.network = network
+        self.authenticationOverride = authentication
         let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
         retryQueueStore = SupabaseRetryQueuePersistence(
             defaults: UserDefaults.nowhere(),
@@ -517,9 +522,9 @@ actor SupabaseSyncService {
 
     /// Waits for auth initialization and returns token + userId, or nil if unauthenticated.
     func authenticatedContext() async -> AuthContext? {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.freshAccessToken(),
-              let userId = await AuthenticationService.shared.currentUser?.id else {
+        await authenticationService.waitForInitialization()
+        guard let token = await authenticationService.freshAccessToken(),
+              let userId = await authenticationService.currentUser?.id else {
             return nil
         }
         return AuthContext(token: token, userId: userId)
@@ -581,10 +586,10 @@ actor SupabaseSyncService {
     func performFullSync(model: AppModel) async {
         AppLogger.network.debug("📡 performFullSync called, waiting for auth initialization...")
         
-        await AuthenticationService.shared.waitForInitialization()
-        let isAuthenticated = await AuthenticationService.shared.isAuthenticated
-        let currentUserId = await AuthenticationService.shared.currentUser?.id
-        let hasToken = await AuthenticationService.shared.accessToken != nil
+        await authenticationService.waitForInitialization()
+        let isAuthenticated = await authenticationService.isAuthenticated
+        let currentUserId = await authenticationService.currentUser?.id
+        let hasToken = await authenticationService.accessToken != nil
         
         AppLogger.network.debug("📡 Auth initialized. isAuthenticated: \(isAuthenticated)")
         AppLogger.network.debug("📡 currentUser: \(currentUserId ?? "nil")")
@@ -709,9 +714,9 @@ actor SupabaseSyncService {
     func restoreFromServer(model: AppModel) async -> Bool {
         AppLogger.network.debug("📡 Starting restore from Supabase...")
         
-        await AuthenticationService.shared.waitForInitialization()
-        let isAuthenticated = await AuthenticationService.shared.isAuthenticated
-        let currentUser = await AuthenticationService.shared.currentUser
+        await authenticationService.waitForInitialization()
+        let isAuthenticated = await authenticationService.isAuthenticated
+        let currentUser = await authenticationService.currentUser
         guard isAuthenticated, currentUser != nil else {
             AppLogger.network.debug("📡 Restore skipped: user not authenticated")
             return false
@@ -731,7 +736,7 @@ actor SupabaseSyncService {
             AppLogger.network.error("📡 Happening history restore incomplete — will retry")
             return false
         }
-        guard await AuthenticationService.shared.currentUser?.id == currentUser?.id else { return false }
+        guard await authenticationService.currentUser?.id == currentUser?.id else { return false }
         var didRestore = false
         if !history.happenings.isEmpty {
             await MainActor.run { model.happeningStore.mergeRestored(history.happenings) }
