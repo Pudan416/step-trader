@@ -88,6 +88,14 @@ export async function verifySessionToken(token: string): Promise<boolean> {
 
 export { COOKIE_NAME };
 
+/** Check the current request before privileged data access, including Server Actions. */
+export async function requireAdminSession(): Promise<void> {
+  const token = (await cookies()).get(COOKIE_NAME)?.value;
+  if (!token || !(await verifySessionToken(token))) {
+    throw new Error("Unauthorized");
+  }
+}
+
 // Persistent rate limiting via Supabase RPC (survives cold starts / per-invocation isolation)
 async function checkRateLimit(ip: string): Promise<boolean> {
   try {

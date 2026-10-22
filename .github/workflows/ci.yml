@@ -325,6 +325,7 @@ jobs:
       # Generate Next's route/page type defs (.next/types) — gitignored, so
       # absent on a clean checkout. tsc's tsconfig includes them; without this
       # step the typecheck would differ from local runs. No env vars needed.
+      - run: node --test tests/admin-authorization.test.mjs
       - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm run lint

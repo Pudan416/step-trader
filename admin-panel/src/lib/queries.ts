@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./supabaseAdmin";
+import { requireAdminSession } from "./adminAuth";
 import type { PublicUserRow, ShieldRow, UserPrefsRow } from "./types";
 
 const HARD_ROW_LIMIT = 200_000;
@@ -8,6 +9,7 @@ export async function listPublicUsers(params: {
   offset?: number;
   search?: string;
 }): Promise<{ rows: PublicUserRow[]; total: number }> {
+  await requireAdminSession();
   const limit = params.limit ?? 50;
   const offset = params.offset ?? 0;
   const sb = supabaseAdmin();
@@ -36,6 +38,7 @@ export async function listPublicUsers(params: {
 }
 
 export async function getPublicUser(userId: string): Promise<PublicUserRow | null> {
+  await requireAdminSession();
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("users")
@@ -47,6 +50,7 @@ export async function getPublicUser(userId: string): Promise<PublicUserRow | nul
 }
 
 export async function getUserPrefs(userId: string): Promise<UserPrefsRow | null> {
+  await requireAdminSession();
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("user_preferences")
@@ -58,6 +62,7 @@ export async function getUserPrefs(userId: string): Promise<UserPrefsRow | null>
 }
 
 export async function listShields(userId: string): Promise<ShieldRow[]> {
+  await requireAdminSession();
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("shields")
@@ -69,6 +74,7 @@ export async function listShields(userId: string): Promise<ShieldRow[]> {
 }
 
 export async function countShields(userId?: string): Promise<number> {
+  await requireAdminSession();
   const sb = supabaseAdmin();
   const q = sb.from("shields").select("id", { count: "exact", head: true });
   const { count, error } = userId ? await q.eq("user_id", userId) : await q;
@@ -83,6 +89,7 @@ export async function countShields(userId?: string): Promise<number> {
 }
 
 export async function countAuthUsers(): Promise<number> {
+  await requireAdminSession();
   const sb = supabaseAdmin();
   // supabase-js admin listUsers is paginated; we count by iterating pages.
   let page = 1;
@@ -107,6 +114,7 @@ export async function banUser(
   reason: string,
   banUntil?: string
 ): Promise<void> {
+  await requireAdminSession();
   const sb = supabaseAdmin();
   const { error } = await sb
     .from("users")
@@ -120,6 +128,7 @@ export async function banUser(
 }
 
 export async function unbanUser(userId: string): Promise<void> {
+  await requireAdminSession();
   const sb = supabaseAdmin();
   const { error } = await sb
     .from("users")
