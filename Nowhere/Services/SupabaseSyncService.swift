@@ -175,14 +175,15 @@ struct SupabaseRetryQueuePersistence {
 /// Handles syncing user data to Supabase
 actor SupabaseSyncService {
     
-    nonisolated static let shared = SupabaseSyncService()
+    nonisolated static let shared = SupabaseSyncService(network: .shared)
     
-    let network = NetworkClient.shared
+    let network: NetworkClient
     let retryQueueStore: SupabaseRetryQueuePersistence
     let optionEntryIntentStore: OptionEntryIntentPersistence
     let optionEntryAttemptCoordinator = OptionEntryIntentAttemptCoordinator()
 
-    private init() {
+    init(network: NetworkClient) {
+        self.network = network
         let g = UserDefaults(suiteName: SharedKeys.appGroupId) ?? .standard
         retryQueueStore = SupabaseRetryQueuePersistence(
             defaults: UserDefaults.nowhere(),
@@ -760,8 +761,7 @@ actor SupabaseSyncService {
             if spent.totalSpent > 0 {
                 await MainActor.run {
                     model.spentStepsToday = spent.totalSpent
-                    let today = AppModel.dayKey(for: Date.now)
-                    model.appStepsSpentByDay[today] = spent.spentByApp
+                    model.appStepsSpentToday = spent.spentByApp
                     model.persistAppStepsSpentToday()
                 }
                 didRestore = true
