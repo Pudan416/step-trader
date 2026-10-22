@@ -94,8 +94,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/HealthZeroDataUI.log"
 
       - name: Run isolated live-audio lifecycle regressions
-        # These async scenarios hit an XCTest/Swift task-allocator abort after
-        # the long shared audio run. Exercise them in fresh hosts, three times
+        # Regression coverage for the XCTest async-bridge allocator abort:
+        # exercise the Swift-owned task boundary in fresh hosts, three times
         # each, with every failure still failing the gate (no failure retries).
         timeout-minutes: 15
         run: |

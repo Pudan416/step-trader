@@ -1191,8 +1191,12 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertFalse(session.isActive)
     }
 
-    func testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops() async throws {
+    func testLiveRuntimeFailedUpgradeDemotesToSampleOwnerThenRetriesAuditionAndStops() throws {
         try requireLiveAudioOutput()
+        runInAudioTask { try await self.checkFailedUpgradeDemotionAndRetry() }
+    }
+
+    private func checkFailedUpgradeDemotionAndRetry() async throws {
         for failure in [RealRuntimeFailureStage.fullPreparation, .transportStart] {
             let log = PlaybackEngineCallLog()
             let session = RecordingDayObjectsAudioSession(log: log)
@@ -2489,8 +2493,12 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         }
     }
 
-    func testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords() async throws {
+    func testLiveRuntimeHappeningsZeroToTenLoopsPreserveRealAllocationsAndRemoveRecords() throws {
         try requireLiveAudioOutput()
+        runInAudioTask { try await self.checkHappeningsAllocationLoops() }
+    }
+
+    private func checkHappeningsAllocationLoops() async throws {
         let log = PlaybackEngineCallLog()
         let session = RecordingDayObjectsAudioSession(log: log)
         let runtime = try DayObjectsLivePlaybackRuntime(bundle: Bundle(for: type(of: self)))
@@ -2560,6 +2568,27 @@ final class DayObjectsMusicPlaybackEngineTests: XCTestCase {
         XCTAssertEqual(metrics.sharedEngineStartCount, 1)
 
         await engine.stop()
+    }
+
+    /// Keep real-audio async lifetimes inside a Swift-owned task. The XCTest
+    /// async invocation bridge can abort in _swift_task_dealloc_specific while
+    /// observing errors, even when these scenarios run in a fresh test host.
+    private func runInAudioTask(
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ operation: @escaping @MainActor () async throws -> Void
+    ) {
+        let finished = expectation(description: "Audio lifecycle task completed")
+        let task = Task { @MainActor in
+            defer { finished.fulfill() }
+            do {
+                try await operation()
+            } catch {
+                XCTFail("Unexpected audio lifecycle error: \(error)", file: file, line: line)
+            }
+        }
+        defer { task.cancel() }
+        wait(for: [finished], timeout: 180)
     }
 
     private func assertInjectedSampleStartFailure(
