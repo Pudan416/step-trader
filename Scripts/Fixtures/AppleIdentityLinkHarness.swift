@@ -18,7 +18,7 @@ func session(_ uid: String, token: String = "new-token", anonymous: Bool = false
                               "refresh_token": "fixture-refresh", "user": ["id": uid, "is_anonymous": anonymous]]
     return try JSONDecoder().decode(SupabaseSessionResponse.self, from: JSONSerialization.data(withJSONObject: json))
 }
-final class NetworkClient {
+@MainActor final class NetworkClient {
     var mode = "new"
     var requests: [URLRequest] = []
     var afterRequest: (() -> Void)?
@@ -93,6 +93,9 @@ final class NetworkClient {
             check(expectFailure, "valid exchange failed")
             let expectedRequests = ["fork", "other-422", "transport", "link-switch"].contains(mode) ? 1 : 0
             check(network.requests.count == expectedRequests, "failure attempted unsafe normal sign-in")
+        }
+        if let storedSession {
+            check(storedSession.user.id == "anonymous-owner", "exchange overwrote the original stored owner")
         }
     }
 }
