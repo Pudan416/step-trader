@@ -48,10 +48,11 @@ final class AccountHistoryCoordinator: ObservableObject {
         validateIdentity: @MainActor () throws -> Void,
         publishIdentity: @MainActor () -> Void
     ) async throws {
-        let vault = try self.vault ?? AccountHistoryStorage.makeVault()
-        self.vault = vault
+        SupabaseSyncService.shared.beginAccountSwitch()
         var prepared: AccountHistoryVault.PreparedActivation?
         do {
+            let vault = try self.vault ?? AccountHistoryStorage.makeVault()
+            self.vault = vault
             await model.suspendHistoryWork()
             await SupabaseSyncService.shared.pauseForAccountSwitch()
             if let hydrationTask { _ = await hydrationTask.value }
@@ -92,6 +93,7 @@ final class AccountHistoryCoordinator: ObservableObject {
         } catch {
             let failure = error
             do {
+                guard let vault = self.vault else { throw failure }
                 if let prepared {
                     try ShieldRebuildHelper.withAccountHistoryTransitionLock {
                         try vault.rollbackActivation(prepared)
