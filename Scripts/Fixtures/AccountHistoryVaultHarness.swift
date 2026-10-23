@@ -41,7 +41,25 @@ struct AccountHistoryVaultHarness {
         }
         let vault = try makeVault()
         let mode = CommandLine.arguments[1]
-        if mode == "legacy" {
+        if mode == "preparedLegacyRollback" {
+            let receipt = try vault.prepareActivation(owner: "account-B")!
+            try expect(defaults.data(forKey: "history") == nil, "B preparation must isolate legacy bytes")
+            // The auth generation changed while asynchronous model reload ran.
+            // Reject its commit and undo only this actual prepared transaction.
+            try vault.rollbackActivation(receipt)
+            try expect(vault.activeOwner == AccountHistoryVault.legacyOwner, "rejected initial commit must restore unattributed ownership")
+            try expect(defaults.data(forKey: "history") == historyBytes && Data(contentsOf: canvas) == historyBytes, "rejected initial commit must preserve exact original IDs and bytes")
+            do { try vault.commitActivation(receipt); fatalError("rolled back receipt must not be reusable") } catch {}
+            let retry = try vault.prepareActivation(owner: "account-B")!
+            try vault.commitActivation(retry)
+            try expect(vault.activeOwner == "account-B" && defaults.data(forKey: "history") == nil, "retry must publish only clean B working set")
+            try expect(vault.legacyArchive()?.fileData(at: "canvases/day.json") == historyBytes, "retry must retain local legacy access")
+        } else if mode == "preparedRestart" {
+            _ = try vault.prepareActivation(owner: "account-B")
+            let recovered = try makeVault()
+            try expect(recovered.activeOwner == AccountHistoryVault.legacyOwner, "restart before auth commit must recover outgoing ownership")
+            try expect(defaults.data(forKey: "history") == historyBytes && Data(contentsOf: canvas) == historyBytes, "restart must recover original legacy bytes")
+        } else if mode == "legacy" {
             try vault.activate(owner: "account-A")
             try expect(vault.containsArchive(owner: AccountHistoryVault.legacyOwner), "legacy history must be preserved without assigning it to A")
             try expect(defaults.data(forKey: "history") == nil, "A must not inherit legacy IDs")

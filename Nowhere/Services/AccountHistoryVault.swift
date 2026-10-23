@@ -42,6 +42,14 @@ final class AccountHistoryVault {
         }
     }
 
+    /// Opaque authority to finish or undo this vault's current prepared switch.
+    struct PreparedActivation {
+        fileprivate let id: UUID
+        fileprivate let owner: String
+        fileprivate let previousOwner: String
+    }
+    private var pendingActivation: UUID?
+
     enum VaultError: Error {
         case invalidArchive, invalidLocation, invalidOwner, defaultsWriteFailed
     }
@@ -105,10 +113,20 @@ final class AccountHistoryVault {
     /// The outgoing archive is durable before any working data is replaced.
     /// New users start empty; returning users retain their exact UUID/file bytes.
     func activate(owner: String) throws {
+        if let prepared = try prepareActivation(owner: owner) {
+            try commitActivation(prepared)
+        }
+    }
+
+    /// Keep the rollback journal until the caller validates incoming model state
+    /// and commits authentication. A crash or rejected auth commit restores the
+    /// actual outgoing working set, including an initial unattributed installation.
+    func prepareActivation(owner: String) throws -> PreparedActivation? {
         guard !owner.isEmpty, owner != Self.legacyOwner else { throw VaultError.invalidOwner }
         try recoverInterruptedSwitch()
+        pendingActivation = nil
         let previous = try manifest().owner
-        guard previous != owner else { return }
+        guard previous != owner else { return nil }
         let outgoing = try capture()
         try publish(outgoing, owner: previous)
         let saved = try read(owner: owner)
@@ -118,7 +136,10 @@ final class AccountHistoryVault {
         try writeManifest(Manifest(owner: previous, recoveringOwner: previous))
         do {
             try apply(incoming)
-            try writeManifest(Manifest(owner: owner, recoveringOwner: nil))
+            try writeManifest(Manifest(owner: owner, recoveringOwner: previous))
+            let prepared = PreparedActivation(id: UUID(), owner: owner, previousOwner: previous)
+            pendingActivation = prepared.id
+            return prepared
         } catch {
             // Leave the marker if rollback fails too: a later launch retries
             // from the outgoing archive rather than trusting partial files.
@@ -126,6 +147,24 @@ final class AccountHistoryVault {
             try writeManifest(Manifest(owner: previous, recoveringOwner: nil))
             throw error
         }
+    }
+
+    func commitActivation(_ prepared: PreparedActivation) throws {
+        try validatePrepared(prepared)
+        try writeManifest(Manifest(owner: prepared.owner, recoveringOwner: nil))
+        pendingActivation = nil
+    }
+
+    func rollbackActivation(_ prepared: PreparedActivation) throws {
+        try validatePrepared(prepared)
+        try recoverInterruptedSwitch()
+        pendingActivation = nil
+    }
+
+    private func validatePrepared(_ prepared: PreparedActivation) throws {
+        let state = try manifest()
+        guard pendingActivation == prepared.id, state.owner == prepared.owner,
+              state.recoveringOwner == prepared.previousOwner else { throw VaultError.invalidArchive }
     }
 
     /// Archives include legacy-unattributed and remain entirely local.
@@ -313,6 +352,7 @@ final class AccountHistoryVault {
         let state = try manifest()
         guard let owner = state.recoveringOwner else { return }
         guard let saved = try read(owner: owner) else { throw VaultError.invalidArchive }
+        try validate(saved)
         try apply(saved)
         try writeManifest(Manifest(owner: owner, recoveringOwner: nil))
     }

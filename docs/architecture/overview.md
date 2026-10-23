@@ -164,3 +164,5 @@ stable so updates keep existing installations, data and extension communication:
 
 Do not replace these strings during naming cleanup. Keep current persisted keys,
 Codable keys, widget kinds and enum raw values unless a separate migration is tested.
+
+The account coordinator uses the vault's two-phase activation: `prepareActivation` retains the outgoing recovery journal while the incoming model is loaded, then `commitActivation` completes it after authentication commits. A receipt can undo only its own still-pending switch through `rollbackActivation`; this includes the original unattributed working set without exposing normal activation/import of legacy history. Restart before commit also restores the outgoing archive. Existing `activate` remains the immediate prepare/commit convenience.

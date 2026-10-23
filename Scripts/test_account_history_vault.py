@@ -30,6 +30,12 @@ class AccountHistoryVaultTests(unittest.TestCase):
         result = subprocess.run([str(self.binary), mode], capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_initial_legacy_prepare_rejected_commit_restores_exact_bytes_and_can_retry(self):
+        self.run_case("preparedLegacyRollback")
+
+    def test_restart_before_auth_commit_recovers_actual_outgoing_owner(self):
+        self.run_case("preparedRestart")
+
     def test_legacy_history_is_quarantined_without_reassigning_ids(self):
         self.run_case("legacy")
 
