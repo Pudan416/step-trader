@@ -16,6 +16,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  economy-write-barrier:
+    name: Economy write barrier regressions
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify cancellable local economy writes
+        run: python3 Scripts/test_economy_write_barrier.py
+
   account-history-vault:
     name: Account history archive regressions
     runs-on: macos-26

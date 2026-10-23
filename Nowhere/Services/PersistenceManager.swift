@@ -31,10 +31,14 @@ actor PersistenceManager {
     }
     
     func save<T: Encodable>(_ object: T, to filename: String) async throws {
+        try Task.checkCancellation()
         let url = storageDirectory.appending(path: filename)
         do {
             let data = try JSONEncoder().encode(object)
+            try Task.checkCancellation()
             try data.write(to: url, options: .atomic)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             await ErrorManager.shared.handle(AppError.persistenceError(error))
             throw error
