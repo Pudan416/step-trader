@@ -63,7 +63,7 @@ actor SupabaseSyncService {
         pendingAnalyticsEvents = [event("already-sent")]
         switch mode {
         case "mixed": pendingAnalyticsEvents.append(event("new-event"))
-        case "ownership": pendingAnalyticsEvents.append(event("foreign-event", "owner-b"))
+        case "ownership": pendingAnalyticsEvents.append(event("already-sent", "owner-b"))
         case "409", "403": network.forcedStatus = Int(mode)
         case "transport": network.throwsTransportError = true
         default: break
@@ -75,7 +75,7 @@ actor SupabaseSyncService {
             precondition(pendingAnalyticsEvents == original, "Failed upload lost durable events")
             precondition(persistenceWrites == 0)
         } else if mode == "ownership" {
-            precondition(pendingAnalyticsEvents == [event("foreign-event", "owner-b")])
+            precondition(pendingAnalyticsEvents == [event("already-sent", "owner-b")])
         } else {
             precondition(pendingAnalyticsEvents.isEmpty, "Duplicate blocks successful queue drain")
             precondition(persistenceWrites == 1)

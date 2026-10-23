@@ -41,7 +41,7 @@ Uploads use `on_conflict=user_id,event_id` with `resolution=ignore-duplicates`.
 The generated numeric `id` is not the retry identity: an acknowledged insert
 whose response was lost must not block a later batch containing that event.
 Failed uploads retain their queued events; only a successful response acknowledges
-the submitted IDs. `Scripts/test_analytics_flush.py` exercises the production flush
+the submitted account/ID pairs. `Scripts/test_analytics_flush.py` exercises the production flush
 with fixed HTTP fixtures, including duplicate replay and account isolation.
 `Scripts/test_analytics_postgres.py` runs the matching SQL against the production
 table/constraint/policy definitions in an empty local PostgreSQL fixture database

@@ -127,7 +127,7 @@ extension SupabaseSyncService {
             }
             
             let sentIDs = Set(eventsForCurrentUser.map { $0.event.id })
-            pendingAnalyticsEvents.removeAll { sentIDs.contains($0.id) }
+            pendingAnalyticsEvents.removeAll { $0.userId == userId && sentIDs.contains($0.id) }
             persistAnalyticsQueueToDefaults()
             AppLogger.network.debug("📡 Analytics flushed: \(rows.count) events")
         } catch {
