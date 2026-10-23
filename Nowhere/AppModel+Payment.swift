@@ -173,7 +173,7 @@ extension AppModel {
         // Sync daily spent to Supabase
         let todaySpent = appStepsSpentByDay[key] ?? [:]
         let totalSpent = todaySpent.values.reduce(0, +)
-        scheduleHistoryWork { [self] in
+        scheduleHistoryWork {
             await SupabaseSyncService.shared.syncDailySpent(dayKey: key, totalSpent: totalSpent, spentByApp: todaySpent)
             await SupabaseSyncService.shared.trackAnalyticsEvent(
                 name: "experience_spent",

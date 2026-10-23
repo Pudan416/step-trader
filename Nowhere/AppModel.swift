@@ -694,7 +694,7 @@ final class AppModel: ObservableObject {
         }
 
         // Drain any offline sync requests that failed previously
-        scheduleHistoryWork { [self] in await SupabaseSyncService.shared.drainRetryQueue() }
+        scheduleHistoryWork { await SupabaseSyncService.shared.drainRetryQueue() }
     }
     
     deinit {
