@@ -41,7 +41,24 @@ struct AccountHistoryVaultHarness {
         }
         let vault = try makeVault()
         let mode = CommandLine.arguments[1]
-        if mode == "preparedLegacyRollback" {
+        if mode == "commitWriteFailure" {
+            enum WriteFailure: Error { case commit }
+            var manifestWrites = 0
+            let failing = try AccountHistoryVault(root: archive,
+                domains: [.init(defaults: defaults, keys: ["history"])],
+                locations: [.init(name: "canvases", url: canvas.deletingLastPathComponent(), isDirectory: true)],
+                manifestWriter: { data, url in
+                    manifestWrites += 1
+                    if manifestWrites == 3 { throw WriteFailure.commit }
+                    try data.write(to: url, options: .atomic)
+                })
+            do { try failing.activate(owner: "account-B"); fatalError("final manifest failure must propagate") }
+            catch WriteFailure.commit {}
+            try expect(failing.activeOwner == AccountHistoryVault.legacyOwner, "immediate activation commit failure must roll back owner")
+            try expect(defaults.data(forKey: "history") == historyBytes && Data(contentsOf: canvas) == historyBytes, "commit failure must roll back working bytes before returning")
+            try failing.activate(owner: "account-B")
+            try expect(failing.activeOwner == "account-B", "commit failure must allow retry")
+        } else if mode == "preparedLegacyRollback" {
             let receipt = try vault.prepareActivation(owner: "account-B")!
             try expect(defaults.data(forKey: "history") == nil, "B preparation must isolate legacy bytes")
             // The auth generation changed while asynchronous model reload ran.

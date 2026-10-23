@@ -30,6 +30,9 @@ class AccountHistoryVaultTests(unittest.TestCase):
         result = subprocess.run([str(self.binary), mode], capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_final_manifest_write_failure_rolls_back_immediate_activation_before_returning(self):
+        self.run_case("commitWriteFailure")
+
     def test_initial_legacy_prepare_rejected_commit_restores_exact_bytes_and_can_retry(self):
         self.run_case("preparedLegacyRollback")
 

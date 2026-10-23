@@ -59,6 +59,7 @@ final class AccountHistoryVault {
     private let domains: [DefaultsDomain]
     private let locations: [Location]
     private let fm: FileManager
+    private let manifestWriter: ((Data, URL) throws -> Void)?
     private let encoder = PropertyListEncoder()
     private let decoder = PropertyListDecoder()
 
@@ -83,7 +84,7 @@ final class AccountHistoryVault {
         var recoveringOwner: String?
     }
 
-    init(root: URL, domains: [DefaultsDomain], locations: [Location], fileManager: FileManager = .default) throws {
+    init(root: URL, domains: [DefaultsDomain], locations: [Location], fileManager: FileManager = .default, manifestWriter: ((Data, URL) throws -> Void)? = nil) throws {
         let rootPath = root.resolvingSymlinksInPath().standardizedFileURL.path
         let paths = locations.map { $0.url.resolvingSymlinksInPath().standardizedFileURL.path }
         guard Set(locations.map(\.name)).count == locations.count,
@@ -99,6 +100,7 @@ final class AccountHistoryVault {
         self.domains = domains
         self.locations = locations
         self.fm = fileManager
+        self.manifestWriter = manifestWriter
         encoder.outputFormat = .binary
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         try protectArchive(root)
@@ -114,7 +116,14 @@ final class AccountHistoryVault {
     /// New users start empty; returning users retain their exact UUID/file bytes.
     func activate(owner: String) throws {
         if let prepared = try prepareActivation(owner: owner) {
-            try commitActivation(prepared)
+            do {
+                try commitActivation(prepared)
+            } catch {
+                // Keep the immediate API's original failure contract. If undo
+                // also fails, its durable journal remains available at restart.
+                try rollbackActivation(prepared)
+                throw error
+            }
         }
     }
 
@@ -195,7 +204,10 @@ final class AccountHistoryVault {
     }
 
     private func writeManifest(_ value: Manifest) throws {
-        try writeArchiveData(encoder.encode(value), to: root.appendingPathComponent("manifest.plist"))
+        let data = try encoder.encode(value)
+        let url = root.appendingPathComponent("manifest.plist")
+        if let manifestWriter { try manifestWriter(data, url) }
+        else { try writeArchiveData(data, to: url) }
     }
 
     private func pointerURL(owner: String) -> URL {
