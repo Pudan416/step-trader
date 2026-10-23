@@ -32,7 +32,7 @@ extension AppModel {
 
     func scheduleSupabaseTicketUpsert(bundleId: String) {
         let groups = ticketGroups
-        Task { await SupabaseSyncService.shared.syncTicketGroups(groups) }
+        scheduleHistoryWork { [self] in await SupabaseSyncService.shared.syncTicketGroups(groups) }
     }
 
     // MARK: - Tracking

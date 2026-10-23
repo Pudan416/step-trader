@@ -80,6 +80,7 @@ extension AppModel {
     @MainActor
     @discardableResult
     func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async -> Bool {
+        guard !isHistoryWorkSuspended else { return false }
         // Checked before anything else, including whether the group exists: without
         // Screen Time access every ManagedSettingsStore write below is inert, so the
         // purchase cannot succeed no matter what else is true. The cached flag only

@@ -63,6 +63,7 @@ extension AppModel {
     
     @MainActor
     func pay(cost: Int) -> Bool {
+        guard !isHistoryWorkSuspended else { return false }
         #if DEBUG
         AppLogger.payment.debug("pay(\(cost)) called on main thread: \(Thread.isMainThread)")
         AppLogger.payment.debug("Before: totalBalance=\(self.totalStepsBalance), stepsBalance=\(self.stepsBalance), bonusSteps=\(self.bonusSteps), baseEnergyToday=\(self.baseEnergyToday), spentStepsToday=\(self.spentStepsToday)")
@@ -170,7 +171,7 @@ extension AppModel {
         // Sync daily spent to Supabase
         let todaySpent = appStepsSpentByDay[key] ?? [:]
         let totalSpent = todaySpent.values.reduce(0, +)
-        Task {
+        scheduleHistoryWork { [self] in
             await SupabaseSyncService.shared.syncDailySpent(dayKey: key, totalSpent: totalSpent, spentByApp: todaySpent)
             await SupabaseSyncService.shared.trackAnalyticsEvent(
                 name: "experience_spent",

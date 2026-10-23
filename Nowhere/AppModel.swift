@@ -37,6 +37,10 @@ final class AppModel: ObservableObject {
     // successful cloud delete has already left the durable retry queue.
     var locallyRemovedAdditionIDs: Set<String> = []
     private var sleepRefetchTask: Task<Void, Never>?
+    private var historyWorkTasks: [UUID: Task<Void, Never>] = [:]
+    private(set) var isHistoryWorkSuspended = false
+    private(set) var historyWorkGeneration = UUID()
+    private var historyWorkWaiters: [CheckedContinuation<Void, Never>] = []
     /// In-flight `recalculateDailyEnergy` Task spawned from the steps/sleep
     /// Combine sink (§3.5). Cancelled on next fire and on `deinit` so a stale
     /// recompute can't write back over fresh state after a DI reset / test
@@ -264,8 +268,9 @@ final class AppModel: ObservableObject {
             .dropFirst()
             .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
             .sink { [weak self] _ in
-                self?.recalcTask?.cancel()
-                self?.recalcTask = Task { @MainActor [weak self] in
+                guard let self, !self.isHistoryWorkSuspended else { return }
+                self.recalcTask?.cancel()
+                self.recalcTask = Task { @MainActor [weak self] in
                     guard !Task.isCancelled else { return }
                     self?.recalculateDailyEnergy()
                 }
@@ -294,6 +299,49 @@ final class AppModel: ObservableObject {
         authService.postLoginSyncModel = self
     }
 
+    /// Retain account-data producers so a transition can drain them before
+    /// replacing the working set. Their operation bodies remain unchanged.
+    func scheduleHistoryWork(_ operation: @escaping @MainActor () async -> Void) {
+        guard !isHistoryWorkSuspended else { return }
+        let id = UUID()
+        historyWorkTasks[id] = Task { @MainActor [weak self] in
+            guard !Task.isCancelled else { return }
+            await operation()
+            self?.historyWorkTasks.removeValue(forKey: id)
+        }
+    }
+
+    func suspendHistoryWork() async {
+        isHistoryWorkSuspended = true
+        historyWorkGeneration = UUID()
+        dayBoundaryTimer?.invalidate()
+        dayBoundaryTimer = nil
+        let tasks = Array(historyWorkTasks.values) + [recalcTask, sleepRefetchTask, dayEndCommitTask].compactMap { $0 }
+        for task in tasks { task.cancel() }
+        await localPurchaseStateTask?.value
+        for task in tasks { await task.value }
+        historyWorkTasks.removeAll()
+        recalcTask = nil
+        sleepRefetchTask = nil
+        dayEndCommitTask = nil
+    }
+
+    func resumeHistoryWork() {
+        isHistoryWorkSuspended = false
+        let waiters = historyWorkWaiters
+        historyWorkWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+    }
+
+    func isHistoryWorkCurrent(_ generation: UUID) -> Bool {
+        !isHistoryWorkSuspended && historyWorkGeneration == generation
+    }
+
+    private func waitForHistoryWorkResumption() async {
+        guard isHistoryWorkSuspended else { return }
+        await withCheckedContinuation { historyWorkWaiters.append($0) }
+    }
+
     /// Convenience: always true. The app is free for everyone.
     var isPro: Bool { subscriptionStore.isPro }
 
@@ -306,6 +354,7 @@ final class AppModel: ObservableObject {
     }
 
     func checkDayBoundary() {
+        guard !isHistoryWorkSuspended else { return }
         let now = Date.now
         let currentKey = Self.dayKey(for: now)
         let dayChanged = currentKey != lastDayKey
@@ -331,7 +380,7 @@ final class AppModel: ObservableObject {
             AppLogger.healthKit.info("👣 checkDayBoundary: day changed (didReset=\(didReset), dayChanged=\(dayChanged)), stepsToday=\(Int(self.stepsToday)) — stopping observer & clearing cache")
             healthStore.stopObservingSteps()
             healthStore.clearCachedStepCount()
-            Task { await refreshStepsIfAuthorized() }
+            scheduleHistoryWork { [self] in await refreshStepsIfAuthorized() }
         }
         if dayChanged {
             // Custom day boundary flipped (respects `dayEndHour`/`dayEndMinute`) —
@@ -376,6 +425,7 @@ final class AppModel: ObservableObject {
     }
 
     func scheduleDayBoundaryTimer() {
+        guard !isHistoryWorkSuspended else { return }
         dayBoundaryTimer?.invalidate()
         let next = nextDayBoundary(after: Date.now)
         let interval = max(1, next.timeIntervalSinceNow)
@@ -401,7 +451,7 @@ final class AppModel: ObservableObject {
     }
     
     func loadAppStepsSpentToday() {
-        Task {
+        scheduleHistoryWork { [self] in
             await userEconomyStore.loadAppStepsSpentToday()
         }
     }
@@ -415,7 +465,7 @@ final class AppModel: ObservableObject {
     }
 
     private func loadAppStepsSpentLifetime() {
-        Task {
+        scheduleHistoryWork { [self] in
             await userEconomyStore.loadAppStepsSpentLifetime()
         }
     }
@@ -442,7 +492,7 @@ final class AppModel: ObservableObject {
         reconcileOrphanUsageBudgetMonitors()
         ensureUsageBudgetMonitoringForActiveGroups()
         rebuildFamilyControlsShield()
-        Task {
+        scheduleHistoryWork { [self] in
             async let stepsResult: () = refreshStepsBalance()
             async let sleepResult: () = refreshSleepIfAuthorized()
             async let workoutResult: () = refreshWorkoutSuggestions()
@@ -456,6 +506,7 @@ final class AppModel: ObservableObject {
     /// If the app is opened in the morning, the first fetch often returns partial
     /// or zero sleep. Re-fetch after a delay to pick up late-arriving samples.
     private func scheduleDelayedSleepRefetchIfMorning() {
+        guard !isHistoryWorkSuspended else { return }
         let hour = Calendar.current.component(.hour, from: Date.now)
         guard (5...11).contains(hour) else { return }
         
@@ -518,6 +569,7 @@ final class AppModel: ObservableObject {
         AppLogger.energy.debug("📊 BOOTSTRAP RAW UD: spentStepsToday=\(diagG.integer(forKey: SharedKeys.spentStepsToday)), baseEnergyToday=\(diagG.integer(forKey: SharedKeys.baseEnergyToday)), stepsBalance=\(diagG.integer(forKey: SharedKeys.stepsBalance)), anchor=\(String(describing: diagG.object(forKey: SharedKeys.dailyEnergyAnchor)))")
 
         await prepareLocalPurchaseState()
+        await waitForHistoryWorkResumption()
 
         // 1.7 Recalculate EXP from loaded selections immediately so baseEnergyToday
         // reflects current selections even before HealthKit data arrives. Without this,
@@ -540,6 +592,7 @@ final class AppModel: ObservableObject {
             }
         }
         
+        await waitForHistoryWorkResumption()
         // 3. Check day boundary BEFORE fetching so stale state is cleared first
         checkDayBoundary()
         AppLogger.energy.debug("📊 AFTER checkDayBoundary: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
@@ -630,7 +683,7 @@ final class AppModel: ObservableObject {
         // sheet isn't swallowed.
         if needsHealthKitAuthorization {
             needsHealthKitAuthorization = false
-            Task { @MainActor [weak self] in
+            scheduleHistoryWork { [weak self] in
                 try? await Task.sleep(for: .seconds(0.5))
                 guard let self else { return }
                 await self.ensureHealthAuthorizationAndRefresh()
@@ -638,7 +691,7 @@ final class AppModel: ObservableObject {
         }
 
         // Drain any offline sync requests that failed previously
-        Task { await SupabaseSyncService.shared.drainRetryQueue() }
+        scheduleHistoryWork { [self] in await SupabaseSyncService.shared.drainRetryQueue() }
     }
     
     deinit {
