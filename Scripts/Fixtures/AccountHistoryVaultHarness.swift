@@ -125,6 +125,34 @@ struct AccountHistoryVaultHarness {
                     fatalError("overlapping roots must be rejected")
                 } catch {}
             }
+        } else if mode == "archiveRootSymlink" {
+            try vault.activate(owner: "account-A")
+            defaults.set(historyBytes, forKey: "history")
+            try historyBytes.write(to: canvas)
+            try vault.activate(owner: "account-B")
+            let b = Data("B current bytes".utf8)
+            defaults.set(b, forKey: "history")
+            try b.write(to: canvas)
+            let aName = "account-A".utf8.map { String(format: "%02x", $0) }.joined() + ".plist"
+            let pointer = try PropertyListSerialization.propertyList(from: Data(contentsOf: archive.appendingPathComponent(aName)), format: nil) as! [String: Any]
+            let files = archive.appendingPathComponent(pointer["directoryID"] as! String).appendingPathComponent("files")
+            let outside = root.appendingPathComponent("unrelated-account")
+            try FileManager.default.createDirectory(at: outside.appendingPathComponent("canvases"), withIntermediateDirectories: true)
+            let foreign = Data("OUTSIDE-ACCOUNT".utf8)
+            try foreign.write(to: outside.appendingPathComponent("canvases/day.json"))
+            try FileManager.default.removeItem(at: files)
+            try FileManager.default.createSymbolicLink(at: files, withDestinationURL: outside)
+            do { try vault.activate(owner: "account-A"); fatalError("a redirected archive files root must fail before mutation") } catch {}
+            try expect(vault.activeOwner == "account-B", "redirected archive must not publish A")
+            try expect(defaults.data(forKey: "history") == b && Data(contentsOf: canvas) == b, "foreign archive bytes must not replace B")
+            // Apply the same corruption to the unowned archive. The local
+            // reader must reject it too rather than displaying unrelated data.
+            let legacyName = AccountHistoryVault.legacyOwner.utf8.map { String(format: "%02x", $0) }.joined() + ".plist"
+            let legacyPointer = try PropertyListSerialization.propertyList(from: Data(contentsOf: archive.appendingPathComponent(legacyName)), format: nil) as! [String: Any]
+            let legacyFiles = archive.appendingPathComponent(legacyPointer["directoryID"] as! String).appendingPathComponent("files")
+            try FileManager.default.removeItem(at: legacyFiles)
+            try FileManager.default.createSymbolicLink(at: legacyFiles, withDestinationURL: outside)
+            do { _ = try vault.legacyArchive(); fatalError("legacy reader must reject redirected files root") } catch {}
         } else if mode == "writeFailure" {
             try vault.activate(owner: "account-A")
             defaults.set(historyBytes, forKey: "history")

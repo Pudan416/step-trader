@@ -249,6 +249,9 @@ final class AccountHistoryVault {
         let directoryKind = try snapshot.directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard directoryKind.isDirectory == true, directoryKind.isSymbolicLink != true,
               snapshot.directory.resolvingSymlinksInPath().path.hasPrefix(root.resolvingSymlinksInPath().path + "/") else { throw VaultError.invalidArchive }
+        let fileRootKind = try snapshot.fileRoot.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard fileRootKind.isDirectory == true, fileRootKind.isSymbolicLink != true,
+              snapshot.fileRoot.resolvingSymlinksInPath().path.hasPrefix(snapshot.directory.resolvingSymlinksInPath().path + "/") else { throw VaultError.invalidArchive }
         let contents = snapshot.contents
         guard contents.version == 1, contents.defaults.count == domains.count,
               Set(contents.files).count == contents.files.count else { throw VaultError.invalidArchive }

@@ -45,6 +45,9 @@ class AccountHistoryVaultTests(unittest.TestCase):
     def test_symlinks_and_overlapping_roots_fail_closed(self):
         self.run_case("symlinks")
 
+    def test_redirected_archive_files_root_cannot_restore_or_display_foreign_bytes(self):
+        self.run_case("archiveRootSymlink")
+
     def test_disk_write_failure_rolls_back_and_remains_retryable(self):
         self.run_case("writeFailure")
 
