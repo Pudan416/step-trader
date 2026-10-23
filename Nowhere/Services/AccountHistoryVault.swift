@@ -84,7 +84,7 @@ final class AccountHistoryVault {
         var recoveringOwner: String?
     }
 
-    init(root: URL, domains: [DefaultsDomain], locations: [Location], fileManager: FileManager = .default, manifestWriter: ((Data, URL) throws -> Void)? = nil) throws {
+    init(root: URL, domains: [DefaultsDomain], locations: [Location], fileManager: FileManager = .default, recoverWorkingSet: Bool = true, manifestWriter: ((Data, URL) throws -> Void)? = nil) throws {
         let rootPath = root.resolvingSymlinksInPath().standardizedFileURL.path
         let paths = locations.map { $0.url.resolvingSymlinksInPath().standardizedFileURL.path }
         guard Set(locations.map(\.name)).count == locations.count,
@@ -104,7 +104,7 @@ final class AccountHistoryVault {
         encoder.outputFormat = .binary
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         try protectArchive(root)
-        try recoverInterruptedSwitch()
+        if recoverWorkingSet { try recoverInterruptedSwitch() }
     }
 
     var activeOwner: String {

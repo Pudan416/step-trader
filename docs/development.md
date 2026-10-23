@@ -38,6 +38,7 @@ python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
 python3 Scripts/test_account_history_vault.py
 python3 Scripts/test_economy_write_barrier.py
+python3 Scripts/test_legacy_device_history.py
 bash Scripts/check-secrets-config.sh
 ```
 
