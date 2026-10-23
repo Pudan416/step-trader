@@ -57,13 +57,13 @@ struct AppsPageSimplified: View {
     @State private var expandedSheetGroupId: TicketGroupId? = nil
     @State private var inlineExpansion = FeedInlineExpansion()
     @State private var autoScrolledTargetID: String?
-    /// Unspent minutes per group id, for groups whose window is open.
+    /// Wall-clock minutes remaining per open group.
     ///
     /// One poll for the whole page. Every row reads this same observation, and
     /// it refreshes on `.active` so returning from the blocked app — the most
     /// common transition in the app — shows the current number immediately.
     @State private var unspentMinutes: [String: Int] = [:]
-    /// Purchased size of each active window. Together with `unspentMinutes`
+    /// Purchased duration of each active pass. Together with `unspentMinutes`
     /// this determines how much pigment remains in the row.
     @State private var initialMinutes: [String: Int] = [:]
 

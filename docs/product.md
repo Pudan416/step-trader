@@ -21,8 +21,8 @@ late responses from a previous refresh, observation session or day are discarded
 
 - **Canvas** — the current day's saved composition, happenings palette, artwork interaction,
   Remix, generative music and export. Historical Canvas formats remain renderable.
-- **Feeds** — selected app groups, color prices and access windows. Purchases and actual
-  Screen Time usage coordinate through the app, App Group and Screen Time extensions.
+- **Feeds** — selected app groups, color prices and access windows. Timed passes and
+  Screen Time access coordinate through the app, App Group and Screen Time extensions.
 - **Me** — recent-week context and the archive. An empty day is not a recorded zero or a
   saved artwork. Settings opens from Me.
 - **Settings** — permissions, appearance, goals, widgets/wallpaper, account and app information.

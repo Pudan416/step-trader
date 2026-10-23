@@ -208,7 +208,7 @@ enum ShieldRebuildHelper {
     }
     #endif
 
-    // MARK: - Usage budget
+    // MARK: - Timed access state
 
     /// Interprets plist values from App Group UserDefaults (any process).
     private static func coercedDate(from object: Any?) -> Date? {
@@ -244,18 +244,6 @@ enum ShieldRebuildHelper {
     static func budgetObservationDates(from now: Date, through horizon: Date, expiries: [Date]) -> [Date] {
         guard horizon > now else { return [] }
         return Array(Set(expiries.filter { $0 > now && $0 <= horizon })).sorted()
-    }
-
-    static func usageSelectionMatches(defaults: UserDefaults, groupId: String, session: UsageBudgetSession) -> Bool {
-        #if canImport(FamilyControls)
-        guard let currentData = loadGroups(defaults: defaults).first(where: { $0.id == groupId && $0.active })?.selectionData,
-              let current = cachedSelection(for: groupId, data: currentData) else { return false }
-        return !current.applicationTokens.isEmpty
-            || !current.categoryTokens.isEmpty
-            || !current.webDomainTokens.isEmpty
-        #else
-        return false
-        #endif
     }
 
     /// Resolve only current timed-pass activities. Old usage-budget callbacks
@@ -541,7 +529,7 @@ enum ShieldRebuildHelper {
                           current.generation == prepared.session.generation,
                           current.expiresAt > now else {
                         throw NSError(domain: "Nowhere.UsageBudget", code: 4,
-                                      userInfo: [NSLocalizedDescriptionKey: "Screen Time monitoring could not be verified. Your unused minutes are saved."])
+                                      userInfo: [NSLocalizedDescriptionKey: "Screen Time monitoring could not be verified. The pass remains saved until its original expiry."])
                     }
                     current.monitoringFailed = false
                     current.save(to: defaults, groupId: groupId)

@@ -383,8 +383,11 @@ private struct CanvasTourHost: ViewModifier {
         case .selectionResult: String(localized: "Your group is saved. You can change it later in Feeds.")
         case .selectFeed: String(localized: "Tap your chosen group to see available times and their costs.")
         case .chooseDuration:
-            if let window = recommendedWindow { String(localized: "Try \(window.minutes) minutes, or choose any available interval. Your real colors will be spent.") }
-            else { String(localized: "Add a happening to earn colors, or skip this trial unlock.") }
+            if let window = recommendedWindow {
+                String(localized: "Try \(window.minutes) minutes. You'll spend real colors. The timer starts after payment and runs even when you aren't using the apps.")
+            } else {
+                String(localized: "Add a happening to earn colors, or continue without an unlock.")
+            }
         case .meTab: String(localized: "Tap Me to see your day as a poster. You can save it or share it.")
         case .saveDays: tour.posterDayID == nil ? String(localized: "Your current day is getting ready. Permissions are optional.") : String(localized: "Everything here is optional.")
         case .setup: String(localized: "Everything here is optional.")

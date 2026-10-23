@@ -23,7 +23,7 @@ class TimedAccessPassTests(unittest.TestCase):
         transactions = transactions.removesuffix("\n").removesuffix("\n")
         transactions = transactions.rsplit("    #endif", 1)[0]
         predicates = source[source.index("    private static func coercedDate"):
-                            source.index("    static func usageSelectionMatches")]
+                            source.index("    /// Resolve only current timed-pass activities.")]
         harness = (ROOT / "Scripts/Fixtures/UsageBudgetRecoveryHarness.swift").read_text()
         harness = harness.replace("// INSERT_MODEL", model)
         harness = harness.replace("// INSERT_PREDICATES", predicates)

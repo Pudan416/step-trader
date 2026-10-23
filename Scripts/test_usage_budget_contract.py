@@ -16,7 +16,7 @@ class TimedAccessCallbackContractTests(unittest.TestCase):
         session = shared_source[shared_source.index("struct UsageBudgetSession:"):
                                 shared_source.index("// MARK: - Shield Rebuild")]
         predicates = shared_source[shared_source.index("    private static func coercedDate"):
-                                   shared_source.index("    static func usageSelectionMatches")]
+                                   shared_source.index("    /// Resolve only current timed-pass activities.")]
         monitor_source = (ROOT / "DeviceActivityMonitor/DeviceActivityMonitorExtension.swift").read_text()
         monitor = monitor_source[monitor_source.index("    private func handleMinuteEvent"):
                                 monitor_source.index("    private func reloadWidgets")]
