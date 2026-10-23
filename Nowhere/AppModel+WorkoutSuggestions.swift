@@ -26,6 +26,8 @@ extension AppModel {
 
     /// Main refresh: gathers signals from all sources and builds the unified suggestion list.
     func refreshActivitySuggestions() async {
+        let generation = historyWorkGeneration
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         #if DEBUG
         if activitySuggestionUITestFixtures != nil { return }
         #endif
@@ -36,6 +38,7 @@ extension AppModel {
 
         // 1. Workouts from HealthKit
         let workouts = await healthStore.fetchTodayWorkouts()
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         let workoutSuggestions = buildWorkoutSuggestions(
             workouts,
             dismissed: dismissed
@@ -44,6 +47,7 @@ extension AppModel {
 
         // 2. Mindful minutes from HealthKit
         let mindfulMinutes = await healthStore.fetchTodayMindfulMinutes()
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         if mindfulMinutes >= 3,
            !dismissed.contains("mindful_\(Int(mindfulMinutes))") {
             suggestions.append(.fromMindfulMinutes(mindfulMinutes))

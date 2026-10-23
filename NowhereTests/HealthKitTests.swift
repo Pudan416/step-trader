@@ -7,6 +7,9 @@ import HealthKit
 final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     var stepsFetch: ((Date, Date) async throws -> Double)?
     var sleepFetch: ((Date, Date) async throws -> Double)?
+    var workoutFetch: ((Date, Date) async throws -> [DetectedWorkout])?
+    var sleepFetchCount = 0
+    var mindfulFetchCount = 0
     var stepsToReturn: Double = 0
     var sleepToReturn: Double = 0
     var stepsError: Error?
@@ -25,6 +28,7 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     private var observerHandler: ((Double) -> Void)?
 
     func fetchSleep(from: Date, to: Date) async throws -> Double {
+        sleepFetchCount += 1
         if let sleepFetch { return try await sleepFetch(from, to) }
         if let error = sleepError { throw error }
         return sleepToReturn
@@ -58,11 +62,13 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
 
     func fetchWorkouts(from: Date, to: Date) async throws -> [DetectedWorkout] {
         workoutFetchCount += 1
+        if let workoutFetch { return try await workoutFetch(from, to) }
         return workoutsToReturn
     }
 
     func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double {
-        mindfulMinutesToReturn
+        mindfulFetchCount += 1
+        return mindfulMinutesToReturn
     }
 
     func stopObservingSteps() {
@@ -100,6 +106,23 @@ private actor PendingHealthQueries {
     func complete(_ index: Int, with result: Result<Double, Error>) {
         results[index].resume(with: result)
     }
+}
+
+private actor PendingWorkoutQuery {
+    private var result: CheckedContinuation<[DetectedWorkout], Error>?
+    private var arrival: CheckedContinuation<Void, Never>?
+    func fetch() async throws -> [DetectedWorkout] {
+        try await withCheckedThrowingContinuation {
+            result = $0
+            arrival?.resume()
+            arrival = nil
+        }
+    }
+    func waitForQuery() async {
+        if result != nil { return }
+        await withCheckedContinuation { arrival = $0 }
+    }
+    func complete(_ workouts: [DetectedWorkout]) { result?.resume(returning: workouts); result = nil }
 }
 
 // MARK: - Activity Suggestions
@@ -443,6 +466,45 @@ final class HealthActivitySuggestionTests: XCTestCase {
         } else {
             XCTFail("Expected the concrete HealthKit workout to be first")
         }
+    }
+
+    func testOutgoingHealthRefreshDoesNotStartIncomingQueriesOrObserver() async {
+        let healthKit = ConfigurableHealthKitMock()
+        let queries = PendingHealthQueries()
+        healthKit.stepsFetch = { _, _ in try await queries.fetch() }
+        let model = makeModel(healthKit: healthKit)
+        let outgoing = Task { await model.refreshStepsIfAuthorized() }
+        await queries.waitForQueries(1)
+        await model.suspendHistoryWork()
+        model.healthStore.stopObservingSteps()
+        model.healthStore.reloadAfterAccountSwitch()
+        model.resumeHistoryWork()
+        await queries.complete(0, with: .success(12_000))
+        await outgoing.value
+        XCTAssertEqual(healthKit.sleepFetchCount, 0, "An outgoing continuation must not start a B query")
+        XCTAssertFalse(healthKit.observerStarted, "An outgoing continuation must not restart observation")
+    }
+
+    func testOutgoingWorkoutResponseCannotReplaceIncomingSuggestions() async throws {
+        let healthKit = ConfigurableHealthKitMock()
+        let query = PendingWorkoutQuery()
+        healthKit.workoutFetch = { _, _ in try await query.fetch() }
+        let model = makeModel(healthKit: healthKit)
+        let outgoing = Task { await model.refreshActivitySuggestions() }
+        await query.waitForQuery()
+        await model.suspendHistoryWork()
+        let incomingWorkout = DetectedWorkout(id: UUID(), activityType: HKWorkoutActivityType.swimming.rawValue,
+            startDate: .now, endDate: .now, durationMinutes: 20, caloriesBurned: nil, distance: nil)
+        model.pendingActivitySuggestions = [try XCTUnwrap(ActivitySuggestion.fromWorkout(incomingWorkout))]
+        model.resumeHistoryWork()
+        let incomingIDs = model.pendingActivitySuggestions.map(\.id)
+        let oldWorkout = DetectedWorkout(id: UUID(), activityType: HKWorkoutActivityType.running.rawValue,
+            startDate: .now, endDate: .now, durationMinutes: 30, caloriesBurned: nil, distance: nil)
+        await query.complete([oldWorkout])
+        await outgoing.value
+        XCTAssertEqual(model.pendingActivitySuggestions.map(\.id), incomingIDs)
+        XCTAssertTrue(model.pendingWorkoutSuggestions.isEmpty)
+        XCTAssertEqual(healthKit.mindfulFetchCount, 0, "An A response must not start a B continuation")
     }
 
     private func makeModel(
