@@ -161,6 +161,17 @@ struct UsageBudgetFileLock: Sendable {
 /// Screen Time daemon call. DeviceActivity callbacks need the state lock and
 /// can run synchronously while `startMonitoring` is waiting to return.
 enum UsageBudgetRegistrationCoordinator {
+    /// Storage rotation must exclude both a registration waiting on the daemon
+    /// and callbacks committing budget state. Match registration's lock order.
+    /// The body must stay synchronous and must not call Screen Time/rebuild APIs.
+    static func withAccountHistoryTransition<T>(
+        stateLock: UsageBudgetFileLock,
+        registrationLock: UsageBudgetFileLock,
+        body: () throws -> T
+    ) throws -> T {
+        try registrationLock.withLock { try stateLock.withLock(body) }
+    }
+
     static func perform<Prepared>(
         stateLock: UsageBudgetFileLock,
         registrationLock: UsageBudgetFileLock,
@@ -479,6 +490,16 @@ enum ShieldRebuildHelper {
     /// Serialize persisted budget state across the app and monitor extension.
     static func withUsageBudgetLock<T>(_ body: () throws -> T) throws -> T {
         try usageBudgetLock(named: "usage-budget.lock").withLock(body)
+    }
+
+    /// Hold only across synchronous App Group snapshot/key replacement. Lock
+    /// files stay outside the account's archived paths and are never replaced.
+    static func withAccountHistoryTransitionLock<T>(_ body: () throws -> T) throws -> T {
+        try UsageBudgetRegistrationCoordinator.withAccountHistoryTransition(
+            stateLock: usageBudgetLock(named: "usage-budget.lock"),
+            registrationLock: usageBudgetLock(named: "usage-budget-registration.lock"),
+            body: body
+        )
     }
 
     static func usageEvents(selection: FamilyActivitySelection, session: UsageBudgetSession) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {

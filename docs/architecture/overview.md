@@ -136,6 +136,12 @@ Test names live in `NowhereTests/` unless stated otherwise.
   All shield assignments route through `ShieldRebuildHelper.rebuild`; the usage-budget
   state lock spans the persisted snapshot and ManagedSettings write. DeviceActivity
   registration always happens after that lock is released.
+  `withAccountHistoryTransitionLock` acquires the registration lock before the
+  state lock, excluding both an in-flight daemon registration and extension
+  callbacks during synchronous account-history replacement. Its body must not
+  await, call DeviceActivity or rebuild shields. Keep both lock files outside
+  archived paths; stop obsolete monitors and rebuild only after releasing them.
+  This additive transition hook is not wired into authentication yet.
 - `DayCanvas` and versioned recipes are durable data. Older render paths and textures are
   still required by saved artwork and export. Preserve decoder defaults, stable IDs, random
   consumption order and Metal uniform layouts. See [Canvas components](canvas-components.md).
