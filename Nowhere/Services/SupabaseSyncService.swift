@@ -3,7 +3,7 @@ import os.log
 
 /// Capture at the producer, before creating a Task or crossing an actor hop.
 struct SupabaseSyncEpoch: Equatable, Sendable {
-    fileprivate let generation: UUID
+    fileprivate let generation: UUID?
 }
 
 /// Shared by synchronous admission and asynchronous drain. No lock is held over an await.
@@ -18,7 +18,7 @@ final class SupabaseSyncTransitionState: @unchecked Sendable {
 
     func capture() -> SupabaseSyncEpoch {
         lock.lock(); defer { lock.unlock() }
-        return SupabaseSyncEpoch(generation: generation)
+        return SupabaseSyncEpoch(generation: paused ? nil : generation)
     }
 
     func allows(_ epoch: SupabaseSyncEpoch, owner: String? = nil, writing: Bool) -> Bool {

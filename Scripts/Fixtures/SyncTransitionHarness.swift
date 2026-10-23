@@ -62,8 +62,10 @@ func require(_ condition: Bool, _ message: String) { if !condition { fatalError(
         require(await drained.value == false, "pause must await active network operation")
         active.finish()
         await waiting.value
+        let duringPause = gate.capture()
         gate.resumeReads()
         let incoming = gate.capture()
+        require(gate.begin(duringPause, owner: "B", writing: false) == nil, "paused producer must stay invalid after resume")
         require(gate.begin(old, owner: "B", writing: true) == nil, "old epoch cannot enter after resume")
         require(gate.begin(incoming, owner: "B", writing: false) != nil, "incoming cloud reads must work before restore")
         require(gate.begin(incoming, owner: "B", writing: true) == nil, "uploads must wait for owner history")
