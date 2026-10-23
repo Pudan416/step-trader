@@ -62,6 +62,8 @@ from a saved Canvas, old option entries or category selections. A saved empty
 Canvas is authoritative; upgraded accounts do not resurrect stale legacy entries.
 Old category arrays and fractional timestamps remain readable.
 
+Local history is separate for each account. Switching accounts preserves the outgoing account's local files, original event IDs, queued writes and spending history, then shows only the incoming account's history. Returning to an account restores its local archive. Unattributed history from an older installation remains available in Settings → Account → Previous device history as a read-only local archive; it is never assigned to a newly signed-in user or uploaded. Storage errors preserve valid credentials and offer retry. A failed server restore keeps uploads closed until restoration succeeds.
+
 The first explicit tap on the Canvas add control offers **A few questions first**.
 Six optional multi-select questions cover routine, leisure, current feelings,
 habits, relationships and aspirations. Questions live in the existing Happenings

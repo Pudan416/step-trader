@@ -43,8 +43,10 @@ enum AccountHistoryStorage {
             SharedKeys.canvasReminderHour, SharedKeys.canvasReminderMinute, SharedKeys.notifyDayResetWarning,
             SharedKeys.dayResetWarningHours, SharedKeys.notifyActivityDetected,
             SharedKeys.eveningReflectionDismissedDay, SharedKeys.eveningReflectionRequestedAt,
-            SharedKeys.readNoteIDs, SupabaseSyncService.retryQueueKey, SupabaseSyncService.optionEntryIntentKey,
-            SharedKeys.analyticsEventsQueue, "supabaseHistoryLastFullSync_v1", "supabaseHistoryLastDayKey_v1"
+            SharedKeys.handoffToken, SharedKeys.shouldShowPayGate, SharedKeys.payGateTargetGroupId,
+            SharedKeys.payGateTargetBundleId, SharedKeys.payGateRequestedAt, SharedKeys.payGateDismissedUntil,
+            SharedKeys.lastPayGateAction, SharedKeys.readNoteIDs, SupabaseSyncService.retryQueueKey, SupabaseSyncService.optionEntryIntentKey,
+            SharedKeys.analyticsEventsQueue, "supabaseHistoryLastFullSync_v1", "supabaseHistoryLastDayKey_v1", "dailyInterfacePalette.v1", "dismissedSuggestionIds_v1"
         ]
         let prefixes = [
             "dailyEnergySelections_v1_", "preferredEnergyOptions_v1_", "timeAccessSelection_v1_",

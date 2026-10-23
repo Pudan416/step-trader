@@ -5,6 +5,26 @@ import Observation
 
 @MainActor
 final class DailyInterfaceColorTests: XCTestCase {
+    func testAccountReloadReadsIncomingPaletteWithoutPersistingOutgoingColors() {
+        let suite = "DailyInterfaceColors.AccountSwitch." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let a = DailyInterfacePalette(dayKey: "A", accent: .init(red: 1, green: 0, blue: 0), ink: .init(red: 0, green: 0, blue: 0))
+        a.save(to: defaults)
+        let colors = DailyInterfaceColors(defaults: defaults)
+        XCTAssertEqual(colors.palette, a)
+        defaults.removeObject(forKey: DailyInterfacePalette.storageKey)
+        colors.reloadAfterAccountSwitch()
+        XCTAssertEqual(colors.palette, .fallback)
+        XCTAssertNil(defaults.data(forKey: DailyInterfacePalette.storageKey))
+        let b = DailyInterfacePalette(dayKey: "B", accent: .init(red: 0, green: 0, blue: 1), ink: .init(red: 1, green: 1, blue: 1))
+        b.save(to: defaults)
+        let bytes = defaults.data(forKey: DailyInterfacePalette.storageKey)
+        colors.reloadAfterAccountSwitch()
+        XCTAssertEqual(colors.palette, b)
+        XCTAssertEqual(defaults.data(forKey: DailyInterfacePalette.storageKey), bytes)
+    }
+
     func testLegacyAccentAccessInvalidatesAndPayGateUsesEachDailyFamily() async throws {
         let originalChrome = TodayCanvasBackdropStore.shared.chromePalette
         let originalDay = DailyInterfaceColors.shared.palette.dayKey

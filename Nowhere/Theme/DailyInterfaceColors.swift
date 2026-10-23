@@ -16,6 +16,11 @@ final class DailyInterfaceColors {
     }
 
     @MainActor
+    func reloadAfterAccountSwitch() {
+        palette = DailyInterfacePalette.load(from: defaults)
+    }
+
+    @MainActor
     func update(_ chrome: CanvasChromePalette, dayKey: String, reloadWidgets: () -> Void = {
         WidgetCenter.shared.reloadAllTimelines()
     }) {

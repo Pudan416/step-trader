@@ -127,3 +127,5 @@ first and retrieve a specific old document only when the question requires it.
 Update existing maintained pages rather than adding a new report for each change.
 Never commit personal chat archives or machine-specific output paths. Do not rewrite
 shared Git history or delete dirty worktrees to reclaim disk space.
+
+Account-boundary caller regressions execute the production auth restore/commit/signout methods and Gallery persistence callbacks against synthetic I/O boundaries: `python3 Scripts/test_auth_history_restore.py`, `python3 Scripts/test_auth_history_commit.py`, and `python3 Scripts/test_gallery_account_epoch.py`. The coordinator runner covers actual vault rotation and rollback; native Health/cache tests cover platform continuations. Never use a personal phone-container export as test data.
