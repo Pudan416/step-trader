@@ -27,13 +27,17 @@ extension SupabaseSyncService {
     // MARK: - Public Sync Methods
 
     func syncCustomHappenings(_ happenings: [Happening]) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         await performCustomHappeningsSync(HappeningDefaults.customHappeningsForSync(happenings))
     }
 
     func performCustomHappeningsSync(_ happenings: [Happening]) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         let happenings = HappeningDefaults.customHappeningsForSync(happenings)
         guard !happenings.isEmpty else { return }
-        guard let auth = await authenticatedContext() else { return }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return }
         do {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
@@ -52,6 +56,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONEncoder().encode(rows)
 
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             guard response.statusCode < 400 else {
                 AppLogger.network.error("📡 Custom happenings sync failed: HTTP \(response.statusCode)")
                 enqueueForRetry(request)
@@ -64,7 +69,9 @@ extension SupabaseSyncService {
     }
 
     func loadCustomHappeningsFromServer() async -> [Happening]? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         do {
             let cfg = try SupabaseConfig.load()
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_custom_activities")
@@ -77,6 +84,7 @@ extension SupabaseSyncService {
                 ],
                 pageSize: historicalPageSize
             )
+            guard syncOperation.isCurrent else { return nil }
             return rows.map(\.happening)
         } catch {
             AppLogger.network.error("📡 Custom happenings restore error: \(error.localizedDescription)")
@@ -88,8 +96,11 @@ extension SupabaseSyncService {
     /// intentionally skip the destructive full restore on upgrade, but still
     /// need current titles to resolve historical Canvas identifiers.
     func restoreCustomHappeningsFromServer(model: AppModel) async {
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return }
+        defer { syncOperation.finish() }
         guard let happenings = await loadCustomHappeningsFromServer(), !happenings.isEmpty else { return }
         await MainActor.run {
+                guard syncOperation.isCurrent else { return }
             model.mergeRestoredHappenings(happenings)
         }
     }
@@ -97,6 +108,7 @@ extension SupabaseSyncService {
     
     /// Sync daily selections for a given day
     func syncDailySelections(dayKey: String, activityIds: [String], recoveryIds: [String], joysIds: [String]) {
+        guard acceptsScheduledHistoryWork() else { return }
         let payload = DailySelectionsPayload(
             dayKey: dayKey,
             activityIds: activityIds,
@@ -133,6 +145,8 @@ extension SupabaseSyncService {
 
     
     func performDailySelectionsSync(payload: DailySelectionsPayload) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         if payload == lastSentDailySelections { return }
         let dayKey = payload.dayKey
         let activityIds = payload.activityIds
@@ -140,7 +154,7 @@ extension SupabaseSyncService {
         let joysIds = payload.joysIds
         
         defer {
-            if pendingDailySelections == payload {
+            if syncOperation.isCurrent, pendingDailySelections == payload {
                 pendingDailySelections = nil
             }
         }
@@ -148,7 +162,7 @@ extension SupabaseSyncService {
         AppLogger.network.debug("📡 performDailySelectionsSync called for \(dayKey)")
         AppLogger.network.debug("📡   body: \(activityIds), mind: \(recoveryIds), heart: \(joysIds)")
         
-        guard let auth = await authenticatedContext() else {
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Daily selections sync skipped: no auth")
             return
         }
@@ -194,6 +208,7 @@ extension SupabaseSyncService {
             AppLogger.network.debug("📡 POST body: \(String(data: bodyData, encoding: .utf8) ?? "nil")")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if Task.isCancelled { return }
             if response.statusCode < 400 {
                 lastSentDailySelections = payload
@@ -213,7 +228,9 @@ extension SupabaseSyncService {
     
     /// Load today's daily selections from Supabase
     func loadTodaySelectionsFromServer() async -> (body: [String], mind: [String], heart: [String])? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
         
@@ -243,6 +260,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard response.statusCode < 400 else { return nil }
             
             AppLogger.network.debug("📡 Raw selections response: \(String(data: data, encoding: .utf8) ?? "nil")")

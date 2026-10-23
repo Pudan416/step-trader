@@ -8,6 +8,7 @@ extension SupabaseSyncService {
     
     /// Sync daily stats (steps, sleep, balance)
     func syncDailyStats(dayKey: String, steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int) {
+        guard acceptsScheduledHistoryWork() else { return }
         let payload = DailyStatsPayload(
             dayKey: dayKey,
             steps: steps,
@@ -38,6 +39,7 @@ extension SupabaseSyncService {
     
     /// Sync a day-end snapshot to Supabase (called when the day resets)
     func syncDaySnapshot(dayKey: String, snapshot: PastDaySnapshot) {
+        guard acceptsScheduledHistoryWork() else { return }
         daySnapshotSyncTask?.cancel()
         daySnapshotSyncTask = Task {
             try? await Task.sleep(for: .seconds(1))
@@ -49,6 +51,8 @@ extension SupabaseSyncService {
     // MARK: - Perform Sync Implementations
     
     func performDailyStatsSync(payload: DailyStatsPayload) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         if payload == lastSentDailyStats { return }
         let dayKey = payload.dayKey
         let steps = payload.steps
@@ -58,12 +62,12 @@ extension SupabaseSyncService {
         let remainingBalance = payload.remainingBalance
         
         defer {
-            if pendingDailyStats == payload {
+            if syncOperation.isCurrent, pendingDailyStats == payload {
                 pendingDailyStats = nil
             }
         }
         
-        guard let auth = await authenticatedContext() else {
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Daily stats sync skipped: no auth")
             return
         }
@@ -110,6 +114,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONEncoder().encode(row)
             
             let (_, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if Task.isCancelled { return }
             if response.statusCode < 400 {
                 lastSentDailyStats = payload
@@ -124,7 +129,9 @@ extension SupabaseSyncService {
     }
     
     private func performDaySnapshotSync(dayKey: String, snapshot: PastDaySnapshot) async {
-        guard let auth = await authenticatedContext() else {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Day snapshot sync skipped: no auth")
             return
         }
@@ -166,6 +173,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONEncoder().encode(row)
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if Task.isCancelled { return }
             if response.statusCode < 400 {
                 AppLogger.network.debug("📡 Day snapshot synced for \(dayKey)")
@@ -183,7 +191,9 @@ extension SupabaseSyncService {
     
     /// Load today's daily stats from Supabase
     func loadTodayStatsFromServer() async -> (steps: Int, sleepHours: Double, baseEnergy: Int, bonusEnergy: Int, remainingBalance: Int)? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
         
@@ -213,6 +223,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard response.statusCode < 400 else { return nil }
             
             let decoder = JSONDecoder()
@@ -241,7 +252,9 @@ extension SupabaseSyncService {
 
     /// Empty history is a successful read; nil keeps initial restore pending.
     func loadDaySnapshotsForRestore() async -> [String: PastDaySnapshot]? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
         
@@ -263,6 +276,7 @@ extension SupabaseSyncService {
                 pageSize: historicalPageSize
             )
             
+            guard syncOperation.isCurrent else { return nil }
             // §5.5 — defensive filter on the receive side too. New writes
             // never send moment IDs, but historical rows from before this fix
             // can still contain `moment_*` strings; dropping them here avoids
@@ -295,7 +309,9 @@ extension SupabaseSyncService {
     /// Load all historical day snapshots from Supabase
     /// Combines data from user_daily_selections, user_daily_stats, and user_daily_spent
     func loadHistoricalSnapshots() async -> [String: PastDaySnapshot] {
-        guard let auth = await authenticatedContext() else {
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return [:] }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Historical load skipped: no auth")
             return [:]
         }
@@ -322,6 +338,7 @@ extension SupabaseSyncService {
             selections = await loadAllSelections(config: config, userId: userId, token: token)
             stats = await loadAllStats(config: config, userId: userId, token: token)
             spent = await loadAllSpent(config: config, userId: userId, token: token)
+            guard syncOperation.isCurrent else { return [:] }
             let fetchedAnything = !selections.isEmpty || !stats.isEmpty || !spent.isEmpty
             if fetchedAnything {
                 g.set(now, forKey: historicalLastFullSyncKey)
@@ -334,6 +351,7 @@ extension SupabaseSyncService {
             spent = await loadAllSpent(config: config, userId: userId, token: token, fromDayKey: lastDayKey)
         }
         
+        guard syncOperation.isCurrent else { return [:] }
         var allDayKeys = Set<String>()
         allDayKeys.formUnion(selections.keys)
         allDayKeys.formUnion(stats.keys)

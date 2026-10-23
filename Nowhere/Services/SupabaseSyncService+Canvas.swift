@@ -115,12 +115,15 @@ extension SupabaseSyncService {
     /// Sync full DayCanvas to Supabase `user_day_canvases` table.
     /// Stores the entire canvas JSON (elements, palette, shapes) keyed by day.
     func syncDayCanvas(_ canvas: DayCanvas) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         await MainActor.run {
+                guard syncOperation.isCurrent else { return }
             CanvasStorageService.shared.recordCloudUploadIntent(for: canvas.dayKey,
                 currentUserID: AuthenticationService.shared.currentUser?.id)
         }
         guard !canvas.needsRemoteHydration else {
-            Task { await recoverPendingDayCanvas(for: canvas.dayKey) }
+            scheduleCanvasRecovery(for: canvas.dayKey)
             return
         }
         guard let jsonData = try? JSONEncoder().encode(canvas.cloudSnapshot) else {
@@ -133,6 +136,7 @@ extension SupabaseSyncService {
             lastModified: canvas.lastModified
         )
         
+        guard syncOperation.isCurrent else { return }
         if payload == pendingDayCanvas { return }
         
         pendingDayCanvas = payload
@@ -141,7 +145,6 @@ extension SupabaseSyncService {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             guard let latest = pendingDayCanvas else { return }
-            dayCanvasSyncTask = nil
             await CanvasUploadOrdering.runUpload { await self.performDayCanvasSync(payload: latest) }
         }
     }
@@ -149,26 +152,40 @@ extension SupabaseSyncService {
     /// Includes older offline days: leaving Gallery or crossing midnight must
     /// not strand a draft. Upload each recovery directly rather than feeding
     /// several days through the single-day UI debounce slot.
+    private func scheduleCanvasRecovery(for dayKey: String) {
+        guard acceptsScheduledHistoryWork() else { return }
+        let id = UUID()
+        canvasRecoveryTasks[id] = Task {
+            await recoverPendingDayCanvas(for: dayKey)
+            canvasRecoveryTasks.removeValue(forKey: id)
+        }
+    }
+
     func recoverPendingDayCanvases() async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         let keys = await MainActor.run {
             CanvasStorageService.shared.pendingCloudRecoveryDayKeys()
         }
         for key in keys {
+            guard syncOperation.isCurrent else { return }
             guard !Task.isCancelled else { return }
             await recoverPendingDayCanvas(for: key)
         }
     }
 
     func recoverPendingDayCanvas(for dayKey: String) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         guard canvasUploadOrdering.beginRecovery(for: dayKey) else { return }
         defer {
-            if canvasUploadOrdering.endRecovery(for: dayKey) {
-                Task { await recoverPendingDayCanvas(for: dayKey) }
+            if canvasUploadOrdering.endRecovery(for: dayKey), syncOperation.isCurrent {
+                scheduleCanvasRecovery(for: dayKey)
             }
         }
-        guard let auth = await authenticatedCanvasContext() else { return }
+        guard let auth = await authenticatedCanvasContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return }
         guard let initial = await MainActor.run(body: {
-            guard Self.canvasAuthIsCurrent(auth),
+            guard syncOperation.isCurrent, Self.canvasAuthIsCurrent(auth),
                   var canvas = CanvasStorageService.shared.loadCanvas(for: dayKey),
                   canvas.belongsToCloudUser(auth.userId) else { return nil as DayCanvas? }
             if canvas.localCloudOwnerID == nil {
@@ -179,16 +196,17 @@ extension SupabaseSyncService {
         }) else { return }
         if initial.needsRemoteHydration {
             let remote = await fetchDayCanvas(for: dayKey, auth: auth)
-            guard !Task.isCancelled else { return }
+            guard syncOperation.isCurrent else { return }
             let committed = await MainActor.run {
-                guard Self.canvasAuthIsCurrent(auth),
+                guard syncOperation.isCurrent, Self.canvasAuthIsCurrent(auth),
                       CanvasStorageService.shared.loadCanvas(for: dayKey)?.localCloudOwnerID == auth.userId else { return false }
                 return CanvasStorageService.shared.resolvePendingCanvas(for: dayKey, remote: remote) != nil
             }
             guard committed else { return }
         }
         guard let latest = await MainActor.run(body: {
-            CanvasStorageService.shared.loadCanvas(for: dayKey)
+            guard syncOperation.isCurrent else { return nil as DayCanvas? }
+            return CanvasStorageService.shared.loadCanvas(for: dayKey)
         }), !latest.needsRemoteHydration, latest.pendingCloudUpload == true,
               let json = try? JSONEncoder().encode(latest.cloudSnapshot) else { return }
         let payload = DayCanvasSyncPayload(dayKey: dayKey, canvasJsonData: json, lastModified: latest.lastModified)
@@ -208,7 +226,7 @@ extension SupabaseSyncService {
     }
 
     private func authenticatedCanvasContext() async -> AuthContext? {
-        await AuthenticationService.shared.waitForInitialization()
+        guard await waitForSyncAuthentication() else { return nil }
         let expectedUserID = await AuthenticationService.shared.currentUser?.id
         guard let auth = await authenticatedContext(), auth.userId == expectedUserID,
               await Self.canvasAuthIsCurrent(auth) else { return nil }
@@ -218,11 +236,15 @@ extension SupabaseSyncService {
     /// A successful empty response is distinct from every failure path so a
     /// transient fetch problem can never publish an empty Canvas as truth.
     func fetchDayCanvas(for dayKey: String) async -> DayCanvasFetchResult {
-        guard let auth = await authenticatedCanvasContext() else { return .failed }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return .failed }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedCanvasContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return .failed }
         return await fetchDayCanvas(for: dayKey, auth: auth)
     }
 
     private func fetchDayCanvas(for dayKey: String, auth: AuthContext) async -> DayCanvasFetchResult {
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return .failed }
+        defer { syncOperation.finish() }
         guard await Self.canvasAuthIsCurrent(auth) else { return .failed }
         let token = auth.token
         let userId = auth.userId
@@ -246,6 +268,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return .failed }
             guard (200..<300).contains(response.statusCode) else {
                 AppLogger.network.error("📡 fetchDayCanvas failed: HTTP \(response.statusCode)")
                 return .failed
@@ -269,6 +292,8 @@ extension SupabaseSyncService {
     // MARK: - Private Canvas Sync
     
     private func performDayCanvasSync(payload: DayCanvasSyncPayload, expectedUserID: String? = nil) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         guard canvasUploadOrdering.beginUpload(for: payload.dayKey) else { return }
         var succeeded = false
         defer {
@@ -276,18 +301,18 @@ extension SupabaseSyncService {
             if pendingDayCanvas == payload { pendingDayCanvas = nil }
             // Edits made while the request was suspended retain their marker.
             // Flush them after a success; failures wait for the next retry trigger.
-            if succeeded, canvasUploadOrdering.requestFollowup(for: payload.dayKey) {
-                Task { await recoverPendingDayCanvas(for: payload.dayKey) }
+            if syncOperation.isCurrent, succeeded, canvasUploadOrdering.requestFollowup(for: payload.dayKey) {
+                scheduleCanvasRecovery(for: payload.dayKey)
             }
         }
 
-        guard let auth = await authenticatedCanvasContext() else {
+        guard let auth = await authenticatedCanvasContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Day canvas sync skipped: no auth")
             return
         }
         guard expectedUserID == nil || expectedUserID == auth.userId else { return }
         guard let currentPayload = await MainActor.run(body: {
-            guard Self.canvasAuthIsCurrent(auth) else { return nil as DayCanvasSyncPayload? }
+            guard syncOperation.isCurrent, Self.canvasAuthIsCurrent(auth) else { return nil as DayCanvasSyncPayload? }
             return CanvasUploadSnapshot.latest(local: CanvasStorageService.shared.loadCanvas(for: payload.dayKey),
                                                fallback: payload, userID: auth.userId)
         }) else { return }
@@ -323,11 +348,13 @@ extension SupabaseSyncService {
             request.httpBody = try JSONSerialization.data(withJSONObject: row)
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if Task.isCancelled { return }
             if response.statusCode < 400 {
                 succeeded = true
                 lastSentDayCanvas = payload
                 await MainActor.run {
+                guard syncOperation.isCurrent else { return }
                     guard Self.canvasAuthIsCurrent(auth) else { return }
                     CanvasStorageService.shared.acknowledgeCloudUpload(dayKey: payload.dayKey, uploadedJSON: payload.canvasJsonData)
                 }

@@ -105,7 +105,9 @@ extension SupabaseSyncService {
     // MARK: - Restore
 
     func loadSavedRoutinesFromServer() async -> [EnergyRoutine]? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
 
@@ -126,6 +128,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
 
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard response.statusCode < 400 else { return nil }
 
             let rows = try JSONDecoder().decode([RoutineRow].self, from: data)
