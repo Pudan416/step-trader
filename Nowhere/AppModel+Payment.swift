@@ -103,6 +103,7 @@ extension AppModel {
 
     @MainActor
     func refund(cost: Int) {
+        guard !isHistoryWorkSuspended else { return }
         guard cost > 0 else { return }
         let refundToBase = min(cost, spentStepsToday)
         spentStepsToday = max(0, spentStepsToday - refundToBase)
@@ -158,6 +159,7 @@ extension AppModel {
 
     // MARK: - Spent Steps Tracking
     func addSpentSteps(_ cost: Int, for bundleId: String) {
+        guard !isHistoryWorkSuspended else { return }
         appStepsSpentToday[bundleId, default: 0] += cost
         appStepsSpentLifetime[bundleId, default: 0] += cost
         let key = Self.dayKey(for: Date.now)
