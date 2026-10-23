@@ -44,6 +44,13 @@ final class NetworkClient {
     }
 }
 
+// Compatibility with the dependent account-transition adoption. Delivery
+// semantics are still executed by the extracted production flush below.
+struct FixtureSyncOperation {
+    let ownerID = "owner-a"
+    var isCurrent: Bool { true }
+    func finish() {}
+}
 actor SupabaseSyncService {
     let network = NetworkClient()
     var pendingAnalyticsEvents: [AnalyticsEventPayload] = []
@@ -51,6 +58,8 @@ actor SupabaseSyncService {
     func authenticatedContext() async -> (token: String, userId: String)? { ("fixture-token", "owner-a") }
     func iso8601String(_ date: Date) -> String { ISO8601DateFormatter().string(from: date) }
     func persistAnalyticsQueueToDefaults() { persistenceWrites += 1 }
+    func beginSyncOperation(writing: Bool) async -> FixtureSyncOperation? { FixtureSyncOperation() }
+    func persistAnalyticsQueueToDefaults(syncOperation: FixtureSyncOperation) async { persistenceWrites += 1 }
     /*__FLUSH__*/
 
     func test(_ mode: String) async throws {
