@@ -74,7 +74,7 @@ actor SupabaseSyncService {
     var analyticsDedupeKeys: Set<String> = ["A"]
     var canvasUploadOrdering = CanvasUploadOrdering()
     var pendingAnalyticsEvents: [String] = ["A"]
-    static func loadAnalyticsQueueFromDefaults() -> [String] { ["B"] }
+
     func loadCustomHappeningsFromServer() async -> [String]? {
         _ = try? await network.data(for: URLRequest(url: URL(string: "https://fixture.invalid/read")!))
         return ["A-history"]
@@ -97,10 +97,12 @@ actor SupabaseSyncService {
         guard let owner = await AuthenticationService.shared.currentUser else { return nil }
         return AuthContext(token: owner.id, userId: owner.id)
     }
+    func analyticsIdentityDidChange() {}
     func worker() -> Task<Void, Never>? { routinesSyncTask }
     /*METHODS*/
 }
 enum FixtureUploadOrdering { /*UPLOAD_ORDERING*/ }
+func loadAnalyticsQueueFromDefaults() -> [String] { ["B"] }
 actor Flag { var value = false; func set() { value = true } }
 func require(_ condition: Bool, _ message: String) { if !condition { fatalError(message) } }
 @main struct Tests {

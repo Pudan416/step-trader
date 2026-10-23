@@ -195,6 +195,9 @@ jobs, await active leases, then reset transient caches), `resumeAfterAccountSwit
 owner). An HTTP request already submitted under the outgoing bearer cannot be
 undone; its lease must finish before files or owner rotate, and stale completion
 must not apply or acknowledge local state. Durable retry/entry queues are preserved.
-The gate and routines adoption are a prerequisite; the coordinator must only adopt
-this API together with guards on all remaining history readers/writers. Device-token
+All history entrypoints and HTTP continuations acquire/check operation leases;
+restore checks again inside each MainActor commit. Canvas recovery jobs are tracked,
+and analytics persistence is awaited. After draining, pause commits the final outgoing
+analytics snapshot before files rotate, preserving events whose normal persistence was
+invalidated. Resuming re-reads the incoming queue; owner readiness schedules its flush. Device-token
 registration and captured-bearer APNs teardown are outside the history barrier.

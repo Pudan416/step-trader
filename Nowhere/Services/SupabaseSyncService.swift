@@ -352,7 +352,9 @@ actor SupabaseSyncService {
         let epoch = captureSyncEpoch()
         guard !Task.isCancelled,
               await AuthenticationService.shared.currentUser?.id == ownerID else { return false }
-        return transitionState.allowUploads(for: ownerID, epoch: epoch)
+        let allowed = transitionState.allowUploads(for: ownerID, epoch: epoch)
+        if allowed { analyticsIdentityDidChange() }
+        return allowed
     }
 
     let network = NetworkClient.shared
