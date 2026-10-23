@@ -93,6 +93,18 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/HealthZeroDataUI.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/HealthZeroDataUI.log"
 
+      - name: Verify Smudge with Metal API Validation
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+          xcodebuild test -project Nowhere.xcodeproj -scheme NowhereMetalAPIValidation \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -parallel-testing-enabled NO \
+            -only-testing:NowhereTests/SmudgeRegionSequenceTests \
+            -only-testing:NowhereTests/SmudgePreparationTests/testPreparedSmudgeContainsColorToDisplaceInDistributionBuilds \
+            -resultBundlePath "$RUNNER_TEMP/MetalAPIValidation.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/MetalAPIValidation.log"
+
       - name: Run NowhereTests
         # The live 100-remix deadline test and two heavy real-audio lifecycle
         # scenarios run in the required optimized Release job below. All other
@@ -131,6 +143,8 @@ jobs:
           path: |
             ${{ runner.temp }}/HealthZeroDataUI.xcresult
             ${{ runner.temp }}/HealthZeroDataUI.log
+            ${{ runner.temp }}/MetalAPIValidation.xcresult
+            ${{ runner.temp }}/MetalAPIValidation.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/test-stacks

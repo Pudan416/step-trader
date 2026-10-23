@@ -216,6 +216,10 @@ returns a neutral surface there and cannot serve as the effect's source.
 `SmudgePreparationTests` checks source pixels and a complete gesture-driven Metal
 frame in Release; the Release CI job retains those images. The effect keeps its
 existing independent color field rather than capturing a second live artwork renderer.
+Stroke regions use rounded-up uniform threadgroups, including on devices without
+non-uniform dispatch support. Shader edge guards and the region-only copy preserve
+pixels and ages outside the stroke. `NowhereMetalAPIValidation` exercises the live
+drag and reference-region comparison with Metal API Validation enabled.
 Musical gesture begin/update/end callbacks run immediately, before GPU preparation.
 Only visual commands may wait for the renderer and source texture. The Release
 controller regression verifies that playing music receives a complete gesture
