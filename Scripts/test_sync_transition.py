@@ -23,8 +23,10 @@ class SyncTransitionTests(unittest.TestCase):
         source = source.replace('/*STATE*/', '\n'.join(declaration(core, marker) for marker in [
             'struct SupabaseSyncEpoch:', 'final class SupabaseSyncTransitionState:', 'final class SupabaseSyncOperation:']))
         source = source.replace('/*METHODS*/', '\n'.join(declaration(core, marker) for marker in [
-            '    func waitForSyncAuthentication()', '    func acceptsScheduledHistoryWork()', '    func beginSyncOperation(writing:']) + '\n' + '\n'.join(
+            '    nonisolated func beginAccountSwitch()', '    func waitForSyncAuthentication()', '    func acceptsScheduledHistoryWork()', '    func beginSyncOperation(writing:']) + '\n' + '\n'.join(
                 declaration(routines, marker) for marker in ['    func syncSavedRoutines(', '    private func performSavedRoutinesSync(']))
+        canvas = (ROOT / 'Nowhere/Services/SupabaseSyncService+Canvas.swift').read_text()
+        source = source.replace('/*UPLOAD_ORDERING*/', declaration(canvas, '    static func runUpload('))
         with tempfile.TemporaryDirectory(prefix='nowhere-sync-transition-') as folder:
             folder = Path(folder)
             swift = folder / 'main.swift'

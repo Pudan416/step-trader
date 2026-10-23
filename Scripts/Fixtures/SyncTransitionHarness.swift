@@ -47,6 +47,7 @@ actor SupabaseSyncService {
     func worker() -> Task<Void, Never>? { routinesSyncTask }
     /*METHODS*/
 }
+enum FixtureUploadOrdering { /*UPLOAD_ORDERING*/ }
 actor Flag { var value = false; func set() { value = true } }
 func require(_ condition: Bool, _ message: String) { if !condition { fatalError(message) } }
 @main struct Tests {
@@ -111,5 +112,17 @@ func require(_ condition: Bool, _ message: String) { if !condition { fatalError(
         await startupService.transitionState.waitUntilIdle()
         require(await startupService.network.count() == 0, "canceled startup admission must not submit")
         print("PASS pending auth initialization cancels and drains without auth completion")
+        let parentService = SupabaseSyncService()
+        let producer = Task {
+            await FixtureUploadOrdering.runUpload {
+                await parentService.performSavedRoutinesSync([])
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(30))
+        parentService.beginAccountSwitch()
+        producer.cancel()
+        await producer.value
+        await parentService.transitionState.waitUntilIdle()
+        print("PASS first invalidation lets canceled producer drain uncanceled upload child before auth finishes")
     }
 }

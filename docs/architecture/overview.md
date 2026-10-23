@@ -188,7 +188,8 @@ then retain it with `$historySyncEpoch.withValue`. Canceling and awaiting produc
 tasks is still required: this token prevents a suspended old payload from first
 entering the service after the incoming account resumes.
 
-The transition contract is `pauseForAccountSwitch()` (invalidate, cancel tracked
+The transition contract starts with synchronous `beginAccountSwitch()` before
+canceling and awaiting any producer Task. Then `pauseForAccountSwitch()` (invalidate, cancel tracked
 jobs, await active leases, then reset transient caches), `resumeAfterAccountSwitch()`
 (reads only), and `allowUploadsAfterRestore(for:)` (uploads for the restored current
 owner). An HTTP request already submitted under the outgoing bearer cannot be

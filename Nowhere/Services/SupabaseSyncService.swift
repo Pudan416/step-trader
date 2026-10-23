@@ -287,11 +287,13 @@ actor SupabaseSyncService {
     /// The auth initialization continuation is intentionally not canceled by auth.
     /// Sync jobs must be cancelable while startup itself is awaiting a history switch.
     func waitForSyncAuthentication() async -> Bool {
+        let epoch = Self.historySyncEpoch ?? captureSyncEpoch()
         while !(await AuthenticationService.shared.isInitialized) {
+            guard transitionState.allows(epoch, writing: false), !Task.isCancelled else { return false }
             do { try await Task.sleep(for: .milliseconds(20)) }
             catch { return false }
         }
-        return !Task.isCancelled
+        return !Task.isCancelled && transitionState.allows(epoch, writing: false)
     }
 
     func beginSyncOperation(writing: Bool) async -> SupabaseSyncOperation? {
@@ -304,9 +306,16 @@ actor SupabaseSyncService {
         return transitionState.begin(epoch, owner: owner, writing: writing)
     }
 
-    /// Call after producer tasks have been canceled and awaited. Durable queues are not cleared.
-    func pauseForAccountSwitch() async {
+    /// FIRST invalidate synchronously, before canceling/awaiting producer tasks.
+    /// Their uncanceled Canvas upload children may otherwise be awaiting auth startup.
+    nonisolated func beginAccountSwitch() {
         transitionState.suspend()
+    }
+
+    /// After beginAccountSwitch and producer drain, await service jobs/leases.
+    /// Durable queues are not cleared.
+    func pauseForAccountSwitch() async {
+        beginAccountSwitch()
         let tasks = [dailySelectionsSyncTask, dailyStatsSyncTask, dailySpentSyncTask,
                      ticketGroupsSyncTask, analyticsFlushTask, dayCanvasSyncTask,
                      preferencesSyncTask, daySnapshotSyncTask, entriesSyncTask, routinesSyncTask]
