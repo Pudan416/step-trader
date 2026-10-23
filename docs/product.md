@@ -204,31 +204,29 @@ games. New targets use associated HTTPS routes with no browser fallback. Pintere
 uses public ID `pinterest`; older saved `com.pinterest` associations remain valid.
 See [widget app opening](architecture/widget-app-opening.md) for routes and checks.
 
-## Screen Time accounting and recovery
+## Timed access passes
 
-Purchased minutes are spent by cumulative Screen Time usage thresholds, not by
-elapsed idle time. Duplicate and previous-generation events cannot spend a balance
-twice. Delayed callbacks are checked against the total time since that monitoring
-session started; arrival spacing is not treated as measured usage.
+Colors buy 10, 30 or 60 minutes of wall-clock access to a feed group. The timer
+starts after payment and keeps running while Nowhere is closed, the phone is locked
+or the selected apps are unused. A group has one active pass at a time; another
+purchase is available after it expires. Passes are independent of the custom day
+reset.
 
-An impossible threshold pauses access and preserves the confirmed unused balance.
-The rejected generation cannot spend further minutes. Recovery runs when the app
-returns to the foreground or the user retries through the widget/Feeds, without
-charging again, within the existing custom-day expiry. Healthy monitors are retained
-on top-up so Apple's partial-minute usage is not reset.
+An active pass applies to the group's current app, category and website selection.
+Adding a selection while the pass is active opens it for the remaining time;
+removing one stops including it. A paid pass overrides overlapping group and legacy
+blockers for the same selected tokens. Paid apps remain exceptions to other category
+shields.
 
-A valid paid selection overrides overlapping group and legacy blockers for the
-same application or category tokens. Paid applications remain exceptions to any
-other blocked categories. Paused or expired budgets grant no such exception.
+The app stores one start time and deadline in the App Group. DeviceActivity monitors
+that deadline with no usage-threshold events, and the app and extensions rebuild
+shields through the shared cross-process lock. Old usage-budget balances are cleared
+on first launch after the change. The widget shows the system timer text and also
+gets a timeline entry at the deadline; WidgetKit may apply that entry later.
 
-The app and Screen Time callbacks apply shields through one shared rebuild. Its
-budget read and settings write hold the same cross-process lock as purchase
-commits, so an older callback cannot reapply an obsolete shield after a purchase.
-Monitor registration runs outside that lock so synchronous callbacks can finish.
-
-Screen Time is the source of usage measurements. Local checks can reject impossible
-early values, but cannot distinguish a plausible incorrect OS measurement from a
-valid delayed callback. Real-device testing remains necessary after iOS updates.
+DeviceActivity delivers interval callbacks when the device is used during or after
+the scheduled interval. Screen Time re-shielding at the deadline must be checked on a
+physical device, especially after the phone has stayed locked past expiry.
 
 ## Music and artwork
 

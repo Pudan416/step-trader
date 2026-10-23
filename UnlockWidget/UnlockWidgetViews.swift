@@ -258,8 +258,13 @@ struct NowhereWidgetContent: View {
     private func activeGroup(_ group: UnlockEntry.GroupSnapshot, identity: AppGroupIdentity, compact: Bool, dense: Bool) -> some View {
         return HStack(spacing: 6) {
                 Image(systemName: "lock.open").font(.onest(size: 11))
-                Text("\(group.budgetMinutes) min left")
-                    .font(.onest(size: compact ? 12 : 14)).monospacedDigit()
+                if let deadline = group.budgetExpiryDate {
+                    Text(deadline, style: .timer)
+                        .font(.onest(size: compact ? 12 : 14)).monospacedDigit()
+                } else {
+                    Text("0:00")
+                        .font(.onest(size: compact ? 12 : 14)).monospacedDigit()
+                }
                 Spacer(minLength: 0)
                 if group.templateApp != nil {
                     Image(systemName: "arrow.up.right").font(.onest(size: 11))
@@ -267,14 +272,8 @@ struct NowhereWidgetContent: View {
             }
             .padding(.horizontal, 10)
             .frame(height: compact ? (dense ? 28 : 32) : 40)
-            .background {
-                GeometryReader { geometry in
-                    RoundedRectangle(cornerRadius: 14).fill(ink.opacity(0.08))
-                    RoundedRectangle(cornerRadius: 14).fill(accent.opacity(isAccented ? 0.16 : 0.24))
-                        .frame(width: geometry.size.width * min(1, Double(group.budgetMinutes) / Double(max(1, group.budgetInitial, group.budgetMinutes))))
-                }
-            }
-        .accessibilityLabel("\(identity.title), \(group.budgetMinutes) minutes left")
+            .background(RoundedRectangle(cornerRadius: 14).fill(accent.opacity(isAccented ? 0.16 : 0.24)))
+        .accessibilityLabel("\(identity.title), unlocked")
     }
 
     @ViewBuilder

@@ -270,9 +270,9 @@ final class BlockingStore: ObservableObject {
                 // the weaker verdict landed last and kept a group unshielded past the
                 // end of its window.
                 if ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: group.id) {
-                    diagLines.append("SKIP \(group.name): usageBudget active")
+                    diagLines.append("SKIP \(group.name): timed access active")
                     unlockedApplicationTokens.formUnion(group.selection.applicationTokens)
-                    AppLogger.shield.debug("⏭️ Skipping group \(group.name) - usage budget active")
+                    AppLogger.shield.debug("⏭️ Skipping group \(group.name) - timed access active")
                     continue
                 }
                 
@@ -305,7 +305,7 @@ final class BlockingStore: ObservableObject {
             // re-reads persisted groups/budgets under the shared purchase lock.
             ShieldRebuildHelper.rebuild()
 
-            // Purchase success means the usage budget and monitor were committed.
+            // Purchase success means the timed pass and deadline monitor were committed.
             // Read our named store back after the rebuild so diagnostics can tell
             // whether that same store still contains apps from unlocked groups.
             let shieldStore = ManagedSettingsStore(named: .init("shield"))
@@ -373,7 +373,7 @@ final class BlockingStore: ObservableObject {
             let catCount = g.selection.categoryTokens.count
             let budgetKey = SharedKeys.usageBudgetKey(g.id)
             let budget = defaults.integer(forKey: budgetKey)
-            let status = budget > 0 ? "USAGE_BUDGET \(budget)m" : "LOCKED"
+            let status = budget > 0 ? "TIMED_ACCESS \(budget)m" : "LOCKED"
             lines.append("  \(g.name) | id=\(g.id.prefix(8))… | fc=\(fc) | \(appCount) apps \(catCount) cats | \(status)")
         }
 
@@ -408,24 +408,19 @@ final class BlockingStore: ObservableObject {
         }
         #endif
 
-        // 5b. Usage Budget State
+        // 5b. Timed Access State
         lines.append("")
-        lines.append("-- Usage Budgets --")
+        lines.append("-- Timed Access Passes --")
         var budgetCount = 0
         for g in ticketGroups {
-            let remaining = defaults.integer(forKey: SharedKeys.usageBudgetKey(g.id))
+            let remaining = ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: g.id, at: now)
             let initial = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(g.id))
             let started = defaults.object(forKey: SharedKeys.usageBudgetStartedKey(g.id)) as? Date
             if remaining > 0 || initial > 0 || started != nil {
                 let startedStr = started.map { iso.string(from: $0) } ?? "nil"
-                var extra = ""
-                if let s = started, initial > 0 {
-                    let wallElapsed = Int(now.timeIntervalSince(s) / 60)
-                    let wallRemaining = max(0, initial - wallElapsed)
-                    let effective = min(remaining, wallRemaining)
-                    extra = " | wallClock=\(wallElapsed)m elapsed, effective=\(effective)m"
-                }
-                lines.append("  \(g.name): \(remaining)/\(initial)m remaining | started: \(startedStr)\(extra)")
+                let expiry = ShieldRebuildHelper.usageBudgetDeadline(defaults: defaults, groupId: g.id)
+                    .map { iso.string(from: $0) } ?? "nil"
+                lines.append("  \(g.name): \(remaining)/\(initial)m left | started: \(startedStr) | expires: \(expiry)")
                 budgetCount += 1
             }
         }

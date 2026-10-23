@@ -98,12 +98,11 @@ extension AppModel {
             return false
         }
         
-        // A paid continuation that could not register is resumed before a new
-        // charge. Never turn recovery into another purchase.
         let store = UserDefaults.nowhere()
-        if ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: store, groupId: groupId),
-           let session = UsageBudgetSession.load(from: store, groupId: groupId) {
-            if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: session.remainingMinutes) {
+        if let session = UsageBudgetSession.load(from: store, groupId: groupId),
+           session.expiresAt > .now {
+            if ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: store, groupId: groupId),
+               let failure = startUsageBudgetMonitoring(groupId: groupId) {
                 payGateError = failure.userFacingMessage
                 dismissPayGate(reason: .programmatic)
                 return false
@@ -111,13 +110,14 @@ extension AppModel {
             ShieldRebuildHelper.rebuild()
             rebuildFamilyControlsShield()
             dismissPayGate(reason: .programmatic)
-            return true
+            payGateError = String(localized: "This group is already unlocked")
+            return false
         }
 
         let cost = costOverride ?? group.cost(for: window)
         let minutes = window.minutes
         
-        AppLogger.shield.debug("💰 Attempting to pay \(cost) colors for \(minutes) min (usage budget) for group \(group.name)")
+        AppLogger.shield.debug("💰 Attempting to pay \(cost) colors for \(minutes) min of access for group \(group.name)")
         
         guard pay(cost: cost) else {
             AppLogger.shield.debug("❌ Payment failed - not enough colors")
@@ -158,17 +158,17 @@ extension AppModel {
         return true
     }
 
-    /// Returns nil only after the usage thresholds has been registered.
+    /// Returns nil only after the pass deadline has been registered.
     @discardableResult
-    private func startUsageBudgetMonitoring(groupId: String, minutes: Int) -> UsageBudgetMonitoringError? {
+    private func startUsageBudgetMonitoring(groupId: String) -> UsageBudgetMonitoringError? {
         #if canImport(DeviceActivity) && canImport(FamilyControls)
         let defaults = UserDefaults.nowhere()
         do {
             try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: groupId)
-            defaults.set("OK usage thresholds usageBudget_\(groupId), \(minutes)m", forKey: SharedKeys.lastStartMonitoringLog)
+            defaults.set("OK timed access timedAccess_\(groupId)", forKey: SharedKeys.lastStartMonitoringLog)
             return nil
         } catch {
-            defaults.set("FAIL usage thresholds usageBudget_\(groupId): \(error.localizedDescription)", forKey: SharedKeys.lastStartMonitoringLog)
+            defaults.set("FAIL timed access timedAccess_\(groupId): \(error.localizedDescription)", forKey: SharedKeys.lastStartMonitoringLog)
             return UsageBudgetMonitoringError.classify(error)
         }
         #else
@@ -218,14 +218,12 @@ extension AppModel {
         }
     }
 
-    /// Stops `usageBudget_*` DeviceActivity names when UserDefaults has no active budget for that group.
-    /// Orphans appear when prefs were cleared (e.g. `usageBudgetDone`) but stopMonitoring failed,
-    /// or pending-widget handoff started monitoring without matching prefs.
+    /// Stops timed access monitors when their persisted pass is gone or expired.
     func reconcileOrphanUsageBudgetMonitors() {
         #if canImport(DeviceActivity)
         let center = DeviceActivityCenter()
         let defaults = UserDefaults.nowhere()
-        let prefix = "usageBudget_"
+        let prefix = "timedAccess_"
         var toStop: [DeviceActivityName] = []
         for activity in center.activities {
             let raw = activity.rawValue
@@ -246,19 +244,17 @@ extension AppModel {
         }
         guard !toStop.isEmpty else { return }
         center.stopMonitoring(toStop)
-        AppLogger.shield.debug("🧹 Stopped orphan usageBudget monitor(s): \(toStop.map(\.rawValue).joined(separator: ", "))")
+        AppLogger.shield.debug("🧹 Stopped orphan timed access monitor(s): \(toStop.map(\.rawValue).joined(separator: ", "))")
         #endif
     }
 
-    /// After `intervalDidEnd` stops monitors without clearing prefs, restart DeviceActivity for any group
-    /// that still has budget valid for this custom day but no registered `usageBudget_*` activity.
+    /// Restore missing deadline monitors without changing an active pass's expiry.
     func ensureUsageBudgetMonitoringForActiveGroups() {
         #if canImport(DeviceActivity) && canImport(FamilyControls)
         let defaults = UserDefaults.nowhere()
         let center = DeviceActivityCenter()
         for group in ticketGroups {
             let gid = group.id
-            guard defaults.integer(forKey: SharedKeys.usageBudgetKey(gid)) > 0 else { continue }
             let remaining = ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: gid)
             guard remaining > 0,
                   let expiry = ShieldRebuildHelper.usageBudgetDeadline(defaults: defaults, groupId: gid),
@@ -271,15 +267,11 @@ extension AppModel {
             if let name,
                let current = center.schedule(for: name),
                !current.repeats, current.intervalEnd == desired.intervalEnd,
-               let session,
-               !session.needsNextSegment, !session.monitoringFailed,
-               ShieldRebuildHelper.usageSelectionMatches(defaults: defaults, groupId: gid, session: session),
-               center.events(for: name)[DeviceActivityEvent.Name(session.eventName(minute: session.initialMinutes))] != nil {
+               let session, !session.monitoringFailed,
+               center.events(for: name).isEmpty {
                 continue
             }
-            // Do not replace a healthy monitor on app launch: Apple's partial
-            // usage lives there. Recover only absent/obsolete registrations.
-            if let failure = startUsageBudgetMonitoring(groupId: gid, minutes: remaining) {
+            if let failure = startUsageBudgetMonitoring(groupId: gid) {
                 payGateError = failure.userFacingMessage
             }
         }
@@ -299,6 +291,8 @@ extension AppModel {
         let names = DeviceActivityCenter().activities.filter {
             $0.rawValue == prefix || $0.rawValue.hasPrefix(prefix + "_")
                 || $0.rawValue == session?.activityName(groupId: groupId)
+                || $0.rawValue == "timedAccess_\(groupId)"
+                || $0.rawValue.hasPrefix("timedAccess_\(groupId)_")
         }
         DeviceActivityCenter().stopMonitoring(names)
         #endif

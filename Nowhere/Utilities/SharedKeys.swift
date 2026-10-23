@@ -253,6 +253,7 @@ enum SharedKeys {
     static func usageBudgetStartedKey(_ groupId: String) -> String { "usageBudgetStarted_\(groupId)" }
     static func usageBudgetInitialKey(_ groupId: String) -> String { "usageBudgetInitial_\(groupId)" }
     static func usageBudgetExpiryKey(_ groupId: String) -> String { "usageBudgetExpiry_\(groupId)" }
+    static let timedAccessMigrationVersion = "timedAccessMigrationVersion_v1"
     static func lastGroupPayGateOpen(_ groupId: String) -> String { "lastGroupPayGateOpen_\(groupId)" }
     static func pushSentFor(_ bundleId: String) -> String { "pushSentFor_\(bundleId)" }
     static func pushSentAt(_ bundleId: String) -> String { "pushSentAt_\(bundleId)" }

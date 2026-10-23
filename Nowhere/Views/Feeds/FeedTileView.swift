@@ -14,11 +14,8 @@ import FamilyControls
 struct FeedTileView: View {
     let group: TicketGroup
     let isSelected: Bool
-    /// Unspent minutes on this group's window, polled once for the whole page
-    /// by `AppsPageSimplified`. The tile does not read the budget itself: when
-    /// it had its own 15s loop it and the surface drifted apart, so a freshly
-    /// bought window showed a running timer above a tile that still looked
-    /// locked.
+    /// Remaining wall-clock minutes, polled once for the whole page by
+    /// `AppsPageSimplified` so every feed row changes state together.
     let remainingMinutes: Int
     let onTap: () -> Void
 

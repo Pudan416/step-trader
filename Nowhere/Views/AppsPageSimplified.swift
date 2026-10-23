@@ -290,10 +290,7 @@ struct AppsPageSimplified: View {
             .onChange(of: CanvasTour.shared.isActive) { _, _ in dismissStaleTourPresentation() }
             .onAppear { selection = model.appSelection }
             .task {
-                // The honest signal steps once a minute (the monitor
-                // extension's per-minute tick). Poll a little faster so
-                // nothing on the page is badly stale; never interpolate
-                // between ticks.
+                // Re-read the wall-clock deadline while the page is visible.
                 refreshUsageBudgets()
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(15))

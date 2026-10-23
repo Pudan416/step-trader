@@ -3631,6 +3631,23 @@
     "This feed has no single app to open" : {
       "comment" : "Feeds surface – open button VoiceOver hint, no scheme"
     },
+    "This group is already unlocked" : {
+      "comment" : "Shown when a purchase is attempted during an active timed access pass",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This group is already unlocked"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта группа уже открыта"
+          }
+        }
+      }
+    },
     "This name will be displayed instead of my real name" : {
       "comment" : "ProfileEditor – nickname hint"
     },
