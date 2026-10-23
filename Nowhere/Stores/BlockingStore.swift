@@ -66,6 +66,19 @@ final class BlockingStore: ObservableObject {
         persistenceSuspended = false
     }
 
+    /// The paused coordinator reloads selection without scheduling old debounces.
+    func reloadAfterAccountSwitch() {
+        precondition(persistenceSuspended)
+        lastSavedAppSelection = nil
+        appUnlockSettings = [:]
+        isBlocked = false
+        let data = UserDefaults.nowhere().data(forKey: SharedKeys.appSelection)
+        appSelection = data.flatMap { try? JSONDecoder().decode(FamilyActivitySelection.self, from: $0) }
+            ?? FamilyActivitySelection()
+        lastSavedAppSelection = appSelection
+        loadTicketGroups()
+    }
+
     // MARK: - Authorization
     var isAuthorized: Bool {
         familyControlsService.isAuthorized

@@ -40,6 +40,19 @@ final class HealthStore: ObservableObject {
         loadCachedSleepToday()
     }
     
+    /// Reload only after account storage has been replaced and old producers drained.
+    /// Query identities invalidate callbacks even when HealthKit ignores cancellation.
+    func reloadAfterAccountSwitch() {
+        stopObservingSteps()
+        stepsToday = 0
+        dailySleepHours = 0
+        baseEnergyToday = 0
+        hasStepsData = false
+        hasSleepData = false
+        loadCachedStepsToday()
+        loadCachedSleepToday()
+    }
+
     func requestAuthorization() async throws {
         do {
             try await healthKitService.requestAuthorization()

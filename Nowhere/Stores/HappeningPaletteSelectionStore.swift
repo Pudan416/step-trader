@@ -175,6 +175,10 @@ final class FrequentHappeningStore {
 
     init(defaults: UserDefaults = .nowhere()) {
         self.defaults = defaults
+        reloadAfterAccountSwitch()
+    }
+
+    func reloadAfterAccountSwitch() {
         snapshot = defaults.data(forKey: SharedKeys.happeningFrequentPalette).flatMap {
             try? JSONDecoder().decode(Snapshot.self, from: $0)
         }
