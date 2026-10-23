@@ -16,6 +16,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  account-history-vault:
+    name: Account history archive regressions
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify local account archives
+        run: python3 Scripts/test_account_history_vault.py
+
   ios-tests:
     name: iOS unit tests
     # The app uses the iOS 26 Liquid Glass API (`Glass`), which Xcode 16 cannot
