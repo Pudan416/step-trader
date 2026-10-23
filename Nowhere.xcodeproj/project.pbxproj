@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		A13C10042F5000010018004E /* LegacyDeviceHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20042F5000010018004E /* LegacyDeviceHistoryView.swift */; };
 		A13C10032F5000010018004E /* LegacyDeviceHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20032F5000010018004E /* LegacyDeviceHistory.swift */; };
-		A13C10022F5000010018004E /* AccountHistoryStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20022F5000010018004E /* AccountHistoryStorage.swift */; };
+		A13C30022F5000010018004E /* AccountHistoryStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20022F5000010018004E /* AccountHistoryStorage.swift */; };
 		A13C10012F5000010018004E /* AccountHistoryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C10022F5000010018004E /* AccountHistoryVault.swift */; };
 		AC1004000000000000000002 /* NativeAtlasDailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */; };
 		AC1004000000000000000004 /* NativeAtlasRecipe+DailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */; };
@@ -2903,7 +2903,7 @@
 				A13C10012F5000010018004E /* AccountHistoryVault.swift in Sources */,
 				A13C10042F5000010018004E /* LegacyDeviceHistoryView.swift in Sources */,
 				A13C10032F5000010018004E /* LegacyDeviceHistory.swift in Sources */,
-				A13C10022F5000010018004E /* AccountHistoryStorage.swift in Sources */,
+				A13C30022F5000010018004E /* AccountHistoryStorage.swift in Sources */,
 				20DIAG012F5000010018004E /* Nowhere/Services/DiagnosticsManager.swift in Sources */,
 				2061ED002F277010009FEC25 /* Nowhere/Services/ErrorManager.swift in Sources */,
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,
