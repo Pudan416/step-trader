@@ -70,6 +70,25 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         return valid.accessToken
     }
+
+    /// Linking must keep the anonymous owner. Unlike best-effort API reads,
+    /// a failed refresh cannot fall back to an expired bearer or a new user.
+    func anonymousAppleLinkContext() async throws -> (token: String, userID: String)? {
+        guard isAnonymous else { return nil }
+        let generation = sessionGeneration
+        guard let userID = currentUser?.id, let stored = loadStoredSession(),
+              stored.user.id == userID, stored.user.isAnonymous else {
+            throw AuthError.sessionExpired
+        }
+        let valid = try await ensureValidSession(stored)
+        try checkSessionGeneration(generation)
+        guard isAnonymous, currentUser?.id == userID,
+              valid.user.id == userID, valid.user.isAnonymous else {
+            throw AuthError.sessionExpired
+        }
+        if valid.accessToken != stored.accessToken { storeSession(valid) }
+        return (valid.accessToken, userID)
+    }
     
     // Auth data intentionally stored in .standard — not shared with extensions.
     // Avatar bytes live on disk (Documents dir) to avoid bloating UserDefaults.
