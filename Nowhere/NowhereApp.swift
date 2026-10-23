@@ -133,6 +133,7 @@ private struct NowhereProductionRoot: View {
     @State private var hasRequestedReviewThisSession = false
     @State private var pendingWidgetUnlock: (request: WidgetUnlockRequest, receivedAt: Date)?
     @State private var isProcessingWidgetUnlock = false
+    @State private var widgetUnlockOperationID: UUID?
     @State private var widgetHandoffBundleId: String?
     @State private var widgetHandoffRequestID: UUID?
 
@@ -337,6 +338,17 @@ private struct NowhereProductionRoot: View {
                 set: { errorManager.showErrorAlert = $0 })
     }
 
+    private var announcementBinding: Binding<Bool> {
+        Binding(
+            get: { canPresentSessionUI && !isUITest && announcementService.activeAnnouncement != nil },
+            set: { isPresented in
+                guard !isPresented, canPresentSessionUI, !isUITest else { return }
+                guard let announcement = announcementService.activeAnnouncement else { return }
+                announcementService.dismiss(announcement)
+            }
+        )
+    }
+
     private var activeFeatureTipBinding: Binding<FeatureTip?> {
         Binding(get: { isHistoryUnavailable ? nil : activeFeatureTip },
                 set: { activeFeatureTip = $0 })
@@ -485,10 +497,7 @@ private struct NowhereProductionRoot: View {
             }
             .alert(
                 announcementService.activeAnnouncement?.title ?? "",
-                isPresented: Binding(
-                    get: { canPresentSessionUI && !isUITest && announcementService.activeAnnouncement != nil },
-                    set: { if !$0, canPresentSessionUI, !isUITest, let a = announcementService.activeAnnouncement { announcementService.dismiss(a) } }
-                )
+                isPresented: announcementBinding
             ) {
                 Button("OK", role: .cancel) {
                     if let a = announcementService.activeAnnouncement { announcementService.dismiss(a) }
@@ -537,6 +546,10 @@ private struct NowhereProductionRoot: View {
             .onChange(of: model.isBootstrapping) { _, preparingLocalState in
                 if !preparingLocalState { startAutomaticCanvasOnboardingIfReady() }
             }
+            .onChange(of: accountHistory.revision) { _, _ in
+                resetWidgetUnlockProcessing()
+                processPendingWidgetUnlock()
+            }
             .onChange(of: isHistoryUnavailable) { _, unavailable in
                 guard unavailable else {
                     processPendingWidgetUnlock()
@@ -549,7 +562,7 @@ private struct NowhereProductionRoot: View {
                 activeFeatureTip = nil
                 errorManager.dismiss()
                 pendingWidgetUnlock = nil
-                isProcessingWidgetUnlock = false
+                resetWidgetUnlockProcessing()
                 widgetHandoffBundleId = nil
                 widgetHandoffRequestID = nil
             }
@@ -864,6 +877,11 @@ private struct NowhereProductionRoot: View {
         }
     }
 
+    private func resetWidgetUnlockProcessing() {
+        widgetUnlockOperationID = nil
+        isProcessingWidgetUnlock = false
+    }
+
     private func processPendingWidgetUnlock() {
         guard model.didCompleteBootstrap, scenePhase == .active,
               canPresentSessionUI, !isUITest,
@@ -875,16 +893,21 @@ private struct NowhereProductionRoot: View {
             return
         }
         isProcessingWidgetUnlock = true
+        let operationID = UUID()
+        widgetUnlockOperationID = operationID
         let historyGeneration = model.historyWorkGeneration
         Task { @MainActor [self] in
-            guard model.isHistoryWorkCurrent(historyGeneration) else { return }
             defer {
-                if model.isHistoryWorkCurrent(historyGeneration) {
-                    isProcessingWidgetUnlock = false
-                    model.writeWidgetSnapshot()
-                    WidgetCenter.shared.reloadAllTimelines()
+                if widgetUnlockOperationID == operationID {
+                    resetWidgetUnlockProcessing()
+                    if model.isHistoryWorkCurrent(historyGeneration) {
+                        model.writeWidgetSnapshot()
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
                 }
             }
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             let request = pending.request
             guard let window = AccessWindow(rawValue: request.windowRaw),
                   let group = model.ticketGroups.first(where: { $0.id == request.groupId }),
@@ -899,12 +922,14 @@ private struct NowhereProductionRoot: View {
             do {
                 try await model.familyControlsService.requestAuthorization()
             } catch {
-                guard model.isHistoryWorkCurrent(historyGeneration) else { return }
+                guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
                 model.payGateError = UsageBudgetMonitoringError.notAuthorized.userFacingMessage
                 SharedKeys.recordWidgetInteraction("unlock authorization failed", source: "app")
                 return
             }
-            guard model.isHistoryWorkCurrent(historyGeneration) else { return }
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             model.checkDayBoundary()
             guard model.totalStepsBalance >= group.cost(for: window) else {
                 model.payGateError = String(localized: "Not enough colors")
@@ -912,12 +937,14 @@ private struct NowhereProductionRoot: View {
                 return
             }
             SharedKeys.recordWidgetInteraction("unlock in app group=\(group.id) authorized=\(model.familyControlsService.isAuthorized)", source: "app")
-            guard model.isHistoryWorkCurrent(historyGeneration) else { return }
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             guard await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: nil) else {
                 SharedKeys.recordWidgetInteraction("unlock purchase failed group=\(group.id)", source: "app")
                 return
             }
-            guard model.isHistoryWorkCurrent(historyGeneration) else { return }
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             SharedKeys.recordWidgetInteraction("unlock completed group=\(group.id) minutes=\(window.minutes) balance=\(model.totalStepsBalance)", source: "app")
             // Purchasing time never launches the target. Its card remains the
             // separate, explicit launch action (including cached URL widgets).

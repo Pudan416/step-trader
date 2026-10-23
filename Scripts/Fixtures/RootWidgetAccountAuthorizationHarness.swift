@@ -7,8 +7,10 @@ struct Request { let windowRaw = "minutes10"; let groupId = "stable-group" }
     let canPresentSessionUI = true
     let isUITest = false
     var isProcessingWidgetUnlock = false
+    var widgetUnlockOperationID: UUID?
     var pendingWidgetUnlock: (request: Request, receivedAt: Date)? = (Request(), .now)
     func trigger() { processPendingWidgetUnlock() }
+    /*__RESET__*/
     /*__ROOT__*/
 }
 @main @MainActor struct RootWidgetAccountAuthorizationHarness {
@@ -20,6 +22,7 @@ struct Request { let windowRaw = "minutes10"; let groupId = "stable-group" }
         root.model.historyWorkGeneration = UUID()
         root.model.totalStepsBalance = 500
         // A new incoming purchase owns this flag. Old A's defer cannot reset it.
+        root.widgetUnlockOperationID = UUID()
         root.isProcessingWidgetUnlock = true
         root.model.familyControlsService.continuation?.resume()
         root.model.familyControlsService.continuation = nil
@@ -28,6 +31,32 @@ struct Request { let windowRaw = "minutes10"; let groupId = "stable-group" }
             "Root's delayed A authorization must not charge B")
         precondition(root.model.snapshots == 0, "Old root defer must not publish a B snapshot")
         precondition(root.isProcessingWidgetUnlock, "Old root defer must not reset a new incoming purchase")
+
+        // The queued task has not entered when the account changes.
+        let queued = RootFixture()
+        queued.trigger()
+        queued.model.historyWorkGeneration = UUID()
+        for _ in 0..<20 { await Task.yield() }
+        precondition(!queued.isProcessingWidgetUnlock,
+            "A transition before task entry must release the old operation")
+        queued.pendingWidgetUnlock = (Request(), .now)
+        queued.trigger()
+        await withCheckedContinuation { queued.model.familyControlsService.entered = $0 }
+        // Revision notification releases even an uncooperative old prompt,
+        // without discarding an incoming cold-launch request.
+        queued.pendingWidgetUnlock = (Request(), .now)
+        queued.resetWidgetUnlockProcessing()
+        precondition(!queued.isProcessingWidgetUnlock && queued.pendingWidgetUnlock != nil)
+        queued.model.familyControlsService.continuation?.resume()
+        queued.model.familyControlsService.continuation = nil
+        for _ in 0..<20 { await Task.yield() }
+        precondition(queued.model.charges == 0, "Released authorization must stay invalid even without a generation change")
+        queued.trigger()
+        await withCheckedContinuation { queued.model.familyControlsService.entered = $0 }
+        queued.model.familyControlsService.continuation?.resume()
+        queued.model.familyControlsService.continuation = nil
+        for _ in 0..<20 { await Task.yield() }
+        precondition(queued.model.charges == 1 && !queued.isProcessingWidgetUnlock)
 
         let fresh = RootFixture()
         fresh.trigger()

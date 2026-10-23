@@ -34,7 +34,8 @@ class WidgetAccountAuthorizationTests(unittest.TestCase):
             common = (ROOT / "Scripts/Fixtures/WidgetAccountAuthorizationHarness.swift").read_text().split("struct UnlockGroupWidgetIntent", 1)[0]
             common = common.replace("var historyWorkGeneration = UUID()", "var didCompleteBootstrap = true\n    var historyWorkGeneration = UUID()")
             common = common.replace("/*__CURRENT__*/", declaration(model, "func isHistoryWorkCurrent("))
-            harness = common + (ROOT / "Scripts/Fixtures/RootWidgetAccountAuthorizationHarness.swift").read_text().replace("/*__ROOT__*/", method)
+            reset = declaration((ROOT / "Nowhere/NowhereApp.swift").read_text(), "private func resetWidgetUnlockProcessing()")
+            harness = common + (ROOT / "Scripts/Fixtures/RootWidgetAccountAuthorizationHarness.swift").read_text().replace("/*__ROOT__*/", method).replace("/*__RESET__*/", reset)
             script = folder / "Harness.swift"
             script.write_text(harness)
             binary = folder / "root-widget"
