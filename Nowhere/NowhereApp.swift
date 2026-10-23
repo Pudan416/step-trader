@@ -395,9 +395,7 @@ private struct NowhereProductionRoot: View {
         }
     }
 
-    @ViewBuilder
-    private var appBody: some View {
-            GlassShimmerProvider {
+    private var sessionContent: some View {
             ZStack {
                 // The Canvas tour anchors to the real app throughout first launch.
                 if isHistoryUnavailable {
@@ -505,6 +503,12 @@ private struct NowhereProductionRoot: View {
             } message: {
                 Text(announcementService.activeAnnouncement?.message ?? "")
             }
+    }
+
+    @ViewBuilder
+    private var appBody: some View {
+            GlassShimmerProvider {
+            sessionContent
             .onAppear {
                 // STOPGAP: install legacy bar appearances after init() instead of during it.
                 // This avoids doing UIKit work in App.init while keeping the transparent
