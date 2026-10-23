@@ -123,7 +123,7 @@ final class AccountHistoryCoordinator: ObservableObject {
     }
 
     private func stopMonitoring(_ names: [String]) {
-        if !names.isEmpty { DeviceActivityCenter().stopMonitoring(names.map(DeviceActivityName.init)) }
+        if !names.isEmpty { DeviceActivityCenter().stopMonitoring(names.map { DeviceActivityName($0) }) }
     }
 
     private func resumeLocalWriters(_ model: AppModel) {
