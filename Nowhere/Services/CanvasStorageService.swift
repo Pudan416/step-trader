@@ -293,6 +293,7 @@ final class CanvasStorageService {
         paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
         expectedEpoch: CanvasStorageWriteEpoch? = nil
     ) async {
+        guard !Task.isCancelled else { return }
         let epoch = expectedEpoch ?? captureWriteEpoch()
         guard writeBarrier.allows(epoch) else { return }
         if let image = await renderedSnapshot(
@@ -318,7 +319,7 @@ final class CanvasStorageService {
 
     @MainActor
     func scheduleWidgetSnapshot(for canvas: DayCanvas, paletteCategories: Set<ModernPaletteCategory>) {
-        guard writeBarrier.allows(captureWriteEpoch()) else { return }
+        guard !Task.isCancelled, writeBarrier.allows(captureWriteEpoch()) else { return }
         Self.widgetSnapshotQueue.submit(canvas, categories: paletteCategories)
     }
 
@@ -331,6 +332,9 @@ final class CanvasStorageService {
         paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
         expectedEpoch: CanvasStorageWriteEpoch? = nil
     ) async {
+        // The queue can be canceled while its async export closure is hopping
+        // here. Do not let that old work acquire the incoming account's epoch.
+        guard !Task.isCancelled else { return }
         let epoch = expectedEpoch ?? captureWriteEpoch()
         guard writeBarrier.allows(epoch) else { return }
         guard let rendered = await renderedSnapshot(

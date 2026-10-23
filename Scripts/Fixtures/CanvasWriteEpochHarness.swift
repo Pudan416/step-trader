@@ -43,6 +43,7 @@ final class FixtureFileManager: @unchecked Sendable {
     let root: URL
     /*__BARRIER_PROPERTY__*/
     static let widgetSnapshotQueue = CanvasWidgetSnapshotQueue { canvas, categories in
+        await CanvasStorageService.shared.beforeExport(canvas)
         await CanvasStorageService.shared.saveWidgetSnapshot(for: canvas, paletteCategories: categories)
         CanvasStorageService.shared.noteFinished(canvas.marker)
     }
@@ -52,11 +53,14 @@ final class FixtureFileManager: @unchecked Sendable {
     var delayedSecondRender: CheckedContinuation<Void, Never>?
     var finished: [String] = []
     var finishedWaiters: [String: CheckedContinuation<Void, Never>] = [:]
+    var delayBeforeEntry = false
+    var entryStarted: CheckedContinuation<Void, Never>?
+    var delayedEntry: CheckedContinuation<Void, Never>?
     init(root: URL) { self.root = root; fileManager = FixtureFileManager(root) }
     func canvasFileURL(for day: String) -> URL { root.appendingPathComponent("canvas.json") }
     func snapshotURL(for day: String) -> URL { root.appendingPathComponent("snapshot.png") }
     func renderedSnapshot(canvas: DayCanvas, size: CGSize, scale: CGFloat, paletteCategories: Set<ModernPaletteCategory>) async -> UIImage? {
-        if canvas.marker == "A" {
+        if canvas.marker == "A", !delayBeforeEntry {
             await withCheckedContinuation { continuation in
                 delayedRender = continuation
                 renderStarted?.resume(); renderStarted = nil
@@ -69,6 +73,14 @@ final class FixtureFileManager: @unchecked Sendable {
             }
         }
         return UIImage(canvas.marker)
+    }
+    func beforeExport(_ canvas: DayCanvas) async {
+        if delayBeforeEntry, canvas.marker == "A" {
+            await withCheckedContinuation { continuation in
+                delayedEntry = continuation
+                entryStarted?.resume(); entryStarted = nil
+            }
+        }
     }
     func noteFinished(_ marker: String) {
         finished.append(marker)
@@ -95,6 +107,19 @@ func expect(_ value: @autoclosure () -> Bool, _ message: String) {
         let a = DayCanvas(marker: "A", localCloudOwnerID: "owner-a")
         let b = DayCanvas(marker: "B", localCloudOwnerID: "owner-b")
         switch CommandLine.arguments[1] {
+        case "pre-entry":
+            storage.delayBeforeEntry = true
+            let queue = CanvasStorageService.widgetSnapshotQueue
+            queue.submit(a, categories: ModernPaletteSelection.all)
+            if storage.delayedEntry == nil { await withCheckedContinuation { storage.entryStarted = $0 } }
+            await storage.invalidatePendingWritesForAccountSwitch()
+            storage.resumeWritesAfterAccountSwitch()
+            queue.submit(b, categories: ModernPaletteSelection.all)
+            await storage.waitForFinished("B")
+            storage.delayedEntry?.resume(); storage.delayedEntry = nil
+            await storage.waitForFinished("A")
+            let contents = try Data(contentsOf: root.appendingPathComponent("widget_snapshots/canvas_today.jpg"))
+            expect(String(data: contents, encoding: .utf8) == "B", "canceled pre-entry export captured the incoming epoch")
         case "active-write":
             let barrier = storage.writeBarrier
             let epoch = barrier.capture()

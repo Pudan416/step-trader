@@ -73,6 +73,7 @@ class CanvasWriteEpochTests(unittest.TestCase):
     def test_canceled_widget_worker_cannot_clobber_incoming_queue(self): self.run_case('queue-switch')
     def test_normal_widget_queue_still_serializes_and_coalesces(self): self.run_case('queue-normal')
     def test_invalidation_drains_active_disk_write_before_swap(self): self.run_case('active-write')
+    def test_canceled_export_delayed_before_storage_entry_cannot_capture_new_epoch(self): self.run_case('pre-entry')
 
 
 if __name__ == '__main__': unittest.main()
