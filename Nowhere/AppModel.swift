@@ -555,6 +555,17 @@ final class AppModel: ObservableObject {
         await task.value
     }
 
+    func restartAccountHistoryWork() {
+        resumeHistoryWork()
+        scheduleDayBoundaryTimer()
+        scheduleHistoryWork { [self] in
+            await refreshStepsIfAuthorized()
+            await refreshSleepIfAuthorized()
+            ensureUsageBudgetMonitoringForActiveGroups()
+            writeWidgetSnapshot()
+        }
+    }
+
     /// Reuse the local loaders against the incoming account while every writer
     /// remains paused. Missing keys must clear A's in-memory values for fresh B.
     func reloadAccountHistory() async {
@@ -587,6 +598,9 @@ final class AppModel: ObservableObject {
         healthStore.reloadAfterAccountSwitch()
         frequentHappeningStore.reloadAfterAccountSwitch()
         budgetEngine.reloadFromStorage()
+        let rawTariff = UserDefaults.nowhere().string(forKey: SharedKeys.selectedTariff) ?? Tariff.medium.rawValue
+        budgetEngine.updateTariff(Tariff(rawValue: rawTariff) ?? .medium)
+        entryCostSteps = budgetEngine.tariff.entryCostSteps
         await userEconomyStore.loadAppStepsSpentToday()
         await userEconomyStore.loadAppStepsSpentLifetime()
         loadDayPassGrants()
