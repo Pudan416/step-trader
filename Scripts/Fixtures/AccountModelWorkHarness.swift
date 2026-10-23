@@ -1,6 +1,14 @@
 import Foundation
 
 @MainActor
+final class SupabaseSyncService {
+    static let shared = SupabaseSyncService()
+    @TaskLocal static var historySyncEpoch: UUID?
+    var currentEpoch = UUID()
+    func captureSyncEpoch() -> UUID { currentEpoch }
+}
+
+@MainActor
 final class ModelHarness {
     var historyWorkTasks: [UUID: Task<Void, Never>] = [:]
     var isHistoryWorkSuspended = false
@@ -17,6 +25,28 @@ final class ModelHarness {
     /*__CURRENT__*/
     /*__WAIT__*/
     func waitUntilResumed() async { await waitForHistoryWorkResumption() }
+}
+
+enum SharedKeys {
+    static let appSelection = "selection"
+    static let appSelectionSavedDate = "selection-date"
+}
+enum FixtureDefaults {
+    static let suite = "BlockingAccountTransition-" + UUID().uuidString
+    static let value = UserDefaults(suiteName: suite)!
+}
+extension UserDefaults { static func nowhere() -> UserDefaults { FixtureDefaults.value } }
+struct Selection: Codable, Equatable { var applications: [Int] }
+@MainActor
+final class BlockingHarness {
+    var persistenceSuspended = false
+    var appSelection = Selection(applications: [1])
+    var rebuildBlockTask: Task<Void, Never>?
+    var persistAndRebuildTask: Task<Void, Never>?
+    var saveAppSelectionTask: Task<Void, Never>?
+    /*__BLOCKING_SUSPEND__*/
+    /*__BLOCKING_RESUME__*/
+    /*__BLOCKING_SAVE__*/
 }
 
 @MainActor
@@ -46,14 +76,17 @@ func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
 struct AccountModelWorkHarness {
     @MainActor
     static func main() async {
+        defer { FixtureDefaults.value.removePersistentDomain(forName: FixtureDefaults.suite) }
         let model = ModelHarness()
         let oldGeneration = model.historyWorkGeneration
+        let producerEpoch = SupabaseSyncService.shared.currentEpoch
         let gate = Gate()
         var writes: [String] = []
         model.scheduleHistoryWork {
             // Deliberately ignore cancellation after entering: suspension must
             // still await this old producer before allowing a storage swap.
             await gate.wait()
+            expect(SupabaseSyncService.historySyncEpoch == producerEpoch, "producer must retain its original sync epoch across suspension")
             writes.append("A finished")
         }
         await gate.waitForEntry()
@@ -64,6 +97,7 @@ struct AccountModelWorkHarness {
         while !model.isHistoryWorkSuspended { await Task.yield() }
         expect(writes.isEmpty, "a suspended operation must not pretend that its old writer drained")
         expect(!model.isHistoryWorkCurrent(oldGeneration), "an outgoing authorization token must expire immediately")
+        SupabaseSyncService.shared.currentEpoch = UUID()
         gate.open()
         await pause.value
         expect(writes == ["A finished", "paused"], "outgoing producer must finish before storage is declared safe to replace")
@@ -89,6 +123,24 @@ struct AccountModelWorkHarness {
         loader.open()
         await loadPause.value
         expect(writes.suffix(2) == ["loader finished", "loader drained"], "local purchase loaders must complete before rotation")
-        print("PASS model producers, delayed authorization generation, bootstrap wait and loader drain")
+        let blocking = BlockingHarness()
+        let selectionGate = Gate()
+        blocking.saveAppSelectionTask = Task { await selectionGate.wait(); FixtureDefaults.value.set(Data("old selection".utf8), forKey: SharedKeys.appSelection) }
+        await selectionGate.waitForEntry()
+        let blockingPause = Task { try await blocking.suspendPersistence() }
+        while !blocking.persistenceSuspended { await Task.yield() }
+        selectionGate.open()
+        try! await blockingPause.value
+        let savedSelection = try! JSONDecoder().decode(Selection.self, from: FixtureDefaults.value.data(forKey: SharedKeys.appSelection)!)
+        expect(savedSelection.applications == [1], "selection barrier must persist latest outgoing selection after old writer drains")
+        FixtureDefaults.value.set(Data("B selection".utf8), forKey: SharedKeys.appSelection)
+        blocking.appSelection = Selection(applications: [9])
+        blocking.saveAppSelection()
+        expect(FixtureDefaults.value.data(forKey: SharedKeys.appSelection) == Data("B selection".utf8), "paused selection callback must not replace incoming account")
+        blocking.resumePersistence()
+        blocking.saveAppSelection()
+        let incomingSelection = try! JSONDecoder().decode(Selection.self, from: FixtureDefaults.value.data(forKey: SharedKeys.appSelection)!)
+        expect(incomingSelection.applications == [9], "incoming selection writer must work after resume")
+        print("PASS model producers, delayed authorization generation, bootstrap wait, loader and selection drains")
     }
 }

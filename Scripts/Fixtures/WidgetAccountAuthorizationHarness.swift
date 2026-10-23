@@ -1,0 +1,95 @@
+import Foundation
+
+protocol IntentResult {}
+struct FixtureResult: IntentResult {}
+extension IntentResult where Self == FixtureResult { static func result() -> Self { .init() } }
+enum AccessWindow: String, Hashable { case minutes10; var minutes: Int { 10 } }
+struct Settings { var familyControlsModeEnabled = true }
+struct Group {
+    let id = "stable-group"
+    var settings = Settings()
+    let enabledIntervals: Set<AccessWindow> = [.minutes10]
+    func cost(for window: AccessWindow) -> Int { 10 }
+}
+@MainActor final class Authorization {
+    var isAuthorized = false
+    var entered: CheckedContinuation<Void, Never>?
+    var continuation: CheckedContinuation<Void, Never>?
+    func refreshAuthorizationStatus() {}
+    func requestAuthorization() async throws {
+        await withCheckedContinuation { continuation = $0; entered?.resume(); entered = nil }
+        isAuthorized = true
+    }
+}
+@MainActor final class Model {
+    var historyWorkGeneration = UUID()
+    var isHistoryWorkSuspended = false
+    var ticketGroups = [Group()]
+    var familyControlsService = Authorization()
+    var totalStepsBalance = 100
+    var payGateError: String?
+    var charges = 0
+    var snapshots = 0
+    func prepareLocalPurchaseState() async {}
+    /*__CURRENT__*/
+    func checkDayBoundary() {}
+    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async -> Bool {
+        charges += 1
+        totalStepsBalance -= 10
+        return true
+    }
+    func writeWidgetSnapshot() { snapshots += 1 }
+}
+@MainActor final class DIContainer {
+    static let shared = DIContainer()
+    var applicationModel = Model()
+}
+struct WidgetCenter {
+    static let shared = WidgetCenter()
+    func reloadAllTimelines() {}
+}
+enum SharedKeys {
+    static let suite = "WidgetAccountAuthorization-" + UUID().uuidString
+    static let defaults = UserDefaults(suiteName: suite)!
+    static func appGroupDefaults() -> UserDefaults { defaults }
+    static func recordWidgetInteraction(_ message: String, source: String) {}
+}
+enum ShieldRebuildHelper {
+    static func hasRecoverableUsageBudget(defaults: UserDefaults, groupId: String) -> Bool { false }
+}
+struct WidgetPurchaseFailure: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
+}
+struct UnlockGroupWidgetIntent {
+    var groupId = "stable-group"
+    var windowRaw = "minutes10"
+    @MainActor static var purchaseInFlight = false
+    func requestToContinueInForeground() async throws {}
+    /*__PERFORM__*/
+}
+@main
+struct WidgetAccountAuthorizationHarness {
+    @MainActor static func main() async {
+        defer { SharedKeys.defaults.removePersistentDomain(forName: SharedKeys.suite) }
+        let model = DIContainer.shared.applicationModel
+        let oldGeneration = model.historyWorkGeneration
+        var rejected = false
+        let attempt = Task {
+            do { _ = try await UnlockGroupWidgetIntent().perform() }
+            catch { rejected = true }
+        }
+        await withCheckedContinuation { model.familyControlsService.entered = $0 }
+        // A system permission prompt returns only after the local account has
+        // become B. Group IDs deliberately match; identity must protect money.
+        model.historyWorkGeneration = UUID()
+        model.totalStepsBalance = 500
+        model.familyControlsService.continuation?.resume()
+        await attempt.value
+        guard rejected, model.historyWorkGeneration != oldGeneration,
+              model.totalStepsBalance == 500, model.charges == 0, model.snapshots == 0 else {
+            fatalError("delayed A authorization must not charge B or publish A widget state")
+        }
+        print("PASS delayed widget authorization cannot charge another account")
+    }
+}

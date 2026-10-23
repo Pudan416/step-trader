@@ -304,9 +304,12 @@ final class AppModel: ObservableObject {
     func scheduleHistoryWork(_ operation: @escaping @MainActor () async -> Void) {
         guard !isHistoryWorkSuspended else { return }
         let id = UUID()
+        let syncEpoch = SupabaseSyncService.shared.captureSyncEpoch()
         historyWorkTasks[id] = Task { @MainActor [weak self] in
             guard !Task.isCancelled else { return }
-            await operation()
+            await SupabaseSyncService.$historySyncEpoch.withValue(syncEpoch) {
+                await operation()
+            }
             self?.historyWorkTasks.removeValue(forKey: id)
         }
     }

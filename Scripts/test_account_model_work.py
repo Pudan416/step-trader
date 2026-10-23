@@ -34,6 +34,13 @@ class AccountModelWorkTests(unittest.TestCase):
                 ("WAIT", "private func waitForHistoryWorkResumption()"),
             ]:
                 harness = harness.replace("/*__" + key + "__*/", declaration(source, marker))
+            blocking = (ROOT / "Nowhere/Stores/BlockingStore.swift").read_text()
+            for key, marker in [
+                ("BLOCKING_SUSPEND", "func suspendPersistence()"),
+                ("BLOCKING_RESUME", "func resumePersistence()"),
+                ("BLOCKING_SAVE", "private func saveAppSelection()"),
+            ]:
+                harness = harness.replace("/*__" + key + "__*/", declaration(blocking, marker))
             swift = folder / "main.swift"
             swift.write_text(harness)
             binary = folder / "model-work"
