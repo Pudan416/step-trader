@@ -7,12 +7,39 @@ final class AccountHistoryVault {
     struct DefaultsDomain {
         let defaults: UserDefaults
         let keys: Set<String>
+        var keyPrefixes: [String] = []
+
+        func includes(_ key: String) -> Bool {
+            keys.contains(key) || keyPrefixes.contains(where: key.hasPrefix)
+        }
+        var currentKeys: Set<String> {
+            keys.union(defaults.dictionaryRepresentation().keys.filter(includes))
+        }
     }
 
     struct Location {
         let name: String
         let url: URL
         var isDirectory: Bool = false
+    }
+
+    /// An immutable view of the quarantine. There is no API to activate it,
+    /// attribute it to an account, or upload its content.
+    struct LegacyArchive {
+        let filePaths: [String]
+        let defaults: [[String: Any]]
+        private let directory: URL
+
+        fileprivate init(filePaths: [String], defaults: [[String: Any]], directory: URL) {
+            self.filePaths = filePaths
+            self.defaults = defaults
+            self.directory = directory
+        }
+
+        func fileData(at path: String) throws -> Data? {
+            guard filePaths.contains(path) else { return nil }
+            return try Data(contentsOf: directory.appendingPathComponent(path))
+        }
     }
 
     enum VaultError: Error {
@@ -106,6 +133,16 @@ final class AccountHistoryVault {
         fm.fileExists(atPath: pointerURL(owner: owner).path)
     }
 
+    func legacyArchive() throws -> LegacyArchive? {
+        guard let snapshot = try read(owner: Self.legacyOwner) else { return nil }
+        try validate(snapshot)
+        let values = try snapshot.contents.defaults.map { data -> [String: Any] in
+            guard let value = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else { throw VaultError.invalidArchive }
+            return value
+        }
+        return LegacyArchive(filePaths: snapshot.contents.files, defaults: values, directory: snapshot.fileRoot)
+    }
+
     private static func overlaps(_ lhs: String, _ rhs: String) -> Bool {
         lhs == rhs || lhs.hasPrefix(rhs + "/") || rhs.hasPrefix(lhs + "/")
     }
@@ -166,7 +203,7 @@ final class AccountHistoryVault {
     private func capture() throws -> Snapshot {
         let values = try domains.map { domain in
             var selected: [String: Any] = [:]
-            for key in domain.keys { selected[key] = domain.defaults.object(forKey: key) }
+            for key in domain.currentKeys { selected[key] = domain.defaults.object(forKey: key) }
             return try PropertyListSerialization.data(fromPropertyList: selected, format: .binary, options: 0)
         }
         let directory = try newDirectory()
@@ -217,7 +254,7 @@ final class AccountHistoryVault {
               Set(contents.files).count == contents.files.count else { throw VaultError.invalidArchive }
         for (index, data) in contents.defaults.enumerated() {
             guard let values = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-                  Set(values.keys).isSubset(of: domains[index].keys) else { throw VaultError.invalidArchive }
+                  values.keys.allSatisfy(domains[index].includes) else { throw VaultError.invalidArchive }
         }
         for path in contents.files {
             let parts = path.split(separator: "/", omittingEmptySubsequences: false)
@@ -250,7 +287,7 @@ final class AccountHistoryVault {
         }
         for (index, domain) in domains.enumerated() {
             guard let values = try PropertyListSerialization.propertyList(from: snapshot.contents.defaults[index], format: nil) as? [String: Any] else { throw VaultError.invalidArchive }
-            for key in domain.keys { domain.defaults.set(values[key], forKey: key) }
+            for key in domain.currentKeys.union(values.keys) { domain.defaults.set(values[key], forKey: key) }
             guard domain.defaults.synchronize() else { throw VaultError.defaultsWriteFailed }
         }
     }

@@ -36,7 +36,7 @@ struct AccountHistoryVaultHarness {
         let fileManager = FailingFileManager()
         func makeVault() throws -> AccountHistoryVault {
             try AccountHistoryVault(root: archive,
-                domains: [.init(defaults: defaults, keys: ["history", "restoreCompleted", "queue"])],
+                domains: [.init(defaults: defaults, keys: ["history", "restoreCompleted", "queue"], keyPrefixes: ["group_"])],
                 locations: [.init(name: "canvases", url: canvas.deletingLastPathComponent(), isDirectory: true)], fileManager: fileManager)
         }
         let vault = try makeVault()
@@ -47,16 +47,24 @@ struct AccountHistoryVaultHarness {
             try expect(defaults.data(forKey: "history") == nil, "A must not inherit legacy IDs")
             try expect(!FileManager.default.fileExists(atPath: canvas.path), "legacy canvas must not appear under A")
             try expect(defaults.string(forKey: "device") == "device-preference", "device preference must survive")
+            let legacy = try vault.legacyArchive()!
+            try expect(legacy.defaults[0]["history"] as? Data == historyBytes, "quarantined defaults must remain readable locally")
+            try expect(legacy.fileData(at: "canvases/day.json") == historyBytes, "quarantined Canvas bytes must remain readable locally")
+            try expect(legacy.fileData(at: "canvases/../outside") == nil, "read-only archive must restrict reads to validated files")
+            try expect(vault.activeOwner == "account-A", "reading legacy history must not change the active owner")
             try expect(FileManager.default.fileExists(atPath: canvas.deletingLastPathComponent().path), "empty storage directory must remain usable")
         } else if mode == "roundtrip" {
             try vault.activate(owner: "account-A")
             defaults.set(historyBytes, forKey: "history")
+            defaults.set(9, forKey: "group_A")
             defaults.set(true, forKey: "restoreCompleted")
             defaults.set(Data("A queued write".utf8), forKey: "queue")
             try historyBytes.write(to: canvas)
             try vault.activate(owner: "account-B")
             try expect(defaults.data(forKey: "history") == nil && !defaults.bool(forKey: "restoreCompleted"), "B must start without A history or restore flag")
             try expect(defaults.data(forKey: "queue") == nil, "A's queued writes must not be visible to B")
+            try expect(defaults.object(forKey: "group_A") == nil, "A's dynamic group keys must not be visible to B")
+            defaults.set(17, forKey: "group_B")
             let b = Data("account-B history".utf8)
             defaults.set(b, forKey: "history")
             try b.write(to: canvas)
@@ -64,6 +72,7 @@ struct AccountHistoryVaultHarness {
             try expect(defaults.data(forKey: "history") == historyBytes, "A UUID bytes must survive a switch")
             try expect(Data(contentsOf: canvas) == historyBytes, "A canvas must be restored byte for byte")
             try expect(defaults.bool(forKey: "restoreCompleted"), "restore completion must belong to A")
+            try expect(defaults.integer(forKey: "group_A") == 9 && defaults.object(forKey: "group_B") == nil, "dynamic keys created after initialization must follow their account")
             try expect(defaults.data(forKey: "queue") == Data("A queued write".utf8), "A must retain its pending writes")
             try vault.activate(owner: "account-B")
             try expect(defaults.data(forKey: "history") == b && Data(contentsOf: canvas) == b, "returning to B must restore B only")
