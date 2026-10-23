@@ -133,6 +133,12 @@ Test names live in `NowhereTests/` unless stated otherwise.
   Canvas updates do not repeatedly classify every historical unlock by its logical
   day. Record edits/removals, day/boundary/calendar changes and formatting/locale
   context invalidate the cache; the underlying classification stays unchanged.
+- Me canvas loads, poster bitmaps and history thumbnails expose an account-switch
+  pause: close admission, invalidate old results, drain render/write tasks, then
+  clear derived memory/disk caches. Resume only after the incoming history is ready.
+  Thumbnail-wide invalidation also rejects older GPU completions. These APIs are
+  preparatory until the runtime account coordinator calls them; cancellation alone
+  does not stop a GPU completion or a detached disk write.
 - `DetectedWorkout.suggestedOptionId` and `ActivitySuggestion.isSatisfied` own
   Health-to-catalog identity and equivalence. Views log the resolved catalog ID;
   a generic workout must not satisfy a specific run or swim.

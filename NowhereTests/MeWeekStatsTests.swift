@@ -657,6 +657,167 @@ final class MeHappeningPreviewStyleTests: XCTestCase {
 
 @MainActor
 final class MePosterSnapshotTests: XCTestCase {
+    func testAccountSwitchDrainsCanvasLoadsAndRejectsOldResultsIncludingJoinedReaders() async {
+        let started = expectation(description: "old canvas load")
+        let joined = expectation(description: "joined old load")
+        let pausing = expectation(description: "pause entered")
+        var pending: CheckedContinuation<DayCanvas?, Never>?
+        var reads = 0
+        var pauseFinished = false
+        let old = DayCanvas(dayKey: "2026-09-07")
+        var incoming = old
+        incoming.remixSeed = 42
+        let loader = MePosterCanvasLoadCoordinator { _, _ in
+            reads += 1
+            if reads == 1 {
+                return await withCheckedContinuation { pending = $0; started.fulfill() }
+            }
+            return incoming
+        }
+        let first = Task { await loader.canvas(for: old.dayKey, hasTrackedSnapshot: false) }
+        await fulfillment(of: [started], timeout: 2)
+        let second = Task {
+            joined.fulfill()
+            return await loader.canvas(for: old.dayKey, hasTrackedSnapshot: false)
+        }
+        await fulfillment(of: [joined], timeout: 2)
+        let pause = Task {
+            pausing.fulfill()
+            await loader.suspendForAccountSwitch()
+            pauseFinished = true
+        }
+        await fulfillment(of: [pausing], timeout: 2)
+        let blocked = await loader.canvas(for: old.dayKey, hasTrackedSnapshot: false)
+        XCTAssertNil(blocked)
+        XCTAssertFalse(pauseFinished, "The old operation has not finished draining")
+        pending?.resume(returning: old)
+        await pause.value
+        let firstResult = await first.value, secondResult = await second.value
+        XCTAssertNil(firstResult)
+        XCTAssertNil(secondResult)
+        loader.resumeAfterAccountSwitch()
+        let loaded = await loader.canvas(for: old.dayKey, hasTrackedSnapshot: false)
+        XCTAssertEqual(loaded?.remixSeed, 42)
+        XCTAssertEqual(reads, 2)
+    }
+
+    func testAccountSwitchDrainsPostersAndRemovesThePreviousAccountsDiskImage() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let started = expectation(description: "old poster render")
+        let pausing = expectation(description: "pause entered")
+        var pending: CheckedContinuation<UIImage?, Never>?
+        let red = fixtureImage(.red), blue = fixtureImage(.blue)
+        var renders = 0
+        var pauseFinished = false
+        let cache = MePosterSnapshotCache(directory: directory) { _, _ in
+            renders += 1
+            if renders == 2 {
+                return await withCheckedContinuation { pending = $0; started.fulfill() }
+            }
+            return renders == 1 ? red : blue
+        }
+        var canvas = DayCanvas(dayKey: "2026-09-07")
+        _ = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        canvas.remixSeed = 5
+        let oldCanvas = canvas
+        let old = Task { await cache.image(for: oldCanvas, categories: ModernPaletteSelection.all) }
+        await fulfillment(of: [started], timeout: 2)
+        let pause = Task {
+            pausing.fulfill()
+            try await cache.suspendForAccountSwitch()
+            pauseFinished = true
+        }
+        await fulfillment(of: [pausing], timeout: 2)
+        XCTAssertNil(cache.cachedImage(for: canvas.dayKey))
+        let blocked = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertNil(blocked)
+        XCTAssertFalse(pauseFinished)
+        pending?.resume(returning: red)
+        try await pause.value
+        let oldResult = await old.value
+        XCTAssertNil(oldResult)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        cache.resumeAfterAccountSwitch()
+        let fresh = await cache.image(for: canvas, categories: ModernPaletteSelection.all)
+        XCTAssertTrue(fresh === blue)
+        let reopened = MePosterSnapshotCache(directory: directory) { _, _ in nil }
+        let restored = try XCTUnwrap(reopened.cachedImage(for: canvas.dayKey)?.cgImage)
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try XCTUnwrap(CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                            space: CGColorSpaceCreateDeviceRGB(),
+                                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(restored, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        XCTAssertGreaterThan(pixel[2], 240, "The persisted incoming image must be blue")
+        XCTAssertLessThan(pixel[0], 15, "The previous red image must be absent")
+    }
+
+    func testAccountSwitchDrainsThumbnailsAndBlocksManualStoresUntilResumed() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let started = expectation(description: "old thumbnail render")
+        let pausing = expectation(description: "pause entered")
+        var pending: CheckedContinuation<UIImage?, Never>?
+        let red = fixtureImage(.red), blue = fixtureImage(.blue)
+        var renders = 0
+        var pauseFinished = false
+        let cache = HistoryThumbnailCache(directory: directory) { _, _, _, _, _ in
+            renders += 1
+            if renders == 1 {
+                return await withCheckedContinuation { pending = $0; started.fulfill() }
+            }
+            return blue
+        }
+        let canvas = DayCanvas(dayKey: "2026-09-07")
+        let size = CGSize(width: 8, height: 8)
+        let old = Task {
+            await cache.thumbnail(for: canvas.dayKey, canvas: canvas, size: size, fixedTime: Date(), theme: .night)
+        }
+        await fulfillment(of: [started], timeout: 2)
+        let pause = Task {
+            pausing.fulfill()
+            try await cache.suspendForAccountSwitch()
+            pauseFinished = true
+        }
+        await fulfillment(of: [pausing], timeout: 2)
+        cache.store(red, dayKey: canvas.dayKey, size: size, theme: .night)
+        let blocked = await cache.thumbnail(for: canvas.dayKey, canvas: canvas, size: size, fixedTime: Date(), theme: .night)
+        XCTAssertNil(blocked)
+        XCTAssertFalse(pauseFinished)
+        pending?.resume(returning: red)
+        try await pause.value
+        let oldResult = await old.value
+        XCTAssertNil(oldResult)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+        cache.resumeAfterAccountSwitch()
+        let fresh = await cache.thumbnail(for: canvas.dayKey, canvas: canvas, size: size, fixedTime: Date(), theme: .night)
+        XCTAssertTrue(fresh === blue)
+        XCTAssertEqual(renders, 2)
+    }
+
+    func testGlobalThumbnailInvalidationRejectsAnAlreadyRenderingImage() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let started = expectation(description: "old thumbnail render")
+        var pending: CheckedContinuation<UIImage?, Never>?
+        let image = fixtureImage(.red)
+        let cache = HistoryThumbnailCache(directory: directory) { _, _, _, _, _ in
+            await withCheckedContinuation { pending = $0; started.fulfill() }
+        }
+        let canvas = DayCanvas(dayKey: "2026-09-07")
+        let task = Task {
+            await cache.thumbnail(for: canvas.dayKey, canvas: canvas, size: CGSize(width: 8, height: 8),
+                                  fixedTime: Date(), theme: .night)
+        }
+        await fulfillment(of: [started], timeout: 2)
+        cache.invalidateAll()
+        pending?.resume(returning: image)
+        let result = await task.value
+        XCTAssertNil(result, "An invalidated GPU completion must not return the previous image")
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty,
+                      "An old render must not repopulate disk after invalidation")
+    }
+
     private func fixtureImage(_ color: UIColor) -> UIImage {
         UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
             color.setFill()
