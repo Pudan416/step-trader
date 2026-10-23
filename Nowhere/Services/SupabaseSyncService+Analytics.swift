@@ -88,7 +88,10 @@ extension SupabaseSyncService {
         
         do {
             let cfg = try SupabaseConfig.load()
+            // Event IDs are unique within an account. The server-generated
+            // numeric primary key cannot identify a replay after a lost ACK.
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_analytics_events")
+                .appending(queryItems: [URLQueryItem(name: "on_conflict", value: "user_id,event_id")])
             let rows = eventsForCurrentUser.map { ownedEvent in
                 let event = ownedEvent.event
                 return AnalyticsEventInsertRow(
