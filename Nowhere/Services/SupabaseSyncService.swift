@@ -330,7 +330,7 @@ actor SupabaseSyncService {
 
     /// Reads may hydrate incoming history; uploads require an explicit owner-ready signal.
     func resumeAfterAccountSwitch() {
-        pendingAnalyticsEvents = Self.loadAnalyticsQueueFromDefaults()
+        pendingAnalyticsEvents = loadAnalyticsQueueFromDefaults()
         transitionState.resumeReads()
     }
 
