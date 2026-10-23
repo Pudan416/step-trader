@@ -179,3 +179,21 @@ Codable keys, widget kinds and enum raw values unless a separate migration is te
 
 The account coordinator uses the vault's two-phase activation: `prepareActivation` retains the outgoing recovery journal while the incoming model is loaded, then `commitActivation` completes it after validating the incoming authentication generation, immediately before publishing authentication without an intervening await. A receipt can undo only its own still-pending switch through `rollbackActivation`; this includes the original unattributed working set without exposing normal activation/import of legacy history. Restart before commit also restores the outgoing archive. Existing `activate` remains the immediate prepare/commit convenience.
 Usage budget account transitions use `UsageBudgetAccountBoundary` inside the registration/state lock boundary. Its device-level `accountHistoryBudgetEpoch_v1` and `accountHistoryBudgetSuspended_v1` keys are excluded from account storage. Suspend invalidates measurement identities without changing paid minutes and returns monitor names for stopping outside locks. Apply suspend to incoming restored sessions before resume; normal recovery then registers a fresh identity. Callback continuations retain their original epoch, so a delayed outgoing callback cannot recover the incoming account's budget. The hooks remain dormant until the account coordinator adopts them.
+
+### Cloud work during account transitions
+
+`SupabaseSyncService` exposes `captureSyncEpoch()` and the `historySyncEpoch`
+TaskLocal. Producers capture the epoch before creating their asynchronous Task,
+then retain it with `$historySyncEpoch.withValue`. Canceling and awaiting producer
+tasks is still required: this token prevents a suspended old payload from first
+entering the service after the incoming account resumes.
+
+The transition contract is `pauseForAccountSwitch()` (invalidate, cancel tracked
+jobs, await active leases, then reset transient caches), `resumeAfterAccountSwitch()`
+(reads only), and `allowUploadsAfterRestore(for:)` (uploads for the restored current
+owner). An HTTP request already submitted under the outgoing bearer cannot be
+undone; its lease must finish before files or owner rotate, and stale completion
+must not apply or acknowledge local state. Durable retry/entry queues are preserved.
+The gate and routines adoption are a prerequisite; the coordinator must only adopt
+this API together with guards on all remaining history readers/writers. Device-token
+registration and captured-bearer APNs teardown are outside the history barrier.
