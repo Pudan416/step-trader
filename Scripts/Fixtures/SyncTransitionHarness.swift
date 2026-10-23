@@ -4,6 +4,8 @@ struct EnergyRoutine { let id: String; let name: String; let happeningIds: [Stri
 struct Owner { let id: String }
 actor AuthenticationService {
     static let shared = AuthenticationService()
+    var isInitialized = true
+    func setInitialized(_ value: Bool) { isInitialized = value }
     var currentUser: Owner? = Owner(id: "A")
     func waitForInitialization() async {}
     func setOwner(_ owner: String) { currentUser = Owner(id: owner) }
@@ -98,5 +100,14 @@ func require(_ condition: Bool, _ message: String) { if !condition { fatalError(
         require(await service.network.count() == 1, "late upsert response cannot issue follow-up stale DELETE")
         require(await service.retryCount == 0, "late response cannot mutate retry queue")
         print("PASS actual routines writer stops after in-flight response on pause")
+        await AuthenticationService.shared.setInitialized(false)
+        let startupService = SupabaseSyncService()
+        let startup = Task { await startupService.performSavedRoutinesSync([]) }
+        try? await Task.sleep(for: .milliseconds(30))
+        startup.cancel()
+        await startup.value
+        await startupService.transitionState.waitUntilIdle()
+        require(await startupService.network.count() == 0, "canceled startup admission must not submit")
+        print("PASS pending auth initialization cancels and drains without auth completion")
     }
 }

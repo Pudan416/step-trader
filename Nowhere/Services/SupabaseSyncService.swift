@@ -284,11 +284,21 @@ actor SupabaseSyncService {
         )
     }
 
+    /// The auth initialization continuation is intentionally not canceled by auth.
+    /// Sync jobs must be cancelable while startup itself is awaiting a history switch.
+    func waitForSyncAuthentication() async -> Bool {
+        while !(await AuthenticationService.shared.isInitialized) {
+            do { try await Task.sleep(for: .milliseconds(20)) }
+            catch { return false }
+        }
+        return !Task.isCancelled
+    }
+
     func beginSyncOperation(writing: Bool) async -> SupabaseSyncOperation? {
         let epoch = Self.historySyncEpoch ?? captureSyncEpoch()
         guard !Task.isCancelled, transitionState.allows(epoch, writing: writing) else { return nil }
         // Initialization may itself invoke the transition coordinator. Do not hold a lease while waiting.
-        await AuthenticationService.shared.waitForInitialization()
+        guard await waitForSyncAuthentication() else { return nil }
         guard !Task.isCancelled,
               let owner = await AuthenticationService.shared.currentUser?.id else { return nil }
         return transitionState.begin(epoch, owner: owner, writing: writing)
