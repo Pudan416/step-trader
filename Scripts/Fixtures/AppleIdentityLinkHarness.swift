@@ -52,6 +52,7 @@ func session(_ uid: String, token: String = "new-token", anonymous: Bool = false
 }
 @MainActor final class AuthenticationService {
     var isAnonymous = true
+    var isInitialized = true
     var currentUser: SupabaseAuthUser? = try! session("anonymous-owner", anonymous: true).user
     var sessionGeneration = UUID()
     let network = NetworkClient()
@@ -78,15 +79,25 @@ func session(_ uid: String, token: String = "new-token", anonymous: Bool = false
 
     func test(_ mode: String) async throws {
         network.mode = mode
-        if mode == "registered" { isAnonymous = false }
+        if mode == "registered" {
+            isAnonymous = false
+            storedSession = try session("registered-owner")
+            currentUser = storedSession?.user
+        }
         if mode == "signed-out" { isAnonymous = false; currentUser = nil; storedSession = nil }
         if mode == "missing" { storedSession = nil }
+        if mode == "initializing" || mode == "unpublished" {
+            isAnonymous = false
+            currentUser = nil
+            isInitialized = mode != "initializing"
+        }
+        if mode == "conflicting-owner" { currentUser = try session("other-owner").user }
         if mode == "link-switch" { network.afterRequest = { [weak self] in self?.sessionGeneration = UUID() } }
-        let expectFailure = ["missing", "refresh-failure", "refresh-owner", "fork", "other-422", "transport", "switch", "link-switch"].contains(mode)
+        let expectFailure = ["missing", "refresh-failure", "refresh-owner", "fork", "other-422", "transport", "switch", "link-switch", "initializing", "conflicting-owner"].contains(mode)
         do {
             let result = try await supabaseSignInWithApple(idToken: "fixture-apple-token", nonce: "fixture-nonce")
             check(!expectFailure, "unsafe exchange succeeded")
-            check(result.user.id == (mode == "new" ? "anonymous-owner" : "existing-apple-owner"), "wrong resulting UID")
+            check(result.user.id == (["new", "unpublished"].contains(mode) ? "anonymous-owner" : "existing-apple-owner"), "wrong resulting UID")
             check(network.requests.count == (mode == "existing" ? 2 : 1), "wrong exchange count")
             check(refreshes == (["registered", "signed-out"].contains(mode) ? 0 : 1), "wrong refresh count")
         } catch {
@@ -95,7 +106,7 @@ func session(_ uid: String, token: String = "new-token", anonymous: Bool = false
             check(network.requests.count == expectedRequests, "failure attempted unsafe normal sign-in")
         }
         if let storedSession {
-            check(storedSession.user.id == "anonymous-owner", "exchange overwrote the original stored owner")
+            check(storedSession.user.id == (mode == "registered" ? "registered-owner" : "anonymous-owner"), "exchange overwrote the original stored owner")
         }
     }
 }

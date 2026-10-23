@@ -63,6 +63,9 @@ class AppleIdentityLinkTests(unittest.TestCase):
     def test_identity_switch_during_refresh_aborts_exchange(self): self.run_case('switch')
     def test_identity_switch_during_link_aborts_response(self): self.run_case('link-switch')
     def test_signed_out_login_uses_normal_exchange(self): self.run_case('signed-out')
+    def test_pending_initialization_cannot_fork_stored_guest(self): self.run_case('initializing')
+    def test_unpublished_stored_guest_is_still_linked(self): self.run_case('unpublished')
+    def test_published_and_stored_owners_must_agree(self): self.run_case('conflicting-owner')
 
 
 if __name__ == '__main__': unittest.main()

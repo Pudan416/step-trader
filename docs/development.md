@@ -60,6 +60,8 @@ bearer and require the successful response to retain that UID. Only HTTP 422
 and other link errors retain the original local session. This prevents a new
 anonymous upgrade from forking its owner. It does not migrate existing histories
 between accounts or repair previously stranded happening rows.
+Sign-in fails closed while startup is initializing. A stored anonymous session
+remains authoritative if its UI state was not published by an interrupted restore.
 
 The unsigned Release command verifies compilation and resources; it does not make
 an installable signed build. For device installation follow [AGENTS.md](../AGENTS.md):
