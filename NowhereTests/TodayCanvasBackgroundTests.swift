@@ -460,4 +460,87 @@ final class TodayCanvasBackgroundTests: XCTestCase {
         XCTAssertTrue(published.first === newImage)
         withExtendedLifetime(subscription) { }
     }
+    func testAccountPauseDrainsOldRenderAndReloadsSameDay() async {
+        let started = expectation(description: "A render started")
+        let stopped = expectation(description: "A render drained")
+        let incoming = expectation(description: "B image published")
+        let oldImage = UIImage()
+        let newImage = UIImage()
+        var continuation: CheckedContinuation<UIImage?, Never>?
+        var renderCount = 0
+        var loadCount = 0
+        var warmed: [String] = []
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in
+            loadCount += 1
+            return nil
+        }, render: { _, _ in
+            renderCount += 1
+            if renderCount == 1 {
+                return await withCheckedContinuation { continuation = $0; started.fulfill() }
+            }
+            return newImage
+        }, onRenderedCanvas: { canvas, _ in warmed.append(canvas.dayKey) })
+        let subscription = store.$image.sink { if $0 === newImage { incoming.fulfill() } }
+        store.refresh(appearance())
+        await fulfillment(of: [started], timeout: 2)
+        var didStop = false
+        let cleared = expectation(description: "A backdrop cleared")
+        let clearSubscription = store.$dayKey.filter { $0 == nil }.sink { _ in cleared.fulfill() }
+        let pause = Task { await store.suspendForAccountSwitch(); didStop = true; stopped.fulfill() }
+        await fulfillment(of: [cleared], timeout: 2)
+        XCTAssertNil(store.dayKey)
+        XCTAssertNil(store.image)
+        XCTAssertNil(store.visibleFrame)
+        XCTAssertTrue(store.feedPalette.colors.isEmpty)
+        XCTAssertFalse(didStop, "Pause must await an uncooperative GPU export")
+        store.refresh(appearance(), reload: true)
+        XCTAssertEqual(loadCount, 1)
+        continuation?.resume(returning: oldImage)
+        await fulfillment(of: [stopped], timeout: 2)
+        await pause.value
+        XCTAssertNil(store.image)
+        XCTAssertTrue(warmed.isEmpty, "An A completion must not warm B's poster cache")
+        store.resumeAfterAccountSwitch()
+        store.refresh(appearance()) // Same date and appearance must still reload B's source.
+        await fulfillment(of: [incoming], timeout: 2)
+        XCTAssertEqual(loadCount, 2)
+        XCTAssertEqual(renderCount, 2)
+        XCTAssertTrue(store.image === newImage)
+        withExtendedLifetime((subscription, clearSubscription)) { }
+    }
+
+    func testAccountPauseDrainsPosterWarmingBeforeResume() async {
+        let warming = expectation(description: "A poster warming started")
+        let stopped = expectation(description: "A warming drained")
+        let incoming = expectation(description: "B warming started")
+        var continuation: CheckedContinuation<Void, Never>?
+        var warmCount = 0
+        let store = TodayCanvasBackdropStore(debounce: .zero, load: { _ in nil }, render: { _, _ in UIImage() },
+            onRenderedCanvas: { _, _ in
+                warmCount += 1
+                if warmCount == 1 {
+                    await withCheckedContinuation { continuation = $0; warming.fulfill() }
+                } else { incoming.fulfill() }
+            })
+        store.refresh(appearance())
+        await fulfillment(of: [warming], timeout: 2)
+        var didStop = false
+        let cleared = expectation(description: "A backdrop cleared")
+        let clearSubscription = store.$dayKey.filter { $0 == nil }.sink { _ in cleared.fulfill() }
+        let pause = Task { await store.suspendForAccountSwitch(); didStop = true; stopped.fulfill() }
+        await fulfillment(of: [cleared], timeout: 2)
+        XCTAssertFalse(didStop, "The cache consumer must finish before its cache is purged")
+        XCTAssertNil(store.image)
+        store.refresh(appearance(), reload: true)
+        XCTAssertEqual(warmCount, 1)
+        continuation?.resume()
+        await fulfillment(of: [stopped], timeout: 2)
+        await pause.value
+        store.resumeAfterAccountSwitch()
+        store.refresh(appearance())
+        await fulfillment(of: [incoming], timeout: 2)
+        XCTAssertEqual(warmCount, 2)
+        withExtendedLifetime(clearSubscription) { }
+    }
+
 }

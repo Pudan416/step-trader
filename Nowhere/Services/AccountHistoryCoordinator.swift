@@ -60,6 +60,7 @@ final class AccountHistoryCoordinator: ObservableObject {
             try await model.blockingStore.suspendPersistence()
             try await model.userEconomyStore.suspendPersistence()
             await CanvasStorageService.shared.invalidatePendingWritesForAccountSwitch()
+            await TodayCanvasBackdropStore.shared.suspendForAccountSwitch()
             await MePosterCanvasLoadCoordinator.shared.suspendForAccountSwitch()
             try await MePosterSnapshotCache.shared.suspendForAccountSwitch()
             try await HistoryThumbnailCache.shared.suspendForAccountSwitch()
@@ -128,6 +129,7 @@ final class AccountHistoryCoordinator: ObservableObject {
 
     private func resumeLocalWriters(_ model: AppModel) {
         CanvasStorageService.shared.resumeWritesAfterAccountSwitch()
+        TodayCanvasBackdropStore.shared.resumeAfterAccountSwitch()
         MePosterCanvasLoadCoordinator.shared.resumeAfterAccountSwitch()
         MePosterSnapshotCache.shared.resumeAfterAccountSwitch()
         HistoryThumbnailCache.shared.resumeAfterAccountSwitch()
