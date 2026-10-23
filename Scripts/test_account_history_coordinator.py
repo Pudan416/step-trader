@@ -21,7 +21,9 @@ class AccountHistoryCoordinatorTests(unittest.TestCase):
         shared = (ROOT / "Shared/ShieldRebuildHelper.swift").read_text()
         models = shared[shared.index("enum UsageBudgetThresholdResult:"):shared.index("/// A small `flock` wrapper")]
         source = (ROOT / "Scripts/Fixtures/AccountHistoryCoordinatorHarness.swift").read_text()
-        source = source.replace("// INSERT_COORDINATOR", coordinator).replace("// INSERT_BUDGET_MODELS", models)
+        app_model = Path(os.environ.get("NOWHERE_RESTART_SOURCE", ROOT / "Nowhere/AppModel.swift")).read_text()
+        restart = app_model[app_model.index("    func restartAccountHistoryWork()"):app_model.index("    /// Reuse the local loaders")]
+        source = source.replace("// INSERT_COORDINATOR", coordinator).replace("// INSERT_BUDGET_MODELS", models).replace("// INSERT_RESTART", restart)
         script = folder / "Harness.swift"
         script.write_text(source)
         cls.binary = folder / "coordinator"
@@ -32,7 +34,7 @@ class AccountHistoryCoordinatorTests(unittest.TestCase):
             raise AssertionError(build.stdout + build.stderr)
 
     def test_account_transitions(self):
-        for mode in ["roundtrip", "generation-reject", "commit-failure", "constructor-failure", "cache-failure", "restore-failure", "queued"]:
+        for mode in ["widget-refresh", "roundtrip", "generation-reject", "commit-failure", "constructor-failure", "cache-failure", "restore-failure", "queued"]:
             with self.subTest(mode=mode):
                 run = subprocess.run([str(self.binary), mode], capture_output=True, text=True, timeout=15)
                 self.assertEqual(run.returncode, 0, run.stdout + run.stderr)

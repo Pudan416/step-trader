@@ -10,7 +10,12 @@ import Darwin
     static var anonymousSignups = 0
     static var holdReload = false
     static var reloadWaiter: CheckedContinuation<Void, Never>?
-    static var storageCreationFails = false
+    static var holdHealth = false
+    static var healthWaiter: CheckedContinuation<Void, Never>?
+    static var widgetWrites = 0
+    static var widgetReloads = 0
+    static var shieldRebuilds = 0
+    static var monitorRecoveries = 0
 }
 extension UserDefaults { @MainActor static func nowhere() -> UserDefaults { Fixture.defaults } }
 enum SharedKeys {
@@ -21,9 +26,11 @@ enum SharedKeys {
     static func usageBudgetExpiryKey(_ id: String) -> String { "expiry_" + id }
 }
 // INSERT_BUDGET_MODELS
+@MainActor struct WidgetCenter { static let shared = WidgetCenter(); func reloadAllTimelines() { Fixture.widgetReloads += 1 } }
 struct DeviceActivityName { let rawValue: String; init(_ raw: String) { rawValue = raw } }
 struct DeviceActivityCenter { func stopMonitoring(_ names: [DeviceActivityName]) {} }
 @MainActor enum ShieldRebuildHelper {
+    static func rebuild(startPendingBudgets: Bool = true) { Fixture.shieldRebuilds += 1 }
     static func withAccountHistoryTransitionLock<T>(_ body: () throws -> T) rethrows -> T { try body() }
 }
 @MainActor enum AccountHistoryStorage {
@@ -87,7 +94,16 @@ struct DeviceActivityCenter { func stopMonitoring(_ names: [DeviceActivityName])
         }
         history = Fixture.defaults.data(forKey: "history")
     }
-    func restartAccountHistoryWork() { paused = false }
+    func resumeHistoryWork() { paused = false }
+    func scheduleDayBoundaryTimer() {}
+    func writeWidgetSnapshot() { Fixture.widgetWrites += 1 }
+    func ensureUsageBudgetMonitoringForActiveGroups() { Fixture.monitorRecoveries += 1 }
+    func scheduleHistoryWork(_ body: @escaping @MainActor () async -> Void) { Task { await body() } }
+    func refreshStepsIfAuthorized() async {
+        if Fixture.holdHealth { await withCheckedContinuation { Fixture.healthWaiter = $0 } }
+    }
+    func refreshSleepIfAuthorized() async {}
+    // INSERT_RESTART
     func isHistoryWorkCurrent(_ generation: UUID) -> Bool { !paused && historyWorkGeneration == generation }
 }
 @MainActor final class CanvasStorageService {
@@ -156,6 +172,14 @@ func expect(_ condition: @autoclosure () throws -> Bool) rethrows {
                 })
         }
         switch mode {
+        case "widget-refresh":
+            Fixture.holdHealth = true
+            try await transition("B")
+            while Fixture.healthWaiter == nil { await Task.yield() }
+            try expect(Fixture.widgetWrites > 0 && Fixture.widgetReloads > 0)
+            try expect(Fixture.shieldRebuilds > 0 && Fixture.monitorRecoveries > 0)
+            Fixture.holdHealth = false
+            Fixture.healthWaiter?.resume(); Fixture.healthWaiter = nil
         case "roundtrip":
             try await transition("A")
             try expect(model.history == nil)

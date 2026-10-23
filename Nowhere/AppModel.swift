@@ -558,11 +558,16 @@ final class AppModel: ObservableObject {
     func restartAccountHistoryWork() {
         resumeHistoryWork()
         scheduleDayBoundaryTimer()
+        // Publish incoming derived state before any Health query can suspend.
+        writeWidgetSnapshot()
+        WidgetCenter.shared.reloadAllTimelines()
+        ShieldRebuildHelper.rebuild(startPendingBudgets: false)
+        ensureUsageBudgetMonitoringForActiveGroups()
         scheduleHistoryWork { [self] in
             await refreshStepsIfAuthorized()
             await refreshSleepIfAuthorized()
-            ensureUsageBudgetMonitoringForActiveGroups()
             writeWidgetSnapshot()
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
