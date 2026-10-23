@@ -139,6 +139,14 @@ extension SupabaseSyncService {
         }
     }
     
+    /// Only called after all producers/leases drain and before the vault rotates.
+    func persistAnalyticsSnapshotForAccountSwitch() async {
+        guard let data = try? JSONEncoder().encode(pendingAnalyticsEvents) else { return }
+        await MainActor.run {
+            UserDefaults.nowhere().set(data, forKey: SharedKeys.analyticsEventsQueue)
+        }
+    }
+
     private func persistAnalyticsQueueToDefaults(syncOperation: SupabaseSyncOperation) async {
         guard syncOperation.isCurrent, let data = try? JSONEncoder().encode(pendingAnalyticsEvents) else { return }
         await MainActor.run {

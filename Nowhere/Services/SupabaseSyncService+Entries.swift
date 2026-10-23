@@ -539,11 +539,13 @@ extension SupabaseSyncService {
     func loadRestorableOptionEntriesFromServer(dayKey: String) async -> [OptionEntry]? {
         guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
         defer { syncOperation.finish() }
-        guard let current = await loadOptionEntriesFromServer(dayKey: dayKey) else { return nil }
+        guard let current = await loadOptionEntriesFromServer(dayKey: dayKey), syncOperation.isCurrent else { return nil }
         guard current.isEmpty else { return current }
         // A saved Canvas is authoritative, including an intentionally cleared
         // day. Never resurrect stale category rows over that saved composition.
-        switch await fetchDayCanvas(for: dayKey) {
+        let savedCanvas = await fetchDayCanvas(for: dayKey)
+        guard syncOperation.isCurrent else { return nil }
+        switch savedCanvas {
         case .found(let canvas):
             return canvas.elements.map {
                 OptionEntry(id: $0.id.uuidString, dayKey: canvas.dayKey, optionId: $0.optionId,
@@ -582,12 +584,14 @@ extension SupabaseSyncService {
                 baseQuery: query + [URLQueryItem(name: "order", value: "created_at.asc,option_id.asc")],
                 pageSize: historicalPageSize
             )
+            guard syncOperation.isCurrent else { return nil }
             if !rows.isEmpty { return rows.map(\.entry) }
             let selections: [DailySelectionsRow] = try await fetchPagedRows(
                 endpoint: cfg.baseURL.appendingPathComponent("rest/v1/user_daily_selections"),
                 token: auth.token, anonKey: cfg.anonKey, baseQuery: query,
                 pageSize: historicalPageSize
             )
+            guard syncOperation.isCurrent else { return nil }
             guard let selected = selections.first else { return [] }
             var seen = Set<String>()
             return (selected.activityIds + selected.restIds + selected.joysIds)

@@ -118,7 +118,7 @@ extension SupabaseSyncService {
         guard let syncOperation = await beginSyncOperation(writing: true) else { return }
         defer { syncOperation.finish() }
         await MainActor.run {
-                guard syncOperation.isCurrent else { return }
+            guard syncOperation.isCurrent else { return }
             CanvasStorageService.shared.recordCloudUploadIntent(for: canvas.dayKey,
                 currentUserID: AuthenticationService.shared.currentUser?.id)
         }
@@ -245,7 +245,8 @@ extension SupabaseSyncService {
     private func fetchDayCanvas(for dayKey: String, auth: AuthContext) async -> DayCanvasFetchResult {
         guard let syncOperation = await beginSyncOperation(writing: false) else { return .failed }
         defer { syncOperation.finish() }
-        guard await Self.canvasAuthIsCurrent(auth) else { return .failed }
+        guard await Self.canvasAuthIsCurrent(auth), syncOperation.isCurrent,
+              auth.userId == syncOperation.ownerID else { return .failed }
         let token = auth.token
         let userId = auth.userId
         
@@ -274,7 +275,8 @@ extension SupabaseSyncService {
                 return .failed
             }
 
-            guard await Self.canvasAuthIsCurrent(auth) else { return .failed }
+            guard await Self.canvasAuthIsCurrent(auth), syncOperation.isCurrent,
+              auth.userId == syncOperation.ownerID else { return .failed }
             let result = DayCanvasFetchResult.decode(
                 statusCode: response.statusCode,
                 data: data
@@ -298,7 +300,7 @@ extension SupabaseSyncService {
         var succeeded = false
         defer {
             canvasUploadOrdering.endUpload(for: payload.dayKey)
-            if pendingDayCanvas == payload { pendingDayCanvas = nil }
+            if syncOperation.isCurrent, pendingDayCanvas == payload { pendingDayCanvas = nil }
             // Edits made while the request was suspended retain their marker.
             // Flush them after a success; failures wait for the next retry trigger.
             if syncOperation.isCurrent, succeeded, canvasUploadOrdering.requestFollowup(for: payload.dayKey) {
@@ -354,7 +356,7 @@ extension SupabaseSyncService {
                 succeeded = true
                 lastSentDayCanvas = payload
                 await MainActor.run {
-                guard syncOperation.isCurrent else { return }
+                    guard syncOperation.isCurrent else { return }
                     guard Self.canvasAuthIsCurrent(auth) else { return }
                     CanvasStorageService.shared.acknowledgeCloudUpload(dayKey: payload.dayKey, uploadedJSON: payload.canvasJsonData)
                 }

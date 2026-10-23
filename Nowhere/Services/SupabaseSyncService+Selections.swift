@@ -100,7 +100,7 @@ extension SupabaseSyncService {
         defer { syncOperation.finish() }
         guard let happenings = await loadCustomHappeningsFromServer(), !happenings.isEmpty else { return }
         await MainActor.run {
-                guard syncOperation.isCurrent else { return }
+            guard syncOperation.isCurrent else { return }
             model.mergeRestoredHappenings(happenings)
         }
     }

@@ -323,6 +323,10 @@ actor SupabaseSyncService {
         tasks.forEach { $0.cancel() }
         for task in tasks { await task.value }
         await transitionState.waitUntilIdle()
+        // An event can have entered memory immediately before its guarded normal
+        // persistence was invalidated. Commit the final outgoing queue while its
+        // working defaults still belong to the outgoing account.
+        await persistAnalyticsSnapshotForAccountSwitch()
         dailySelectionsSyncTask = nil; dailyStatsSyncTask = nil; dailySpentSyncTask = nil
         ticketGroupsSyncTask = nil; analyticsFlushTask = nil; dayCanvasSyncTask = nil
         preferencesSyncTask = nil; daySnapshotSyncTask = nil; entriesSyncTask = nil; routinesSyncTask = nil
@@ -550,6 +554,7 @@ actor SupabaseSyncService {
     }
 
     func supersedeQueuedOptionEntryDelete(id: String) {
+        guard acceptsScheduledHistoryWork() else { return }
         let queue = loadRetryQueue()
         let canonicalID = OptionEntryCanonicalIdentity.key(for: id)
         let filtered = queue.filter { $0.canonicalOptionEntryIdentity != canonicalID }
@@ -570,6 +575,7 @@ actor SupabaseSyncService {
     /// This is synchronous on the service actor so login/full sync cannot race
     /// ahead of migration and claim a previous account's queued entry.
     func migrateLegacyOptionEntryIntents() {
+        guard acceptsScheduledHistoryWork() else { return }
         let initialQueue = loadRetryQueue()
         let expiredQueueIDs = Set(initialQueue.filter(\.isExpired).map(\.queueID))
         let legacyOptionMutations = initialQueue.filter {
@@ -954,7 +960,7 @@ actor SupabaseSyncService {
         if let spent = await loadTodaySpentFromServer() {
             if spent.totalSpent > 0 {
                 await MainActor.run {
-                guard syncOperation.isCurrent else { return }
+                    guard syncOperation.isCurrent else { return }
                     model.spentStepsToday = spent.totalSpent
                     let today = AppModel.dayKey(for: Date.now)
                     model.appStepsSpentByDay[today] = spent.spentByApp
