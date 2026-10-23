@@ -16,6 +16,7 @@ class AuthenticationService: NSObject, ObservableObject {
     static let shared = AuthenticationService()
     // `internal` (not private) so the +SupabaseREST extension can reach it. (§9.2)
     let network: NetworkClient
+    private let bypassAccountHistoryForTesting: Bool
 
     /// Async responses may only publish into the session that started them.
     private(set) var sessionGeneration = UUID()
@@ -96,13 +97,15 @@ class AuthenticationService: NSObject, ObservableObject {
     /// profile fetch, optimistic UI update). Cancellation here ensures that a
     /// sign-out racing with sign-in doesn't leave a partial-state user. (§3.1)
     private var signInTask: Task<Void, Never>?
+    private var historyTransitionTask: Task<Void, Never>?
     
     override convenience init() {
         self.init(network: .shared)
     }
 
-    init(network: NetworkClient, restoreSession: Bool = true) {
+    init(network: NetworkClient, restoreSession: Bool = true, bypassAccountHistoryForTesting: Bool = false) {
         self.network = network
+        self.bypassAccountHistoryForTesting = bypassAccountHistoryForTesting
         super.init()
         guard restoreSession else {
             isInitialized = true
@@ -134,6 +137,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 continuation.resume()
             }
             pendingContinuations.removeAll()
+            queuePostLoginHistoryHydration()
         }
     }
     
@@ -185,6 +189,7 @@ class AuthenticationService: NSObject, ObservableObject {
         currentUser = nil
         isAuthenticated = false
         isAnonymous = false
+        queueSignedOutHistoryTransition()
 
         Task { @MainActor in
             await Self.performTeardown(pendingTeardown)
@@ -259,16 +264,15 @@ class AuthenticationService: NSObject, ObservableObject {
         }
 
         let session = try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
-        advanceSessionGeneration()
-        storeSession(session)
-        isAnonymous = session.user.isAnonymous
+        let committedGeneration = advanceSessionGeneration()
+        do {
+            try await commitAccountSession(session, generation: committedGeneration)
+        } catch {
+            if committedGeneration == sessionGeneration { self.error = error.localizedDescription }
+            throw error
+        }
 
-        applyCachedSessionState(
-            userId: session.user.id,
-            email: nil,
-            createdAt: session.user.createdAt
-        )
-
+        if isInitialized { queuePostLoginHistoryHydration() }
         AppLogger.auth.debug("🔐 Anonymous sign-in successful, userId: \(session.user.id.prefix(8))…")
     }
     
@@ -324,6 +328,7 @@ class AuthenticationService: NSObject, ObservableObject {
         // Also invalidate work that started while the deletion was pending.
         advanceSessionGeneration()
         isAnonymous = false
+        queueSignedOutHistoryTransition()
 
         // §5.1 / §5.2: remove the push-token row using the captured bearer.
         // The DELETE may 404 if the server-side cascade
@@ -463,18 +468,13 @@ class AuthenticationService: NSObject, ObservableObject {
             // Requests can start with the old account while Apple exchange is
             // pending. Invalidate those too when the new identity is committed.
             generation = advanceSessionGeneration()
-            self.storeSession(session)
-            self.isAnonymous = false
             if let name = appleFullName {
                 self.storeAppleDisplayName(name, for: session.user.id)
             }
 
-            // Optimistic: token is valid — show logged-in UI before profile fetch finishes.
-            self.applyCachedSessionState(
-                userId: session.user.id,
-                email: session.user.email,
-                createdAt: session.user.createdAt
-            )
+            // Prepare the incoming working set before publishing its credentials
+            // or optimistic profile. Storage failure leaves the old session intact.
+            try await commitAccountSession(session, generation: generation)
             self.currentNonce = nil
             // Deliberately early — not left to the `defer`: the profile fetch
             // below runs behind the already-logged-in UI, so the spinner stops
@@ -501,6 +501,7 @@ class AuthenticationService: NSObject, ObservableObject {
                     self.clearCachedProfile(for: session.user.id)
                     self.currentUser = nil
                     self.isAuthenticated = false
+                    self.queueSignedOutHistoryTransition()
                     self.error = error.localizedDescription
                     return
                 }
@@ -512,17 +513,7 @@ class AuthenticationService: NSObject, ObservableObject {
 
             AppLogger.auth.debug("🔐 Sign in complete — isAuthenticated: \(self.isAuthenticated)")
 
-            // Replace any previously-running post-login task (e.g. a
-            // re-sign-in before the previous sync settled). (§3.1)
-            self.postLoginSyncTask?.cancel()
-            self.postLoginSyncTask = Task { [weak self] in
-                guard !Task.isCancelled else { return }
-                if let appModel = self?.postLoginSyncModel {
-                    AppLogger.auth.debug("🔐 Post-login — starting full Supabase sync")
-                    await SupabaseSyncService.shared.performFullSync(model: appModel)
-                    AppLogger.auth.debug("🔐 Post-login — full sync finished")
-                }
-            }
+            queuePostLoginHistoryHydration()
         } catch {
             guard !Task.isCancelled, generation == sessionGeneration else { return }
             AppLogger.auth.error("🔐 Sign in FAILED: \(error.localizedDescription)")
@@ -532,6 +523,63 @@ class AuthenticationService: NSObject, ObservableObject {
 
     func checkAuthenticationState() async { await loadStoredSessionAndRefreshUser() }
     
+    /// Identity publication is synchronous after the durable history commit.
+    /// Storage errors must never be interpreted as invalid credentials.
+    private func commitAccountSession(_ session: SupabaseSessionResponse, generation: UUID) async throws {
+        let publish = {
+            self.storeSession(session)
+            self.isAnonymous = session.user.isAnonymous
+            self.reapplyCachedState(for: session)
+        }
+        if bypassAccountHistoryForTesting {
+            try checkSessionGeneration(generation)
+            publish()
+            return
+        }
+        guard self === AuthenticationService.shared else {
+            throw NSError(domain: "Nowhere.AccountHistory", code: 2)
+        }
+        // The same lazy model is used by Root and App Intents, even when Auth
+        // restores before SwiftUI mounts. Never create a second economy model.
+        let model = DIContainer.shared.applicationModel
+        postLoginSyncModel = model
+        try await AccountHistoryCoordinator.shared.transition(to: session.user.id, model: model,
+            currentOwner: { self.currentUser?.id },
+            validateIdentity: { try self.checkSessionGeneration(generation) },
+            publishIdentity: publish)
+    }
+
+    private func queuePostLoginHistoryHydration() {
+        guard !bypassAccountHistoryForTesting, self === AuthenticationService.shared,
+              let ownerID = currentUser?.id, let model = postLoginSyncModel else { return }
+        let generation = sessionGeneration
+        postLoginSyncTask?.cancel()
+        postLoginSyncTask = Task { @MainActor in
+            guard !Task.isCancelled, self.sessionGeneration == generation,
+                  self.currentUser?.id == ownerID else { return }
+            _ = await AccountHistoryCoordinator.shared.hydrate(owner: ownerID, model: model)
+        }
+    }
+
+    private func queueSignedOutHistoryTransition() {
+        guard !bypassAccountHistoryForTesting, self === AuthenticationService.shared else { return }
+        let model = DIContainer.shared.applicationModel
+        postLoginSyncModel = model
+        SupabaseSyncService.shared.beginAccountSwitch()
+        let generation = sessionGeneration
+        historyTransitionTask = Task { @MainActor in
+            do {
+                try await AccountHistoryCoordinator.shared.transition(
+                    to: AccountHistoryCoordinator.signedOutOwner, model: model,
+                    currentOwner: { self.currentUser?.id },
+                    validateIdentity: { try self.checkSessionGeneration(generation) },
+                    publishIdentity: {})
+            } catch {
+                if generation == self.sessionGeneration { self.error = error.localizedDescription }
+            }
+        }
+    }
+
     // MARK: - Input Validation
 
     private static let nicknameMaxLength = 30
@@ -810,14 +858,15 @@ class AuthenticationService: NSObject, ObservableObject {
             }
             return
         }
-        isAnonymous = session.user.isAnonymous
-
-        #if DEBUG
-        AppLogger.auth.debug("🔐 Found stored session, user: \(session.user.id.prefix(8))…, expires: \(session.expiresAt)")
-        #endif
-
-        // Show logged-in UI immediately; refresh profile/token in background.
-        reapplyCachedState(for: session)
+        // A locked archive or failed cache purge is a local history error.
+        // Retain the original credential bytes and do not enter auth fallback.
+        do {
+            try await commitAccountSession(session, generation: generation)
+        } catch {
+            guard !Task.isCancelled, generation == sessionGeneration else { return }
+            self.error = error.localizedDescription
+            return
+        }
 
         do {
             let validSession = try await ensureValidSession(session)
@@ -842,6 +891,7 @@ class AuthenticationService: NSObject, ObservableObject {
                 clearCachedProfile(for: session.user.id)
                 currentUser = nil
                 isAuthenticated = false
+                queueSignedOutHistoryTransition()
             } else {
                 AppLogger.auth.warning("🔐 Session refresh deferred (offline/transient): \(error.localizedDescription)")
                 if currentUser == nil {

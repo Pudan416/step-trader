@@ -80,7 +80,7 @@ final class AuthSessionGenerationTests: XCTestCase {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [AuthRaceResponseProtocol.self]
         urlSession = URLSession(configuration: configuration)
-        service = AuthenticationService(network: NetworkClient(session: urlSession), restoreSession: false)
+        service = AuthenticationService(network: NetworkClient(session: urlSession), restoreSession: false, bypassAccountHistoryForTesting: true)
     }
 
     override func tearDown() async throws {
@@ -246,7 +246,7 @@ final class AuthSessionGenerationTests: XCTestCase {
             XCTFail("Invalidated initialization must not start a new signup")
             request.respond(status: 418, data: Data())
         }
-        service = AuthenticationService(network: NetworkClient(session: urlSession))
+        service = AuthenticationService(network: NetworkClient(session: urlSession), bypassAccountHistoryForTesting: true)
         service.signOut()
         await service.waitForInitialization()
         assertSignedOut()
