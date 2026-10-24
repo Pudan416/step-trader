@@ -191,6 +191,7 @@ struct PayGateView: View {
         let isForfeited = didForfeitSessions.contains(group.id)
         let minsLeft = model.minutesUntilDayReset
         let balance = model.userEconomyStore.totalStepsBalance
+        let recoverable = ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: .nowhere(), groupId: group.id)
 
         VStack(spacing: 0) {
             if minsLeft <= 60 {
@@ -213,13 +214,17 @@ struct PayGateView: View {
 
             // Unlock options
             VStack(spacing: 0) {
-                ForEach(Array(windows.prefix(3).enumerated()), id: \.element) { index, window in
-                    unlockRow(window: window, group: group, isForfeited: isForfeited)
+                if recoverable > 0, let window = windows.first {
+                    unlockRow(window: window, group: group, isForfeited: isForfeited, recoveryMinutes: recoverable)
+                } else {
+                    ForEach(Array(windows.prefix(3).enumerated()), id: \.element) { index, window in
+                        unlockRow(window: window, group: group, isForfeited: isForfeited)
 
-                    if index < min(windows.count, 3) - 1 {
-                        Divider()
-                            .overlay(Color.white.opacity(0.06))
-                            .padding(.horizontal, 16)
+                        if index < min(windows.count, 3) - 1 {
+                            Divider()
+                                .overlay(Color.white.opacity(0.06))
+                                .padding(.horizontal, 16)
+                        }
                     }
                 }
             }
@@ -257,9 +262,9 @@ struct PayGateView: View {
     // MARK: - Unlock Row
 
     @ViewBuilder
-    private func unlockRow(window: AccessWindow, group: TicketGroup, isForfeited: Bool) -> some View {
+    private func unlockRow(window: AccessWindow, group: TicketGroup, isForfeited: Bool, recoveryMinutes: Int? = nil) -> some View {
         let cost = group.cost(for: window)
-        let canPay = model.userEconomyStore.totalStepsBalance >= cost
+        let canPay = recoveryMinutes != nil || model.userEconomyStore.totalStepsBalance >= cost
         let isDisabled = !canPay || isForfeited
 
         Button {
@@ -267,24 +272,26 @@ struct PayGateView: View {
             didForfeitSessions.insert(group.id)
             performTransition {
                 Task {
-                    await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: cost)
+                    await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: cost, recoveryOnly: recoveryMinutes != nil)
                 }
             }
         } label: {
             HStack {
-                Text(unlockLabel(window))
+                Text(recoveryMinutes.map { String(localized: "Resume \($0) min") } ?? unlockLabel(window))
                     .font(.geist(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.textPrimary)
 
                 Spacer()
 
-                Text("\(cost)")
+                Text(recoveryMinutes != nil ? String(localized: "Free") : "\(cost)")
                     .font(.geist(size: 16, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.accent)
-                Text(String(localized: "colors"))
-                    .font(.geist(size: 13, weight: .medium))
-                    .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.textSecondary)
+                if recoveryMinutes == nil {
+                    Text(String(localized: "colors"))
+                        .font(.geist(size: 13, weight: .medium))
+                        .foregroundStyle(isDisabled ? PayGatePalette.textMuted : PayGatePalette.textSecondary)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 15)
@@ -292,7 +299,9 @@ struct PayGateView: View {
         }
         .disabled(isDisabled)
         .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel(String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors"))
+        .accessibilityIdentifier(recoveryMinutes != nil ? "paygate.\(group.id).resume" : "paygate.\(group.id).duration.\(window.minutes)")
+        .accessibilityLabel(recoveryMinutes.map { String(localized: "Resume \($0) minutes for \(group.displayIdentity.title), free") }
+                            ?? String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors"))
         .accessibilityHint(canPay ? String(localized: "Double tap to unlock") : String(localized: "Not enough colors"))
     }
 

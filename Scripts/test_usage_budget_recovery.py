@@ -42,7 +42,7 @@ class UsageBudgetRecoveryTests(unittest.TestCase):
             raise AssertionError(result.stdout + result.stderr)
 
     def test_budget_transactions(self):
-        for scenario in ["implausible_pause", "topup_during_callback",
+        for scenario in ["account_sessions", "account_callback_continuation", "implausible_pause", "topup_during_callback",
                          "purchase_during_recovery", "failure_preserves_paid",
                          "old_events_after_pause", "recovery_without_overlapping_monitor",
                          "failed_replacement_pauses_old_balance", "healthy_topup", "continuation",

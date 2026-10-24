@@ -123,6 +123,39 @@ func earlyThreshold() throws {
 }
 
 switch CommandLine.arguments[1] {
+case "account_sessions":
+    let oldEpoch = UsageBudgetAccountBoundary.epoch(in: defaults)
+    let names = UsageBudgetAccountBoundary.suspend(defaults: defaults, now: t)
+    expect(names.contains(original.activityName(groupId: "G")), "Pause must report outgoing daemon names")
+    expect(current().remainingMinutes == original.remainingMinutes, "Pause must retain paid minutes")
+    expect(current().monitoringFailed && current().invalidatedAt != nil, "Archived measurement must be invalidated")
+    expect(!UsageBudgetAccountBoundary.accepts(oldEpoch, in: defaults), "Old epoch must stay invalid")
+    do {
+        try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t)
+        fatalError("Purchase during rotation must be rejected")
+    } catch {}
+    expect(DeviceActivityCenter.startCalls == 0 && current().remainingMinutes == 10, "Paused purchase must not change account balance")
+    UsageBudgetAccountBoundary.resume(defaults: defaults)
+    try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t)
+    expect(current().generation != original.generation, "Returning account requires a fresh daemon identity")
+    expect(current().remainingMinutes == 10 && !current().monitoringFailed, "Fresh monitor must retain original paid balance")
+    let incoming = current()
+    let accepted = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
+        event: original.eventName(minute: 10), now: t.addingTimeInterval(600))
+    expect(!accepted && current() == incoming, "Late outgoing activity must not charge incoming account")
+case "account_callback_continuation":
+    original.queuedMinutes = 5
+    original.save(to: defaults, groupId: "G")
+    var incoming = UsageBudgetSession(minutes: 30, startedAt: t, expiresAt: original.expiresAt)
+    incoming.monitoringFailed = true
+    ShieldRebuildHelper.afterUnlock = {
+        defaults.set(UUID().uuidString, forKey: "accountHistoryBudgetEpoch_v1")
+        incoming.save(to: defaults, groupId: "G")
+    }
+    _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
+        event: original.eventName(minute: 10), now: t.addingTimeInterval(600))
+    expect(current() == incoming, "Outgoing callback continuation must not replace incoming account session")
+    expect(DeviceActivityCenter.startCalls == 0, "Outgoing callback must not start incoming account recovery")
 case "implausible_pause":
     try earlyThreshold()
     expect(current().remainingMinutes == 10, "Impossible threshold must preserve paid minutes")

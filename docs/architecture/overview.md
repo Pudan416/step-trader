@@ -24,6 +24,20 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 ## Ownership and compatibility
 
+- `AccountHistoryVault` is an additive, local-only archive primitive. It is not
+  wired into authentication yet. Before calling `activate`, an account-transition
+  coordinator must suspend app and extension writers, invalidate stale asynchronous
+  callbacks, and provide explicit history defaults/file locations. Legacy history
+  is archived as `legacy-unattributed`; it must have a recoverable local access path
+  before runtime activation is enabled. Archives preserve file/UUID bytes and use a
+  recovery journal; files are copied individually instead of loading PNG history into
+  memory. Credentials, diagnostics and lock files must never enter the working set.
+- `UserEconomyStore.suspendPersistence()` pauses scalar/JSON writers, cancels
+  and awaits their pending tasks, and flushes the latest outgoing state before
+  storage rotation. It throws if that state cannot be preserved. Its caller must
+  separately finish local loaders/migrations, suspend other app/extension writers,
+  and reload the incoming account before `resumePersistence()`. These transition
+  hooks are not wired into authentication yet.
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
 - `HappeningDefaults.builtIns` derives the fixed 106 choices from `HappeningEventTree.all`.
@@ -122,6 +136,12 @@ Test names live in `NowhereTests/` unless stated otherwise.
   All shield assignments route through `ShieldRebuildHelper.rebuild`; the usage-budget
   state lock spans the persisted snapshot and ManagedSettings write. DeviceActivity
   registration always happens after that lock is released.
+  `withAccountHistoryTransitionLock` acquires the registration lock before the
+  state lock, excluding both an in-flight daemon registration and extension
+  callbacks during synchronous account-history replacement. Its body must not
+  await, call DeviceActivity or rebuild shields. Keep both lock files outside
+  archived paths; stop obsolete monitors and rebuild only after releasing them.
+  This additive transition hook is not wired into authentication yet.
 - `DayCanvas` and versioned recipes are durable data. Older render paths and textures are
   still required by saved artwork and export. Preserve decoder defaults, stable IDs, random
   consumption order and Metal uniform layouts. See [Canvas components](canvas-components.md).
@@ -156,3 +176,6 @@ stable so updates keep existing installations, data and extension communication:
 
 Do not replace these strings during naming cleanup. Keep current persisted keys,
 Codable keys, widget kinds and enum raw values unless a separate migration is tested.
+
+The account coordinator uses the vault's two-phase activation: `prepareActivation` retains the outgoing recovery journal while the incoming model is loaded, then `commitActivation` completes it after validating the incoming authentication generation, immediately before publishing authentication without an intervening await. A receipt can undo only its own still-pending switch through `rollbackActivation`; this includes the original unattributed working set without exposing normal activation/import of legacy history. Restart before commit also restores the outgoing archive. Existing `activate` remains the immediate prepare/commit convenience.
+Usage budget account transitions use `UsageBudgetAccountBoundary` inside the registration/state lock boundary. Its device-level `accountHistoryBudgetEpoch_v1` and `accountHistoryBudgetSuspended_v1` keys are excluded from account storage. Suspend invalidates measurement identities without changing paid minutes and returns monitor names for stopping outside locks. Apply suspend to incoming restored sessions before resume; normal recovery then registers a fresh identity. Callback continuations retain their original epoch, so a delayed outgoing callback cannot recover the incoming account's budget. The hooks remain dormant until the account coordinator adopts them.
