@@ -32,6 +32,12 @@ Test names live in `NowhereTests/` unless stated otherwise.
   before runtime activation is enabled. Archives preserve file/UUID bytes and use a
   recovery journal; files are copied individually instead of loading PNG history into
   memory. Credentials, diagnostics and lock files must never enter the working set.
+- `UserEconomyStore.suspendPersistence()` pauses scalar/JSON writers, cancels
+  and awaits their pending tasks, and flushes the latest outgoing state before
+  storage rotation. It throws if that state cannot be preserved. Its caller must
+  separately finish local loaders/migrations, suspend other app/extension writers,
+  and reload the incoming account before `resumePersistence()`. These transition
+  hooks are not wired into authentication yet.
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
 - `HappeningDefaults.builtIns` derives the fixed 106 choices from `HappeningEventTree.all`.

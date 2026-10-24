@@ -19,6 +19,8 @@ final class UserEconomyStore: ObservableObject {
     private let udAppStepsSpentLifetimeKey = SharedKeys.appStepsSpentLifetime
     
     private var needsFlush = false
+    private var flushTask: Task<Void, Never>?
+    private var persistenceSuspended = false
 
     // Published State
     @Published var entryCostSteps: Int = Tariff.medium.entryCostSteps
@@ -46,10 +48,10 @@ final class UserEconomyStore: ObservableObject {
     }
 
     private func setNeedsFlush() {
-        guard !needsFlush else { return }
+        guard !persistenceSuspended, !needsFlush else { return }
         needsFlush = true
-        Task { @MainActor [weak self] in
-            guard let self, self.needsFlush else { return }
+        flushTask = Task { @MainActor [weak self] in
+            guard !Task.isCancelled, let self, !self.persistenceSuspended, self.needsFlush else { return }
             self.needsFlush = false
             let g = UserDefaults.nowhere()
             let udSpent = g.integer(forKey: SharedKeys.spentStepsToday)
@@ -89,6 +91,38 @@ final class UserEconomyStore: ObservableObject {
         totalStepsBalance = max(0, stepsBalance + bonusSteps)
     }
     
+    /// Pause old writers, then persist the latest outgoing state before the
+    /// account coordinator archives it. A failed flush must abort rotation.
+    /// The coordinator must first await local-state loaders/migrations.
+    func suspendPersistence() async throws {
+        persistenceSuspended = true
+        let balance = stepsBalance
+        let spent = spentSteps
+        let byDay = appStepsSpentByDay
+        let lifetime = appStepsSpentLifetime
+        let passes = dayPassGrants
+        needsFlush = false
+        let tasks = [flushTask, persistByDayTask, persistLifetimeTask].compactMap { $0 }
+        flushTask = nil
+        persistByDayTask = nil
+        persistLifetimeTask = nil
+        for task in tasks { task.cancel() }
+        for task in tasks { await task.value }
+        try Task.checkCancellation()
+        try await persistence.save(byDay, to: appStepsSpentByDayKey)
+        try await persistence.save(lifetime, to: appStepsSpentLifetimeKey)
+        let passData = try JSONEncoder().encode(passes)
+        let defaults = UserDefaults.nowhere()
+        defaults.set(balance, forKey: SharedKeys.stepsBalance)
+        defaults.set(spent, forKey: SharedKeys.spentStepsToday)
+        defaults.set(passData, forKey: SharedKeys.appDayPassGrants)
+    }
+
+    /// Resume only after the incoming account's model has been loaded.
+    func resumePersistence() {
+        persistenceSuspended = false
+    }
+
     // MARK: - Persistence & Loading
     
     func loadAppStepsSpentToday() async {
@@ -136,11 +170,14 @@ final class UserEconomyStore: ObservableObject {
     }
     
     func persistAppStepsSpentByDay() {
+        guard !persistenceSuspended else { return }
         let snapshot = appStepsSpentByDay
         persistByDayTask?.cancel()
         persistByDayTask = Task {
             do {
                 try await persistence.save(snapshot, to: appStepsSpentByDayKey)
+            } catch is CancellationError {
+                // Account transitions cancel pending writes deliberately.
             } catch {
                 AppLogger.app.error("Failed to persist appStepsSpentByDay: \(error.localizedDescription)")
             }
@@ -148,11 +185,14 @@ final class UserEconomyStore: ObservableObject {
     }
     
     func persistAppStepsSpentLifetime() {
+        guard !persistenceSuspended else { return }
         let snapshot = appStepsSpentLifetime
         persistLifetimeTask?.cancel()
         persistLifetimeTask = Task {
             do {
                 try await persistence.save(snapshot, to: appStepsSpentLifetimeKey)
+            } catch is CancellationError {
+                // Account transitions cancel pending writes deliberately.
             } catch {
                 AppLogger.app.error("Failed to persist appStepsSpentLifetime: \(error.localizedDescription)")
             }
@@ -245,6 +285,7 @@ final class UserEconomyStore: ObservableObject {
     }
     
     func persistDayPassGrants() {
+        guard !persistenceSuspended else { return }
         let g = UserDefaults.nowhere()
         do {
             let data = try JSONEncoder().encode(dayPassGrants)
