@@ -52,7 +52,7 @@ enum AccountHistoryStorage {
         let prefixes = [
             "dailyEnergySelections_v1_", "preferredEnergyOptions_v1_", "timeAccessSelection_v1_",
             "minuteCount_", "lastAppOpenedFromStepsTrader_", "usageBudget_", "usageBudgetStarted_",
-            "usageBudgetInitial_", "usageBudgetExpiry_", "usageBudgetSession_v2_", "lastGroupPayGateOpen_",
+            "usageBudgetInitial_", "usageBudgetExpiry_", "usageBudgetSession_v2_", UsageBudgetSession.keyPrefix, "lastGroupPayGateOpen_",
             SharedKeys.pendingBudgetMonitoringPrefix, SharedKeys.pendingBudgetMinutesPrefix,
             "pendingSpendAmount_", "pendingSpendTracking_", "pendingSpendWindow_", "pendingSpendMinutes_",
             "widgetUnlockCapability_v1_", "appName_", "fc_appName_", "fc_bundleId_", "fc_groupId_"

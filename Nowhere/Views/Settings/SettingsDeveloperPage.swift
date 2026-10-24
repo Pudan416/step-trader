@@ -123,7 +123,9 @@ struct SettingsDeveloperPage: View {
             }
             #if canImport(DeviceActivity)
             let center = DeviceActivityCenter()
-            let budgetActivities = center.activities.filter { $0.rawValue.hasPrefix("usageBudget_") }
+            let budgetActivities = center.activities.filter {
+                $0.rawValue.hasPrefix("usageBudget_") || $0.rawValue.hasPrefix("timedAccess_")
+            }
             center.stopMonitoring(budgetActivities)
             #endif
             model.rebuildFamilyControlsShield()

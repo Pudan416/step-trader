@@ -127,20 +127,22 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         MonitorLogger.info("intervalDidEnd: \(activityRaw)")
         appendMonitorLog("intervalDidEnd: \(activityRaw)")
         
-        if activityRaw.hasPrefix("usageBudget_") {
+        if activityRaw.hasPrefix("timedAccess_") || activityRaw.hasPrefix("usageBudget_") {
             let defaults = SharedKeys.appGroupDefaults()
             guard let groupId = ShieldRebuildHelper.groupIdForUsageActivity(
                 defaults: defaults,
                 activityName: activityRaw
             ) else {
-                appendMonitorLog("usageBudget intervalEnd: ignored stale activity \(activityRaw)")
+                appendMonitorLog("timed access intervalEnd: ignored stale activity \(activityRaw)")
+                ShieldRebuildHelper.clearLegacyUsageBudgets(defaults: defaults)
+                rebuildBlockFromExtension()
+                reloadWidgets()
                 return
             }
-            // The schedule ends at this purchase's deadline. A replaced schedule can
-            // also deliver an old end callback, so re-read current persisted expiry
-            // rather than blindly clearing a window the user just extended.
-            MonitorLogger.info("usageBudget interval ended for \(groupId) — resync shields from prefs")
-            appendMonitorLog("usageBudget intervalEnd: resync \(groupId)")
+            // Re-read the persisted deadline because an older activity can end
+            // after a replacement has already been registered.
+            MonitorLogger.info("timed access interval ended for \(groupId) — resync shields from prefs")
+            appendMonitorLog("timed access intervalEnd: resync \(groupId)")
             checkAndClearExpiredBudgets(endingActivity: activity)
             rebuildBlockFromExtension()
             return
@@ -154,27 +156,8 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
         MonitorLogger.info("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
         appendMonitorLog("eventDidReachThreshold: \(event.rawValue) for activity \(activity.rawValue)")
         
-        if activity.rawValue.hasPrefix("usageBudget_"), event.rawValue.hasPrefix("usageV2_") {
-            let defaults = SharedKeys.appGroupDefaults()
-            guard let groupId = ShieldRebuildHelper.groupIdForUsageActivity(
-                defaults: defaults,
-                activityName: activity.rawValue
-            ) else {
-                appendMonitorLog("usageBudget threshold: ignored stale activity \(activity.rawValue)")
-                return
-            }
-            do {
-                if try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: groupId, event: event.rawValue) {
-                    rebuildBlockFromExtension()
-                    reloadWidgets()
-                }
-            } catch {
-                MonitorLogger.error("Usage monitoring continuation failed: \(error.localizedDescription)")
-                rebuildBlockFromExtension()
-                reloadWidgets()
-            }
-            return
-        }
+        // Timed passes do not register usage-threshold events. Any callback from
+        // an older installation is ignored and cannot spend or extend a pass.
         handleMinuteEvent(event)
     }
     
@@ -332,9 +315,8 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
             startPendingWidgetBudgets()
         }
         // Old installations can still deliver their usage callbacks after a schedule
-        // replacement. They may reconcile expiry, but must not decrement or exhaust
-        // a newer usage purchase (including a stale usageBudgetDone callback).
-        if raw.hasPrefix("ticketGroup_") || raw.hasPrefix("usageBudget") {
+        // replacement. They may reconcile expiry, but never change a timed pass.
+        if raw.hasPrefix("ticketGroup_") || raw.hasPrefix("usageBudget") || raw.hasPrefix("timedAccess") {
             checkAndClearExpiredBudgets()
         }
     }
@@ -350,23 +332,20 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                 defaults.synchronize()
                 defer { defaults.synchronize() }
                 for group in groups where group.active {
+                    guard let session = UsageBudgetSession.load(from: defaults, groupId: group.id),
+                          session.expiresAt <= .now else { continue }
                     let key = SharedKeys.usageBudgetKey(group.id)
-                    guard defaults.integer(forKey: key) > 0,
-                          ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: group.id) == 0 else { continue }
                     defaults.removeObject(forKey: key)
                     defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
                     defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
                     defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
-                    let session = UsageBudgetSession.load(from: defaults, groupId: group.id)
                     defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
                     var names = [DeviceActivityName("usageBudget_\(group.id)")]
-                    if let session {
-                        names.append(DeviceActivityName(session.activityName(groupId: group.id)))
-                    }
+                    names.append(DeviceActivityName(session.activityName(groupId: group.id)))
                     for activity in names where activity != endingActivity {
                         activitiesToStop.append(activity)
                     }
-                    appendMonitorLog("budget day ended: \(group.id)")
+                    appendMonitorLog("timed access expired: \(group.id)")
                     didClear = true
                 }
             }

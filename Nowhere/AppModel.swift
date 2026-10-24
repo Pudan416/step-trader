@@ -377,7 +377,6 @@ final class AppModel: ObservableObject {
         loadSpentStepsBalance()
         if dayChanged {
             loadAppStepsSpentToday()
-            clearAllUsageBudgets(reason: "dayBoundary")
         }
         if (didReset || dayChanged) && !isBootstrapping {
             AppLogger.healthKit.info("👣 checkDayBoundary: day changed (didReset=\(didReset), dayChanged=\(dayChanged)), stepsToday=\(Int(self.stepsToday)) — stopping observer & clearing cache")
@@ -392,38 +391,6 @@ final class AppModel: ObservableObject {
             // which is custom-day-aware, so this fires at the user's reset time
             // (e.g. 4am if dayEndHour=4), not at calendar midnight.
             applyDailyRandomThemeIfNeeded()
-        }
-    }
-
-    /// Wipes every active usage-budget key and stops DeviceActivity monitoring,
-    /// then rebuilds shields so apps become blocked again.
-    private func clearAllUsageBudgets(reason: String) {
-        let defaults = UserDefaults.nowhere()
-        var didClean = false
-
-        for group in ticketGroups {
-            let budgetKey = SharedKeys.usageBudgetKey(group.id)
-            guard defaults.integer(forKey: budgetKey) > 0 else { continue }
-
-            defaults.removeObject(forKey: budgetKey)
-            defaults.removeObject(forKey: SharedKeys.usageBudgetStartedKey(group.id))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetInitialKey(group.id))
-            defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
-            defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
-
-            #if canImport(DeviceActivity)
-            let activityPrefix = "usageBudget_\(group.id)"
-            let activities = DeviceActivityCenter().activities.filter {
-                $0.rawValue == activityPrefix || $0.rawValue.hasPrefix(activityPrefix + "_")
-            }
-            DeviceActivityCenter().stopMonitoring(activities)
-            #endif
-
-            AppLogger.shield.debug("🧹 Cleared usage budget for group \(group.id) (\(reason))")
-            didClean = true
-        }
-        if didClean {
-            rebuildFamilyControlsShield()
         }
     }
 

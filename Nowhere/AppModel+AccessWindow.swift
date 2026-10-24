@@ -15,8 +15,7 @@ extension AppModel {
         unspentUsageBudgetMatchingShield(for: groupId)
     }
 
-    /// Remaining usage minutes reported by Screen Time, valid until day reset.
-    /// Idle time does not change this value.
+    /// Whole minutes until the paid wall-clock pass expires.
     func unspentUsageBudgetMatchingShield(for groupId: String) -> Int {
         Self.unspentUsageBudgetMatchingShield(for: groupId, defaults: UserDefaults.nowhere())
     }
@@ -26,7 +25,7 @@ extension AppModel {
         return ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: groupId)
     }
 
-    /// Seconds until the custom day boundary fires and all unused budgets are wiped.
+    /// Seconds until the custom day boundary resets the daily energy balance.
     var secondsUntilDayReset: TimeInterval {
         let next = DayBoundary.nextBoundary(
             after: Date.now,

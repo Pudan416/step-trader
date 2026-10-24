@@ -97,6 +97,27 @@ final class HappeningPaletteInteractionTests: XCTestCase {
         )
     }
 
+    func testTimedAccessCopyResolvesFromEnglishResourcesAndFormatsMinutes() throws {
+        let englishResources = try XCTUnwrap(Bundle.main.path(forResource: "en", ofType: "lproj"))
+        let englishBundle = try XCTUnwrap(Bundle(path: englishResources))
+        XCTAssertEqual(
+            englishBundle.localizedString(forKey: "This group is already unlocked", value: "MISSING_TIMED_ACCESS_RESOURCE", table: nil),
+            "This group is already unlocked"
+        )
+        XCTAssertEqual(
+            englishBundle.localizedString(forKey: "Add a happening to earn colors, or continue without an unlock.", value: "MISSING_TIMED_ACCESS_RESOURCE", table: nil),
+            "Add a happening to earn colors, or continue without an unlock."
+        )
+        let format = englishBundle.localizedString(
+            forKey: "Try %lld minutes. You'll spend real colors. The timer starts after payment and runs even when you aren't using the apps.",
+            value: "MISSING_TIMED_ACCESS_RESOURCE", table: nil
+        )
+        XCTAssertEqual(
+            String(format: format, Int64(30)),
+            "Try 30 minutes. You'll spend real colors. The timer starts after payment and runs even when you aren't using the apps."
+        )
+    }
+
     func testShippingAppIsEnglishOnly() throws {
         XCTAssertNil(Bundle.main.path(forResource: "ru", ofType: "lproj"))
         let englishResources = try XCTUnwrap(Bundle.main.path(forResource: "en", ofType: "lproj"))

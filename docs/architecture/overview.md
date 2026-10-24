@@ -13,7 +13,7 @@ and primary scheme are named Nowhere. Energy and steps remain domain concepts.
 | Canvas rendering, gestures, saved artwork | `Views/GalleryView.swift`, `Views/Gallery/`, `Experiments/DayObjects/`, `Experiments/ShapeGenome/`, `Metal/` | `DayCanvasArtworkRoutingTests`, `MetalShapeCompatibilityTests`, `CanvasRemixTests` |
 | Music | `Experiments/DayObjects/Sound/` — Director, Domain, Engine, Playback, Lab, Diagnostics | `DeterministicMusicDirectorTests`, `DayObjectsMusicPlaybackEngineTests`, `DayObjectsAudioResourceTests` |
 | Feed groups and purchases | `Views/Feeds/`, `Views/PayGateView.swift`, `AppModel+TicketManagement.swift`, `Stores/BlockingStore.swift`, `Stores/UserEconomyStore.swift` | `PaymentTests`, `BudgetEngineTests`, `TicketGroupCostTests` |
-| Actual Screen Time usage and shielding | `Shared/ShieldRebuildHelper.swift`, `DeviceActivityMonitor/`, `ShieldAction/`, `ShieldConfiguration/`; locate budget operations with `rg 'UsageBudget' Nowhere Shared` | `UsageBudgetScheduleTests`, `AppGroupRMWConcurrencyTests`, `UnspentUsageBudgetTests` |
+| Timed access and shielding | `Shared/ShieldRebuildHelper.swift`, `Nowhere/AppModel+PayGate.swift`, `DeviceActivityMonitor/`, `ShieldAction/`, `ShieldConfiguration/`; locate pass operations with `rg 'UsageBudget|timedAccess' Nowhere Shared` | `UsageBudgetScheduleTests`, `AppGroupRMWConcurrencyTests`, `TimedAccessPassTests` |
 | Widgets and wallpaper | [App opening](widget-app-opening.md), `TargetResolver.swift`, `Models/TicketGroup.swift`, `UnlockWidget/`, `Intents/ExportCanvasWallpaperIntent.swift`, `Services/CanvasStorageService.swift` | `WidgetTests`, `GateArtworkTests` |
 | Authentication, local persistence and cloud sync | `Services/AuthenticationService.swift`, `Services/CanvasStorageService.swift`, `Services/SupabaseSyncService*.swift`, `Stores/PreferencesStore.swift` | `RetryQueueClassificationTests`, `PreferencesStoreTests`, `CanvasPersistenceRegressionTests` |
 | Analytics event schema and runtime context | `Services/SupabaseSyncService+Analytics.swift`, `supabase/migrations/` | [Analytics event contract](analytics-events.md) |
@@ -153,7 +153,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
 - The app and extensions are separate processes. Preserve App Group identifiers, persisted
   keys, atomic read/modify/write operations and the existing lock ordering. An actor in one
   process does not synchronize another process.
-  All shield assignments route through `ShieldRebuildHelper.rebuild`; the usage-budget
+  All shield assignments route through `ShieldRebuildHelper.rebuild`; the timed-pass
   state lock spans the persisted snapshot and ManagedSettings write. DeviceActivity
   registration always happens after that lock is released.
   `withAccountHistoryTransitionLock` acquires the registration lock before the

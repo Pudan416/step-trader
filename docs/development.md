@@ -50,11 +50,11 @@ CI checks the zero-data Health permissions UI before the full unit suite and
 retains its log and result bundle. A supported device with no visible Health
 samples shows the neutral “No data yet” state without an urgent warning.
 
-The Screen Time contract checks run the production session and registration code
-against a deterministic daemon substitute. They cover delayed thresholds, concurrent
-top-ups/recovery, callback delivery during registration, failed purchases and rollback
-of widget balances. Paid selections also override overlapping group blockers and
-remain exceptions to category shields. The palette rollover contract executes
+The timed access contract checks run the production pass and registration code
+against deterministic Screen Time daemon substitutes. They cover deadline purchases,
+duplicate-purchase rejection, monitor recovery without extending the pass, expired
+callbacks and failed-purchase rollback. Paid selections also override overlapping
+group blockers and remain exceptions to category shields. The palette rollover contract executes
 Gallery's actual close/reset methods, including the explorer and survey draft.
 These checks do not validate Screen Time delivery timing on a physical iPhone.
 

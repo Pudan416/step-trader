@@ -1,12 +1,10 @@
 import Foundation
 
-/// Turns observed usage-budget readings into what the timer draws.
+/// Turns the latest wall-clock pass reading into the minute display and fill state.
 ///
-/// The window is spent, not elapsed: the honest signal is the per-minute
-/// `usageBudgetTick_<groupId>_<m>` event the monitor extension writes to the app
-/// group. This type therefore has no clock and performs no interpolation — the arc
-/// steps a minute at a time. A stepping arc that is correct beats a flowing arc
-/// that is not.
+/// The app polls the saved deadline and reports whole remaining minutes. This
+/// value type has no clock and performs no interpolation, so the arc changes in
+/// whole-minute steps.
 struct UnlockTimerModel: Sendable {
 
     struct State: Equatable, Sendable {
@@ -22,8 +20,7 @@ struct UnlockTimerModel: Sendable {
         self.initialMinutes = max(0, initialMinutes)
     }
 
-    /// Call when the user buys more time. This is the only path along which the
-    /// displayed remaining time is allowed to increase.
+    /// Call when a new pass starts after the previous pass has expired.
     mutating func reset(initialMinutes: Int) {
         self.initialMinutes = max(0, initialMinutes)
         self.lastShownMinutes = nil
@@ -32,9 +29,8 @@ struct UnlockTimerModel: Sendable {
     mutating func observe(remainingMinutes: Int) -> State {
         var value = min(max(0, remainingMinutes), initialMinutes)
 
-        // Ticks can arrive late, and a budget written from outside the app
-        // (widget unlock, monitor recovery) can disagree with the last tick.
-        // Either way the arc must not jump forward and then fall back.
+        // Shared state can change outside the app (for example, a widget purchase
+        // or monitor recovery). Keep the displayed arc from jumping forward.
         if let last = lastShownMinutes {
             value = min(value, last)
         }

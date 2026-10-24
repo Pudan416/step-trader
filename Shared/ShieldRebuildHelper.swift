@@ -60,85 +60,51 @@ struct GroupTuple {
     let active: Bool
 }
 
-enum UsageBudgetThresholdResult: Equatable {
-    case ignored
-    case recorded
-    case implausible
-}
-
-/// One immutable Screen Time measurement interval. Extra purchases queue behind
-/// it, so topping up cannot reset Apple's fractional usage already accumulated.
+/// A paid wall-clock access pass. DeviceActivity only signals its end; usage
+/// thresholds never change the deadline.
 struct UsageBudgetSession: Codable, Equatable {
     let generation: String
     let initialMinutes: Int
-    var consumedMinutes: Int = 0
-    var queuedMinutes: Int = 0
     var monitoringFailed: Bool = false
-    var monitoredSelectionData: Data? = nil
-    var lastRecordedAt: Date? = nil
-    /// Once a generation reports impossible usage, no later event from it is trusted.
-    var invalidatedAt: Date? = nil
     let startedAt: Date
     var expiresAt: Date
 
     init(minutes: Int, startedAt: Date, expiresAt: Date) {
         generation = UUID().uuidString
-        initialMinutes = min(60, minutes)
-        queuedMinutes = max(0, minutes - initialMinutes)
+        initialMinutes = max(0, minutes)
         self.startedAt = startedAt
         self.expiresAt = expiresAt
     }
 
-    var remainingMinutes: Int { max(0, initialMinutes - consumedMinutes) + queuedMinutes }
-    var needsNextSegment: Bool { consumedMinutes >= initialMinutes && queuedMinutes > 0 }
-    func eventName(minute: Int) -> String { "usageV2_\(generation)_\(minute)" }
-    func activityName(groupId: String) -> String { "usageBudget_\(groupId)_\(generation)" }
-    func legacyActivityName(groupId: String) -> String { "usageBudget_\(groupId)" }
-
-    /// Cumulative thresholds can arrive twice or out of order. A generation
-    /// belongs to exactly one registration, never to a later purchase.
-    mutating func record(event: String, at now: Date) -> UsageBudgetThresholdResult {
-        let prefix = "usageV2_\(generation)_"
-        guard invalidatedAt == nil,
-              event.hasPrefix(prefix), let minute = Int(event.dropFirst(prefix.count)),
-              minute > consumedMinutes, minute <= initialMinutes else { return .ignored }
-
-        // Callback delivery can be delayed or batched. Its arrival time is not
-        // the time the user reached the threshold, so validate only against the
-        // entire measurement interval. Elapsed time is a plausibility ceiling,
-        // never evidence that idle time should spend a paid minute.
-        let earlyTolerance: TimeInterval = 10
-        guard now.timeIntervalSince(startedAt) + earlyTolerance
-                >= TimeInterval(minute * 60) else {
-            return .implausible
-        }
-        consumedMinutes = minute
-        lastRecordedAt = now
-        return .recorded
+    var remainingMinutes: Int {
+        max(0, Int(ceil(expiresAt.timeIntervalSinceNow / 60)))
     }
 
-    static func key(_ groupId: String) -> String { "usageBudgetSession_v2_\(groupId)" }
+    func activityName(groupId: String) -> String { "timedAccess_\(groupId)_\(generation)" }
+    func legacyActivityName(groupId: String) -> String { "usageBudget_\(groupId)" }
+
+    static let keyPrefix = "timedAccessPass_v1_"
+    static func key(_ groupId: String) -> String { "\(keyPrefix)\(groupId)" }
     static func load(from defaults: UserDefaults, groupId: String) -> Self? {
         guard let data = defaults.data(forKey: key(groupId)),
               let value = try? JSONDecoder().decode(Self.self, from: data),
-              value.initialMinutes > 0, value.consumedMinutes >= 0,
-              value.consumedMinutes <= value.initialMinutes, value.queuedMinutes >= 0 else { return nil }
+              value.initialMinutes > 0,
+              value.expiresAt > value.startedAt else { return nil }
         return value
     }
 
     func save(to defaults: UserDefaults, groupId: String) {
         guard let data = try? JSONEncoder().encode(self) else { return }
         defaults.set(data, forKey: Self.key(groupId))
-        // Compatibility projection for existing widget progress and diagnostics.
+        // Compatibility projections used by app and widget snapshots.
         defaults.set(remainingMinutes, forKey: SharedKeys.usageBudgetKey(groupId))
-        defaults.set(initialMinutes + queuedMinutes, forKey: SharedKeys.usageBudgetInitialKey(groupId))
+        defaults.set(initialMinutes, forKey: SharedKeys.usageBudgetInitialKey(groupId))
         defaults.set(startedAt, forKey: SharedKeys.usageBudgetStartedKey(groupId))
         defaults.set(expiresAt, forKey: SharedKeys.usageBudgetExpiryKey(groupId))
     }
 }
 
-/// Device-level fence: these keys must never be archived with an account.
-/// Call suspend/resume only inside the registration → state transition locks.
+/// Device-level fence around account-specific Screen Time state.
 enum UsageBudgetAccountBoundary {
     static let epochKey = "accountHistoryBudgetEpoch_v1"
     static let suspendedKey = "accountHistoryBudgetSuspended_v1"
@@ -148,7 +114,7 @@ enum UsageBudgetAccountBoundary {
     }
 
     static func accepts(_ epoch: String, in defaults: UserDefaults) -> Bool {
-        !defaults.bool(forKey: suspendedKey) && Self.epoch(in: defaults) == epoch
+        !defaults.bool(forKey: suspendedKey) && self.epoch(in: defaults) == epoch
     }
 
     static func require(_ epoch: String, in defaults: UserDefaults) throws {
@@ -158,18 +124,15 @@ enum UsageBudgetAccountBoundary {
         }
     }
 
-    /// Preserve confirmed unspent minutes, but never restore an old daemon identity.
-    /// The caller stops returned activity names outside both file locks.
-    static func suspend(defaults: UserDefaults, now: Date = Date()) -> [String] {
+    /// Keep a valid pass's deadline but stop its old daemon identity before account data rotates.
+    static func suspend(defaults: UserDefaults) -> [String] {
         defaults.set(true, forKey: suspendedKey)
         defaults.set(UUID().uuidString, forKey: epochKey)
         var names: [String] = []
-        let prefix = "usageBudgetSession_v2_"
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
-            let groupId = String(key.dropFirst(prefix.count))
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(UsageBudgetSession.keyPrefix) {
+            let groupId = String(key.dropFirst(UsageBudgetSession.keyPrefix.count))
             guard var session = UsageBudgetSession.load(from: defaults, groupId: groupId) else { continue }
             names += [session.activityName(groupId: groupId), session.legacyActivityName(groupId: groupId)]
-            session.invalidatedAt = session.invalidatedAt ?? now
             session.monitoringFailed = true
             session.save(to: defaults, groupId: groupId)
         }
@@ -207,9 +170,7 @@ struct UsageBudgetFileLock: Sendable {
 /// Screen Time daemon call. DeviceActivity callbacks need the state lock and
 /// can run synchronously while `startMonitoring` is waiting to return.
 enum UsageBudgetRegistrationCoordinator {
-    /// Storage rotation must exclude both a registration waiting on the daemon
-    /// and callbacks committing budget state. Match registration's lock order.
-    /// The body must stay synchronous and must not call Screen Time/rebuild APIs.
+    /// Exclude a registration waiting on the daemon and callbacks committing state.
     static func withAccountHistoryTransition<T>(
         stateLock: UsageBudgetFileLock,
         registrationLock: UsageBudgetFileLock,
@@ -299,7 +260,7 @@ enum ShieldRebuildHelper {
     }
     #endif
 
-    // MARK: - Usage budget
+    // MARK: - Timed access state
 
     /// Interprets plist values from App Group UserDefaults (any process).
     private static func coercedDate(from object: Any?) -> Date? {
@@ -315,65 +276,37 @@ enum ShieldRebuildHelper {
         }
     }
 
-    /// The stored deadline is authoritative; legacy records can recover it from start + initial.
+    /// The paid wall-clock deadline is the only source of remaining access.
     static func usageBudgetDeadline(defaults: UserDefaults, groupId: String) -> Date? {
-        if let session = UsageBudgetSession.load(from: defaults, groupId: groupId) { return session.expiresAt }
-        if let expiry = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetExpiryKey(groupId))) {
-            return expiry
-        }
-        guard let started = coercedDate(from: defaults.object(forKey: SharedKeys.usageBudgetStartedKey(groupId))) else { return nil }
-        let initial = defaults.integer(forKey: SharedKeys.usageBudgetInitialKey(groupId))
-        return initial > 0 ? started.addingTimeInterval(TimeInterval(initial) * 60) : nil
+        UsageBudgetSession.load(from: defaults, groupId: groupId)?.expiresAt
     }
 
-    /// Calendar validity only for usage sessions. It must never be displayed
-    /// as a countdown; remaining minutes come from recorded usage thresholds.
-    /// Pre-v2 records retain their original deadline until replaced/expired.
+    /// Returns the pass deadline while it is still in the future.
     static func usageBudgetDisplayExpiry(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Date? {
-        if let session = UsageBudgetSession.load(from: defaults, groupId: groupId) {
-            return session.remainingMinutes > 0 && session.expiresAt > now ? session.expiresAt : nil
-        }
-        let stored = defaults.integer(forKey: SharedKeys.usageBudgetKey(groupId))
-        guard stored > 0, let expiry = usageBudgetDeadline(defaults: defaults, groupId: groupId), expiry > now else { return nil }
-        return min(expiry, now.addingTimeInterval(TimeInterval(stored) * 60))
+        guard let expiry = usageBudgetDeadline(defaults: defaults, groupId: groupId), expiry > now else { return nil }
+        return expiry
     }
 
     static func remainingUsageBudget(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Int {
-        if let session = UsageBudgetSession.load(from: defaults, groupId: groupId) {
-            return session.expiresAt > now ? session.remainingMinutes : 0
-        }
-        guard let expiry = usageBudgetDisplayExpiry(defaults: defaults, groupId: groupId, at: now) else { return 0 }
+        guard let expiry = usageBudgetDeadline(defaults: defaults, groupId: groupId), expiry > now else { return 0 }
         return Int(ceil(expiry.timeIntervalSince(now) / 60))
     }
 
-    /// Only the custom-day expiry is predictable. Usage changes trigger widget
-    /// reloads from DeviceActivity; idle time cannot generate minute transitions.
+    /// The pass deadline is predictable and can be included in widget timelines.
     static func budgetObservationDates(from now: Date, through horizon: Date, expiries: [Date]) -> [Date] {
         guard horizon > now else { return [] }
         return Array(Set(expiries.filter { $0 > now && $0 <= horizon })).sorted()
     }
 
-    static func usageSelectionMatches(defaults: UserDefaults, groupId: String, session: UsageBudgetSession) -> Bool {
-        #if canImport(FamilyControls)
-        guard let originalData = session.monitoredSelectionData,
-              let currentData = loadGroups(defaults: defaults).first(where: { $0.id == groupId && $0.active })?.selectionData,
-              let original = try? JSONDecoder().decode(FamilyActivitySelection.self, from: originalData),
-              let current = cachedSelection(for: groupId, data: currentData) else { return false }
-        return original.applicationTokens == current.applicationTokens
-            && original.categoryTokens == current.categoryTokens
-            && original.webDomainTokens == current.webDomainTokens
-        #else
-        return false
-        #endif
-    }
-
-    /// Resolve callbacks by the persisted session instead of parsing group IDs
-    /// out of the activity string. Old activity generations then become harmless.
+    /// Resolve only current timed-pass activities. Old usage-budget callbacks
+    /// cannot match the new activity identity.
     static func groupIdForUsageActivity(defaults: UserDefaults, activityName: String) -> String? {
+        guard UsageBudgetAccountBoundary.accepts(UsageBudgetAccountBoundary.epoch(in: defaults), in: defaults) else {
+            return nil
+        }
         for group in loadGroups(defaults: defaults) {
             guard let session = UsageBudgetSession.load(from: defaults, groupId: group.id) else { continue }
-            if activityName == session.activityName(groupId: group.id)
-                || activityName == session.legacyActivityName(groupId: group.id) {
+            if activityName == session.activityName(groupId: group.id) {
                 return group.id
             }
         }
@@ -381,15 +314,23 @@ enum ShieldRebuildHelper {
     }
 
     static func hasRecoverableUsageBudget(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Bool {
+        guard UsageBudgetAccountBoundary.accepts(UsageBudgetAccountBoundary.epoch(in: defaults), in: defaults) else {
+            return false
+        }
         guard let session = UsageBudgetSession.load(from: defaults, groupId: groupId),
-              session.expiresAt > now, session.remainingMinutes > 0 else { return false }
-        return session.needsNextSegment || session.monitoringFailed
-            || !usageSelectionMatches(defaults: defaults, groupId: groupId, session: session)
+              session.expiresAt > now else { return false }
+        if session.monitoringFailed { return true }
+        #if canImport(DeviceActivity)
+        let name = DeviceActivityName(session.activityName(groupId: groupId))
+        return DeviceActivityCenter().schedule(for: name) == nil
+            || !DeviceActivityCenter().events(for: name).isEmpty
+        #else
+        return false
+        #endif
     }
 
-    /// The free action is available only while the paid budget can be registered
-    /// against an active, nonempty selection. Views and purchase entry points
-    /// share this check; an archived widget snapshot is never purchase authority.
+    /// Widget recovery is offered only when the live group still has a usable
+    /// selection. The archived widget snapshot cannot grant a pass on its own.
     static func recoverableUsageBudgetMinutes(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Int {
         #if canImport(FamilyControls)
         guard hasRecoverableUsageBudget(defaults: defaults, groupId: groupId, at: now),
@@ -403,10 +344,11 @@ enum ShieldRebuildHelper {
     }
 
     private static func shouldSkipShieldingDueToActiveUsageBudget(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Bool {
-        guard remainingUsageBudget(defaults: defaults, groupId: groupId, at: now) > 0 else { return false }
-        guard let session = UsageBudgetSession.load(from: defaults, groupId: groupId) else { return true }
-        return !session.needsNextSegment && !session.monitoringFailed
-            && usageSelectionMatches(defaults: defaults, groupId: groupId, session: session)
+        guard UsageBudgetAccountBoundary.accepts(UsageBudgetAccountBoundary.epoch(in: defaults), in: defaults) else {
+            return false
+        }
+        guard let session = UsageBudgetSession.load(from: defaults, groupId: groupId) else { return false }
+        return session.expiresAt > now && !session.monitoringFailed
     }
 
     static func isUsageBudgetActive(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Bool {
@@ -422,6 +364,7 @@ enum ShieldRebuildHelper {
             Logger(subsystem: "com.personalproject.StepsTrader", category: "ShieldRebuild").error("App group unavailable — skipping rebuild to preserve existing shields")
             return
         }
+        clearLegacyUsageBudgets(defaults: defaults)
 
         // The app and monitor callbacks share the purchase state lock from
         // their first budget read through the actual settings assignment. An
@@ -515,9 +458,8 @@ enum ShieldRebuildHelper {
     /// Shortest interval DeviceActivity accepts before throwing `MonitoringError.intervalTooShort`.
     static let minimumScheduleMinutes = 15
 
-    /// Monitor through the custom day end, independently of purchased minutes.
-    /// If less than 15 calendar minutes remain, pad only the start; each event
-    /// excludes past activity so the padding cannot spend the new purchase.
+    /// Monitor through the paid pass deadline. Short passes pad only the start
+    /// to satisfy DeviceActivity's minimum interval; the end stays exact.
     static func usageBudgetSchedule(
         endingAt expiry: Date,
         anchoredAt now: Date = Date(),
@@ -553,8 +495,6 @@ enum ShieldRebuildHelper {
         try usageBudgetLock(named: "usage-budget.lock").withLock(body)
     }
 
-    /// Hold only across synchronous App Group snapshot/key replacement. Lock
-    /// files stay outside the account's archived paths and are never replaced.
     static func withAccountHistoryTransitionLock<T>(_ body: () throws -> T) throws -> T {
         try UsageBudgetRegistrationCoordinator.withAccountHistoryTransition(
             stateLock: usageBudgetLock(named: "usage-budget.lock"),
@@ -563,33 +503,46 @@ enum ShieldRebuildHelper {
         )
     }
 
-    static func usageEvents(selection: FamilyActivitySelection, session: UsageBudgetSession) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
-        // Each event fires once at its cumulative threshold. No repeating tick
-        // assumption and no stop/start chain while this segment is in use.
-        Dictionary(uniqueKeysWithValues: (1...session.initialMinutes).map { minute in
-            let event: DeviceActivityEvent
-            if #available(iOS 17.4, *) {
-                event = DeviceActivityEvent(applications: selection.applicationTokens,
-                    categories: selection.categoryTokens, webDomains: selection.webDomainTokens,
-                    threshold: DateComponents(minute: minute), includesPastActivity: false)
-            } else {
-                event = DeviceActivityEvent(applications: selection.applicationTokens,
-                    categories: selection.categoryTokens, webDomains: selection.webDomainTokens,
-                    threshold: DateComponents(minute: minute))
+    /// The new pass key intentionally does not decode old usage balances. Remove
+    /// those balances and their monitors once so no old purchase survives rollout.
+    static func clearLegacyUsageBudgets(defaults: UserDefaults) {
+        guard defaults.integer(forKey: SharedKeys.timedAccessMigrationVersion) < 1 else { return }
+        let shouldStopLegacyActivities: Bool
+        do {
+            shouldStopLegacyActivities = try withUsageBudgetLock {
+                defaults.synchronize()
+                guard defaults.integer(forKey: SharedKeys.timedAccessMigrationVersion) < 1 else { return false }
+                let legacyPrefixes = [
+                    "usageBudgetSession_v2_", "usageBudget_", "usageBudgetStarted_",
+                    "usageBudgetInitial_", "usageBudgetExpiry_", "pendingBudgetMonitoring_",
+                    "pendingBudgetMinutes_"
+                ]
+                for key in defaults.dictionaryRepresentation().keys
+                    where legacyPrefixes.contains(where: { key.hasPrefix($0) }) {
+                    defaults.removeObject(forKey: key)
+                }
+                defaults.set(1, forKey: SharedKeys.timedAccessMigrationVersion)
+                defaults.synchronize()
+                return true
             }
-            return (DeviceActivityEvent.Name(session.eventName(minute: minute)), event)
-        })
+        } catch {
+            Logger(subsystem: "com.personalproject.StepsTrader", category: "TimedAccess")
+                .error("Could not clear legacy usage balances: \(error.localizedDescription)")
+            return
+        }
+        guard shouldStopLegacyActivities else { return }
+        let oldActivities = DeviceActivityCenter().activities.filter { $0.rawValue.hasPrefix("usageBudget_") }
+        if !oldActivities.isEmpty { DeviceActivityCenter().stopMonitoring(oldActivities) }
     }
 
     private struct PreparedUsageBudgetRegistration {
         let session: UsageBudgetSession
         let previousValues: [(key: String, value: Any?)]
         let schedule: DeviceActivitySchedule
-        let events: [DeviceActivityEvent.Name: DeviceActivityEvent]
     }
 
     /// Build the replacement from current state only after both locks are held.
-    /// A queued recovery may return nil when a newer generation already won.
+    /// A recovery may return nil when a newer generation already won.
     private static func register(
         defaults: UserDefaults,
         groupId: String,
@@ -609,17 +562,12 @@ enum ShieldRebuildHelper {
                     defaults.synchronize()
                     try UsageBudgetAccountBoundary.require(accountEpoch, in: defaults)
                     guard let session = try makeSession() else { return nil }
-                    guard let schedule = usageBudgetSchedule(endingAt: session.expiresAt, anchoredAt: now),
-                          let data = loadGroups(defaults: defaults).first(where: { $0.id == groupId && $0.active })?.selectionData,
-                          let selection = cachedSelection(for: groupId, data: data),
-                          !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else {
+                    guard let schedule = usageBudgetSchedule(endingAt: session.expiresAt, anchoredAt: now) else {
                         throw NSError(domain: "Nowhere.UsageBudget", code: 1,
-                                      userInfo: [NSLocalizedDescriptionKey: "No applications selected or today's usage budget has expired"])
+                                      userInfo: [NSLocalizedDescriptionKey: "The access pass has expired"])
                     }
                     var provisional = session
-                    provisional.monitoredSelectionData = data
-                    // A provisional monitor must not open access. Its callbacks
-                    // can still record valid usage or invalidate this generation.
+                    // Keep the group shielded until the deadline monitor is live.
                     provisional.monitoringFailed = true
                     let previous = defaults.data(forKey: UsageBudgetSession.key(groupId))
                     let previousValues = [
@@ -640,17 +588,14 @@ enum ShieldRebuildHelper {
                     return PreparedUsageBudgetRegistration(
                         session: provisional,
                         previousValues: previousValues,
-                        schedule: schedule,
-                        events: usageEvents(selection: selection, session: provisional)
+                        schedule: schedule
                     )
                 },
                 register: { prepared in
                     guard let prepared else { return }
                     // Never call the daemon under the state lock: it can deliver
                     // a callback before startMonitoring returns.
-                    // End the previous measurement before starting the next one.
-                    // Overlapping monitors for the same selection let Screen Time
-                    // carry the old usage baseline into the replacement on device.
+                    // Replace any prior deadline monitor before registering this pass.
                     let center = DeviceActivityCenter()
                     let previousActivities = obsoleteActivityNames
                         .filter { $0 != prepared.session.activityName(groupId: groupId) }
@@ -659,26 +604,27 @@ enum ShieldRebuildHelper {
                     try center.startMonitoring(
                         DeviceActivityName(prepared.session.activityName(groupId: groupId)),
                         during: prepared.schedule,
-                        events: prepared.events
+                        events: [:]
                     )
                 },
                 commit: { prepared in
                     guard let prepared else { return }
                     defaults.synchronize()
+                    try UsageBudgetAccountBoundary.require(accountEpoch, in: defaults)
                     guard var current = UsageBudgetSession.load(from: defaults, groupId: groupId),
                           current.generation == prepared.session.generation,
-                          current.invalidatedAt == nil else {
+                          current.expiresAt > now else {
                         throw NSError(domain: "Nowhere.UsageBudget", code: 4,
-                                      userInfo: [NSLocalizedDescriptionKey: "Screen Time monitoring could not be verified. Your unused minutes are saved."])
+                                      userInfo: [NSLocalizedDescriptionKey: "Screen Time monitoring could not be verified. The pass remains saved until its original expiry."])
                     }
                     current.monitoringFailed = false
-                    current.monitoredSelectionData = prepared.session.monitoredSelectionData
                     current.save(to: defaults, groupId: groupId)
                     defaults.synchronize()
                 },
                 rollback: { prepared in
                     guard let prepared else { return }
                     defaults.synchronize()
+                    guard UsageBudgetAccountBoundary.accepts(accountEpoch, in: defaults) else { return }
                     guard UsageBudgetSession.load(from: defaults, groupId: groupId)?.generation
                             == prepared.session.generation else { return }
                     // Restore both the session and widget/legacy projections,
@@ -686,13 +632,11 @@ enum ShieldRebuildHelper {
                     for (key, value) in prepared.previousValues {
                         defaults.set(value, forKey: key)
                     }
-                    // The former monitor was stopped before registration. If
-                    // replacement fails, keep its paid balance recoverable but
-                    // shielded until another monitor is live.
+                    // If replacement fails, keep the pass recoverable and shielded
+                    // until a deadline monitor is live.
                     if var previous = UsageBudgetSession.load(from: defaults, groupId: groupId),
                        previous.remainingMinutes > 0 {
                         previous.monitoringFailed = true
-                        previous.invalidatedAt = previous.invalidatedAt ?? now
                         previous.save(to: defaults, groupId: groupId)
                     }
                     defaults.synchronize()
@@ -714,103 +658,59 @@ enum ShieldRebuildHelper {
 
     static func purchaseUsageBudget(defaults: UserDefaults, groupId: String, minutes: Int, now: Date = Date()) throws {
         guard minutes > 0 else { throw NSError(domain: "Nowhere.UsageBudget", code: 3) }
-
-        let snapshot = try withUsageBudgetLock {
+        let accountEpoch = try withUsageBudgetLock {
             defaults.synchronize()
             let epoch = UsageBudgetAccountBoundary.epoch(in: defaults)
             try UsageBudgetAccountBoundary.require(epoch, in: defaults)
-            return (session: UsageBudgetSession.load(from: defaults, groupId: groupId), epoch: epoch)
+            return epoch
         }
-        let candidate = snapshot.session
-        let hasRegisteredFinalEvent: Bool
-        if let candidate {
-            hasRegisteredFinalEvent = DeviceActivityCenter()
-                .events(for: DeviceActivityName(candidate.activityName(groupId: groupId)))[
-                    DeviceActivityEvent.Name(candidate.eventName(minute: candidate.initialMinutes))
-                ] != nil
-        } else {
-            hasRegisteredFinalEvent = false
-        }
-
-        let didTopUp = try withUsageBudgetLock {
+        try register(defaults: defaults, groupId: groupId, now: now, accountEpoch: accountEpoch) {
             defaults.synchronize()
-            defer { defaults.synchronize() }
-            try UsageBudgetAccountBoundary.require(snapshot.epoch, in: defaults)
-            if var session = UsageBudgetSession.load(from: defaults, groupId: groupId),
-               session.generation == candidate?.generation,
-               session.expiresAt > now, session.remainingMinutes > 0,
-               !session.needsNextSegment, !session.monitoringFailed,
-               usageSelectionMatches(defaults: defaults, groupId: groupId, session: session),
-               hasRegisteredFinalEvent {
-                session.queuedMinutes += minutes
-                session.save(to: defaults, groupId: groupId)
-                return true
+            if let current = UsageBudgetSession.load(from: defaults, groupId: groupId), current.expiresAt > now {
+                throw NSError(domain: "Nowhere.TimedAccess", code: 5,
+                              userInfo: [NSLocalizedDescriptionKey: "This group already has an active access pass"])
             }
-            return false
-        }
-        guard !didTopUp else { return }
-
-        try register(defaults: defaults, groupId: groupId, now: now, accountEpoch: snapshot.epoch) {
-            let deadline = DayBoundary.purchaseExpiry(minutes: minutes,
-                dayEndHour: defaults.integer(forKey: SharedKeys.dayEndHour),
-                dayEndMinute: defaults.integer(forKey: SharedKeys.dayEndMinute), now: now)
-            let existing = remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
-            return UsageBudgetSession(minutes: existing + minutes, startedAt: now, expiresAt: deadline)
+            let deadline = now.addingTimeInterval(TimeInterval(minutes * 60))
+            return UsageBudgetSession(minutes: minutes, startedAt: now, expiresAt: deadline)
         }
     }
 
-    /// Recovery runs only when the registered interval/events are missing. It
-    /// retains confirmed unspent minutes, never subtracts elapsed clock time.
-    static func startUsageBudgetMonitoring(defaults: UserDefaults, groupId: String, now: Date = Date(), expectedAccountEpoch: String? = nil) throws {
-        let snapshot = try withUsageBudgetLock { () -> (deadline: Date, session: UsageBudgetSession?, epoch: String) in
+    /// Recovery restores only the deadline monitor. The paid deadline never moves.
+    static func startUsageBudgetMonitoring(defaults: UserDefaults, groupId: String, now: Date = Date()) throws {
+        let snapshot = try withUsageBudgetLock { () -> (session: UsageBudgetSession, accountEpoch: String) in
             defaults.synchronize()
-            let epoch = expectedAccountEpoch ?? UsageBudgetAccountBoundary.epoch(in: defaults)
-            try UsageBudgetAccountBoundary.require(epoch, in: defaults)
-            let remaining = remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
-            guard remaining > 0, let deadline = usageBudgetDeadline(defaults: defaults, groupId: groupId) else {
+            let accountEpoch = UsageBudgetAccountBoundary.epoch(in: defaults)
+            try UsageBudgetAccountBoundary.require(accountEpoch, in: defaults)
+            guard let session = UsageBudgetSession.load(from: defaults, groupId: groupId),
+                  session.expiresAt > now else {
                 throw NSError(domain: "Nowhere.UsageBudget", code: 1)
             }
-            return (deadline, UsageBudgetSession.load(from: defaults, groupId: groupId), epoch)
+            return (session, accountEpoch)
         }
 
         let center = DeviceActivityCenter()
-        let name = snapshot.session.map { DeviceActivityName($0.activityName(groupId: groupId)) }
-        if let session = snapshot.session,
-           !session.needsNextSegment, !session.monitoringFailed,
-           usageSelectionMatches(defaults: defaults, groupId: groupId, session: session),
-           let desired = usageBudgetSchedule(endingAt: snapshot.deadline, anchoredAt: now),
-           let name,
+        let name = DeviceActivityName(snapshot.session.activityName(groupId: groupId))
+        if !snapshot.session.monitoringFailed,
+           let desired = usageBudgetSchedule(endingAt: snapshot.session.expiresAt, anchoredAt: now),
            center.schedule(for: name)?.intervalEnd == desired.intervalEnd,
-           center.events(for: name)[DeviceActivityEvent.Name(session.eventName(minute: session.initialMinutes))] != nil {
+           center.events(for: name).isEmpty {
             return
         }
 
         do {
-            try register(defaults: defaults, groupId: groupId, now: now, accountEpoch: snapshot.epoch) {
-                // Another purchase/recovery may have completed while this caller
-                // waited for registration. Never replace its newer generation.
+            try register(defaults: defaults, groupId: groupId, now: now, accountEpoch: snapshot.accountEpoch) {
                 let current = UsageBudgetSession.load(from: defaults, groupId: groupId)
-                guard current?.generation == snapshot.session?.generation else { return nil }
-                let remaining = remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
-                guard remaining > 0,
-                      let deadline = usageBudgetDeadline(defaults: defaults, groupId: groupId) else {
-                    throw NSError(domain: "Nowhere.UsageBudget", code: 1)
-                }
-                return UsageBudgetSession(minutes: remaining, startedAt: now, expiresAt: deadline)
+                guard current?.generation == snapshot.session.generation,
+                      (current?.expiresAt ?? .distantPast) > now else { return nil }
+                return current
             }
         } catch {
             try withUsageBudgetLock {
                 defaults.synchronize()
-                guard UsageBudgetAccountBoundary.accepts(snapshot.epoch, in: defaults) else { return }
+                guard UsageBudgetAccountBoundary.accepts(snapshot.accountEpoch, in: defaults) else { return }
                 let current = UsageBudgetSession.load(from: defaults, groupId: groupId)
-                let remaining = remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
-                if current?.generation == snapshot.session?.generation, remaining > 0,
-                   let deadline = usageBudgetDeadline(defaults: defaults, groupId: groupId) {
-                    // Legacy paid windows also need a paused v2 session; leaving
-                    // only legacy keys would allow access without a monitor.
-                    var paused = current ?? UsageBudgetSession(minutes: remaining, startedAt: now, expiresAt: deadline)
+                if var paused = current, paused.generation == snapshot.session.generation, paused.expiresAt > now {
                     paused.monitoringFailed = true
-                    paused.invalidatedAt = paused.invalidatedAt ?? now
                     paused.save(to: defaults, groupId: groupId)
                 }
                 defaults.synchronize()
@@ -819,51 +719,11 @@ enum ShieldRebuildHelper {
         }
     }
 
-    @discardableResult
-    static func recordUsageThreshold(defaults: UserDefaults, groupId: String, event: String, now: Date = Date()) throws -> Bool {
-        let result = try withUsageBudgetLock { () -> (changed: Bool, needsContinuation: Bool, epoch: String) in
-            defaults.synchronize()
-            defer { defaults.synchronize() }
-            let epoch = UsageBudgetAccountBoundary.epoch(in: defaults)
-            guard UsageBudgetAccountBoundary.accepts(epoch, in: defaults) else { return (false, false, epoch) }
-            guard var session = UsageBudgetSession.load(from: defaults, groupId: groupId),
-                  session.expiresAt > now else { return (false, false, epoch) }
-            switch session.record(event: event, at: now) {
-            case .ignored:
-                return (false, false, epoch)
-            case .implausible:
-                // Fail closed without re-entering the daemon from its callback.
-                // The app/widget can recover this paid balance with a fresh
-                // generation. Do not retry an untrusted baseline in a loop.
-                Logger(
-                    subsystem: "com.personalproject.StepsTrader",
-                    category: "UsageBudget"
-                ).error("Rejected implausible Screen Time threshold \(event, privacy: .public) after \(now.timeIntervalSince(session.startedAt), privacy: .public)s")
-                session.invalidatedAt = now
-                session.monitoringFailed = true
-                session.save(to: defaults, groupId: groupId)
-                return (true, false, epoch)
-            case .recorded:
-                session.save(to: defaults, groupId: groupId)
-            }
-            // During registration the coordinator owns the registration lock.
-            // Do not re-enter it from a synchronous daemon callback. The saved
-            // queue remains recoverable if a very slow registration finishes it.
-            return (true, session.needsNextSegment && !session.monitoringFailed, epoch)
-        }
-        if result.needsContinuation {
-            // A delayed outgoing continuation must not recover a new account's group.
-            guard UsageBudgetAccountBoundary.accepts(result.epoch, in: defaults) else { return result.changed }
-            try startUsageBudgetMonitoring(defaults: defaults, groupId: groupId, now: now,
-                                           expectedAccountEpoch: result.epoch)
-        }
-        return result.changed
-    }
     #endif
 
-    // MARK: - Pending Widget Budget Monitoring
+    // MARK: - Pending Widget Pass Monitoring
 
-    /// Starts DeviceActivity monitoring for widget-initiated budgets. Called from rebuild()
+    /// Starts DeviceActivity monitoring for widget-initiated passes. Called from rebuild()
     /// so monitoring begins immediately when the widget removes the shield, rather than
     /// waiting for the main app to foreground (which may be minutes/hours later).
     static func startPendingWidgetBudgets() {
@@ -888,7 +748,7 @@ enum ShieldRebuildHelper {
                 defaults.removeObject(forKey: pendingKey)
                 defaults.removeObject(forKey: minutesKey)
             } catch {
-                // Keep the pending handoff for recovery; new widget purchases register
+                // Keep the pending handoff for recovery; widget purchases register
                 // synchronously before charging or removing shields.
             }
         }

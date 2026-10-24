@@ -17,16 +17,14 @@ class UsageBudgetShieldRaceTests(unittest.TestCase):
         cls.addClassCleanup(cls.directory.cleanup)
         folder = Path(cls.directory.name)
         shared = (ROOT / "Shared/ShieldRebuildHelper.swift").read_text()
-        models = shared[shared.index("enum UsageBudgetThresholdResult:"):shared.index("// MARK: - Shield Rebuild")]
+        models = shared[shared.index("struct UsageBudgetSession:"):shared.index("// MARK: - Shield Rebuild")]
         predicates = shared[shared.index("    private static func coercedDate"):shared.index("    // MARK: - Public")]
-        start = predicates.index("    static func usageSelectionMatches")
-        end = predicates.index("    /// Resolve callbacks", start)
-        predicates = predicates[:start] + "    static func usageSelectionMatches(defaults: UserDefaults, groupId: String, session: UsageBudgetSession) -> Bool { true }\n" + predicates[end:]
         rebuild = shared[shared.index("    static func rebuild("):shared.index("    // MARK: - Usage Budget Schedule")]
         rebuild = rebuild.replace("        #if canImport(ManagedSettings) && canImport(FamilyControls)\n", "").replace("        #endif\n", "")
         source = (ROOT / "Scripts/Fixtures/UsageBudgetShieldHarness.swift").read_text()
         for key, value in [("MODELS", models), ("PREDICATES", predicates), ("REBUILD", rebuild)]:
             source = source.replace("/*__" + key + "__*/", value)
+        source = source.replace("/*__LEGACY_CLEAR__*/", "static func clearLegacyUsageBudgets(defaults: UserDefaults) {}\n")
         script = folder / "main.swift"
         script.write_text(source)
         cls.binary = folder / "shield-contract"

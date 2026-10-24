@@ -19,7 +19,7 @@ class AccountHistoryCoordinatorTests(unittest.TestCase):
         coordinator_path = Path(os.environ.get("NOWHERE_COORDINATOR_SOURCE", ROOT / "Nowhere/Services/AccountHistoryCoordinator.swift"))
         coordinator = coordinator_path.read_text().replace("import DeviceActivity\n", "")
         shared = (ROOT / "Shared/ShieldRebuildHelper.swift").read_text()
-        models = shared[shared.index("enum UsageBudgetThresholdResult:"):shared.index("/// A small `flock` wrapper")]
+        models = shared[shared.index("struct UsageBudgetSession:"):shared.index("/// A small `flock` wrapper")]
         source = (ROOT / "Scripts/Fixtures/AccountHistoryCoordinatorHarness.swift").read_text()
         app_model = Path(os.environ.get("NOWHERE_RESTART_SOURCE", ROOT / "Nowhere/AppModel.swift")).read_text()
         restart = app_model[app_model.index("    func restartAccountHistoryWork()"):app_model.index("    /// Reuse the local loaders")]

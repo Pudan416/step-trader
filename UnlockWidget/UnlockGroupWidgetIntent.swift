@@ -73,6 +73,9 @@ struct UnlockGroupWidgetIntent: AppIntent {
         }
         model.checkDayBoundary()
         let defaults = SharedKeys.appGroupDefaults()
+        if ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId) {
+            throw WidgetPurchaseFailure(message: String(localized: "This group is already unlocked"))
+        }
         let debounceKey = "widgetUnlockLastRequestedAt_\(groupId)"
         if let last = defaults.object(forKey: debounceKey) as? Date,
            Date().timeIntervalSince(last) < 3 { return .result() }

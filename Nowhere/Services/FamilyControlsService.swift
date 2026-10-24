@@ -81,9 +81,8 @@ final class FamilyControlsService: ObservableObject, FamilyControlsServiceProtoc
     }
 
     #if canImport(FamilyControls)
-    /// One initial usage event per ticket group supplements deadline reconciliation.
-    /// A cumulative threshold is not a recurring minute timer; purchase schedules
-    /// themselves provide the interval-end callback that closes each access window.
+    /// A one-minute app-use heartbeat supports pending widget handoff and deadline
+    /// reconciliation. The purchased pass has its own wall-clock end monitor.
     private func buildHeartbeatEvents() -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
         let g = UserDefaults.nowhere()
         var events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [:]

@@ -3,10 +3,10 @@ import Foundation
 import DeviceActivity
 #endif
 
-/// Why a usage-budget monitor refused to start.
+/// Why a timed access deadline monitor refused to start.
 ///
 /// `DeviceActivity` caps an app and its extensions at twenty concurrently monitored
-/// activities. The ceiling counts open windows, not rows in the list, so reaching it
+/// activities. The ceiling counts open passes, not rows in the list, so reaching it
 /// is unlikely — but it must fail legibly rather than leaving an app the user paid
 /// to block sitting open.
 enum UsageBudgetMonitoringError: Equatable, Sendable {

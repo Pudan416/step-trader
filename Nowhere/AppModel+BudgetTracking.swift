@@ -10,7 +10,7 @@ extension AppModel {
     /// NOT reset the current day's economy: the old implementation called
     /// `checkDayBoundary()` here, which — because changing the boundary shifts the
     /// computed day key — was treated as a rollover and wiped `spentStepsToday`,
-    /// selections, base energy, the canvas, and active usage budgets. That was
+    /// selections, base energy, the canvas, and active timed access. That was
     /// both a data-loss bug and an exploit (toggling the setting refunded spent
     /// colors → free unlocks). We now re-anchor the current day in place instead.
     func updateDayEnd(hour: Int, minute: Int) {
@@ -79,15 +79,15 @@ extension AppModel {
             .scheduleDayResetWarning(dayEndHour: dayEndHour, dayEndMinute: dayEndMinute)
     }
 
-    /// Move the daily anchor to the new day-start WITHOUT resetting progress.
+    /// Move the daily anchor to the new day-start without touching a live pass.
     ///
     /// Changing the day-end shifts where "today" begins, which can make
     /// `dayKey(for: .now)` differ from the stored anchor's day key while the user
     /// is still within the same calendar session. Letting `checkDayBoundary` see
-    /// that as a rollover would wipe spent/earned state and usage budgets. Instead
+    /// that as a rollover would wipe spent/earned state and a live timed pass. Instead
     /// we re-stamp the anchors and `lastDayKey` to the new boundary, keep all
-    /// economy state intact, and extend any live usage-budget expiries so a
-    /// running unlock isn't cut short (or orphaned past) the new day-end.
+    /// economy state intact. Timed access expires at its own deadline, not the
+    /// custom day boundary.
     private func reanchorForDayEndChange() {
         let g = UserDefaults.nowhere()
         let now = Date.now
@@ -96,30 +96,6 @@ extension AppModel {
         g.set(newDayStart, forKey: SharedKeys.dailyEnergyAnchor)
         g.set(newDayStart, forKey: SharedKeys.stepsBalanceAnchor)
         lastDayKey = Self.dayKey(for: now)
-
-        // Preserve usage already counted, and only shorten calendar validity.
-        let newDayEnd = DayBoundary.nextBoundary(
-            after: now,
-            dayEndHour: dayEndHour,
-            dayEndMinute: dayEndMinute
-        )
-        do {
-            try ShieldRebuildHelper.withUsageBudgetLock {
-                g.synchronize()
-                defer { g.synchronize() }
-                for group in ticketGroups where g.integer(forKey: SharedKeys.usageBudgetKey(group.id)) > 0 {
-                    let expiryKey = SharedKeys.usageBudgetExpiryKey(group.id)
-                    let existing = g.object(forKey: expiryKey) as? Date
-                    g.set(min(existing ?? newDayEnd, newDayEnd), forKey: expiryKey)
-                    if var session = UsageBudgetSession.load(from: g, groupId: group.id) {
-                        session.expiresAt = min(session.expiresAt, newDayEnd)
-                        session.save(to: g, groupId: group.id)
-                    }
-                }
-            }
-        } catch {
-            AppLogger.shield.error("Cannot update budget day boundary: \(error.localizedDescription)")
-        }
 
         ensureUsageBudgetMonitoringForActiveGroups()
 

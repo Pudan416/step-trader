@@ -86,15 +86,3 @@ final class UsageBudgetScheduleTests: XCTestCase {
     }
 }
 #endif
-
-/// Purchased usage survives idle time until the custom day closes.
-final class PurchaseExpiryTests: XCTestCase {
-    func testTenUsageMinutesRemainAvailableUntilCustomDayBoundary() {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Belgrade")!
-        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 12, hour: 14))!
-        let expiry = DayBoundary.purchaseExpiry(minutes: 10, dayEndHour: 1, dayEndMinute: 0,
-            now: now, calendar: calendar)
-        XCTAssertEqual(expiry, DayBoundary.nextBoundary(after: now, dayEndHour: 1, dayEndMinute: 0, calendar: calendar))
-    }
-}

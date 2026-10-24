@@ -22,14 +22,12 @@ struct DeviceActivityCenter {
     static var schedules: [DeviceActivityName: DeviceActivitySchedule] = [:]
     static var startCalls = 0
     static var failStart = false
-    static var onStart: (() throws -> Void)?
     func startMonitoring(_ name: DeviceActivityName, during schedule: DeviceActivitySchedule,
                          events: [DeviceActivityEvent.Name: DeviceActivityEvent]) throws {
         Self.startCalls += 1
         if Self.failStart { throw NSError(domain: "TestDaemon", code: 1) }
         Self.registrations[name] = events
         Self.schedules[name] = schedule
-        if let hook = Self.onStart { Self.onStart = nil; try hook() }
     }
     func stopMonitoring(_ names: [DeviceActivityName]) {
         for name in names {
@@ -43,17 +41,12 @@ struct DeviceActivityCenter {
     func schedule(for name: DeviceActivityName) -> DeviceActivitySchedule? { Self.schedules[name] }
 }
 enum SharedKeys {
-    static let dayEndHour = "hour"
-    static let dayEndMinute = "minute"
+    static let appGroupId = "test.group"
+    static let timedAccessMigrationVersion = "migration"
     static func usageBudgetKey(_ id: String) -> String { "budget_" + id }
     static func usageBudgetInitialKey(_ id: String) -> String { "initial_" + id }
     static func usageBudgetStartedKey(_ id: String) -> String { "started_" + id }
     static func usageBudgetExpiryKey(_ id: String) -> String { "expiry_" + id }
-}
-enum DayBoundary {
-    static func purchaseExpiry(minutes: Int, dayEndHour: Int, dayEndMinute: Int, now: Date) -> Date {
-        now.addingTimeInterval(43200)
-    }
 }
 // INSERT_MODEL
 
@@ -63,36 +56,23 @@ enum ShieldRebuildHelper {
         let active = true
         let selectionData: Data? = Data([1])
     }
-    static var afterUnlock: (() -> Void)?
     static var rebuildCalls = 0
     static func rebuild(startPendingBudgets: Bool = true) { rebuildCalls += 1 }
     static let locks = FileManager.default.temporaryDirectory
-        .appendingPathComponent("recovery-locks-" + UUID().uuidString)
+        .appendingPathComponent("timed-access-locks-" + UUID().uuidString)
     static func usageBudgetLock(named name: String) throws -> UsageBudgetFileLock {
         try FileManager.default.createDirectory(at: locks, withIntermediateDirectories: true)
         return UsageBudgetFileLock(fileURL: locks.appendingPathComponent(name))
     }
     static func withUsageBudgetLock<T>(_ body: () throws -> T) throws -> T {
-        let result = try usageBudgetLock(named: "usage-budget.lock").withLock(body)
-        // Schedule a competing operation at a real lock-release boundary.
-        if let hook = afterUnlock { afterUnlock = nil; hook() }
-        return result
+        try usageBudgetLock(named: "usage-budget.lock").withLock(body)
     }
     static func loadGroups(defaults: UserDefaults) -> [Group] { [Group()] }
-    static func usageBudgetSchedule(endingAt: Date, anchoredAt: Date) -> DeviceActivitySchedule? {
-        endingAt > anchoredAt ? DeviceActivitySchedule(intervalEnd: endingAt) : nil
-    }
     static func cachedSelection(for id: String, data: Data) -> FamilyActivitySelection? {
         FamilyActivitySelection()
     }
-    static var selectionMatches = true
-    static func usageSelectionMatches(defaults: UserDefaults, groupId: String,
-                                      session: UsageBudgetSession) -> Bool { selectionMatches }
-    static func usageEvents(selection: FamilyActivitySelection,
-                            session: UsageBudgetSession) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
-        Dictionary(uniqueKeysWithValues: (1...session.initialMinutes).map {
-            (DeviceActivityEvent.Name(session.eventName(minute: $0)), DeviceActivityEvent())
-        })
+    static func usageBudgetSchedule(endingAt expiry: Date, anchoredAt now: Date) -> DeviceActivitySchedule? {
+        expiry > now ? DeviceActivitySchedule(intervalEnd: expiry) : nil
     }
 // INSERT_PREDICATES
 // INSERT_TRANSACTIONS
@@ -101,197 +81,58 @@ enum ShieldRebuildHelper {
 func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() { print("FAIL: " + message); exit(1) }
 }
-let t = Date(timeIntervalSince1970: 1_789_200_000)
-let suite = "UsageBudgetRecovery." + UUID().uuidString
+let t = Date.now.addingTimeInterval(1_000)
+let suite = "TimedAccessPass." + UUID().uuidString
 let defaults = UserDefaults(suiteName: suite)!
 defer {
     defaults.removePersistentDomain(forName: suite)
     try? FileManager.default.removeItem(at: ShieldRebuildHelper.locks)
 }
-var original = UsageBudgetSession(minutes: 10, startedAt: t, expiresAt: t.addingTimeInterval(43200))
-original.monitoredSelectionData = Data([1])
-original.save(to: defaults, groupId: "G")
 let center = DeviceActivityCenter()
-let originalName = DeviceActivityName(original.activityName(groupId: "G"))
-try center.startMonitoring(originalName, during: DeviceActivitySchedule(intervalEnd: original.expiresAt),
-    events: ShieldRebuildHelper.usageEvents(selection: FamilyActivitySelection(), session: original))
-DeviceActivityCenter.startCalls = 0
-func current() -> UsageBudgetSession { UsageBudgetSession.load(from: defaults, groupId: "G")! }
-func earlyThreshold() throws {
-    _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-        event: original.eventName(minute: 10), now: t.addingTimeInterval(13))
-}
+func current() -> UsageBudgetSession? { UsageBudgetSession.load(from: defaults, groupId: "G") }
 
 switch CommandLine.arguments[1] {
-case "account_sessions":
-    let oldEpoch = UsageBudgetAccountBoundary.epoch(in: defaults)
-    let names = UsageBudgetAccountBoundary.suspend(defaults: defaults, now: t)
-    expect(names.contains(original.activityName(groupId: "G")), "Pause must report outgoing daemon names")
-    expect(current().remainingMinutes == original.remainingMinutes, "Pause must retain paid minutes")
-    expect(current().monitoringFailed && current().invalidatedAt != nil, "Archived measurement must be invalidated")
-    expect(!UsageBudgetAccountBoundary.accepts(oldEpoch, in: defaults), "Old epoch must stay invalid")
+case "purchase_starts_deadline":
+    try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t)
+    let pass = current()!
+    expect(pass.expiresAt == t.addingTimeInterval(10 * 60), "Pass deadline must be purchase time plus its duration")
+    expect(!pass.monitoringFailed, "A successfully monitored pass must be active")
+    expect(center.events(for: DeviceActivityName(pass.activityName(groupId: "G"))).isEmpty,
+           "A time pass must not register usage thresholds")
+case "active_purchase_rejected":
+    try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t)
+    let originalDeadline = current()!.expiresAt
+    do {
+        try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 30,
+                                                     now: t.addingTimeInterval(60))
+        expect(false, "Second purchase must be rejected while a pass is active")
+    } catch {}
+    expect(current()?.expiresAt == originalDeadline, "A rejected purchase must not extend the timer")
+    expect(DeviceActivityCenter.startCalls == 1, "A rejected purchase must not register another monitor")
+case "recovery_keeps_deadline":
+    try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 30, now: t)
+    let pass = current()!
+    let name = DeviceActivityName(pass.activityName(groupId: "G"))
+    center.stopMonitoring([name])
+    try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(5 * 60))
+    expect(current()?.expiresAt == pass.expiresAt, "Restoring the monitor must keep the original deadline")
+    expect(center.schedule(for: name)?.intervalEnd == pass.expiresAt, "Restored monitor must end at the original deadline")
+case "failed_purchase_rolls_back":
+    DeviceActivityCenter.failStart = true
     do {
         try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t)
-        fatalError("Purchase during rotation must be rejected")
+        expect(false, "A monitor registration failure must fail the purchase")
     } catch {}
-    expect(DeviceActivityCenter.startCalls == 0 && current().remainingMinutes == 10, "Paused purchase must not change account balance")
-    UsageBudgetAccountBoundary.resume(defaults: defaults)
-    try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t)
-    expect(current().generation != original.generation, "Returning account requires a fresh daemon identity")
-    expect(current().remainingMinutes == 10 && !current().monitoringFailed, "Fresh monitor must retain original paid balance")
-    let incoming = current()
-    let accepted = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-        event: original.eventName(minute: 10), now: t.addingTimeInterval(600))
-    expect(!accepted && current() == incoming, "Late outgoing activity must not charge incoming account")
-case "account_callback_continuation":
-    original.queuedMinutes = 5
-    original.save(to: defaults, groupId: "G")
-    var incoming = UsageBudgetSession(minutes: 30, startedAt: t, expiresAt: original.expiresAt)
-    incoming.monitoringFailed = true
-    ShieldRebuildHelper.afterUnlock = {
-        defaults.set(UUID().uuidString, forKey: "accountHistoryBudgetEpoch_v1")
-        incoming.save(to: defaults, groupId: "G")
-    }
-    _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-        event: original.eventName(minute: 10), now: t.addingTimeInterval(600))
-    expect(current() == incoming, "Outgoing callback continuation must not replace incoming account session")
-    expect(DeviceActivityCenter.startCalls == 0, "Outgoing callback must not start incoming account recovery")
-case "implausible_pause":
-    try earlyThreshold()
-    expect(current().remainingMinutes == 10, "Impossible threshold must preserve paid minutes")
-    expect(current().monitoringFailed, "Invalid measurement must close access until recovery")
-    expect(DeviceActivityCenter.startCalls == 0, "A callback must not synchronously re-arm an invalid monitor")
-case "topup_during_callback":
-    ShieldRebuildHelper.afterUnlock = {
-        try! ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G",
-                                                     minutes: 10, now: t.addingTimeInterval(13))
-        expect(current().remainingMinutes == 20, "Top-up must succeed before recovery finishes")
-    }
-    try earlyThreshold()
-    expect(current().remainingMinutes == 20, "Recovery discarded a concurrent paid top-up")
-case "purchase_during_recovery":
-    center.stopMonitoring([originalName])
-    ShieldRebuildHelper.afterUnlock = {
-        try! ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G",
-                                                     minutes: 10, now: t.addingTimeInterval(13))
-    }
-    try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(13))
-    expect(current().remainingMinutes == 20, "Stale foreground recovery overwrote a newer purchase")
-    expect(DeviceActivityCenter.startCalls == 1, "A newer healthy monitor must survive stale recovery")
-case "failure_preserves_paid":
-    center.stopMonitoring([originalName])
-    DeviceActivityCenter.failStart = true
-    do {
-        try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(13))
-        expect(false, "Daemon failure must propagate")
-    } catch {}
-    expect(current().remainingMinutes == 10 && current().monitoringFailed, "Failed recovery must retain a paused paid balance")
-    DeviceActivityCenter.failStart = false
-    try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(14))
-    expect(current().remainingMinutes == 10 && !current().monitoringFailed, "Retry must resume without another purchase")
-case "old_events_after_pause":
-    try earlyThreshold()
-    let rejectedGeneration = current()
-    _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-        event: rejectedGeneration.eventName(minute: 10), now: t.addingTimeInterval(3600))
-    expect(current().remainingMinutes == 10, "A rejected generation must never consume paid minutes later")
-case "recovery_without_overlapping_monitor":
-    try earlyThreshold()
-    DeviceActivityCenter.onStart = {
-        expect(DeviceActivityCenter.registrations[originalName] == nil,
-               "A new usage monitor must not start while the rejected monitor is still registered")
-    }
-    try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(14))
-    expect(current().remainingMinutes == 10 && !current().monitoringFailed,
-           "Replacing the rejected monitor must reopen the paid balance")
-case "failed_replacement_pauses_old_balance":
-    ShieldRebuildHelper.selectionMatches = false
-    DeviceActivityCenter.failStart = true
-    do {
-        try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10,
-                                                    now: t.addingTimeInterval(14))
-        expect(false, "Replacement failure must propagate")
-    } catch {}
-    expect(DeviceActivityCenter.registrations[originalName] == nil,
-           "The rejected baseline must not remain registered after replacement fails")
-    expect(current().remainingMinutes == 10 && current().monitoringFailed,
-           "Paid minutes without a live monitor must be shielded and recoverable")
-    expect(ShieldRebuildHelper.rebuildCalls == 1,
-           "Failed replacement must reapply the shield after stopping the old monitor")
-case "callback_during_registration":
-    center.stopMonitoring([originalName])
-    DeviceActivityCenter.onStart = {
-        let provisional = current()
-        _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-            event: provisional.eventName(minute: 10), now: t.addingTimeInterval(14))
-    }
-    do {
-        try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(13))
-        expect(false, "Registration must not silently clear a rejected baseline")
-    } catch {}
-    expect(current().remainingMinutes == 10 && current().monitoringFailed, "Synchronous bad callback must preserve a paused balance")
-    expect(DeviceActivityCenter.startCalls == 1, "Bad callbacks must not recursively register")
-case "rollback_projection":
-    original.consumedMinutes = 2
-    original.save(to: defaults, groupId: "G")
-    center.stopMonitoring([originalName])
-    DeviceActivityCenter.onStart = {
-        let provisional = current()
-        _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-            event: provisional.eventName(minute: 1), now: t.addingTimeInterval(73))
-        throw NSError(domain: "TestDaemon", code: 2)
-    }
-    do {
-        try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t.addingTimeInterval(13))
-        expect(false, "Failed registration must fail the purchase")
-    } catch {}
-    expect(current().remainingMinutes == 8, "Failure must restore the original paid balance")
-    expect(defaults.integer(forKey: SharedKeys.usageBudgetKey("G")) == 8,
-           "Widget projection must roll back with the authoritative session")
-case "first_purchase_failure":
-    for key in [UsageBudgetSession.key("G"), SharedKeys.usageBudgetKey("G"),
-                SharedKeys.usageBudgetInitialKey("G"), SharedKeys.usageBudgetStartedKey("G"),
-                SharedKeys.usageBudgetExpiryKey("G")] { defaults.removeObject(forKey: key) }
-    center.stopMonitoring([originalName])
-    DeviceActivityCenter.onStart = {
-        let provisional = current()
-        _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-            event: provisional.eventName(minute: 1), now: t.addingTimeInterval(73))
-        throw NSError(domain: "TestDaemon", code: 2)
-    }
-    do {
-        try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t.addingTimeInterval(13))
-        expect(false, "Failed first registration must fail the purchase")
-    } catch {}
-    expect(UsageBudgetSession.load(from: defaults, groupId: "G") == nil, "Failed first purchase must remove provisional state")
-    expect(ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: "G", at: t.addingTimeInterval(74)) == 0,
-           "Failed first purchase must not leave unpaid legacy minutes")
-case "legacy_recovery_failure":
-    defaults.removeObject(forKey: UsageBudgetSession.key("G"))
-    center.stopMonitoring([originalName])
-    DeviceActivityCenter.failStart = true
-    do {
-        try ShieldRebuildHelper.startUsageBudgetMonitoring(defaults: defaults, groupId: "G", now: t.addingTimeInterval(13))
-        expect(false, "Legacy recovery failure must propagate")
-    } catch {}
-    let paused = UsageBudgetSession.load(from: defaults, groupId: "G")
-    expect(paused?.remainingMinutes == 10 && paused?.monitoringFailed == true,
-           "Legacy paid minutes must become a paused session after failed recovery")
-case "healthy_topup":
-    try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t.addingTimeInterval(13))
-    expect(current().generation == original.generation && current().remainingMinutes == 20,
-           "Healthy top-ups must retain Apple's partial usage and add paid minutes")
-    expect(DeviceActivityCenter.startCalls == 0, "Healthy top-up must not replace its monitor")
-case "continuation":
-    original.queuedMinutes = 10
-    original.save(to: defaults, groupId: "G")
-    _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-        event: original.eventName(minute: 10), now: t.addingTimeInterval(600))
-    expect(current().remainingMinutes == 10 && !current().monitoringFailed, "Next segment must retain the paid queue")
-    expect(current().generation != original.generation, "Next segment needs a fresh measurement")
-    _ = try ShieldRebuildHelper.recordUsageThreshold(defaults: defaults, groupId: "G",
-        event: original.eventName(minute: 10), now: t.addingTimeInterval(1200))
-    expect(current().remainingMinutes == 10, "Replayed old final threshold must not spend the next segment")
+    expect(current() == nil, "Failed first purchase must remove provisional pass state")
+    expect(ShieldRebuildHelper.remainingUsageBudget(defaults: defaults, groupId: "G", at: t) == 0,
+           "Failed purchase must not leave access enabled")
+case "expired_purchase_can_restart":
+    try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 10, now: t)
+    let first = current()!
+    let secondStart = first.expiresAt.addingTimeInterval(1)
+    try ShieldRebuildHelper.purchaseUsageBudget(defaults: defaults, groupId: "G", minutes: 30, now: secondStart)
+    expect(current()?.startedAt == secondStart, "A new pass may start after the previous one expires")
+    expect(current()?.expiresAt == secondStart.addingTimeInterval(30 * 60), "The new pass gets its own deadline")
 default: fatalError("Unknown scenario")
 }
 print("PASS: " + CommandLine.arguments[1])

@@ -12,7 +12,7 @@ enum FeedRowKind: Equatable, Sendable {
 }
 
 /// The row is the timer: once access is bought, its yellow fill shows the
-/// exact share of purchased usage that remains.
+/// exact share of the purchased pass time that remains.
 enum FeedRowAccessState: Equatable, Sendable {
     case locked
     case active(remainingMinutes: Int, fillFraction: Double)

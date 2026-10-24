@@ -24,6 +24,12 @@ struct Logger {
     init(subsystem: String, category: String) {}
     func error(_ message: String) { print(message) }
 }
+struct DeviceActivityName { let rawValue: String; init(_ rawValue: String) { self.rawValue = rawValue } }
+struct DeviceActivitySchedule { let intervalEnd: Date }
+struct DeviceActivityCenter {
+    func schedule(for name: DeviceActivityName) -> DeviceActivitySchedule? { nil }
+    func events(for name: DeviceActivityName) -> [String: Int] { [:] }
+}
 final class ShieldStub {
     private let lock = NSLock()
     private var storedApplications: Set<Int>?
@@ -52,6 +58,7 @@ enum ShieldRebuildHelper {
     static func withUsageBudgetLock<T>(_ body: () throws -> T) throws -> T {
         try stateLock.withLock(body)
     }
+/*__LEGACY_CLEAR__*/
     static func loadGroups(defaults: UserDefaults) -> [GroupTuple] {
         configuredGroups
     }
