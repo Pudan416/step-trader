@@ -23,8 +23,14 @@ class SyncTransitionTests(unittest.TestCase):
         source = source.replace('/*STATE*/', '\n'.join(declaration(core, marker) for marker in [
             'struct SupabaseSyncEpoch:', 'final class SupabaseSyncTransitionState:', 'final class SupabaseSyncOperation:']))
         source = source.replace('/*METHODS*/', '\n'.join(declaration(core, marker) for marker in [
-            '    nonisolated func beginAccountSwitch()', '    func waitForSyncAuthentication()', '    func acceptsScheduledHistoryWork()', '    func beginSyncOperation(writing:']) + '\n' + '\n'.join(
+            '    nonisolated func beginAccountSwitch()', '    func waitForSyncAuthentication()', '    func acceptsScheduledHistoryWork()', '    func beginSyncOperation(writing:', '    func pauseForAccountSwitch()', '    func resumeAfterAccountSwitch()', '    func allowUploadsAfterRestore(']) + '\n' + '\n'.join(
                 declaration(routines, marker) for marker in ['    func syncSavedRoutines(', '    private func performSavedRoutinesSync(']))
+        analytics = (ROOT / 'Nowhere/Services/SupabaseSyncService+Analytics.swift').read_text()
+        source = source.replace('/*PERSIST*/', declaration(analytics, '    private func persistAnalyticsQueueToDefaults(') + '\n' + declaration(analytics, '    func persistAnalyticsSnapshotForAccountSwitch('))
+        spent = (ROOT / 'Nowhere/Services/SupabaseSyncService+Spent.swift').read_text()
+        selections = (ROOT / 'Nowhere/Services/SupabaseSyncService+Selections.swift').read_text()
+        source = source.replace('/*ADOPTION*/', declaration(spent, '    func performDailySpentSync(') + '\n' +
+                                declaration(selections, '    func restoreCustomHappeningsFromServer('))
         canvas = (ROOT / 'Nowhere/Services/SupabaseSyncService+Canvas.swift').read_text()
         source = source.replace('/*UPLOAD_ORDERING*/', declaration(canvas, '    static func runUpload('))
         with tempfile.TemporaryDirectory(prefix='nowhere-sync-transition-') as folder:

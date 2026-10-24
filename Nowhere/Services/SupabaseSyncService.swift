@@ -323,6 +323,10 @@ actor SupabaseSyncService {
         tasks.forEach { $0.cancel() }
         for task in tasks { await task.value }
         await transitionState.waitUntilIdle()
+        // An event can have entered memory immediately before its guarded normal
+        // persistence was invalidated. Commit the final outgoing queue while its
+        // working defaults still belong to the outgoing account.
+        await persistAnalyticsSnapshotForAccountSwitch()
         dailySelectionsSyncTask = nil; dailyStatsSyncTask = nil; dailySpentSyncTask = nil
         ticketGroupsSyncTask = nil; analyticsFlushTask = nil; dayCanvasSyncTask = nil
         preferencesSyncTask = nil; daySnapshotSyncTask = nil; entriesSyncTask = nil; routinesSyncTask = nil
@@ -348,7 +352,9 @@ actor SupabaseSyncService {
         let epoch = captureSyncEpoch()
         guard !Task.isCancelled,
               await AuthenticationService.shared.currentUser?.id == ownerID else { return false }
-        return transitionState.allowUploads(for: ownerID, epoch: epoch)
+        let allowed = transitionState.allowUploads(for: ownerID, epoch: epoch)
+        if allowed { analyticsIdentityDidChange() }
+        return allowed
     }
 
     let network = NetworkClient.shared
@@ -387,7 +393,7 @@ actor SupabaseSyncService {
     var daySnapshotSyncTask: Task<Void, Never>?
     var entriesSyncTask: Task<Void, Never>?
     var routinesSyncTask: Task<Void, Never>?
-    var canvasRecoveryTasks: [String: Task<Void, Never>] = [:]
+    var canvasRecoveryTasks: [UUID: Task<Void, Never>] = [:]
     
     // MARK: - Debounce Windows (nanoseconds)
     
@@ -524,7 +530,7 @@ actor SupabaseSyncService {
         _ request: URLRequest,
         optionEntryDeleteID: String? = nil
     ) {
-        guard let url = request.url?.absoluteString else { return }
+        guard acceptsScheduledHistoryWork(), let url = request.url?.absoluteString else { return }
         if let optionEntryDeleteID,
            OptionEntryRetrySupersession.deleteIDsToReplay(
                failedDeleteIDs: [optionEntryDeleteID],
@@ -550,6 +556,7 @@ actor SupabaseSyncService {
     }
 
     func supersedeQueuedOptionEntryDelete(id: String) {
+        guard acceptsScheduledHistoryWork() else { return }
         let queue = loadRetryQueue()
         let canonicalID = OptionEntryCanonicalIdentity.key(for: id)
         let filtered = queue.filter { $0.canonicalOptionEntryIdentity != canonicalID }
@@ -570,6 +577,7 @@ actor SupabaseSyncService {
     /// This is synchronous on the service actor so login/full sync cannot race
     /// ahead of migration and claim a previous account's queued entry.
     func migrateLegacyOptionEntryIntents() {
+        guard acceptsScheduledHistoryWork() else { return }
         let initialQueue = loadRetryQueue()
         let expiredQueueIDs = Set(initialQueue.filter(\.isExpired).map(\.queueID))
         let legacyOptionMutations = initialQueue.filter {
@@ -583,12 +591,14 @@ actor SupabaseSyncService {
 
     /// Drain the offline retry queue. Call on app launch or when connectivity is restored.
     func drainRetryQueue() async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         guard canvasUploadOrdering.beginRetryDrain() else { return }
         var ownsRetryDrain = true
         defer { if ownsRetryDrain { canvasUploadOrdering.endRetryDrain() } }
         migrateLegacyOptionEntryIntents()
         await drainPendingOptionEntryIntents()
-        guard let retryAuth = await authenticatedContext() else {
+        guard let retryAuth = await authenticatedContext(), syncOperation.isCurrent, retryAuth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Retry queue drain skipped: no auth token")
             return
         }
@@ -612,11 +622,13 @@ actor SupabaseSyncService {
         
         var acknowledgedQueueIDs = Set<String>()
         for entry in queue {
+            guard syncOperation.isCurrent else { return }
             if let upload = CanvasQueuedUpload(request: entry) {
                 guard canvasUploadOrdering.canReplay(dayKey: upload.canvas.dayKey) else { continue }
                 let superseded = await MainActor.run {
                     upload.isSuperseded(by: CanvasStorageService.shared.loadCanvas(for: upload.canvas.dayKey))
                 }
+                guard syncOperation.isCurrent else { return }
                 if superseded {
                     acknowledgedQueueIDs.insert(entry.queueID)
                     continue
@@ -647,6 +659,7 @@ actor SupabaseSyncService {
             
             do {
                 let (_, response) = try await network.data(for: request)
+                guard syncOperation.isCurrent else { return }
                 // Keep only transient failures. A permanent 4xx (bad body,
                 // conflict, auth) will never succeed on replay, so dropping it
                 // stops a doomed request from retrying on every launch for 3 days.
@@ -673,6 +686,7 @@ actor SupabaseSyncService {
                 // retries it unless a newer enqueue explicitly supersedes it.
             }
         }
+        guard syncOperation.isCurrent else { return }
         retryQueueStore.removeAcknowledged(queueIDs: acknowledgedQueueIDs)
         let remainingCount = loadRetryQueue().count
         AppLogger.network.debug("📡 Retry queue drained: \(acknowledgedQueueIDs.count) acknowledged, \(remainingCount) pending")
@@ -692,11 +706,11 @@ actor SupabaseSyncService {
 
     /// Waits for auth initialization and returns token + userId, or nil if unauthenticated.
     func authenticatedContext() async -> AuthContext? {
-        await AuthenticationService.shared.waitForInitialization()
-        guard let token = await AuthenticationService.shared.freshAccessToken(),
-              let userId = await AuthenticationService.shared.currentUser?.id else {
-            return nil
-        }
+        guard await waitForSyncAuthentication(),
+              let userId = await AuthenticationService.shared.currentUser?.id,
+              let token = await AuthenticationService.shared.freshAccessToken(),
+              !Task.isCancelled,
+              await AuthenticationService.shared.currentUser?.id == userId else { return nil }
         return AuthContext(token: token, userId: userId)
     }
 
@@ -711,11 +725,14 @@ actor SupabaseSyncService {
         baseQuery: [URLQueryItem],
         pageSize: Int
     ) async throws -> [T] {
+        guard let syncOperation = await beginSyncOperation(writing: false) else { throw CancellationError() }
+        defer { syncOperation.finish() }
         var all: [T] = []
         var offset = 0
         let decoder = JSONDecoder()
         
         while true {
+            guard syncOperation.isCurrent else { throw CancellationError() }
             guard var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
                 throw SyncError.misconfigured
             }
@@ -733,6 +750,7 @@ actor SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { throw CancellationError() }
             guard response.statusCode < 400 else {
                 throw SyncError.networkError
             }
@@ -754,9 +772,11 @@ actor SupabaseSyncService {
     
     /// Full sync - call on app launch or after login
     func performFullSync(model: AppModel) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         AppLogger.network.debug("📡 performFullSync called, waiting for auth initialization...")
         
-        await AuthenticationService.shared.waitForInitialization()
+        guard await waitForSyncAuthentication() else { return }
         let isAuthenticated = await AuthenticationService.shared.isAuthenticated
         let currentUserId = await AuthenticationService.shared.currentUser?.id
         let hasToken = await AuthenticationService.shared.accessToken != nil
@@ -792,6 +812,7 @@ actor SupabaseSyncService {
             )
         }
         
+        guard syncOperation.isCurrent else { return }
         let today = AppModel.dayKey(for: Date.now)
         let todaySpent = snapshot.appStepsSpentByDay[today] ?? [:]
         let totalSpent = todaySpent.values.reduce(0, +)
@@ -882,9 +903,11 @@ actor SupabaseSyncService {
     /// Apply available data; return true only after every happening-history
     /// section was read successfully, including confirmed empty sections.
     func restoreFromServer(model: AppModel) async -> Bool {
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return false }
+        defer { syncOperation.finish() }
         AppLogger.network.debug("📡 Starting restore from Supabase...")
         
-        await AuthenticationService.shared.waitForInitialization()
+        guard await waitForSyncAuthentication() else { return false }
         let isAuthenticated = await AuthenticationService.shared.isAuthenticated
         let currentUser = await AuthenticationService.shared.currentUser
         guard isAuthenticated, currentUser != nil else {
@@ -909,7 +932,10 @@ actor SupabaseSyncService {
         guard await AuthenticationService.shared.currentUser?.id == currentUser?.id else { return false }
         var didRestore = false
         if !history.happenings.isEmpty {
-            await MainActor.run { model.happeningStore.mergeRestored(history.happenings) }
+            await MainActor.run {
+                guard syncOperation.isCurrent else { return }
+                model.happeningStore.mergeRestored(history.happenings)
+            }
             didRestore = true
         }
         if !history.additions.isEmpty {
@@ -919,6 +945,7 @@ actor SupabaseSyncService {
                 return id
             })
             await MainActor.run {
+                guard syncOperation.isCurrent else { return }
                 // Canvas becomes editable before cloud work completes. Retain
                 // both fetched history and edits made while it was loading.
                 model.todayAdditions = HappeningRestoreMerge.entries(
@@ -935,6 +962,7 @@ actor SupabaseSyncService {
         if let spent = await loadTodaySpentFromServer() {
             if spent.totalSpent > 0 {
                 await MainActor.run {
+                    guard syncOperation.isCurrent else { return }
                     model.userEconomyStore.restoreDailySpend(totalSpent: spent.totalSpent, spentByApp: spent.spentByApp)
                 }
                 didRestore = true
@@ -943,6 +971,7 @@ actor SupabaseSyncService {
         
         if let prefs = await loadUserPreferencesFromServer() {
             await MainActor.run {
+                guard syncOperation.isCurrent else { return }
                 let g = UserDefaults.nowhere()
                 // Scalar preferences (across .standard / app-group / theme-mirror
                 // domains) route through one tested authority — see PreferencesStore.
@@ -988,6 +1017,7 @@ actor SupabaseSyncService {
         
         if !history.snapshots.isEmpty {
             await MainActor.run {
+                guard syncOperation.isCurrent else { return }
                 var local = model.loadPastDaySnapshots()
                 for (dayKey, serverSnapshot) in history.snapshots {
                     local[dayKey] = serverSnapshot
@@ -1003,6 +1033,7 @@ actor SupabaseSyncService {
 
         if !history.routines.isEmpty {
             await MainActor.run {
+                guard syncOperation.isCurrent else { return }
                 model.savedRoutines = history.routines
                 let g = UserDefaults.nowhere()
                 if let data = try? JSONEncoder().encode(history.routines) {
@@ -1016,6 +1047,7 @@ actor SupabaseSyncService {
         if didRestore {
             AppLogger.network.debug("📡 Restore completed, recalculating energy...")
             await MainActor.run {
+                guard syncOperation.isCurrent else { return }
                 model.reconstituteHappeningsFromHistory()
                 model.recalculateDailyEnergy()
             }
@@ -1023,7 +1055,7 @@ actor SupabaseSyncService {
             AppLogger.network.debug("📡 No data to restore from server (or all empty)")
         }
         
-        return true
+        return syncOperation.isCurrent
     }
 }
 

@@ -33,6 +33,7 @@ extension SupabaseSyncService {
         allowedCanvasShapes: [String] = CanvasShapeType.selectableCases.map(\.rawValue),
         allowedCanvasFills: [String] = TextureKind.allCases.map(\.rawValue)
     ) {
+        guard acceptsScheduledHistoryWork() else { return }
         let payload = UserPreferencesPayload(
             stepsTarget: stepsTarget,
             sleepTarget: sleepTarget,
@@ -81,7 +82,9 @@ extension SupabaseSyncService {
     
     /// Track wallpaper shortcut usage (lightweight, called from Intent)
     func trackWallpaperShortcutUsage() async {
-        guard let auth = await authenticatedContext() else {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Wallpaper shortcut tracking skipped: no auth")
             return
         }
@@ -115,6 +118,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONSerialization.data(withJSONObject: row)
             
             let (_, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if response.statusCode < 400 {
                 AppLogger.network.debug("📡 Wallpaper shortcut usage tracked: uses=\(uses)")
             }
@@ -126,15 +130,17 @@ extension SupabaseSyncService {
     // MARK: - Perform Preferences Sync
     
     func performPreferencesSync(payload: UserPreferencesPayload) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         if payload == lastSentPreferences { return }
         
         defer {
-            if pendingPreferences == payload {
+            if syncOperation.isCurrent, pendingPreferences == payload {
                 pendingPreferences = nil
             }
         }
         
-        guard let auth = await authenticatedContext() else {
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Preferences sync skipped: no auth")
             return
         }
@@ -191,6 +197,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONSerialization.data(withJSONObject: row)
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if Task.isCancelled { return }
             if response.statusCode < 400 {
                 lastSentPreferences = payload
@@ -228,7 +235,9 @@ extension SupabaseSyncService {
         allowedCanvasShapes: [String],
         allowedCanvasFills: [String]
     )? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
         
@@ -250,6 +259,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard response.statusCode < 400 else { return nil }
             
             let rows = try JSONDecoder().decode([UserPreferencesRow].self, from: data)

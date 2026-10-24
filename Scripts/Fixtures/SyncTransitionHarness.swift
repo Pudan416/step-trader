@@ -30,11 +30,64 @@ actor NetworkFixture {
     func release() { blocked = false; continuation?.resume(); continuation = nil }
     func count() -> Int { requests.count }
 }
+enum SharedKeys { static let analyticsEventsQueue = "analytics-fixture" }
+extension UserDefaults {
+    static let fixture = UserDefaults(suiteName: "nowhere-sync-fixture-\(UUID().uuidString)")!
+    static func nowhere() -> UserDefaults { fixture }
+}
+actor Suspension {
+    var waiting = false
+    var continuation: CheckedContinuation<Void, Never>?
+    func wait() async { waiting = true; await withCheckedContinuation { continuation = $0 } }
+    func release() { continuation?.resume(); continuation = nil }
+}
+struct DailySpentPayload: Equatable { let dayKey: String; let totalSpent: Int; let spentByApp: [String: Int] }
+struct DailySpentRow: Encodable { let userId: String; let dayKey: String; let totalSpent: Int; let spentByApp: [String: Int]; let updatedAt: String }
+struct CanvasUploadOrdering {}
+@MainActor final class AppModel {
+    var happenings: [String] = []
+    func mergeRestoredHappenings(_ values: [String]) { happenings += values }
+}
 actor SupabaseSyncService {
     @TaskLocal nonisolated static var historySyncEpoch: SupabaseSyncEpoch?
     nonisolated let transitionState = SupabaseSyncTransitionState()
     nonisolated func captureSyncEpoch() -> SupabaseSyncEpoch { transitionState.capture() }
     var routinesSyncTask: Task<Void, Never>?
+    var dailySelectionsSyncTask: Task<Void, Never>?
+    var dailyStatsSyncTask: Task<Void, Never>?
+    var dailySpentSyncTask: Task<Void, Never>?
+    var ticketGroupsSyncTask: Task<Void, Never>?
+    var analyticsFlushTask: Task<Void, Never>?
+    var dayCanvasSyncTask: Task<Void, Never>?
+    var preferencesSyncTask: Task<Void, Never>?
+    var daySnapshotSyncTask: Task<Void, Never>?
+    var entriesSyncTask: Task<Void, Never>?
+    var canvasRecoveryTasks: [UUID: Task<Void, Never>] = [:]
+    var pendingDailySelections: String?, pendingDailyStats: String?, pendingDayCanvas: String?, pendingPreferences: String?
+    var pendingDailySpent: DailySpentPayload?
+    var lastSentDailySpent: DailySpentPayload?
+    var lastSentDailySelections: String?, lastSentDailyStats: String?, lastSentDayCanvas: String?, lastSentPreferences: String?
+    var pendingTicketGroupsPayload: [String] = [], lastSentTicketGroupsPayload: [String] = []
+    var cachedTodaySelections: String?, cachedTodayStats: String?, cachedTodaySpent: String?
+    var lastSyncedCustomActivitiesHash = 42
+    var lastSyncedDayKey = "A"
+    var analyticsDedupeKeys: Set<String> = ["A"]
+    var canvasUploadOrdering = CanvasUploadOrdering()
+    var pendingAnalyticsEvents: [String] = ["A"]
+
+    func loadCustomHappeningsFromServer() async -> [String]? {
+        _ = try? await network.data(for: URLRequest(url: URL(string: "https://fixture.invalid/read")!))
+        return ["A-history"]
+    }
+    /*ADOPTION*/
+    /*PERSIST*/
+    func queueDelayedAnalytics(_ suspension: Suspension) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
+        pendingAnalyticsEvents.append("A-new")
+        await suspension.wait()
+        await persistAnalyticsQueueToDefaults(syncOperation: syncOperation)
+    }
     let network = NetworkFixture()
     var retryCount = 0
     func enqueueForRetry(_ request: URLRequest) { retryCount += 1 }
@@ -44,10 +97,12 @@ actor SupabaseSyncService {
         guard let owner = await AuthenticationService.shared.currentUser else { return nil }
         return AuthContext(token: owner.id, userId: owner.id)
     }
+    func analyticsIdentityDidChange() {}
     func worker() -> Task<Void, Never>? { routinesSyncTask }
     /*METHODS*/
 }
 enum FixtureUploadOrdering { /*UPLOAD_ORDERING*/ }
+func loadAnalyticsQueueFromDefaults() -> [String] { ["B"] }
 actor Flag { var value = false; func set() { value = true } }
 func require(_ condition: Bool, _ message: String) { if !condition { fatalError(message) } }
 @main struct Tests {
@@ -124,5 +179,59 @@ func require(_ condition: Bool, _ message: String) { if !condition { fatalError(
         await producer.value
         await parentService.transitionState.waitUntilIdle()
         print("PASS first invalidation lets canceled producer drain uncanceled upload child before auth finishes")
+        let uncanceled = Task { await startupService.performSavedRoutinesSync([]) }
+        try? await Task.sleep(for: .milliseconds(30))
+        startupService.transitionState.suspend()
+        await uncanceled.value
+        print("PASS pause also drains an uncanceled Canvas-style child waiting for auth")
+        await AuthenticationService.shared.setInitialized(true)
+        await AuthenticationService.shared.setOwner("A")
+        let writer = SupabaseSyncService()
+        await writer.network.block()
+        let payload = DailySpentPayload(dayKey: "2099-01-01", totalSpent: 13, spentByApp: ["fixture": 13])
+        let sent = Task { await writer.performDailySpentSync(payload: payload) }
+        while await writer.network.count() == 0 { await Task.yield() }
+        let paused = Flag()
+        let pausing = Task { await writer.pauseForAccountSwitch(); await paused.set() }
+        while writer.transitionState.allows(writer.captureSyncEpoch(), writing: true) { await Task.yield() }
+        require(await paused.value == false, "actual pause must await direct writer lease")
+        require(await writer.lastSyncedCustomActivitiesHash == 42, "cache reset must follow drain")
+        await writer.network.release()
+        await sent.value
+        await pausing.value
+        require(await writer.lastSentDailySpent == nil, "late daily-spent response cannot ACK cache")
+        require(await writer.lastSyncedCustomActivitiesHash == 0, "cache reset after drain")
+        require(await writer.pendingAnalyticsEvents == ["A"], "pause cannot drop persisted queue payload")
+        await AuthenticationService.shared.setOwner("B")
+        await writer.resumeAfterAccountSwitch()
+        require(await writer.pendingAnalyticsEvents == ["B"], "incoming account queue must reload")
+        require(await writer.allowUploadsAfterRestore(for: "A") == false, "owner ready must verify current auth")
+        require(await writer.allowUploadsAfterRestore(for: "B"), "incoming owner can become ready")
+        print("PASS actual pause drains daily-spent writer before cache reset, rejects late ACK, preserves queue")
+        let reader = SupabaseSyncService()
+        await reader.network.block()
+        let model = await AppModel()
+        let restoring = Task { await reader.restoreCustomHappeningsFromServer(model: model) }
+        while await reader.network.count() == 0 { await Task.yield() }
+        let pauseRead = Task { await reader.pauseForAccountSwitch() }
+        while reader.transitionState.allows(reader.captureSyncEpoch(), writing: false) { await Task.yield() }
+        await reader.network.release()
+        await restoring.value
+        await pauseRead.value
+        require(await model.happenings.isEmpty, "old read response cannot apply history at MainActor commit")
+        print("PASS production restore apply rejects stale response at MainActor commit")
+        let analytics = SupabaseSyncService()
+        let delayedPersistence = Suspension()
+        let event = Task { await analytics.queueDelayedAnalytics(delayedPersistence) }
+        while !(await delayedPersistence.waiting) { await Task.yield() }
+        let pausingAnalytics = Task { await analytics.pauseForAccountSwitch() }
+        while analytics.transitionState.allows(analytics.captureSyncEpoch(), writing: true) { await Task.yield() }
+        await delayedPersistence.release()
+        await event.value
+        await pausingAnalytics.value
+        let outgoing = UserDefaults.nowhere().data(forKey: SharedKeys.analyticsEventsQueue)!
+        require(try! JSONDecoder().decode([String].self, from: outgoing) == ["A", "A-new"],
+                "pause must persist appended outgoing event when ordinary delayed persistence is invalidated")
+        print("PASS outgoing analytics append survives pause invalidating pending normal persistence")
     }
 }
