@@ -1,6 +1,6 @@
-# Archived migrations (superseded by the baseline)
+# Archived migrations
 
-These are the pre-2026-07 incremental migrations. They are kept for history but
+These SQL files are kept for history but
 are **no longer part of the active migration set** — the Supabase CLI only runs
 `.sql` files directly under `supabase/migrations/`, not this subfolder.
 
@@ -16,11 +16,13 @@ alongside the baseline:
   `20260216_create_missing_tables.sql` / `20260216b_add_energy_aggregation_rpcs.sql`)
   — that migration was never applied. The baseline intentionally omits them.
 
-The active, replayable set is now:
+The historical `20260711_revoke_trigger_function_rest_exposure.sql` is also
+preserved here verbatim. Its version collided with the other `20260711` file in
+Supabase CLI history. The active file with the original
+`20260711_drop_public_leaderboard_read_policy.sql` identity now contains both
+security effects. `20261022191514_repair_legacy_trigger_permissions.sql` applies
+the same idempotent security repair to existing ledgers, regardless of which
+historical filename was recorded. Neither deployed version nor name is rewritten.
 
-1. `00000000000000_baseline_schema.sql` — full public schema baseline.
-2. `20260711_drop_public_leaderboard_read_policy.sql` — forward security fix.
-3. `20260711_revoke_trigger_function_rest_exposure.sql` — forward security fix.
-
-Do not re-add these files to the parent directory. If you need something from
+Do not re-add archived files to the parent directory. If you need something from
 one of them, fold it into a new forward migration instead.
