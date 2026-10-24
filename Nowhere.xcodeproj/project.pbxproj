@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A13C10042F5000010018004E /* LegacyDeviceHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20042F5000010018004E /* LegacyDeviceHistoryView.swift */; };
+		A13C10032F5000010018004E /* LegacyDeviceHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20032F5000010018004E /* LegacyDeviceHistory.swift */; };
+		A13C30022F5000010018004E /* AccountHistoryStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20022F5000010018004E /* AccountHistoryStorage.swift */; };
 		A13C10012F5000010018004E /* AccountHistoryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C10022F5000010018004E /* AccountHistoryVault.swift */; };
 		AC1004000000000000000002 /* NativeAtlasDailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */; };
 		AC1004000000000000000004 /* NativeAtlasRecipe+DailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */; };
@@ -666,6 +669,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A13C20042F5000010018004E /* LegacyDeviceHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Views/Settings/LegacyDeviceHistoryView.swift; sourceTree = SOURCE_ROOT; };
+		A13C20032F5000010018004E /* LegacyDeviceHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Models/LegacyDeviceHistory.swift; sourceTree = SOURCE_ROOT; };
+		A13C20022F5000010018004E /* AccountHistoryStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Services/AccountHistoryStorage.swift; sourceTree = SOURCE_ROOT; };
 		A13C10022F5000010018004E /* AccountHistoryVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Services/AccountHistoryVault.swift; sourceTree = SOURCE_ROOT; };
 		AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasDailyStyle.swift"; sourceTree = SOURCE_ROOT; };
 		AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasRecipe+DailyStyle.swift"; sourceTree = SOURCE_ROOT; };
@@ -1721,6 +1727,9 @@
 				2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */,
 				2061ECFF2F277010009FEC25 /* Nowhere/Services/PersistenceManager.swift */,
 				A13C10022F5000010018004E /* AccountHistoryVault.swift */,
+				A13C20042F5000010018004E /* LegacyDeviceHistoryView.swift */,
+				A13C20032F5000010018004E /* LegacyDeviceHistory.swift */,
+				A13C20022F5000010018004E /* AccountHistoryStorage.swift */,
 				20DIAG022F5000010018004E /* Nowhere/Services/DiagnosticsManager.swift */,
 				2061ED012F277010009FEC25 /* Nowhere/Services/ErrorManager.swift */,
 				2061ECF92F277010009FEC24 /* PayGateSession.swift */,
@@ -2898,6 +2907,9 @@
 				200AC5A82F16DA570018004E /* LoginView.swift in Sources */,
 				2061ECFE2F277010009FEC25 /* Nowhere/Services/PersistenceManager.swift in Sources */,
 				A13C10012F5000010018004E /* AccountHistoryVault.swift in Sources */,
+				A13C10042F5000010018004E /* LegacyDeviceHistoryView.swift in Sources */,
+				A13C10032F5000010018004E /* LegacyDeviceHistory.swift in Sources */,
+				A13C30022F5000010018004E /* AccountHistoryStorage.swift in Sources */,
 				20DIAG012F5000010018004E /* Nowhere/Services/DiagnosticsManager.swift in Sources */,
 				2061ED002F277010009FEC25 /* Nowhere/Services/ErrorManager.swift in Sources */,
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,

@@ -61,7 +61,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify local account archives
-        run: python3 Scripts/test_account_history_vault.py
+        run: |
+          python3 Scripts/test_account_history_vault.py
+          python3 Scripts/test_legacy_device_history.py
 
   ios-tests:
     name: iOS unit tests

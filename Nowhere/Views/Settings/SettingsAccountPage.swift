@@ -26,6 +26,7 @@ struct SettingsAccountPage: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showProfileEditor = false
+    @State private var showPreviousDeviceHistory = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var errorMessage: String?
@@ -75,6 +76,16 @@ struct SettingsAccountPage: View {
                         .accessibilityIdentifier("settings.account.signOut")
                     }
 
+                    if AccountHistoryStorage.hasLegacyArchive {
+                        accountSection(String(localized: "ON THIS IPHONE")) {
+                            Button { showPreviousDeviceHistory = true } label: {
+                                accountActionLabel(String(localized: "Previous device history"))
+                            }
+                            .buttonStyle(MattePressStyle())
+                            .accessibilityIdentifier("settings.account.previousDeviceHistory")
+                        }
+                    }
+
                     accountSection(String(localized: "DANGER ZONE", comment: "Settings account section header")) {
                         Button(role: .destructive) {
                             showDeleteConfirmation = true
@@ -103,6 +114,9 @@ struct SettingsAccountPage: View {
             }
         }
         .settingsDetailPage(title: String(localized: "Account", comment: "Settings account page title"))
+        .sheet(isPresented: $showPreviousDeviceHistory) {
+            LegacyDeviceHistoryView()
+        }
         .sheet(isPresented: $showProfileEditor) {
             ProfileEditorView(authService: authService)
         }

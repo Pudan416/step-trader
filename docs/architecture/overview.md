@@ -24,6 +24,12 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 ## Ownership and compatibility
 
+- `AccountHistoryStorage` defines the explicit defaults/file scope shared by
+  future account transitions and the legacy viewer. Settings > Account exposes
+  `legacy-unattributed` through a read-only previous-device-history sheet. It
+  reads saved dates, original titles, previews and spending without activating
+  an archive or fetching/uploading cloud data; owned account archives are not
+  offered in that viewer. Unreadable Canvas files stay preserved and dated.
 - `AccountHistoryVault` is an additive, local-only archive primitive. It is not
   wired into authentication yet. Before calling `activate`, an account-transition
   coordinator must suspend app and extension writers, invalidate stale asynchronous
