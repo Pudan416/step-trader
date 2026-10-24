@@ -282,6 +282,59 @@ final class UnspentUsageBudgetTests: XCTestCase {
         XCTAssertTrue(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
     }
 
+    func testFreeRecoveryRemainsAvailableWithZeroColorsForFailedAndQueuedBudgets() throws {
+        let data = try installRecoverySelection()
+        defaults.set(0, forKey: SharedKeys.stepsBalance)
+        var budget = session()
+        budget.monitoredSelectionData = data
+        budget.monitoringFailed = true
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertEqual(ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId, at: now), 10)
+        budget = UsageBudgetSession(minutes: 70, startedAt: now, expiresAt: now.addingTimeInterval(3600))
+        budget.consumedMinutes = 60
+        budget.monitoredSelectionData = data
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertTrue(budget.needsNextSegment)
+        XCTAssertEqual(ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId, at: now), 10)
+        XCTAssertEqual(defaults.integer(forKey: SharedKeys.stepsBalance), 0)
+        XCTAssertEqual(UsageBudgetSession.load(from: defaults, groupId: groupId), budget, "Rendering free recovery must not mutate the paid session")
+    }
+
+    func testFreeRecoveryRejectsExpiredEmptyAndInactiveSelections() throws {
+        let data = try installRecoverySelection()
+        var budget = session()
+        budget.monitoringFailed = true
+        budget.monitoredSelectionData = data
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertEqual(ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId, at: budget.expiresAt), 0)
+        _ = try installSelectionFixture() // Existing empty-selection fixture.
+        XCTAssertEqual(ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId, at: now), 0)
+        _ = try installRecoverySelection(active: false)
+        XCTAssertEqual(ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId, at: now), 0)
+        defaults.removeObject(forKey: SharedKeys.ticketGroups)
+        XCTAssertEqual(ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId, at: now), 0)
+    }
+
+    func testHealthyBudgetHasNoFreeRecoveryAction() throws {
+        var budget = session()
+        budget.monitoredSelectionData = try installRecoverySelection()
+        budget.save(to: defaults, groupId: groupId)
+        XCTAssertEqual(ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId, at: now), 0)
+        XCTAssertTrue(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+    }
+
+    @discardableResult
+    private func installRecoverySelection(active: Bool = true) throws -> Data {
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let data = try JSONEncoder().encode(selection)
+        let groups: [[String: Any]] = [["id": groupId, "name": "Recovery",
+            "selectionData": data.base64EncodedString(),
+            "settings": ["familyControlsModeEnabled": active]]]
+        defaults.set(try JSONSerialization.data(withJSONObject: groups), forKey: SharedKeys.ticketGroups)
+        return data
+    }
+
     func testUnverifiedSelectionCannotUseExistingGroupBudget() throws {
         let selection = try installSelectionFixture()
         var budget = session()

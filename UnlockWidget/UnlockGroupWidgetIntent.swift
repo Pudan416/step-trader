@@ -23,11 +23,13 @@ struct UnlockGroupWidgetIntent: AppIntent {
     static var isDiscoverable: Bool = false
     @Parameter(title: "Group ID") var groupId: String
     @Parameter(title: "Window") var windowRaw: String
+    @Parameter(title: "Resume paid time only", default: false) var recoveryOnly: Bool
 
     init() {}
-    init(groupId: String, window: AccessWindow) {
+    init(groupId: String, window: AccessWindow, recoveryOnly: Bool = false) {
         self.groupId = groupId
         self.windowRaw = window.rawValue
+        self.recoveryOnly = recoveryOnly
     }
 
     @MainActor
@@ -65,13 +67,13 @@ struct UnlockGroupWidgetIntent: AppIntent {
         if let last = defaults.object(forKey: debounceKey) as? Date,
            Date().timeIntervalSince(last) < 3 { return .result() }
         defaults.set(Date(), forKey: debounceKey)
-        guard model.totalStepsBalance >= group.cost(for: window)
-                || ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: defaults, groupId: groupId) else {
+        guard recoveryOnly || model.totalStepsBalance >= group.cost(for: window)
+                || ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: defaults, groupId: groupId) > 0 else {
             throw WidgetPurchaseFailure(message: String(localized: "Not enough colors"))
         }
         model.payGateError = nil
         SharedKeys.recordWidgetInteraction("interactive purchase entered group=\(groupId) authorized=\(model.familyControlsService.isAuthorized)", source: "app")
-        guard await model.handlePayGatePaymentForGroup(groupId: groupId, window: window, costOverride: nil) else {
+        guard await model.handlePayGatePaymentForGroup(groupId: groupId, window: window, costOverride: nil, recoveryOnly: recoveryOnly) else {
             throw WidgetPurchaseFailure(message: model.payGateError ?? String(localized: "Unable to unlock the app. Please try again."))
         }
         // Persist before returning: Button(intent:) guarantees a timeline reload

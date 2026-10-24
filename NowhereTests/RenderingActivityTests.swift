@@ -620,7 +620,11 @@ final class SmudgeRegionSequenceTests: XCTestCase {
         let strokes = [
             StrokeSegment(p0: SIMD2(2, 3), p1: SIMD2(22, 20), radius: 8, strength: 0.6, dragFactor: 5, direction: SIMD2(0.76, 0.65)),
             StrokeSegment(p0: SIMD2(22, 20), p1: SIMD2(12, 30), radius: 6, strength: 0.7, dragFactor: 8, direction: SIMD2(-0.707, 0.707)),
-            StrokeSegment(p0: SIMD2(58, 56), p1: SIMD2(63, 63), radius: 10, strength: 0.9, dragFactor: 4, direction: SIMD2(0.58, 0.81))
+            StrokeSegment(p0: SIMD2(58, 56), p1: SIMD2(63, 63), radius: 10, strength: 0.9, dragFactor: 4, direction: SIMD2(0.58, 0.81)),
+            // Exercise a region smaller than one group, then a fully clipped
+            // stroke. Padding must not change pixels or ages outside its blit.
+            StrokeSegment(p0: SIMD2(31, 31), p1: SIMD2(31, 31), radius: 0.5, strength: 0.5, dragFactor: 1, direction: .zero),
+            StrokeSegment(p0: SIMD2(-30, -30), p1: SIMD2(-25, -25), radius: 2, strength: 0.8, dragFactor: 2, direction: SIMD2(0.707, 0.707))
         ]
         var index = 0
         for stroke in strokes {
@@ -635,7 +639,7 @@ final class SmudgeRegionSequenceTests: XCTestCase {
             var origin = SIMD2<UInt32>.zero
             encoder.setBytes(&params, length: MemoryLayout<SmudgeParams>.stride, index: 0)
             encoder.setBytes(&origin, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 1)
-            encoder.dispatchThreads(MTLSize(width: size, height: size, depth: 1), threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+            encoder.dispatchThreadgroups(MTLSize(width: size / 8, height: size / 8, depth: 1), threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
             encoder.endEncoding()
             index = 1 - index
         }

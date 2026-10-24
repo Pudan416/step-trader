@@ -24,6 +24,7 @@ final class NativeAtlasMetalRenderer {
                   let vertex = library.makeFunction(name: "metalShapeGenomeVertex") else { return nil }
             func pipeline(_ name: String, _ format: MTLPixelFormat, fullscreen: Bool = false, mask: MTLColorWriteMask = .all) -> MTLRenderPipelineState? {
                 let d = MTLRenderPipelineDescriptor()
+                d.label = name
                 d.vertexFunction = fullscreen ? library.makeFunction(name: "dayObjectsFullscreenVertex") : vertex
                 d.fragmentFunction = library.makeFunction(name: name)
                 d.colorAttachments[0].pixelFormat = format
@@ -131,6 +132,7 @@ final class NativeAtlasMetalRenderer {
         clear.colorAttachments[0].loadAction = .clear; clear.colorAttachments[0].storeAction = .store
         clear.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
         guard let clearEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: clear) else { return false }
+        clearEncoder.label = "Native Atlas background"
         // Palette targets form a transparent layer above the stationary canvas.
         // Canvas alpha retains its existing intersection-mask semantics.
         if !isPalette {
@@ -149,6 +151,7 @@ final class NativeAtlasMetalRenderer {
         basePass.colorAttachments[0].storeAction = .store
         basePass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
         guard let baseEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: basePass) else { return false }
+        baseEncoder.label = "Native Atlas clean background"
         if !isPalette {
             var background = DayObjectsMeshGradientUniforms(scene: scene, resolution: SIMD2(Float(w), Float(h)), elapsedTime: elapsed)
             baseEncoder.setRenderPipelineState(gradient)
@@ -166,6 +169,7 @@ final class NativeAtlasMetalRenderer {
             pass.colorAttachments[0].texture = targets[target]
             pass.colorAttachments[0].loadAction = .dontCare; pass.colorAttachments[0].storeAction = .store
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return false }
+            encoder.label = "Native Atlas actor \(spec.presetID)"
             encoder.setRenderPipelineState(composite)
             encoder.setFragmentTexture(targets[source], index: 0)
             encoder.setFragmentTexture(targets[2], index: 1)
@@ -209,6 +213,7 @@ final class NativeAtlasMetalRenderer {
             pass.colorAttachments[0].texture = targets[traceTarget]
             pass.colorAttachments[0].loadAction = .dontCare; pass.colorAttachments[0].storeAction = .store
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return false }
+            encoder.label = "Native Atlas trace"
             encoder.setRenderPipelineState(display); encoder.setFragmentTexture(targets[source], index: 0)
             let seed = UInt64(recipe.seedHex, radix: 16) ?? 0
             let legacyTrace = recipe.glitchType < 5
@@ -224,6 +229,7 @@ final class NativeAtlasMetalRenderer {
         finalPass.colorAttachments[0].loadAction = .dontCare
         finalPass.colorAttachments[0].storeAction = .store
         guard let finalEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: finalPass) else { return false }
+        finalEncoder.label = "Native Atlas finish"
         finalEncoder.setRenderPipelineState(finish)
         finalEncoder.setFragmentTexture(targets[finishedSource], index: 0)
         finalEncoder.setFragmentBytes(&post, length: DayObjectsPostUniforms.metalStride, index: 0)
