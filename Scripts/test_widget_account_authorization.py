@@ -45,6 +45,12 @@ class WidgetAccountAuthorizationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_delayed_authorization_cannot_charge_the_incoming_account(self):
+        self.run_intent_case("account-switch")
+
+    def test_active_pass_rejects_repeat_purchase_without_charging(self):
+        self.run_intent_case("active-pass")
+
+    def run_intent_case(self, mode):
         with tempfile.TemporaryDirectory(prefix="nowhere-widget-account-") as directory:
             folder = Path(directory)
             intent_path = Path(os.environ.get("NOWHERE_WIDGET_INTENT_SOURCE", ROOT / "UnlockWidget/UnlockGroupWidgetIntent.swift"))
@@ -58,7 +64,7 @@ class WidgetAccountAuthorizationTests(unittest.TestCase):
             binary = folder / "widget-account"
             build = subprocess.run(["swiftc", "-D", "NOWHERE_APP", "-parse-as-library", "-module-cache-path", str(folder / "modules"), str(swift), "-o", str(binary)], capture_output=True, text=True, timeout=60)
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
-            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=15)
+            result = subprocess.run([str(binary), mode], capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 

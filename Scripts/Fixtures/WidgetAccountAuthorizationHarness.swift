@@ -15,8 +15,10 @@ struct Group {
     var isAuthorized = false
     var entered: CheckedContinuation<Void, Never>?
     var continuation: CheckedContinuation<Void, Never>?
+    var requests = 0
     func refreshAuthorizationStatus() {}
     func requestAuthorization() async throws {
+        requests += 1
         await withCheckedContinuation { continuation = $0; entered?.resume(); entered = nil }
         isAuthorized = true
     }
@@ -58,6 +60,9 @@ extension UserDefaults {
     static func nowhere() -> UserDefaults { SharedKeys.defaults }
 }
 enum ShieldRebuildHelper {
+    static func isUsageBudgetActive(defaults: UserDefaults, groupId: String) -> Bool {
+        defaults.bool(forKey: "fixtureActivePass_" + groupId)
+    }
     static func recoverableUsageBudgetMinutes(defaults: UserDefaults, groupId: String) -> Int { 0 }
     static func hasRecoverableUsageBudget(defaults: UserDefaults, groupId: String) -> Bool { false }
 }
@@ -78,6 +83,22 @@ struct WidgetAccountAuthorizationHarness {
     @MainActor static func main() async {
         defer { SharedKeys.defaults.removePersistentDomain(forName: SharedKeys.suite) }
         let model = DIContainer.shared.applicationModel
+        if CommandLine.arguments.last == "active-pass" {
+            model.familyControlsService.isAuthorized = true
+            SharedKeys.defaults.set(true, forKey: "fixtureActivePass_stable-group")
+            var message: String?
+            do { _ = try await UnlockGroupWidgetIntent().perform() }
+            catch { message = error.localizedDescription }
+            guard message == "This group is already unlocked",
+                  model.charges == 0, model.totalStepsBalance == 100,
+                  model.snapshots == 0, model.familyControlsService.requests == 0,
+                  SharedKeys.defaults.object(forKey: "widgetUnlockLastRequestedAt_stable-group") == nil,
+                  !UnlockGroupWidgetIntent.purchaseInFlight else {
+                fatalError("an active pass must reject repeat purchase without charging or requesting authorization")
+            }
+            print("PASS active pass rejects repeat purchase before money or debounce writes")
+            return
+        }
         let oldGeneration = model.historyWorkGeneration
         var rejected = false
         let attempt = Task {
