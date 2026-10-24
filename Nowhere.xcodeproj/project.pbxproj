@@ -329,6 +329,7 @@
 		20AA248A2F70C00100000001 /* DeviceActivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20E8EF852E7D41B200C092A1 /* DeviceActivity.framework */; };
 		20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */; };
 		C10220000000000000000001 /* PrivacyManifestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10220000000000000000002 /* PrivacyManifestTests.swift */; };
+		C10222000000000000000001 /* PastDaySnapshotMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10222000000000000000002 /* PastDaySnapshotMigrationTests.swift */; };
 		20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */; };
 		20B0A3542E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3532E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift */; };
 		20B0A3562E8C65E700D5EBE4 /* SharedKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */; };
@@ -969,6 +970,7 @@
 		20AA24862F70BDC4002F2F2C /* UnlockWidgetExtensionRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UnlockWidgetExtensionRelease.entitlements; sourceTree = "<group>"; };
 		20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthSessionRestoreTests.swift; sourceTree = "<group>"; };
 		C10220000000000000000002 /* PrivacyManifestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyManifestTests.swift; sourceTree = "<group>"; };
+		C10222000000000000000002 /* PastDaySnapshotMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastDaySnapshotMigrationTests.swift; sourceTree = "<group>"; };
 		20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryQueueClassificationTests.swift; sourceTree = "<group>"; };
 		20B0A3532E8C65E700D5EBE4 /* UserDefaults+Nowhere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Nowhere.swift"; sourceTree = "<group>"; };
 		20B0A3552E8C65E700D5EBE4 /* SharedKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeys.swift; sourceTree = "<group>"; };
@@ -2126,6 +2128,7 @@
 				EF2026091600000000000003 /* EveningReflectionTests.swift */,
 				20AUTH022F5000010018004E /* AuthSessionRestoreTests.swift */,
 				C10220000000000000000002 /* PrivacyManifestTests.swift */,
+				C10222000000000000000002 /* PastDaySnapshotMigrationTests.swift */,
 				20RTRY022F5000010018004E /* RetryQueueClassificationTests.swift */,
 				20DIAG042F5000010018004E /* DiagnosticsManagerTests.swift */,
 				AA000001AAAA000100000002 /* TariffDecodingTests.swift */,
@@ -3084,6 +3087,7 @@
 				EF2026091600000000000004 /* EveningReflectionTests.swift in Sources */,
 				20AUTH012F5000010018004E /* AuthSessionRestoreTests.swift in Sources */,
 				C10220000000000000000001 /* PrivacyManifestTests.swift in Sources */,
+				C10222000000000000000001 /* PastDaySnapshotMigrationTests.swift in Sources */,
 				20RTRY012F5000010018004E /* RetryQueueClassificationTests.swift in Sources */,
 				20DIAG032F5000010018004E /* DiagnosticsManagerTests.swift in Sources */,
 				AA000001AAAA000100000001 /* TariffDecodingTests.swift in Sources */,
