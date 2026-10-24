@@ -36,6 +36,7 @@ python3 Scripts/check_canvas_audio_bundle.py \
   /tmp/nowhere-release/Build/Products/Release-iphoneos/Nowhere.app
 python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
+python3 Scripts/test_account_history_vault.py
 bash Scripts/check-secrets-config.sh
 ```
 

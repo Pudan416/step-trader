@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A13C10012F5000010018004E /* AccountHistoryVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C10022F5000010018004E /* AccountHistoryVault.swift */; };
 		AC1004000000000000000002 /* NativeAtlasDailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */; };
 		AC1004000000000000000004 /* NativeAtlasRecipe+DailyStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */; };
 		AC1004000000000000000006 /* NativeAtlasAmbientMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */; };
@@ -665,6 +666,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A13C10022F5000010018004E /* AccountHistoryVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Services/AccountHistoryVault.swift; sourceTree = SOURCE_ROOT; };
 		AC1004000000000000000001 /* NativeAtlasDailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasDailyStyle.swift"; sourceTree = SOURCE_ROOT; };
 		AC1004000000000000000003 /* NativeAtlasRecipe+DailyStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasRecipe+DailyStyle.swift"; sourceTree = SOURCE_ROOT; };
 		AC1004000000000000000005 /* NativeAtlasAmbientMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Nowhere/Experiments/ShapeGenome/NativeAtlasAmbientMotion.swift"; sourceTree = SOURCE_ROOT; };
@@ -1718,6 +1720,7 @@
 				201DF6D62F377E28007D716B /* LiteTicketConfig.swift */,
 				2061ECEF2F277010009FEC24 /* AppUnlockSettings.swift */,
 				2061ECFF2F277010009FEC25 /* Nowhere/Services/PersistenceManager.swift */,
+				A13C10022F5000010018004E /* AccountHistoryVault.swift */,
 				20DIAG022F5000010018004E /* Nowhere/Services/DiagnosticsManager.swift */,
 				2061ED012F277010009FEC25 /* Nowhere/Services/ErrorManager.swift */,
 				2061ECF92F277010009FEC24 /* PayGateSession.swift */,
@@ -2894,6 +2897,7 @@
 				209424CA2E85952D00904A0A /* DIContainer.swift in Sources */,
 				200AC5A82F16DA570018004E /* LoginView.swift in Sources */,
 				2061ECFE2F277010009FEC25 /* Nowhere/Services/PersistenceManager.swift in Sources */,
+				A13C10012F5000010018004E /* AccountHistoryVault.swift in Sources */,
 				20DIAG012F5000010018004E /* Nowhere/Services/DiagnosticsManager.swift in Sources */,
 				2061ED002F277010009FEC25 /* Nowhere/Services/ErrorManager.swift in Sources */,
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,

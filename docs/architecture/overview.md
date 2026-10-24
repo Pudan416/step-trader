@@ -24,6 +24,14 @@ Test names live in `NowhereTests/` unless stated otherwise.
 
 ## Ownership and compatibility
 
+- `AccountHistoryVault` is an additive, local-only archive primitive. It is not
+  wired into authentication yet. Before calling `activate`, an account-transition
+  coordinator must suspend app and extension writers, invalidate stale asynchronous
+  callbacks, and provide explicit history defaults/file locations. Legacy history
+  is archived as `legacy-unattributed`; it must have a recoverable local access path
+  before runtime activation is enabled. Archives preserve file/UUID bytes and use a
+  recovery journal; files are copied individually instead of loading PNG history into
+  memory. Credentials, diagnostics and lock files must never enter the working set.
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
 - `HappeningDefaults.builtIns` derives the fixed 106 choices from `HappeningEventTree.all`.
@@ -156,3 +164,5 @@ stable so updates keep existing installations, data and extension communication:
 
 Do not replace these strings during naming cleanup. Keep current persisted keys,
 Codable keys, widget kinds and enum raw values unless a separate migration is tested.
+
+The account coordinator uses the vault's two-phase activation: `prepareActivation` retains the outgoing recovery journal while the incoming model is loaded, then `commitActivation` completes it after authentication commits. A receipt can undo only its own still-pending switch through `rollbackActivation`; this includes the original unattributed working set without exposing normal activation/import of legacy history. Restart before commit also restores the outgoing archive. Existing `activate` remains the immediate prepare/commit convenience.
