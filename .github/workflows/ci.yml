@@ -16,6 +16,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  analytics-postgres:
+    name: Analytics replay SQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture-password
+          POSTGRES_DB: analytics_fixture
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify duplicate replay and RLS with production schema
+        env:
+          NOWHERE_TEST_PG_DSN: postgresql://postgres:fixture-password@localhost:5432/analytics_fixture
+        run: python3 Scripts/test_analytics_postgres.py
+
   economy-write-barrier:
     name: Economy write barrier regressions
     runs-on: macos-26
@@ -70,6 +90,9 @@ jobs:
 
       - name: Verify Canvas palette rollover contract
         run: python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
+
+      - name: Verify analytics replay and ownership
+        run: python3 -m unittest discover -s Scripts -p 'test_analytics_flush.py'
 
       - name: Verify anonymous Apple identity linking
         run: python3 -m unittest discover -s Scripts -p 'test_apple_identity_link.py'
