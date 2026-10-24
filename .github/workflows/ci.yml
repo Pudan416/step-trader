@@ -36,6 +36,24 @@ jobs:
           NOWHERE_TEST_PG_DSN: postgresql://postgres:fixture-password@localhost:5432/analytics_fixture
         run: python3 Scripts/test_analytics_postgres.py
 
+  economy-write-barrier:
+    name: Economy write barrier regressions
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify cancellable local economy writes
+        run: python3 Scripts/test_economy_write_barrier.py
+
+  account-history-vault:
+    name: Account history archive regressions
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify local account archives
+        run: python3 Scripts/test_account_history_vault.py
+
   ios-tests:
     name: iOS unit tests
     # The app uses the iOS 26 Liquid Glass API (`Glass`), which Xcode 16 cannot
@@ -75,6 +93,12 @@ jobs:
 
       - name: Verify analytics replay and ownership
         run: python3 -m unittest discover -s Scripts -p 'test_analytics_flush.py'
+
+      - name: Verify anonymous Apple identity linking
+        run: python3 -m unittest discover -s Scripts -p 'test_apple_identity_link.py'
+
+      - name: Verify Canvas GPU failure contract
+        run: python3 -m unittest discover -s Scripts -p 'test_canvas_gpu_failure.py'
 
       - name: Verify host audio output
         # Simulator RemoteIO depends on the runner's virtual CoreAudio device.
@@ -118,9 +142,9 @@ jobs:
 
       - name: Run NowhereTests
         # The live 100-remix deadline test and two heavy real-audio lifecycle
-        # scenarios run in the required optimized Release job below. All other
-        # tests stay in Debug; two live allocation scenarios run in fresh Debug hosts
-        # below, retaining every original assertion and three required repetitions.
+        # scenarios run in the required optimized Release job below. The two
+        # remaining live allocation tests run in fresh Debug hosts immediately
+        # after this bulk suite; all original assertions remain required.
         timeout-minutes: 80
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
         # hop) was fixed by polling deterministically, so the global
