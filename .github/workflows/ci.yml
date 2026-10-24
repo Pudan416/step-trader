@@ -36,6 +36,9 @@ jobs:
           python3 Scripts/test_account_model_work.py
           python3 Scripts/test_widget_account_authorization.py
           python3 Scripts/test_account_history_coordinator.py
+          python3 Scripts/test_auth_history_restore.py
+          python3 Scripts/test_auth_history_commit.py
+          python3 Scripts/test_gallery_account_epoch.py
 
   analytics-postgres:
     name: Analytics replay SQL

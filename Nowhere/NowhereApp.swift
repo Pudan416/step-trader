@@ -115,6 +115,7 @@ private struct NowhereProductionRoot: View {
     @StateObject private var model: AppModel
     @StateObject private var errorManager = ErrorManager.shared
     @StateObject private var authService = AuthenticationService.shared
+    @StateObject private var accountHistory = AccountHistoryCoordinator.shared
     @StateObject private var announcementService = AnnouncementService.shared
     @State private var onboardingState = CanvasOnboardingState.shared
     @State private var hasStartedBootstrap = false
@@ -132,6 +133,7 @@ private struct NowhereProductionRoot: View {
     @State private var hasRequestedReviewThisSession = false
     @State private var pendingWidgetUnlock: (request: WidgetUnlockRequest, receivedAt: Date)?
     @State private var isProcessingWidgetUnlock = false
+    @State private var widgetUnlockOperationID: UUID?
     @State private var widgetHandoffBundleId: String?
     @State private var widgetHandoffRequestID: UUID?
 
@@ -141,12 +143,35 @@ private struct NowhereProductionRoot: View {
 
     private var hasCompletedOnboarding: Bool { onboardingState.isCompleted }
     private var canPresentSessionUI: Bool {
-        hasCompletedOnboarding && !CanvasTour.shared.isActive
+        !isHistoryUnavailable && hasCompletedOnboarding && !CanvasTour.shared.isActive
     }
     private var isPreparingAutomaticOnboarding: Bool {
         allowsAutomaticCanvasOnboarding && !onboardingState.isCompleted
             && model.isBootstrapping && !CanvasTour.shared.isActive
     }
+    private var isHistoryUnavailable: Bool {
+        if isUITest { return false }
+        return accountHistory.isSwitching || accountHistory.displayOwner
+            != (authService.currentUser?.id ?? AccountHistoryCoordinator.signedOutOwner)
+    }
+
+    private var accountHistoryLoadingView: some View {
+        VStack(spacing: 16) {
+            if let message = accountHistory.error ?? authService.error {
+                Text(message).multilineTextAlignment(.center)
+                Button("Try again") {
+                    Task { await authService.checkAuthenticationState() }
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                ProgressView().accessibilityLabel(String(localized: "Loading your history"))
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemBackground))
+    }
+
     private var hasBlockingSessionOverlay: Bool {
         guard canPresentSessionUI, !isUITest else { return false }
         if model.userEconomyStore.showPayGate { return true }
@@ -308,6 +333,27 @@ private struct NowhereProductionRoot: View {
         )
     }
 
+    private var globalErrorBinding: Binding<Bool> {
+        Binding(get: { !isHistoryUnavailable && errorManager.showErrorAlert },
+                set: { errorManager.showErrorAlert = $0 })
+    }
+
+    private var announcementBinding: Binding<Bool> {
+        Binding(
+            get: { canPresentSessionUI && !isUITest && announcementService.activeAnnouncement != nil },
+            set: { isPresented in
+                guard !isPresented, canPresentSessionUI, !isUITest else { return }
+                guard let announcement = announcementService.activeAnnouncement else { return }
+                announcementService.dismiss(announcement)
+            }
+        )
+    }
+
+    private var activeFeatureTipBinding: Binding<FeatureTip?> {
+        Binding(get: { isHistoryUnavailable ? nil : activeFeatureTip },
+                set: { activeFeatureTip = $0 })
+    }
+
     var body: some View {
         Group {
             #if DEBUG
@@ -349,16 +395,38 @@ private struct NowhereProductionRoot: View {
         }
     }
 
-    @ViewBuilder
-    private var appBody: some View {
-            GlassShimmerProvider {
+    private var sessionContent: some View {
             ZStack {
                 // The Canvas tour anchors to the real app throughout first launch.
-                MainTabView(model: model, allowsCanvasTipEngagement: canPresentSessionUI && activeFeatureTip == nil, theme: currentTheme)
-                    .allowsHitTesting(!hasBlockingSessionOverlay && !isPreparingAutomaticOnboarding)
-                    .accessibilityHidden(hasBlockingSessionOverlay || isPreparingAutomaticOnboarding)
+                if isHistoryUnavailable {
+                    accountHistoryLoadingView
+                } else {
+                    MainTabView(model: model, allowsCanvasTipEngagement: canPresentSessionUI && activeFeatureTip == nil, theme: currentTheme)
+                        .id(accountHistory.revision)
+                        .allowsHitTesting(!hasBlockingSessionOverlay && !isPreparingAutomaticOnboarding)
+                        .accessibilityHidden(hasBlockingSessionOverlay || isPreparingAutomaticOnboarding)
+                }
 
-                if isPreparingAutomaticOnboarding {
+                if !isHistoryUnavailable, let message = accountHistory.error {
+                    VStack {
+                        HStack {
+                            Text(message).font(.footnote)
+                            Button("Try again") {
+                                Task {
+                                    if let owner = authService.currentUser?.id {
+                                        _ = await accountHistory.hydrate(owner: owner, model: model)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        .padding()
+                        Spacer()
+                    }
+                }
+
+                if !isHistoryUnavailable && isPreparingAutomaticOnboarding {
                     ProgressView()
                         .accessibilityLabel(String(localized: "Preparing your canvas"))
                 }
@@ -399,7 +467,7 @@ private struct NowhereProductionRoot: View {
             } message: {
                 Text(model.payGateError ?? "")
             }
-            .sheet(item: $activeFeatureTip, onDismiss: finishFeatureTip) { tip in
+            .sheet(item: activeFeatureTipBinding, onDismiss: finishFeatureTip) { tip in
                 FeatureTipSheet(tip: tip, onContinue: {
                     FeatureTipStore.shared.recordAcceptance(tip)
                     acceptedFeatureTipRoute = tip.settingsPage
@@ -418,7 +486,7 @@ private struct NowhereProductionRoot: View {
                     configuration: .current
                 )
             )
-            .alert(isPresented: $errorManager.showErrorAlert, error: errorManager.currentError) { _ in
+            .alert(isPresented: globalErrorBinding, error: errorManager.currentError) { _ in
                 Button("OK", role: .cancel) {
                     errorManager.dismiss()
                 }
@@ -427,10 +495,7 @@ private struct NowhereProductionRoot: View {
             }
             .alert(
                 announcementService.activeAnnouncement?.title ?? "",
-                isPresented: Binding(
-                    get: { canPresentSessionUI && !isUITest && announcementService.activeAnnouncement != nil },
-                    set: { if !$0, canPresentSessionUI, !isUITest, let a = announcementService.activeAnnouncement { announcementService.dismiss(a) } }
-                )
+                isPresented: announcementBinding
             ) {
                 Button("OK", role: .cancel) {
                     if let a = announcementService.activeAnnouncement { announcementService.dismiss(a) }
@@ -438,6 +503,12 @@ private struct NowhereProductionRoot: View {
             } message: {
                 Text(announcementService.activeAnnouncement?.message ?? "")
             }
+    }
+
+    @ViewBuilder
+    private var appBody: some View {
+            GlassShimmerProvider {
+            sessionContent
             .onAppear {
                 // STOPGAP: install legacy bar appearances after init() instead of during it.
                 // This avoids doing UIKit work in App.init while keeping the transparent
@@ -478,6 +549,26 @@ private struct NowhereProductionRoot: View {
             }
             .onChange(of: model.isBootstrapping) { _, preparingLocalState in
                 if !preparingLocalState { startAutomaticCanvasOnboardingIfReady() }
+            }
+            .onChange(of: accountHistory.revision) { _, _ in
+                resetWidgetUnlockProcessing()
+                processPendingWidgetUnlock()
+            }
+            .onChange(of: isHistoryUnavailable) { _, unavailable in
+                guard unavailable else {
+                    processPendingWidgetUnlock()
+                    return
+                }
+                featureTipTask?.cancel()
+                featureTipTask = nil
+                acceptedFeatureTipRoute = nil
+                presentedFeatureTip = nil
+                activeFeatureTip = nil
+                errorManager.dismiss()
+                pendingWidgetUnlock = nil
+                resetWidgetUnlockProcessing()
+                widgetHandoffBundleId = nil
+                widgetHandoffRequestID = nil
             }
             .onChange(of: authService.currentUser?.id) { _, _ in
                 Task { await SupabaseSyncService.shared.analyticsIdentityDidChange() }
@@ -790,6 +881,11 @@ private struct NowhereProductionRoot: View {
         }
     }
 
+    private func resetWidgetUnlockProcessing() {
+        widgetUnlockOperationID = nil
+        isProcessingWidgetUnlock = false
+    }
+
     private func processPendingWidgetUnlock() {
         guard model.didCompleteBootstrap, scenePhase == .active,
               canPresentSessionUI, !isUITest,
@@ -801,12 +897,21 @@ private struct NowhereProductionRoot: View {
             return
         }
         isProcessingWidgetUnlock = true
-        Task { @MainActor in
+        let operationID = UUID()
+        widgetUnlockOperationID = operationID
+        let historyGeneration = model.historyWorkGeneration
+        Task { @MainActor [self] in
             defer {
-                isProcessingWidgetUnlock = false
-                model.writeWidgetSnapshot()
-                WidgetCenter.shared.reloadAllTimelines()
+                if widgetUnlockOperationID == operationID {
+                    resetWidgetUnlockProcessing()
+                    if model.isHistoryWorkCurrent(historyGeneration) {
+                        model.writeWidgetSnapshot()
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+                }
             }
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             let request = pending.request
             guard let window = AccessWindow(rawValue: request.windowRaw),
                   let group = model.ticketGroups.first(where: { $0.id == request.groupId }),
@@ -821,10 +926,14 @@ private struct NowhereProductionRoot: View {
             do {
                 try await model.familyControlsService.requestAuthorization()
             } catch {
+                guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
                 model.payGateError = UsageBudgetMonitoringError.notAuthorized.userFacingMessage
                 SharedKeys.recordWidgetInteraction("unlock authorization failed", source: "app")
                 return
             }
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             model.checkDayBoundary()
             guard model.totalStepsBalance >= group.cost(for: window)
                     || ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: UserDefaults.nowhere(), groupId: group.id) > 0 else {
@@ -833,10 +942,14 @@ private struct NowhereProductionRoot: View {
                 return
             }
             SharedKeys.recordWidgetInteraction("unlock in app group=\(group.id) authorized=\(model.familyControlsService.isAuthorized)", source: "app")
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             guard await model.handlePayGatePaymentForGroup(groupId: group.id, window: window, costOverride: nil) else {
                 SharedKeys.recordWidgetInteraction("unlock purchase failed group=\(group.id)", source: "app")
                 return
             }
+            guard widgetUnlockOperationID == operationID,
+                  model.isHistoryWorkCurrent(historyGeneration) else { return }
             SharedKeys.recordWidgetInteraction("unlock completed group=\(group.id) minutes=\(window.minutes) balance=\(model.totalStepsBalance)", source: "app")
             // Purchasing time never launches the target. Its card remains the
             // separate, explicit launch action (including cached URL widgets).
@@ -1022,6 +1135,11 @@ private struct NowhereProductionRoot: View {
     }
 
     private func finishFeatureTip() {
+        guard !isHistoryUnavailable else {
+            presentedFeatureTip = nil
+            acceptedFeatureTipRoute = nil
+            return
+        }
         if let tip = presentedFeatureTip {
             // Swipe dismissal has the same meaning as Maybe later. Acceptance
             // is terminal, so recordDismissal cannot overwrite the CTA choice.

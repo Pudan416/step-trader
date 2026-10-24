@@ -18,7 +18,8 @@ enum AccountHistoryStorage {
 
     /// Construction for read-only access never runs working-set recovery.
     /// `activate` performs recovery later inside the coordinator's writer locks.
-    static func domains(shared: UserDefaults, standard: UserDefaults) -> [AccountHistoryVault.DefaultsDomain] {
+    static func domains(shared: UserDefaults, standard: UserDefaults,
+                        sharedDomainName: String, standardDomainName: String) -> [AccountHistoryVault.DefaultsDomain] {
         let keys: Set<String> = [
             SharedKeys.dayEndHour, SharedKeys.dayEndMinute,
             SharedKeys.dailyEnergyAnchor, SharedKeys.dailySleepHours, SharedKeys.baseEnergyToday,
@@ -43,8 +44,10 @@ enum AccountHistoryStorage {
             SharedKeys.canvasReminderHour, SharedKeys.canvasReminderMinute, SharedKeys.notifyDayResetWarning,
             SharedKeys.dayResetWarningHours, SharedKeys.notifyActivityDetected,
             SharedKeys.eveningReflectionDismissedDay, SharedKeys.eveningReflectionRequestedAt,
-            SharedKeys.readNoteIDs, SupabaseSyncService.retryQueueKey, SupabaseSyncService.optionEntryIntentKey,
-            SharedKeys.analyticsEventsQueue, "supabaseHistoryLastFullSync_v1", "supabaseHistoryLastDayKey_v1"
+            SharedKeys.handoffToken, SharedKeys.shouldShowPayGate, SharedKeys.payGateTargetGroupId,
+            SharedKeys.payGateTargetBundleId, SharedKeys.payGateRequestedAt, SharedKeys.payGateDismissedUntil,
+            SharedKeys.lastPayGateAction, SharedKeys.readNoteIDs, SupabaseSyncService.retryQueueKey, SupabaseSyncService.optionEntryIntentKey,
+            SharedKeys.analyticsEventsQueue, "supabaseHistoryLastFullSync_v1", "supabaseHistoryLastDayKey_v1", "dailyInterfacePalette.v1", "dismissedSuggestionIds_v1"
         ]
         let prefixes = [
             "dailyEnergySelections_v1_", "preferredEnergyOptions_v1_", "timeAccessSelection_v1_",
@@ -54,8 +57,8 @@ enum AccountHistoryStorage {
             "pendingSpendAmount_", "pendingSpendTracking_", "pendingSpendWindow_", "pendingSpendMinutes_",
             "widgetUnlockCapability_v1_", "appName_", "fc_appName_", "fc_bundleId_", "fc_groupId_"
         ]
-        return [.init(defaults: shared, keys: keys, keyPrefixes: prefixes),
-                .init(defaults: standard, keys: keys, keyPrefixes: prefixes)]
+        return [.init(defaults: shared, keys: keys, keyPrefixes: prefixes, persistentDomainName: sharedDomainName),
+                .init(defaults: standard, keys: keys, keyPrefixes: prefixes, persistentDomainName: standardDomainName)]
     }
 
     static func makeVault() throws -> AccountHistoryVault {
@@ -71,6 +74,7 @@ enum AccountHistoryStorage {
             // have an independent AppIntent writer; rotate only this preview.
             locations.append(.init(name: "widgetCanvas", url: group.appendingPathComponent("widget_snapshots/canvas_today.jpg")))
         }
-        return try AccountHistoryVault(root: rootDirectory, domains: domains(shared: .nowhere(), standard: .standard), locations: locations, recoverWorkingSet: false)
+        return try AccountHistoryVault(root: rootDirectory, domains: domains(shared: .nowhere(), standard: .standard,
+            sharedDomainName: SharedKeys.appGroupId, standardDomainName: Bundle.main.bundleIdentifier ?? "personal-project.StepsTrader"), locations: locations, recoverWorkingSet: false)
     }
 }

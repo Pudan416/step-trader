@@ -524,6 +524,8 @@ final class AppModel: ObservableObject {
 
     func restartAccountHistoryWork() {
         resumeHistoryWork()
+        isBootstrapping = false
+        didCompleteBootstrap = true
         scheduleDayBoundaryTimer()
         // Publish incoming derived state before any Health query can suspend.
         writeWidgetSnapshot()
@@ -568,6 +570,7 @@ final class AppModel: ObservableObject {
         loadTicketGroups() // Also clears the bundle-ID → group lookup cache.
         loadAppUnlockSettings()
         healthStore.reloadAfterAccountSwitch()
+        DailyInterfaceColors.shared.reloadAfterAccountSwitch()
         frequentHappeningStore.reloadAfterAccountSwitch()
         budgetEngine.reloadFromStorage()
         let rawTariff = UserDefaults.nowhere().string(forKey: SharedKeys.selectedTariff) ?? Tariff.medium.rawValue
@@ -601,6 +604,8 @@ final class AppModel: ObservableObject {
 
         await prepareLocalPurchaseState()
         await waitForHistoryWorkResumption()
+        let localBootstrapGeneration = historyWorkGeneration
+        guard isHistoryWorkCurrent(localBootstrapGeneration) else { return }
 
         // 1.7 Recalculate EXP from loaded selections immediately so baseEnergyToday
         // reflects current selections even before HealthKit data arrives. Without this,
@@ -617,13 +622,16 @@ final class AppModel: ObservableObject {
             needsHealthKitAuthorization = true
             do {
                 try await blockingStore.requestAuthorization()
+                guard isHistoryWorkCurrent(localBootstrapGeneration) else { return }
                 try await requestNotificationPermission()
+                guard isHistoryWorkCurrent(localBootstrapGeneration) else { return }
             } catch {
                 AppLogger.app.debug("Bootstrap permission request failed: \(error.localizedDescription)")
             }
         }
         
         await waitForHistoryWorkResumption()
+        guard isHistoryWorkCurrent(localBootstrapGeneration) else { return }
         // 3. Check day boundary BEFORE fetching so stale state is cleared first
         checkDayBoundary()
         AppLogger.energy.debug("📊 AFTER checkDayBoundary: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
@@ -653,58 +661,39 @@ final class AppModel: ObservableObject {
         isBootstrapping = false
         AppLogger.energy.debug("📊 LOCAL BOOTSTRAP DONE: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
 
-        // Keep the restore guard after authentication so it observes any local
-        // edits made while the network was unavailable.
-        // On a genuine fresh install / data loss, restore from Supabase.
-        //
-        // §C2: this must NOT key off "today's selections are empty" — those reset
-        // at every day boundary, so that signal is also true every morning, which
-        // made a full server restore fire daily and unconditionally overwrite ~30
-        // local preference keys (reverting any setting whose push hadn't yet
-        // landed). Gate instead on a persisted per-install flag.
-        //
-        // The flag is absent on a true fresh install AND after a UserDefaults wipe
-        // (it's stored in the same suite as the data), so both correctly restore.
-        // For an existing user upgrading into this build the flag is also absent,
-        // but they already hold local state — seed the flag WITHOUT restoring so
-        // the upgrade itself doesn't trigger one clobbering restore.
+        // Authentication binds a local owner before publishing its session.
+        // Hydration runs after init releases its waiters, with uploads closed.
         await waitForAuthentication()
-        let isAuthenticated = AuthenticationService.shared.isAuthenticated
-        let g = UserDefaults.nowhere()
-        let hasCompletedInitialRestore = g.bool(forKey: SharedKeys.hasCompletedInitialRestore)
-        if isAuthenticated && !hasCompletedInitialRestore {
-            let hasPriorLocalState = hadLocalStateBeforeInitialization
-                || !ticketGroups.isEmpty
-            if hasPriorLocalState {
-                // Existing install predating this flag — mark restored, don't clobber.
-                AppLogger.app.debug("🔄 Existing install detected — seeding initial-restore flag without restoring")
-                InitialServerRestoreGate.finish(defaults: g, preservedLocalState: true, didRestore: false)
-            } else {
-                AppLogger.app.debug("🔄 Fresh install (authenticated) — restoring from Supabase")
-                let didRestore = await SupabaseSyncService.shared.restoreFromServer(model: self)
-                if didRestore {
-                    AppLogger.app.debug("✅ Restored from Supabase")
-                }
-                InitialServerRestoreGate.finish(defaults: g, preservedLocalState: false, didRestore: didRestore)
-            }
+        guard isHistoryWorkCurrent(localBootstrapGeneration) else { return }
+        await waitForHistoryWorkResumption()
+        guard isHistoryWorkCurrent(localBootstrapGeneration) else { return }
+        let bootstrapGeneration = localBootstrapGeneration
+        if let owner = AuthenticationService.shared.currentUser?.id {
+            _ = await AccountHistoryCoordinator.shared.hydrate(owner: owner, model: self)
         }
+        guard isHistoryWorkCurrent(bootstrapGeneration) else { return }
 
         // 4. Refresh data AFTER day boundary reset so fresh values aren't wiped
         await refreshStepsIfAuthorized()
+        guard isHistoryWorkCurrent(bootstrapGeneration) else { return }
         await refreshSleepIfAuthorized()
+        guard isHistoryWorkCurrent(bootstrapGeneration) else { return }
         AppLogger.energy.debug("📊 AFTER HK refresh: base=\(self.baseEnergyToday), spent=\(self.spentStepsToday), balance=\(self.stepsBalance), total=\(self.totalStepsBalance)")
         
         // 4.5 Snapshot notification authorization so permission badge is accurate on launch
         await refreshNotificationAuthorizationStatus()
+        guard isHistoryWorkCurrent(bootstrapGeneration) else { return }
 
         // 4.6 Register for remote notifications if permission already granted
         let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard isHistoryWorkCurrent(bootstrapGeneration) else { return }
         if settings.authorizationStatus == .authorized {
             UIApplication.shared.registerForRemoteNotifications()
         }
         
         // 6. Check for workouts to suggest
         await refreshWorkoutSuggestions()
+        guard isHistoryWorkCurrent(bootstrapGeneration) else { return }
         
         AppLogger.app.debug("✅ AppModel bootstrap complete")
         didCompleteBootstrap = true

@@ -78,6 +78,8 @@ struct DeviceActivityCenter { func stopMonitoring(_ names: [DeviceActivityName])
     let healthStore = HealthStore()
     var historyWorkGeneration = UUID()
     var paused = false
+    var isBootstrapping = true
+    var didCompleteBootstrap = false
     var history: Data?
     var pauseCount = 0
     func suspendHistoryWork() async {

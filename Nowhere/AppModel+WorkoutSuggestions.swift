@@ -26,6 +26,8 @@ extension AppModel {
 
     /// Main refresh: gathers signals from all sources and builds the unified suggestion list.
     func refreshActivitySuggestions() async {
+        let generation = historyWorkGeneration
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         #if DEBUG
         if activitySuggestionUITestFixtures != nil { return }
         #endif
@@ -41,12 +43,14 @@ extension AppModel {
 
         // 1. Workouts from HealthKit
         let workouts = await healthStore.fetchTodayWorkouts()
-        guard !Task.isCancelled, healthStore.activitySuggestionsQueryID == queryID,
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation),
+              healthStore.activitySuggestionsQueryID == queryID,
               currentDayStart(for: .now) == dayStart else { return }
 
         // 2. Mindful minutes from HealthKit
         let mindfulMinutes = await healthStore.fetchTodayMindfulMinutes()
-        guard !Task.isCancelled, healthStore.activitySuggestionsQueryID == queryID,
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation),
+              healthStore.activitySuggestionsQueryID == queryID,
               currentDayStart(for: .now) == dayStart else { return }
 
         // The user may dismiss or add an event while either query is suspended.

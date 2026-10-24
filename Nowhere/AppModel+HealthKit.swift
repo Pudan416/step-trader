@@ -4,6 +4,8 @@ import HealthKit
 // MARK: - HealthKit & Steps Management
 extension AppModel {
     func ensureHealthAuthorizationAndRefresh() async {
+        let generation = historyWorkGeneration
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         do {
             try await healthStore.requestAuthorization()
             AppLogger.healthKit.debug("✅ HealthKit authorization request completed")
@@ -11,28 +13,37 @@ extension AppModel {
             AppLogger.healthKit.debug("❌ HealthKit authorization failed: \(error.localizedDescription)")
         }
         
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         await refreshStepsIfAuthorized()
     }
 
 
     /// Fetches steps only and updates the budget. Does NOT recalculate energy.
     func refreshStepsBalance() async {
+        let generation = historyWorkGeneration
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         await healthStore.refreshStepsIfAuthorized()
-        
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
+
         let budgetMinutes = budgetEngine.minutes(from: stepsToday)
         budgetEngine.setBudget(minutes: budgetMinutes)
     }
     
     /// Fetches sleep only. Does NOT recalculate energy.
     func refreshSleepIfAuthorized() async {
+        guard !Task.isCancelled, !isHistoryWorkSuspended else { return }
         await healthStore.refreshSleepIfAuthorized()
     }
     
     /// Main refresh entry point — fetches steps + sleep, then recalculates once.
     func refreshStepsIfAuthorized() async {
+        let generation = historyWorkGeneration
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         await refreshStepsBalance()
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
         await refreshSleepIfAuthorized()
-        
+        guard !Task.isCancelled, isHistoryWorkCurrent(generation) else { return }
+
         recalculateDailyEnergy()
         persistDailyEnergyState()
         startStepObservation()

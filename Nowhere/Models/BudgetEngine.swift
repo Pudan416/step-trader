@@ -95,13 +95,12 @@ final class BudgetEngine: ObservableObject, BudgetEngineProtocol {
     // Force re-read values from App Group (for syncing with snippet/intent)
     func reloadFromStorage() {
         let g = sharedDefaults
-        if let anchor = g.object(forKey: SharedKeys.todayAnchor) as? Date {
-            todayAnchor = anchor
-        }
         let savedHour = g.object(forKey: SharedKeys.dayEndHour) as? Int ?? 0
         let savedMinute = g.object(forKey: SharedKeys.dayEndMinute) as? Int ?? 0
         dayEndHour = max(0, min(23, savedHour))
         dayEndMinute = max(0, min(59, savedMinute))
+        todayAnchor = (g.object(forKey: SharedKeys.todayAnchor) as? Date)
+            ?? currentDayAnchor(for: .now)
         AppLogger.energy.debug("🔄 BudgetEngine reloaded: tariff=\(self.tariff.displayName), dayEnd=\(self.dayEndHour):\(self.dayEndMinute)")
     }
     

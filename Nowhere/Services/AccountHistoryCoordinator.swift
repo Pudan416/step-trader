@@ -9,12 +9,14 @@ final class AccountHistoryCoordinator: ObservableObject {
     static let shared = AccountHistoryCoordinator()
     static let signedOutOwner = "local-signed-out"
     @Published private(set) var revision = UUID()
+    @Published private(set) var displayOwner: String?
     @Published private(set) var isSwitching = false
     @Published private(set) var error: String?
     private var vault: AccountHistoryVault?
     private var tail: Task<Void, Never>?
     private var pendingCount = 0
     private var hydrationTask: Task<Bool, Never>?
+    private var hydratedGeneration: UUID?
 
     init(vault: AccountHistoryVault? = nil) { self.vault = vault }
 
@@ -28,6 +30,7 @@ final class AccountHistoryCoordinator: ObservableObject {
         // an uncanceled Canvas upload child that is still waiting for auth init.
         SupabaseSyncService.shared.beginAccountSwitch()
         hydrationTask?.cancel()
+        hydratedGeneration = nil
         let previous = tail
         pendingCount += 1
         isSwitching = true
@@ -89,6 +92,7 @@ final class AccountHistoryCoordinator: ObservableObject {
             publishIdentity()
             await SupabaseSyncService.shared.resumeAfterAccountSwitch()
             resumeLocalWriters(model)
+            displayOwner = owner
             revision = UUID()
             error = nil
         } catch {
@@ -110,6 +114,7 @@ final class AccountHistoryCoordinator: ObservableObject {
                     }
                     await SupabaseSyncService.shared.resumeAfterAccountSwitch()
                     resumeLocalWriters(model)
+                    displayOwner = owner
                     revision = UUID()
                     if UserDefaults.nowhere().bool(forKey: SharedKeys.hasCompletedInitialRestore) {
                         _ = await SupabaseSyncService.shared.allowUploadsAfterRestore(for: owner)
@@ -142,8 +147,9 @@ final class AccountHistoryCoordinator: ObservableObject {
     /// A failed remote restore leaves local B editable and uploads closed.
     func hydrate(owner: String, model: AppModel) async -> Bool {
         guard !isSwitching, AuthenticationService.shared.currentUser?.id == owner else { return false }
-        if let hydrationTask { return await hydrationTask.value }
         let generation = model.historyWorkGeneration
+        if hydratedGeneration == generation { return true }
+        if let hydrationTask { return await hydrationTask.value }
         let epoch = SupabaseSyncService.shared.captureSyncEpoch()
         let task = Task { @MainActor in
             await SupabaseSyncService.$historySyncEpoch.withValue(epoch) {
@@ -160,7 +166,9 @@ final class AccountHistoryCoordinator: ObservableObject {
                 guard await SupabaseSyncService.shared.allowUploadsAfterRestore(for: owner) else { return false }
                 self.error = nil
                 await SupabaseSyncService.shared.performFullSync(model: model)
-                return model.isHistoryWorkCurrent(generation)
+                guard model.isHistoryWorkCurrent(generation) else { return false }
+                self.hydratedGeneration = generation
+                return true
             }
         }
         hydrationTask = task

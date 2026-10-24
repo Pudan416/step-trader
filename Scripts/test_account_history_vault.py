@@ -30,6 +30,15 @@ class AccountHistoryVaultTests(unittest.TestCase):
         result = subprocess.run([str(self.binary), mode], capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_explicit_domain_flush_survives_unwritable_search_sources(self):
+        self.run_case("explicitDomainSync")
+
+    def test_unnamed_domain_flush_failure_retains_rollback_journal(self):
+        self.run_case("unnamedDomainFlushFailure")
+
+    def test_explicit_domain_flush_failure_retains_rollback_journal(self):
+        self.run_case("explicitDomainFlushFailure")
+
     def test_final_manifest_write_failure_rolls_back_immediate_activation_before_returning(self):
         self.run_case("commitWriteFailure")
 

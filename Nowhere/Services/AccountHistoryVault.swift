@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// Local account archives. The caller must stop all working-set writers,
 /// including extensions, before activation; this type does not suspend them.
@@ -8,6 +9,18 @@ final class AccountHistoryVault {
         let defaults: UserDefaults
         let keys: Set<String>
         var keyPrefixes: [String] = []
+        /// The writable preferences namespace, excluding inherited search sources.
+        var persistentDomainName: String? = nil
+        var persistentDomainSynchronizer: ((String) -> Bool)? = nil
+
+        func synchronizePersistentValues() -> Bool {
+            guard let name = persistentDomainName else { return defaults.synchronize() }
+            if let persistentDomainSynchronizer { return persistentDomainSynchronizer(name) }
+            // dictionaryRepresentation() can add an App Group AnyUser/ByHost
+            // search source that cannot be flushed. Require the actual writable
+            // current-user/any-host domain to reach disk before committing.
+            return CFPreferencesSynchronize(name as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        }
 
         func includes(_ key: String) -> Bool {
             keys.contains(key) || keyPrefixes.contains(where: key.hasPrefix)
@@ -342,7 +355,7 @@ final class AccountHistoryVault {
         for (index, domain) in domains.enumerated() {
             guard let values = try PropertyListSerialization.propertyList(from: snapshot.contents.defaults[index], format: nil) as? [String: Any] else { throw VaultError.invalidArchive }
             for key in domain.currentKeys.union(values.keys) { domain.defaults.set(values[key], forKey: key) }
-            guard domain.defaults.synchronize() else { throw VaultError.defaultsWriteFailed }
+            guard domain.synchronizePersistentValues() else { throw VaultError.defaultsWriteFailed }
         }
     }
 
