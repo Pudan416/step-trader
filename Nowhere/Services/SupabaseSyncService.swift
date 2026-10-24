@@ -1,6 +1,103 @@
 import Foundation
 import os.log
 
+/// Capture at the producer, before creating a Task or crossing an actor hop.
+struct SupabaseSyncEpoch: Equatable, Sendable {
+    fileprivate let generation: UUID?
+}
+
+/// Shared by synchronous admission and asynchronous drain. No lock is held over an await.
+final class SupabaseSyncTransitionState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var generation = UUID()
+    private var paused = false
+    private var requiresRestoredOwner = false
+    private var uploadOwner: String?
+    private var active: Set<UUID> = []
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func capture() -> SupabaseSyncEpoch {
+        lock.lock(); defer { lock.unlock() }
+        return SupabaseSyncEpoch(generation: paused ? nil : generation)
+    }
+
+    func allows(_ epoch: SupabaseSyncEpoch, owner: String? = nil, writing: Bool) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return allowsLocked(epoch, owner: owner, writing: writing)
+    }
+
+    private func allowsLocked(_ epoch: SupabaseSyncEpoch, owner: String?, writing: Bool) -> Bool {
+        guard !paused, epoch.generation == generation else { return false }
+        guard writing, requiresRestoredOwner else { return true }
+        guard let uploadOwner else { return false }
+        return owner == nil || owner == uploadOwner
+    }
+
+    func begin(_ epoch: SupabaseSyncEpoch, owner: String, writing: Bool) -> SupabaseSyncOperation? {
+        lock.lock(); defer { lock.unlock() }
+        guard allowsLocked(epoch, owner: owner, writing: writing) else { return nil }
+        let id = UUID()
+        active.insert(id)
+        return SupabaseSyncOperation(state: self, id: id, epoch: epoch, ownerID: owner, writing: writing)
+    }
+
+    func suspend() {
+        lock.lock(); defer { lock.unlock() }
+        paused = true
+        generation = UUID()
+        requiresRestoredOwner = true
+        uploadOwner = nil
+    }
+
+    func waitUntilIdle() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if active.isEmpty {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    fileprivate func finish(_ id: UUID) {
+        lock.lock()
+        active.remove(id)
+        let ready = active.isEmpty ? waiters : []
+        if active.isEmpty { waiters.removeAll() }
+        lock.unlock()
+        ready.forEach { $0.resume() }
+    }
+
+    func resumeReads() {
+        lock.lock(); defer { lock.unlock() }
+        paused = false
+    }
+
+    func allowUploads(for owner: String, epoch: SupabaseSyncEpoch) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard !paused, generation == epoch.generation else { return false }
+        uploadOwner = owner
+        return true
+    }
+}
+
+final class SupabaseSyncOperation: @unchecked Sendable {
+    private let state: SupabaseSyncTransitionState
+    private let id: UUID
+    let epoch: SupabaseSyncEpoch
+    let ownerID: String
+    private let writing: Bool
+    fileprivate init(state: SupabaseSyncTransitionState, id: UUID, epoch: SupabaseSyncEpoch, ownerID: String, writing: Bool) {
+        self.state = state; self.id = id; self.epoch = epoch; self.ownerID = ownerID; self.writing = writing
+    }
+    var isCurrent: Bool { !Task.isCancelled && state.allows(epoch, owner: ownerID, writing: writing) }
+    func finish() { state.finish(id) }
+    deinit { finish() }
+}
+
 struct SupabasePendingSyncRequest: Codable, Equatable {
     let queueID: String
     let urlString: String
@@ -177,6 +274,83 @@ actor SupabaseSyncService {
     
     nonisolated static let shared = SupabaseSyncService()
     
+    @TaskLocal nonisolated static var historySyncEpoch: SupabaseSyncEpoch?
+    nonisolated let transitionState = SupabaseSyncTransitionState()
+    nonisolated func captureSyncEpoch() -> SupabaseSyncEpoch { transitionState.capture() }
+
+    func acceptsScheduledHistoryWork() -> Bool {
+        !Task.isCancelled && transitionState.allows(
+            Self.historySyncEpoch ?? captureSyncEpoch(), writing: true
+        )
+    }
+
+    /// The auth initialization continuation is intentionally not canceled by auth.
+    /// Sync jobs must be cancelable while startup itself is awaiting a history switch.
+    func waitForSyncAuthentication() async -> Bool {
+        let epoch = Self.historySyncEpoch ?? captureSyncEpoch()
+        while !(await AuthenticationService.shared.isInitialized) {
+            guard transitionState.allows(epoch, writing: false), !Task.isCancelled else { return false }
+            do { try await Task.sleep(for: .milliseconds(20)) }
+            catch { return false }
+        }
+        return !Task.isCancelled && transitionState.allows(epoch, writing: false)
+    }
+
+    func beginSyncOperation(writing: Bool) async -> SupabaseSyncOperation? {
+        let epoch = Self.historySyncEpoch ?? captureSyncEpoch()
+        guard !Task.isCancelled, transitionState.allows(epoch, writing: writing) else { return nil }
+        // Initialization may itself invoke the transition coordinator. Do not hold a lease while waiting.
+        guard await waitForSyncAuthentication() else { return nil }
+        guard !Task.isCancelled,
+              let owner = await AuthenticationService.shared.currentUser?.id else { return nil }
+        return transitionState.begin(epoch, owner: owner, writing: writing)
+    }
+
+    /// FIRST invalidate synchronously, before canceling/awaiting producer tasks.
+    /// Their uncanceled Canvas upload children may otherwise be awaiting auth startup.
+    nonisolated func beginAccountSwitch() {
+        transitionState.suspend()
+    }
+
+    /// After beginAccountSwitch and producer drain, await service jobs/leases.
+    /// Durable queues are not cleared.
+    func pauseForAccountSwitch() async {
+        beginAccountSwitch()
+        let tasks = [dailySelectionsSyncTask, dailyStatsSyncTask, dailySpentSyncTask,
+                     ticketGroupsSyncTask, analyticsFlushTask, dayCanvasSyncTask,
+                     preferencesSyncTask, daySnapshotSyncTask, entriesSyncTask, routinesSyncTask]
+            .compactMap { $0 } + Array(canvasRecoveryTasks.values)
+        tasks.forEach { $0.cancel() }
+        for task in tasks { await task.value }
+        await transitionState.waitUntilIdle()
+        dailySelectionsSyncTask = nil; dailyStatsSyncTask = nil; dailySpentSyncTask = nil
+        ticketGroupsSyncTask = nil; analyticsFlushTask = nil; dayCanvasSyncTask = nil
+        preferencesSyncTask = nil; daySnapshotSyncTask = nil; entriesSyncTask = nil; routinesSyncTask = nil
+        canvasRecoveryTasks.removeAll()
+        pendingDailySelections = nil; pendingDailyStats = nil; pendingDailySpent = nil
+        pendingDayCanvas = nil; pendingPreferences = nil; pendingTicketGroupsPayload = []
+        lastSentDailySelections = nil; lastSentDailyStats = nil; lastSentDailySpent = nil
+        lastSentDayCanvas = nil; lastSentPreferences = nil; lastSentTicketGroupsPayload = []
+        cachedTodaySelections = nil; cachedTodayStats = nil; cachedTodaySpent = nil
+        lastSyncedCustomActivitiesHash = 0; lastSyncedDayKey = ""
+        analyticsDedupeKeys.removeAll()
+        canvasUploadOrdering = CanvasUploadOrdering()
+    }
+
+    /// Reads may hydrate incoming history; uploads require an explicit owner-ready signal.
+    func resumeAfterAccountSwitch() {
+        pendingAnalyticsEvents = loadAnalyticsQueueFromDefaults()
+        transitionState.resumeReads()
+    }
+
+    @discardableResult
+    func allowUploadsAfterRestore(for ownerID: String) async -> Bool {
+        let epoch = captureSyncEpoch()
+        guard !Task.isCancelled,
+              await AuthenticationService.shared.currentUser?.id == ownerID else { return false }
+        return transitionState.allowUploads(for: ownerID, epoch: epoch)
+    }
+
     let network = NetworkClient.shared
     let retryQueueStore: SupabaseRetryQueuePersistence
     let optionEntryIntentStore: OptionEntryIntentPersistence
@@ -212,6 +386,8 @@ actor SupabaseSyncService {
     var preferencesSyncTask: Task<Void, Never>?
     var daySnapshotSyncTask: Task<Void, Never>?
     var entriesSyncTask: Task<Void, Never>?
+    var routinesSyncTask: Task<Void, Never>?
+    var canvasRecoveryTasks: [String: Task<Void, Never>] = [:]
     
     // MARK: - Debounce Windows (nanoseconds)
     

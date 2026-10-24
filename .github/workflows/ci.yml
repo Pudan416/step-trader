@@ -16,6 +16,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  sync-transition:
+    name: Sync transition regressions
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify sync operation admission and drain
+        run: python3 Scripts/test_sync_transition.py
+
   analytics-postgres:
     name: Analytics replay SQL
     runs-on: ubuntu-latest
