@@ -33,7 +33,7 @@ struct Group {
     func prepareLocalPurchaseState() async {}
     /*__CURRENT__*/
     func checkDayBoundary() {}
-    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async -> Bool {
+    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?, recoveryOnly: Bool = false) async -> Bool {
         charges += 1
         totalStepsBalance -= 10
         return true
@@ -54,7 +54,11 @@ enum SharedKeys {
     static func appGroupDefaults() -> UserDefaults { defaults }
     static func recordWidgetInteraction(_ message: String, source: String) {}
 }
+extension UserDefaults {
+    static func nowhere() -> UserDefaults { SharedKeys.defaults }
+}
 enum ShieldRebuildHelper {
+    static func recoverableUsageBudgetMinutes(defaults: UserDefaults, groupId: String) -> Int { 0 }
     static func hasRecoverableUsageBudget(defaults: UserDefaults, groupId: String) -> Bool { false }
 }
 struct WidgetPurchaseFailure: LocalizedError {
@@ -64,6 +68,7 @@ struct WidgetPurchaseFailure: LocalizedError {
 struct UnlockGroupWidgetIntent {
     var groupId = "stable-group"
     var windowRaw = "minutes10"
+    var recoveryOnly = false
     @MainActor static var purchaseInFlight = false
     func requestToContinueInForeground() async throws {}
     /*__PERFORM__*/
