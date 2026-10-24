@@ -216,6 +216,10 @@ returns a neutral surface there and cannot serve as the effect's source.
 `SmudgePreparationTests` checks source pixels and a complete gesture-driven Metal
 frame in Release; the Release CI job retains those images. The effect keeps its
 existing independent color field rather than capturing a second live artwork renderer.
+Stroke regions use rounded-up uniform threadgroups, including on devices without
+non-uniform dispatch support. Shader edge guards and the region-only copy preserve
+pixels and ages outside the stroke. `NowhereMetalAPIValidation` exercises the live
+drag and reference-region comparison with Metal API Validation enabled.
 Musical gesture begin/update/end callbacks run immediately, before GPU preparation.
 Only visual commands may wait for the renderer and source texture. The Release
 controller regression verifies that playing music receives a complete gesture
@@ -243,6 +247,13 @@ This barrier covers app-written Canvas JSON, history PNG and the detached
 replace shared Screen Time locks or quiesce the separate wallpaper Intent's
 `wallpaper_bg.jpg` / `wallpaper_v2.plist` producers. A coordinator rotating their
 shared folder must handle those separately. No coordinator is activated here.
+
+Canvas command buffers report their first GPU failure and stop further live and
+offscreen submissions from that renderer. The display link pauses while keeping
+the last drawable; a new renderer starts with a healthy state. Internal builds
+also retain encoder execution status and named Native Atlas passes for diagnosis.
+This bounds repeated submissions after a fault; it does not identify the cause
+of an initial GPU hang or page fault.
 
 `Experiments/ShapeGenome/NativeAtlasMetalRenderer.swift` owns the native live/export pipelines and reusable textures. `MetalShapeGenomeRenderer.swift` is the separate atlas-preview renderer. `Experiments/DayObjects/DayObjectsRenderer.swift` remains the higher-level host for the native and existing editorial paths.
 
