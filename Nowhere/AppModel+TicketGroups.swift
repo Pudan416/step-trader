@@ -14,7 +14,7 @@ extension AppModel {
 
     private func scheduleTicketGroupsSupabaseSync() {
         let snapshot = ticketGroups
-        Task {
+        scheduleHistoryWork {
             await SupabaseSyncService.shared.syncTicketGroups(snapshot)
         }
     }
@@ -42,7 +42,7 @@ extension AppModel {
         let themeIndex = stickerThemeIndex ?? 0
         let group = blockingStore.createTicketGroup(name: name, selection: selection, templateApp: templateApp, defaultSettings: defaultSettings, stickerThemeIndex: themeIndex)
         scheduleTicketGroupsSupabaseSync()
-        Task {
+        scheduleHistoryWork {
             await SupabaseSyncService.shared.trackAnalyticsEvent(
                 name: "ticket_created",
                 properties: [

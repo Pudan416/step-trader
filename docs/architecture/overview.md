@@ -44,6 +44,13 @@ Test names live in `NowhereTests/` unless stated otherwise.
   separately finish local loaders/migrations, suspend other app/extension writers,
   and reload the incoming account before `resumePersistence()`. These transition
   hooks are not wired into authentication yet.
+- `AppModel.scheduleHistoryWork` retains asynchronous history producers and
+  carries their original sync epoch across suspension. Account transitions stop
+  admission, cancel and await producers plus local loaders before storage changes.
+  Deferred day/health tasks and BlockingStore selection/shield tasks share this
+  pause boundary. App-hosted widget authorization captures the model generation,
+  so an old permission prompt cannot spend from a subsequent account. These
+  lifecycle hooks remain dormant until the account coordinator adopts them.
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
 - `HappeningDefaults.builtIns` derives the fixed 106 choices from `HappeningEventTree.all`.

@@ -14,6 +14,7 @@ extension AppModel {
     /// both a data-loss bug and an exploit (toggling the setting refunded spent
     /// colors → free unlocks). We now re-anchor the current day in place instead.
     func updateDayEnd(hour: Int, minute: Int) {
+        guard !isHistoryWorkSuspended else { return }
         let clampedHour = max(0, min(23, hour))
         let clampedMinute = max(0, min(59, minute))
         // No-op guard: nothing changed → don't churn timers/sync/anchor.
@@ -69,7 +70,7 @@ extension AppModel {
 
         if oldDayKey != newDayKey,
            let movedCanvas = CanvasStorageService.shared.loadCanvas(for: newDayKey) {
-            Task { await SupabaseSyncService.shared.syncDayCanvas(movedCanvas) }
+            scheduleHistoryWork { [self] in await SupabaseSyncService.shared.syncDayCanvas(movedCanvas) }
         }
 
         scheduleDayBoundaryTimer()

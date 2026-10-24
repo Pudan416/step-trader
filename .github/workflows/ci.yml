@@ -25,6 +25,17 @@ jobs:
       - name: Verify sync operation admission and drain
         run: python3 Scripts/test_sync_transition.py
 
+  account-model-work:
+    name: Account model producer regressions
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify producer and purchase account boundaries
+        run: |
+          python3 Scripts/test_account_model_work.py
+          python3 Scripts/test_widget_account_authorization.py
+
   analytics-postgres:
     name: Analytics replay SQL
     runs-on: ubuntu-latest

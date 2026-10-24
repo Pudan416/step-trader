@@ -42,7 +42,14 @@ struct UnlockGroupWidgetIntent: AppIntent {
             WidgetCenter.shared.reloadAllTimelines()
         }
         let model = DIContainer.shared.applicationModel
+        let historyGeneration = model.historyWorkGeneration
+        guard model.isHistoryWorkCurrent(historyGeneration) else {
+            throw WidgetPurchaseFailure(message: String(localized: "Your account changed. Choose an app group again."))
+        }
         await model.prepareLocalPurchaseState()
+        guard model.isHistoryWorkCurrent(historyGeneration) else {
+            throw WidgetPurchaseFailure(message: String(localized: "Your account changed. Choose an app group again."))
+        }
         guard let window = AccessWindow(rawValue: windowRaw),
               let group = model.ticketGroups.first(where: { $0.id == groupId }),
               group.settings.familyControlsModeEnabled,
@@ -61,6 +68,9 @@ struct UnlockGroupWidgetIntent: AppIntent {
                 try await model.familyControlsService.requestAuthorization()
             }
         }
+        guard model.isHistoryWorkCurrent(historyGeneration) else {
+            throw WidgetPurchaseFailure(message: String(localized: "Your account changed. Choose an app group again."))
+        }
         model.checkDayBoundary()
         let defaults = SharedKeys.appGroupDefaults()
         let debounceKey = "widgetUnlockLastRequestedAt_\(groupId)"
@@ -76,6 +86,7 @@ struct UnlockGroupWidgetIntent: AppIntent {
         guard await model.handlePayGatePaymentForGroup(groupId: groupId, window: window, costOverride: nil, recoveryOnly: recoveryOnly) else {
             throw WidgetPurchaseFailure(message: model.payGateError ?? String(localized: "Unable to unlock the app. Please try again."))
         }
+        guard model.isHistoryWorkCurrent(historyGeneration) else { return .result() }
         // Persist before returning: Button(intent:) guarantees a timeline reload
         // after perform(), which must observe the committed balance and budget.
         model.writeWidgetSnapshot()
