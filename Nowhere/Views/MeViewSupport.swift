@@ -140,17 +140,20 @@ final class MePosterCanvasLoadCoordinator {
     typealias LoadOperation = @MainActor (String, Bool) async -> DayCanvas?
 
     static let shared = MePosterCanvasLoadCoordinator { dayKey, hasTrackedSnapshot in
+        let epoch = CanvasStorageService.shared.captureWriteEpoch()
         var loaded = await Task.detached(priority: .userInitiated) {
             CanvasStorageService.shared.loadCanvas(for: dayKey)
         }.value
+        guard !Task.isCancelled else { return nil }
 
         if MeCalendarTimeline.shouldAttemptRemoteRecovery(
             hasTrackedSnapshot: hasTrackedSnapshot,
             localCanvasMissing: loaded == nil
         ) {
             let result = await SupabaseSyncService.shared.fetchDayCanvas(for: dayKey)
+            guard !Task.isCancelled else { return nil }
             if case let .found(remote) = result {
-                CanvasStorageService.shared.saveCanvas(remote)
+                guard CanvasStorageService.shared.saveCanvas(remote, expectedEpoch: epoch) else { return nil }
                 loaded = remote
             }
         }
@@ -162,6 +165,8 @@ final class MePosterCanvasLoadCoordinator {
     private var cachedCanvases: [String: DayCanvas] = [:]
     private var missingLoads: Set<MePosterCanvasLoadID> = []
     private var inFlight: [MePosterCanvasLoadID: Task<DayCanvas?, Never>] = [:]
+    private var accountEpoch = UUID()
+    private var accountSwitchSuspended = false
 
     init(loadOperation: @escaping LoadOperation) {
         self.loadOperation = loadOperation
@@ -172,6 +177,8 @@ final class MePosterCanvasLoadCoordinator {
         hasTrackedSnapshot: Bool,
         forceRefresh: Bool = false
     ) async -> DayCanvas? {
+        guard !accountSwitchSuspended, !Task.isCancelled else { return nil }
+        let epoch = accountEpoch
         let loadID = MePosterCanvasLoadID(
             dayKey: dayKey,
             hasTrackedSnapshot: hasTrackedSnapshot
@@ -179,6 +186,7 @@ final class MePosterCanvasLoadCoordinator {
 
         if let active = inFlight[loadID] {
             let loaded = await active.value
+            guard accountEpoch == epoch, !accountSwitchSuspended, !Task.isCancelled else { return nil }
             guard forceRefresh else { return loaded }
             // A save may have happened after the existing read captured its data.
             return await canvas(for: dayKey, hasTrackedSnapshot: hasTrackedSnapshot, forceRefresh: true)
@@ -196,6 +204,7 @@ final class MePosterCanvasLoadCoordinator {
         let operation = loadOperation
         let task = Task { @MainActor in
             let loaded = await operation(dayKey, hasTrackedSnapshot)
+            guard self.accountEpoch == epoch, !self.accountSwitchSuspended, !Task.isCancelled else { return nil as DayCanvas? }
             self.inFlight.removeValue(forKey: loadID)
             if let loaded {
                 self.cachedCanvases[dayKey] = loaded
@@ -207,7 +216,24 @@ final class MePosterCanvasLoadCoordinator {
             return loaded
         }
         inFlight[loadID] = task
-        return await task.value
+        let loaded = await task.value
+        guard accountEpoch == epoch, !accountSwitchSuspended, !Task.isCancelled else { return nil }
+        return loaded
+    }
+
+    func suspendForAccountSwitch() async {
+        accountSwitchSuspended = true
+        accountEpoch = UUID()
+        let tasks = Array(inFlight.values)
+        for task in tasks { task.cancel() }
+        for task in tasks { _ = await task.value }
+        inFlight.removeAll()
+        cachedCanvases.removeAll()
+        missingLoads.removeAll()
+    }
+
+    func resumeAfterAccountSwitch() {
+        accountSwitchSuspended = false
     }
 }
 
@@ -242,6 +268,8 @@ final class MePosterSnapshotCache: ObservableObject {
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
     private var requestedKeys: [String: String] = [:]
     private var diskWrites: [String: (id: UUID, task: Task<Void, Never>)] = [:]
+    private var accountEpoch = UUID()
+    private var accountSwitchSuspended = false
 
     init(
         directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -261,6 +289,7 @@ final class MePosterSnapshotCache: ObservableObject {
     }
 
     func cachedImage(for dayKey: String) -> UIImage? {
+        guard !accountSwitchSuspended, !Task.isCancelled else { return nil }
         if let entry = entries[dayKey] { return entry.image }
         guard let data = try? Data(contentsOf: fileURL(dayKey)),
               let stored = try? PropertyListDecoder().decode(DiskEntry.self, from: data),
@@ -272,31 +301,42 @@ final class MePosterSnapshotCache: ObservableObject {
     /// Calendar cells read this from body without touching the filesystem.
     /// Their .task loads missing images through image(for:categories:).
     func cachedImageInMemory(for dayKey: String) -> UIImage? {
-        entries[dayKey]?.image
+        guard !accountSwitchSuspended, !Task.isCancelled else { return nil }
+        return entries[dayKey]?.image
     }
 
     private func loadCachedImage(for dayKey: String) async {
+        let epoch = accountEpoch
         guard entries[dayKey] == nil else { return }
         let url = fileURL(dayKey)
         let stored: DiskEntry? = await Task.detached(priority: .utility) {
             guard let data = try? Data(contentsOf: url) else { return nil }
             return try? PropertyListDecoder().decode(DiskEntry.self, from: data)
         }.value
-        guard entries[dayKey] == nil, let stored,
+        guard accountEpoch == epoch, !accountSwitchSuspended, !Task.isCancelled,
+              entries[dayKey] == nil, let stored,
               let image = UIImage(data: stored.png) else { return }
         remember(Entry(key: stored.key, image: image), for: dayKey)
         revision &+= 1
     }
 
     func image(for canvas: DayCanvas, categories: Set<ModernPaletteCategory>) async -> UIImage? {
+        guard !accountSwitchSuspended, !Task.isCancelled else { return nil }
+        let epoch = accountEpoch
         guard let key = contentKey(canvas, categories: categories) else { return nil }
         let dayKey = canvas.dayKey
         requestedKeys[dayKey] = key
         await loadCachedImage(for: dayKey)
+        guard accountEpoch == epoch, !accountSwitchSuspended, !Task.isCancelled else { return nil }
         if let entry = entries[dayKey], entry.key == key { return entry.image }
-        if let active = inFlight[key] { return await active.value }
+        if let active = inFlight[key] {
+            let image = await active.value
+            guard accountEpoch == epoch, !accountSwitchSuspended, !Task.isCancelled else { return nil }
+            return image
+        }
         let task = Task { @MainActor in
             let image = await self.render(canvas, categories)
+            guard self.accountEpoch == epoch, !self.accountSwitchSuspended, !Task.isCancelled else { return nil as UIImage? }
             if let image, self.requestedKeys[dayKey] == key {
                 self.remember(Entry(key: key, image: image), for: dayKey)
                 self.revision &+= 1
@@ -328,7 +368,35 @@ final class MePosterSnapshotCache: ObservableObject {
             return image
         }
         inFlight[key] = task
-        return await task.value
+        let image = await task.value
+        guard accountEpoch == epoch, !accountSwitchSuspended, !Task.isCancelled else { return nil }
+        return image
+    }
+
+    /// The caller keeps account switching serialized and resumes only after the
+    /// incoming working set is ready. A failed cache removal leaves admission shut.
+    func suspendForAccountSwitch() async throws {
+        accountSwitchSuspended = true
+        accountEpoch = UUID()
+        let renders = Array(inFlight.values)
+        let writes = diskWrites.values.map(\.task)
+        for task in renders { task.cancel() }
+        for task in writes { task.cancel() }
+        for task in renders { _ = await task.value }
+        for task in writes { await task.value }
+        inFlight.removeAll()
+        diskWrites.removeAll()
+        requestedKeys.removeAll()
+        entries.removeAll()
+        recency.removeAll()
+        revision &+= 1
+        if FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.removeItem(at: directory)
+        }
+    }
+
+    func resumeAfterAccountSwitch() {
+        accountSwitchSuspended = false
     }
 
     private func remember(_ entry: Entry, for dayKey: String) {
