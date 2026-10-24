@@ -70,6 +70,36 @@ class AuthenticationService: NSObject, ObservableObject {
         }
         return valid.accessToken
     }
+
+    /// Linking must keep the anonymous owner. Unlike best-effort API reads,
+    /// a failed refresh cannot fall back to an expired bearer or a new user.
+    func anonymousAppleLinkContext() async throws -> (token: String, userID: String)? {
+        // Apple sign-in can invalidate the startup restore's generation before
+        // its cached guest is published. Never infer "no guest" from that gap.
+        guard isInitialized else {
+            throw AuthError.supabaseError("Your account is still loading. Please try again.")
+        }
+        let stored = loadStoredSession()
+        let publishedOwnerID = currentUser?.id
+        let publishedIsAnonymous = isAnonymous
+        guard isAnonymous || stored?.user.isAnonymous == true else {
+            return nil
+        }
+        let generation = sessionGeneration
+        guard let stored else { throw AuthError.sessionExpired }
+        let userID = publishedOwnerID ?? stored.user.id
+        guard stored.user.id == userID, stored.user.isAnonymous else {
+            throw AuthError.sessionExpired
+        }
+        let valid = try await ensureValidSession(stored)
+        try checkSessionGeneration(generation)
+        guard isAnonymous == publishedIsAnonymous, currentUser?.id == publishedOwnerID,
+              valid.user.id == userID, valid.user.isAnonymous else {
+            throw AuthError.sessionExpired
+        }
+        if valid.accessToken != stored.accessToken { storeSession(valid) }
+        return (valid.accessToken, userID)
+    }
     
     // Auth data intentionally stored in .standard — not shared with extensions.
     // Avatar bytes live on disk (Documents dir) to avoid bloating UserDefaults.

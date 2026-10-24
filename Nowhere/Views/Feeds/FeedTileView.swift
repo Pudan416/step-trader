@@ -487,9 +487,14 @@ struct FeedInlineDurationOptions: View {
     var body: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 10))
+        let recoverable = ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: .nowhere(), groupId: group.id)
         return layout {
-            ForEach(windows, id: \.self) { window in
-                durationButton(window)
+            if recoverable > 0, let window = windows.first {
+                durationButton(window, recoveryMinutes: recoverable)
+            } else {
+                ForEach(windows, id: \.self) { window in
+                    durationButton(window)
+                }
             }
         }
         .padding(.horizontal, 20)
@@ -499,15 +504,17 @@ struct FeedInlineDurationOptions: View {
         .accessibilityLabel(String(localized: "Unlock \(group.displayIdentity.title)"))
     }
 
-    private func durationButton(_ window: AccessWindow) -> some View {
+    private func durationButton(_ window: AccessWindow, recoveryMinutes: Int? = nil) -> some View {
         let cost = group.cost(for: window)
-        let canAfford = model.totalStepsBalance >= cost
+        let isRecovery = recoveryMinutes != nil
+        let canAfford = isRecovery || model.totalStepsBalance >= cost
 
         return Button {
-            purchase(window: window, cost: cost)
+            purchase(window: window, cost: cost, recoveryOnly: isRecovery)
         } label: {
             VStack(spacing: 7) {
-                Text(String(localized: "\(window.minutes) min", comment: "Compact feed duration in minutes"))
+                Text(recoveryMinutes.map { String(localized: "Resume \($0) min") }
+                     ?? String(localized: "\(window.minutes) min", comment: "Compact feed duration in minutes"))
                     .font(.geist(16, relativeTo: .body))
                     .lineLimit(1)
 
@@ -516,6 +523,8 @@ struct FeedInlineDurationOptions: View {
                         ProgressView()
                             .controlSize(.mini)
                             .tint(palette.onAccentColor)
+                    } else if isRecovery {
+                        Text(String(localized: "Free")).font(.geist(16, relativeTo: .body))
                     } else {
                         HStack(spacing: 5) {
                             Image(systemName: "drop.fill")
@@ -539,9 +548,10 @@ struct FeedInlineDurationOptions: View {
         .disabled(!canAfford || purchasingWindow != nil)
 
         .accessibilityLabel(
-            String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors")
+            recoveryMinutes.map { String(localized: "Resume \($0) minutes for \(group.displayIdentity.title), free") }
+                ?? String(localized: "Unlock \(group.displayIdentity.title) for \(window.minutes) minutes, \(cost) colors")
         )
-        .accessibilityIdentifier("feed.\(group.id).duration.\(window.minutes)")
+        .accessibilityIdentifier(isRecovery ? "feed.\(group.id).resume" : "feed.\(group.id).duration.\(window.minutes)")
         .canvasTourControl("feeds.duration.\(group.id).\(window.minutes)")
         .accessibilityHint(
             canAfford
@@ -550,7 +560,7 @@ struct FeedInlineDurationOptions: View {
         )
     }
 
-    private func purchase(window: AccessWindow, cost: Int) {
+    private func purchase(window: AccessWindow, cost: Int, recoveryOnly: Bool = false) {
         guard purchasingWindow == nil else { return }
         if CanvasTour.shared.isActive {
             guard let current = model.blockingStore.ticketGroups.first(where: { $0.id == group.id }),
@@ -562,7 +572,9 @@ struct FeedInlineDurationOptions: View {
                 CanvasTour.shared.recover("App access is needed. Check Your setup or skip this unlock.")
                 return
             }
-            guard model.totalStepsBalance >= group.cost(for: window), group.enabledIntervals.contains(window) else {
+            let canRecover = ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: .nowhere(), groupId: group.id) > 0
+            guard (recoveryOnly ? canRecover : model.totalStepsBalance >= group.cost(for: window)),
+                  group.enabledIntervals.contains(window) else {
                 CanvasTour.shared.recover("This duration is no longer available with your colors. Choose another or skip.")
                 return
             }
@@ -574,7 +586,8 @@ struct FeedInlineDurationOptions: View {
             await model.handlePayGatePaymentForGroup(
                 groupId: group.id,
                 window: window,
-                costOverride: cost
+                costOverride: cost,
+                recoveryOnly: recoveryOnly
             )
             purchasingWindow = nil
 

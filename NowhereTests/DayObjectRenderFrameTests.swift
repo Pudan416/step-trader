@@ -10,6 +10,45 @@ import simd
 @testable import Nowhere
 
 final class DayObjectRenderFrameTests: XCTestCase {
+    func testGPUFailureStopsTheRendererAndReportsOnlyTheFirstFault() {
+        let state = DayObjectsGPUFailureState()
+        XCTAssertFalse(state.hasFailed)
+        XCTAssertTrue(state.recordFailure())
+        XCTAssertTrue(state.hasFailed)
+        for _ in 0..<100 { XCTAssertFalse(state.recordFailure()) }
+        XCTAssertTrue(state.hasFailed)
+        XCTAssertFalse(DayObjectsGPUFailureState().hasFailed)
+    }
+
+    func testConcurrentGPUFailuresCannotReportTheFirstFaultTwice() {
+        let state = DayObjectsGPUFailureState()
+        let resultLock = NSLock()
+        var reports = 0
+        DispatchQueue.concurrentPerform(iterations: 100) { _ in
+            if state.recordFailure() {
+                resultLock.lock()
+                reports += 1
+                resultLock.unlock()
+            }
+        }
+        XCTAssertEqual(reports, 1)
+        XCTAssertTrue(state.hasFailed)
+    }
+
+    func testBackgroundGPURejectionDoesNotDisableFutureForegroundFrames() {
+        let state = DayObjectsGPUFailureState()
+        XCTAssertFalse(state.recordFailure(error: NSError(
+            domain: MTLCommandBufferErrorDomain,
+            code: Int(MTLCommandBufferError.notPermitted.rawValue)
+        )))
+        XCTAssertFalse(state.hasFailed)
+        XCTAssertTrue(state.recordFailure(error: NSError(
+            domain: MTLCommandBufferErrorDomain,
+            code: Int(MTLCommandBufferError.pageFault.rawValue)
+        )))
+        XCTAssertTrue(state.hasFailed)
+    }
+
     @MainActor
     func testWallImpactDeliverySendsEverySimultaneousContactToTheSink() {
         let impacts = (0..<4).map { index in

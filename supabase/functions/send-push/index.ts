@@ -206,16 +206,30 @@ Deno.serve(async (req) => {
   // Use service role to read all tokens
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-  const { data: tokens, error } = await supabase
-    .from("device_tokens")
-    .select("token")
-    .eq("platform", "ios");
-
-  if (error) {
-    return new Response(JSON.stringify({ error: "Database error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+  // Cursor over the primary key: offsets can skip rows when tokens are deleted.
+  // Continue through an empty page even if the server's cap is below our limit.
+  // Finish all reads before delivery so a later page failure sends no partial
+  // broadcast and cannot be mistaken for full success by an admin retry.
+  const tokens: { token: string }[] = [];
+  let afterID: string | undefined;
+  while (true) {
+    let query = supabase
+      .from("device_tokens")
+      .select("id, token")
+      .eq("platform", "ios")
+      .order("id", { ascending: true })
+      .limit(1000);
+    if (afterID) query = query.gt("id", afterID);
+    const { data: page, error } = await query;
+    if (error || !page) {
+      return new Response(JSON.stringify({ error: "Database error" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (page.length === 0) break;
+    tokens.push(...page);
+    afterID = page[page.length - 1].id;
   }
 
   if (!tokens || tokens.length === 0) {

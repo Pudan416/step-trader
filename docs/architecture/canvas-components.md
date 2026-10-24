@@ -244,6 +244,13 @@ replace shared Screen Time locks or quiesce the separate wallpaper Intent's
 `wallpaper_bg.jpg` / `wallpaper_v2.plist` producers. A coordinator rotating their
 shared folder must handle those separately. No coordinator is activated here.
 
+Canvas command buffers report their first GPU failure and stop further live and
+offscreen submissions from that renderer. The display link pauses while keeping
+the last drawable; a new renderer starts with a healthy state. Internal builds
+also retain encoder execution status and named Native Atlas passes for diagnosis.
+This bounds repeated submissions after a fault; it does not identify the cause
+of an initial GPU hang or page fault.
+
 `Experiments/ShapeGenome/NativeAtlasMetalRenderer.swift` owns the native live/export pipelines and reusable textures. `MetalShapeGenomeRenderer.swift` is the separate atlas-preview renderer. `Experiments/DayObjects/DayObjectsRenderer.swift` remains the higher-level host for the native and existing editorial paths.
 
 The four immutable native pipeline states are cached per Metal device with
