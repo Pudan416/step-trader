@@ -1011,6 +1011,32 @@ struct DayObjectsBackgroundRenderPolicy {
     }
 }
 
+/// Metal completes command buffers on its own threads. A failed queue must not
+/// keep receiving frames; successful buffers already in flight cannot reset it.
+final class DayObjectsGPUFailureState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var failed = false
+
+    var hasFailed: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return failed
+    }
+
+    /// Returns true only for the first failure, so diagnostics are bounded.
+    func recordFailure(error: NSError? = nil) -> Bool {
+        // iOS can reject an in-flight drawable as the app backgrounds. That
+        // lifecycle rejection must not disable an otherwise healthy renderer.
+        if error?.domain == MTLCommandBufferErrorDomain,
+           error?.code == Int(MTLCommandBufferError.notPermitted.rawValue) { return false }
+        lock.lock()
+        defer { lock.unlock() }
+        guard !failed else { return false }
+        failed = true
+        return true
+    }
+}
+
 final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     static let actorCapacity = DayObjectsActorUpload.maximumActorCount
     static let colorPixelFormat: MTLPixelFormat = .bgra8Unorm_srgb
@@ -1028,6 +1054,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
 
     private let commandQueue: MTLCommandQueue
+    private let gpuFailureState = DayObjectsGPUFailureState()
     private let meshGradientPipeline: MTLRenderPipelineState
     private let sceneUpscalePipeline: MTLRenderPipelineState
     private let actorPipeline: MTLRenderPipelineState
@@ -1388,6 +1415,10 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        guard !gpuFailureState.hasFailed else {
+            view.isPaused = true
+            return
+        }
         let drawableView = view as? DayObjectsDrawableView
         let paletteViewportSize: CGSize?
         let paletteCameraOrigin: CGPoint
@@ -1458,7 +1489,8 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         elapsedTime: TimeInterval,
         completion: @escaping (MTLTexture?, DayObjectRenderFrame?) -> Void
     ) {
-        guard size.width.isFinite,
+        guard !gpuFailureState.hasFailed,
+              size.width.isFinite,
               size.height.isFinite,
               pointScale.isFinite,
               size.width > 0,
@@ -1624,6 +1656,22 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         return frame.applyingLunarPhysics(physicsOutput)
     }
 
+    private func makeTrackedCommandBuffer() -> MTLCommandBuffer? {
+        guard !gpuFailureState.hasFailed else { return nil }
+        let descriptor = MTLCommandBufferDescriptor()
+        #if DEBUG || INTERNAL_BUILD
+        descriptor.errorOptions = .encoderExecutionStatus
+        #endif
+        guard let buffer = commandQueue.makeCommandBuffer(descriptor: descriptor) else { return nil }
+        buffer.label = "Day Objects Canvas frame"
+        buffer.addCompletedHandler { [gpuFailureState] completed in
+            let error = completed.error as NSError?
+            guard completed.status == .error, gpuFailureState.recordFailure(error: error) else { return }
+            AppLogger.ui.error("[CANVAS_GPU] Rendering stopped after command failure: \(String(describing: error), privacy: .public)")
+        }
+        return buffer
+    }
+
     private func encodeFrame(
         outputTexture: MTLTexture,
         outputPass: MTLRenderPassDescriptor,
@@ -1659,7 +1707,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
             )
         }
         if var recipe = renderScene.input.nativeAtlasRecipe, recipe.isSupported {
-            guard let renderer = nativeAtlasRenderer, let buffer = commandQueue.makeCommandBuffer() else { return nil }
+            guard let renderer = nativeAtlasRenderer, let buffer = makeTrackedCommandBuffer() else { return nil }
             var isPalette = false
             var variants = renderScene.input.actorColorVariants
             if case let .happeningPalette(presentation) = presentationMode {
@@ -1709,7 +1757,7 @@ final class DayObjectsRenderer: NSObject, MTKViewDelegate {
         resizeRenderTargets(to: drawableSize)
         guard let renderTargets,
               let attemptedTargetPlan,
-              let commandBuffer = commandQueue.makeCommandBuffer()
+              let commandBuffer = makeTrackedCommandBuffer()
         else { return nil }
 
         let rendersBackground = backgroundRenderPolicy.shouldRender(

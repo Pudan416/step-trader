@@ -935,7 +935,8 @@ private struct NowhereProductionRoot: View {
             guard widgetUnlockOperationID == operationID,
                   model.isHistoryWorkCurrent(historyGeneration) else { return }
             model.checkDayBoundary()
-            guard model.totalStepsBalance >= group.cost(for: window) else {
+            guard model.totalStepsBalance >= group.cost(for: window)
+                    || ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: UserDefaults.nowhere(), groupId: group.id) > 0 else {
                 model.payGateError = String(localized: "Not enough colors")
                 SharedKeys.recordWidgetInteraction("unlock refused: insufficient current balance", source: "app")
                 return

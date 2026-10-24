@@ -1,5 +1,6 @@
 import XCTest
 import HealthKit
+import FamilyControls
 @testable import Nowhere
 
 @MainActor
@@ -333,6 +334,41 @@ final class PaymentTests: XCTestCase {
 
         XCTAssertEqual(model.stepsBalance, 500)
         XCTAssertNil(model.payGateError)
+    }
+
+    func testStaleFreeResumeNeverFallsThroughToPurchaseWithEnoughColors() async throws {
+        let model = makeModel()
+        model.isBootstrapping = true
+        (model.familyControlsService as? MockFamilyControlsService)?.isAuthorized = true
+        let savedDomain = defaults.persistentDomain(forName: SharedKeys.appGroupId)
+        defer { defaults.setPersistentDomain(savedDomain ?? [:], forName: SharedKeys.appGroupId) }
+        var selection = FamilyActivitySelection()
+        selection.applicationTokens = [try JSONDecoder().decode(ApplicationToken.self, from: Data(#"{"data":"AQ=="}"#.utf8))]
+        let group = TicketGroup(name: "Resume fixture", selection: selection,
+                                settings: AppUnlockSettings(entryCostSteps: 4, dayPassCostSteps: 20, familyControlsModeEnabled: true))
+        model.ticketGroups = [group]
+        for hasExpiredSession in [false, true] {
+            if hasExpiredSession {
+                var expired = UsageBudgetSession(minutes: 10, startedAt: .now.addingTimeInterval(-7200),
+                                                 expiresAt: .now.addingTimeInterval(-1))
+                expired.monitoringFailed = true
+                expired.save(to: defaults, groupId: group.id)
+            }
+            model.baseEnergyToday = 500
+            model.stepsBalance = 500
+            model.spentStepsToday = 0
+            model.bonusSteps = 0
+            model.appStepsSpentToday = [:]
+            let before = UsageBudgetSession.load(from: defaults, groupId: group.id)
+            let resumed = await model.handlePayGatePaymentForGroup(groupId: group.id, window: .minutes10,
+                                                                   costOverride: nil, recoveryOnly: true)
+            XCTAssertFalse(resumed)
+            XCTAssertEqual(model.stepsBalance, 500)
+            XCTAssertEqual(model.spentStepsToday, 0)
+            XCTAssertTrue(model.appStepsSpentToday.isEmpty)
+            XCTAssertEqual(UsageBudgetSession.load(from: defaults, groupId: group.id), before)
+            XCTAssertNotNil(model.payGateError)
+        }
     }
 
     func testRolloverIsNotSuppressedByRecentSameDayCheck() {

@@ -79,7 +79,7 @@ extension AppModel {
 
     @MainActor
     @discardableResult
-    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async -> Bool {
+    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?, recoveryOnly: Bool = false) async -> Bool {
         guard !isHistoryWorkSuspended else { return false }
         // Checked before anything else, including whether the group exists: without
         // Screen Time access every ManagedSettingsStore write below is inert, so the
@@ -102,7 +102,7 @@ extension AppModel {
         // A paid continuation that could not register is resumed before a new
         // charge. Never turn recovery into another purchase.
         let store = UserDefaults.nowhere()
-        if ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: store, groupId: groupId),
+        if ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: store, groupId: groupId) > 0,
            let session = UsageBudgetSession.load(from: store, groupId: groupId) {
             if let failure = startUsageBudgetMonitoring(groupId: groupId, minutes: session.remainingMinutes) {
                 payGateError = failure.userFacingMessage
@@ -113,6 +113,12 @@ extension AppModel {
             rebuildFamilyControlsShield()
             dismissPayGate(reason: .programmatic)
             return true
+        }
+
+        // A Resume tap from an old view/widget must never become a new charge.
+        guard !recoveryOnly else {
+            payGateError = String(localized: "No paid time available to resume")
+            return false
         }
 
         let cost = costOverride ?? group.cost(for: window)

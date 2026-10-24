@@ -963,10 +963,7 @@ actor SupabaseSyncService {
             if spent.totalSpent > 0 {
                 await MainActor.run {
                     guard syncOperation.isCurrent else { return }
-                    model.spentStepsToday = spent.totalSpent
-                    let today = AppModel.dayKey(for: Date.now)
-                    model.appStepsSpentByDay[today] = spent.spentByApp
-                    model.persistAppStepsSpentToday()
+                    model.userEconomyStore.restoreDailySpend(totalSpent: spent.totalSpent, spentByApp: spent.spentByApp)
                 }
                 didRestore = true
             }

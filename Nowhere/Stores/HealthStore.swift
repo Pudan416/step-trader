@@ -31,6 +31,8 @@ final class HealthStore: ObservableObject {
     private var stepsQueryID: UUID?
     private var sleepQueryID: UUID?
     private var stepsObservationID: UUID?
+    /// The AppModel suggestion orchestrator shares this Health lifecycle token.
+    var activitySuggestionsQueryID: UUID?
     
     init(healthKitService: any HealthKitServiceProtocol, defaults: UserDefaults = .nowhere()) {
         self.healthKitService = healthKitService
@@ -266,6 +268,7 @@ final class HealthStore: ObservableObject {
         stepsObservationID = nil
         stepsQueryID = nil
         sleepQueryID = nil
+        activitySuggestionsQueryID = nil
         stepsQueryOutcome = .idle
         sleepQueryOutcome = .idle
         healthKitService.stopObservingSteps()
