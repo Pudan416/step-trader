@@ -6,6 +6,7 @@ extension SupabaseSyncService {
     
     /// Sync daily spent points
     func syncDailySpent(dayKey: String, totalSpent: Int, spentByApp: [String: Int]) {
+        guard acceptsScheduledHistoryWork() else { return }
         let payload = DailySpentPayload(
             dayKey: dayKey,
             totalSpent: totalSpent,
@@ -34,18 +35,20 @@ extension SupabaseSyncService {
     // MARK: - Perform Spent Sync
     
     func performDailySpentSync(payload: DailySpentPayload) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         if payload == lastSentDailySpent { return }
         let dayKey = payload.dayKey
         let totalSpent = payload.totalSpent
         let spentByApp = payload.spentByApp
         
         defer {
-            if pendingDailySpent == payload {
+            if syncOperation.isCurrent, pendingDailySpent == payload {
                 pendingDailySpent = nil
             }
         }
         
-        guard let auth = await authenticatedContext() else {
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Daily spent sync skipped: no auth")
             return
         }
@@ -85,6 +88,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONEncoder().encode(row)
             
             let (_, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if Task.isCancelled { return }
             if response.statusCode < 400 {
                 lastSentDailySpent = payload
@@ -102,7 +106,9 @@ extension SupabaseSyncService {
     
     /// Load today's spent points from Supabase
     func loadTodaySpentFromServer() async -> (totalSpent: Int, spentByApp: [String: Int])? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
         
@@ -132,6 +138,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard response.statusCode < 400 else { return nil }
             
             AppLogger.network.debug("📡 Raw spent response: \(String(data: data, encoding: .utf8) ?? "nil")")

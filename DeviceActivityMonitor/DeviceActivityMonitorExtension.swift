@@ -341,9 +341,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
                     defaults.removeObject(forKey: SharedKeys.usageBudgetExpiryKey(group.id))
                     defaults.removeObject(forKey: UsageBudgetSession.key(group.id))
                     var names = [DeviceActivityName("usageBudget_\(group.id)")]
-                    if let session {
-                        names.append(DeviceActivityName(session.activityName(groupId: group.id)))
-                    }
+                    names.append(DeviceActivityName(session.activityName(groupId: group.id)))
                     for activity in names where activity != endingActivity {
                         activitiesToStop.append(activity)
                     }

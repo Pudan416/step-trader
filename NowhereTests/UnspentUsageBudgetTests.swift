@@ -125,6 +125,24 @@ final class TimedAccessPassTests: XCTestCase {
             defaults: defaults, activityName: session().activityName(groupId: groupId)))
     }
 
+    func testAccountRotationClosesPassUntilFreshMonitorIsRegistered() {
+        let pass = session()
+        pass.save(to: defaults, groupId: groupId)
+        let outgoingEpoch = UsageBudgetAccountBoundary.epoch(in: defaults)
+
+        let stoppedActivities = UsageBudgetAccountBoundary.suspend(defaults: defaults)
+
+        XCTAssertTrue(stoppedActivities.contains(pass.activityName(groupId: groupId)))
+        XCTAssertFalse(UsageBudgetAccountBoundary.accepts(outgoingEpoch, in: defaults))
+        XCTAssertFalse(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now))
+        XCTAssertTrue(UsageBudgetSession.load(from: defaults, groupId: groupId)?.monitoringFailed == true)
+
+        UsageBudgetAccountBoundary.resume(defaults: defaults)
+        XCTAssertTrue(UsageBudgetAccountBoundary.accepts(UsageBudgetAccountBoundary.epoch(in: defaults), in: defaults))
+        XCTAssertFalse(ShieldRebuildHelper.isUsageBudgetActive(defaults: defaults, groupId: groupId, at: now),
+                       "A stopped pass must stay shielded until its deadline monitor is recovered")
+    }
+
     func testLegacyBalancesCannotRestoreAccessAfterMigration() {
         defaults.set(10, forKey: SharedKeys.usageBudgetKey(groupId))
         defaults.set(now.addingTimeInterval(60), forKey: SharedKeys.usageBudgetExpiryKey(groupId))

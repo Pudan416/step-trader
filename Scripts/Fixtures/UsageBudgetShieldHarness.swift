@@ -24,6 +24,12 @@ struct Logger {
     init(subsystem: String, category: String) {}
     func error(_ message: String) { print(message) }
 }
+struct DeviceActivityName { let rawValue: String; init(_ rawValue: String) { self.rawValue = rawValue } }
+struct DeviceActivitySchedule { let intervalEnd: Date }
+struct DeviceActivityCenter {
+    func schedule(for name: DeviceActivityName) -> DeviceActivitySchedule? { nil }
+    func events(for name: DeviceActivityName) -> [String: Int] { [:] }
+}
 final class ShieldStub {
     private let lock = NSLock()
     private var storedApplications: Set<Int>?
@@ -52,6 +58,7 @@ enum ShieldRebuildHelper {
     static func withUsageBudgetLock<T>(_ body: () throws -> T) throws -> T {
         try stateLock.withLock(body)
     }
+/*__LEGACY_CLEAR__*/
     static func loadGroups(defaults: UserDefaults) -> [GroupTuple] {
         configuredGroups
     }
@@ -73,6 +80,37 @@ func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() { print("FAIL: " + message); exit(1) }
 }
 let mode = CommandLine.arguments[2]
+if mode == "transition-lock" {
+    enum Expected: Error { case interrupted }
+    func probe(_ lock: UsageBudgetFileLock) -> Bool {
+        let descriptor = open(lock.fileURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        expect(descriptor >= 0, "lock descriptor must open")
+        defer { close(descriptor) }
+        let acquired = flock(descriptor, LOCK_EX | LOCK_NB) == 0
+        if acquired { flock(descriptor, LOCK_UN) }
+        return acquired
+    }
+    var visited = false
+    do {
+        try UsageBudgetRegistrationCoordinator.withAccountHistoryTransition(
+            stateLock: stateLock, registrationLock: registrationLock
+        ) {
+            visited = true
+            expect(!probe(stateLock), "extension state writers must stay excluded during history replacement")
+            expect(!probe(registrationLock), "in-flight daemon registrations must stay excluded during history replacement")
+            throw Expected.interrupted
+        }
+        fatalError("transition error must propagate")
+    } catch Expected.interrupted {} catch { fatalError("unexpected transition error") }
+    expect(visited, "transition body must run")
+    expect(probe(stateLock) && probe(registrationLock), "failed transition must release both locks for retry")
+    let result = try! UsageBudgetRegistrationCoordinator.withAccountHistoryTransition(
+        stateLock: stateLock, registrationLock: registrationLock
+    ) { 42 }
+    expect(result == 42, "successful transition must preserve its return value")
+    print("PASS: transition-lock")
+    exit(0)
+}
 if mode == "race" {
 let defaults = SharedKeys.defaults
 defer { defaults.removePersistentDomain(forName: SharedKeys.appGroupId) }

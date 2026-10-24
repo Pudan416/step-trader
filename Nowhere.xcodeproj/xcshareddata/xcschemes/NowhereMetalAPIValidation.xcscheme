@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2610" version="1.7">
+   <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES" buildArchitectures="Automatic">
+      <BuildActionEntries>
+         <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="2089F0B32E71A18E00ABF5FA" BuildableName="Nowhere.app" BlueprintName="Nowhere" ReferencedContainer="container:Nowhere.xcodeproj"/>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="NO" shouldAutocreateTestPlan="YES">
+      <Testables>
+         <TestableReference skipped="NO" parallelizable="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="2089F0C32E71A18F00ABF5FA" BuildableName="NowhereTests.xctest" BlueprintName="NowhereTests" ReferencedContainer="container:Nowhere.xcodeproj"/>
+         </TestableReference>
+      </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable key="MTL_DEBUG_LAYER" value="1" isEnabled="YES"/>
+         <EnvironmentVariable key="MTL_SHADER_VALIDATION" value="0" isEnabled="YES"/>
+      </EnvironmentVariables>
+   </TestAction>
+</Scheme>

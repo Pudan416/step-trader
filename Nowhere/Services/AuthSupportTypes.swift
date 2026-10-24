@@ -96,11 +96,13 @@ struct SupabaseIdTokenGrantRequest: Codable {
     let provider: String
     let idToken: String
     let nonce: String
+    let linkIdentity: Bool?
 
     enum CodingKeys: String, CodingKey {
         case provider
         case idToken = "id_token"
         case nonce
+        case linkIdentity = "link_identity"
     }
 }
 

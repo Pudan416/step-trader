@@ -30,8 +30,10 @@ class TimedAccessPassTests(unittest.TestCase):
         harness = harness.replace("// INSERT_TRANSACTIONS", transactions)
         script = Path(cls.directory.name) / "main.swift"
         script.write_text(harness)
+        modules = Path(cls.directory.name) / "modules"
+        modules.mkdir()
         cls.binary = Path(cls.directory.name) / "recovery-tests"
-        result = subprocess.run(["swiftc", str(script), "-o", str(cls.binary)],
+        result = subprocess.run(["swiftc", "-module-cache-path", str(modules), str(script), "-o", str(cls.binary)],
                                 capture_output=True, text=True, timeout=60)
         if result.returncode:
             raise AssertionError(result.stdout + result.stderr)

@@ -208,6 +208,22 @@ struct NowhereWidgetContent: View {
                 }
                 if group.isUnlocked {
                     activeGroup(group, identity: identity, compact: compact, dense: dense)
+                } else if group.recoverableMinutes > 0,
+                          let window = group.enabledIntervals.min(by: { $0.minutes < $1.minutes }) {
+                    Button(intent: UnlockGroupWidgetIntent(groupId: group.id, window: window, recoveryOnly: true)) {
+                        HStack {
+                            Text("Resume \(group.recoverableMinutes) min")
+                            Spacer(minLength: 4)
+                            Text("Free").foregroundStyle(accent)
+                        }
+                        .font(.onest(size: compact ? 11 : 13))
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, minHeight: compact ? (dense ? 28 : 32) : 40)
+                        .background(ink.opacity(0.11), in: RoundedRectangle(cornerRadius: compact ? 12 : 16))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("widget.\(group.id).resume")
+                    .accessibilityLabel("Resume \(group.recoverableMinutes) minutes for \(identity.title), free")
                 } else {
                     HStack(spacing: 6) {
                         ForEach(group.enabledIntervals.sorted { $0.minutes < $1.minutes }, id: \.self) { window in

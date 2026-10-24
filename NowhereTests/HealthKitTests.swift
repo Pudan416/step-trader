@@ -7,6 +7,8 @@ import HealthKit
 final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
     var stepsFetch: ((Date, Date) async throws -> Double)?
     var sleepFetch: ((Date, Date) async throws -> Double)?
+    var workoutsFetch: ((Date, Date) async throws -> [DetectedWorkout])?
+    var mindfulFetch: ((Date, Date) async throws -> Double)?
     var stepsToReturn: Double = 0
     var sleepToReturn: Double = 0
     var stepsError: Error?
@@ -58,11 +60,13 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
 
     func fetchWorkouts(from: Date, to: Date) async throws -> [DetectedWorkout] {
         workoutFetchCount += 1
+        if let workoutsFetch { return try await workoutsFetch(from, to) }
         return workoutsToReturn
     }
 
     func fetchMindfulMinutes(from: Date, to: Date) async throws -> Double {
-        mindfulMinutesToReturn
+        if let mindfulFetch { return try await mindfulFetch(from, to) }
+        return mindfulMinutesToReturn
     }
 
     func stopObservingSteps() {
@@ -82,6 +86,7 @@ final class ConfigurableHealthKitMock: HealthKitServiceProtocol {
 private actor PendingHealthQueries {
     private var results: [CheckedContinuation<Double, Error>] = []
     private var arrivals: [(Int, CheckedContinuation<Void, Never>)] = []
+    var queryCount: Int { results.count }
 
     func fetch() async throws -> Double {
         try await withCheckedThrowingContinuation { continuation in
@@ -624,6 +629,41 @@ final class HealthStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testAccountReloadClearsAbsentIncomingHealthValues() {
+        store.stepsToday = 12_000
+        store.dailySleepHours = 8
+        store.baseEnergyToday = 180
+        store.hasStepsData = true
+        store.hasSleepData = true
+
+        store.reloadAfterAccountSwitch()
+
+        XCTAssertEqual(store.stepsToday, 0)
+        XCTAssertEqual(store.dailySleepHours, 0)
+        XCTAssertEqual(store.baseEnergyToday, 0)
+        XCTAssertFalse(store.hasStepsData)
+        XCTAssertFalse(store.hasSleepData)
+        XCTAssertEqual(store.stepsQueryOutcome, .idle)
+        XCTAssertEqual(store.sleepQueryOutcome, .idle)
+    }
+
+    func testAccountReloadRejectsDelayedOutgoingQueryAndKeepsIncomingCache() async {
+        let queries = PendingHealthQueries()
+        mock.stepsFetch = { _, _ in try await queries.fetch() }
+        let outgoing = Task { await store.refreshStepsIfAuthorized() }
+        await queries.waitForQueries(1)
+        defaults.set(70, forKey: SharedKeys.cachedStepsToday)
+        defaults.set(true, forKey: SharedKeys.hasStepsData)
+        store.reloadAfterAccountSwitch()
+        await queries.complete(0, with: .success(12_000))
+        await outgoing.value
+
+        XCTAssertEqual(store.stepsToday, 70)
+        XCTAssertEqual(defaults.double(forKey: SharedKeys.cachedStepsToday), 70)
+        XCTAssertTrue(store.hasStepsData)
+        XCTAssertEqual(store.stepsQueryOutcome, .idle)
+    }
+
     func testOlderStepSuccessCannotReplaceNewerResultOrCache() async {
         let queries = PendingHealthQueries()
         mock.stepsFetch = { _, _ in try await queries.fetch() }
@@ -941,4 +981,169 @@ final class HealthStoreTests: XCTestCase {
         XCTAssertEqual(store.stepsToday, 12345)
         XCTAssertTrue(store.hasStepsData)
     }
+}
+
+/// Suspends real suggestion orchestration at each external Health query.
+@MainActor
+final class HealthSuggestionGenerationTests: XCTestCase {
+    private var model: AppModel!
+    private var health: ConfigurableHealthKitMock!
+    private var notifications: SuggestionNotificationRecorder!
+    private var workouts: PendingHealthQueries!
+    private var mindful: PendingHealthQueries!
+    private var savedDismissals: Data?
+
+    override func setUp() {
+        super.setUp()
+        savedDismissals = UserDefaults.nowhere().data(forKey: "dismissedSuggestionIds_v1")
+        UserDefaults.nowhere().removeObject(forKey: "dismissedSuggestionIds_v1")
+        health = ConfigurableHealthKitMock()
+        workouts = PendingHealthQueries()
+        mindful = PendingHealthQueries()
+        let health = health!
+        let workouts = workouts!
+        let mindful = mindful!
+        health.workoutsFetch = { _, _ in
+            let captured = health.workoutsToReturn
+            _ = try await workouts.fetch()
+            return captured
+        }
+        health.mindfulFetch = { _, _ in try await mindful.fetch() }
+        notifications = SuggestionNotificationRecorder()
+        model = AppModel(healthKitService: health, familyControlsService: MockFamilyControlsService(),
+                         notificationService: notifications, budgetEngine: MockBudgetEngine(),
+                         subscriptionStore: SubscriptionStore())
+        model.isBootstrapping = true
+        health.workoutsToReturn = [workout(.running)]
+    }
+
+    override func tearDown() {
+        health.workoutsFetch = nil
+        health.mindfulFetch = nil
+        model = nil
+        UserDefaults.nowhere().set(savedDismissals, forKey: "dismissedSuggestionIds_v1")
+        super.tearDown()
+    }
+
+    func testDayResetInvalidatesPendingWorkout() async {
+        let refresh = await startWorkoutQuery()
+        model.clearDismissedWorkouts()
+        await workouts.complete(0, with: .success(0))
+        await refresh.value
+        await assertDiscardedBeforeMindful()
+    }
+
+    func testChangedDayBoundaryDiscardsPendingWorkoutWithoutResetCallback() async {
+        let refresh = await startWorkoutQuery()
+        model.dayEndHour = (model.dayEndHour + 1) % 24
+        await workouts.complete(0, with: .success(0))
+        await refresh.value
+        await assertDiscardedBeforeMindful()
+    }
+
+    func testCancellationPreventsPublishingOrStartingAnotherQuery() async {
+        let refresh = await startWorkoutQuery()
+        refresh.cancel()
+        await workouts.complete(0, with: .success(0))
+        await refresh.value
+        await assertDiscardedBeforeMindful()
+    }
+
+    func testStoppingHealthDuringMindfulQueryDiscardsAllResults() async {
+        let refresh = await startMindfulQuery()
+        model.healthStore.stopObservingSteps()
+        await mindful.complete(0, with: .success(12))
+        await refresh.value
+        assertNoSuggestionOrNotification()
+    }
+
+    func testNewerRefreshWinsWhenWorkoutsCompleteInReverseOrder() async throws {
+        let older = await startWorkoutQuery()
+        let latestWorkout = workout(.yoga)
+        health.workoutsToReturn = [latestWorkout]
+        let newer = Task { await model.refreshActivitySuggestions() }
+        await workouts.waitForQueries(2)
+        await workouts.complete(1, with: .success(0))
+        await mindful.waitForQueries(1)
+        await mindful.complete(0, with: .success(0))
+        await newer.value
+        let expected = try XCTUnwrap(ActivitySuggestion.fromWorkout(latestWorkout))
+        XCTAssertEqual(model.pendingActivitySuggestions.map(\.id), [expected.id])
+        XCTAssertEqual(notifications.sentIDs, [expected.id])
+
+        await workouts.complete(0, with: .success(0))
+        await older.value
+        XCTAssertEqual(model.pendingActivitySuggestions.map(\.id), [expected.id])
+        XCTAssertEqual(model.pendingWorkoutSuggestions.map(\.id), [latestWorkout.id])
+        XCTAssertEqual(notifications.sentIDs, [expected.id], "Old responses must not send another notification")
+        let count = await mindful.queryCount
+        XCTAssertEqual(count, 1)
+    }
+
+    func testDismissalWhileMindfulQueryWaitsIsNotUndone() async throws {
+        let suggestion = try XCTUnwrap(ActivitySuggestion.fromWorkout(health.workoutsToReturn[0]))
+        model.pendingActivitySuggestions = [suggestion]
+        let refresh = await startMindfulQuery()
+        model.dismissActivitySuggestion(suggestion)
+        await mindful.complete(0, with: .success(0))
+        await refresh.value
+        XCTAssertTrue(model.pendingActivitySuggestions.isEmpty)
+        XCTAssertTrue(notifications.sentIDs.isEmpty)
+    }
+
+    func testMatchingAdditionWhileMindfulQueryWaitsPreventsNotification() async {
+        let refresh = await startMindfulQuery()
+        model.todayAdditions = [OptionEntry(
+            id: UUID().uuidString, dayKey: AppModel.dayKey(for: .now), optionId: "event_run",
+            colorHex: "#AABBCC", timestamp: .now, assetVariant: nil)]
+        await mindful.complete(0, with: .success(0))
+        await refresh.value
+        XCTAssertTrue(model.pendingActivitySuggestions.isEmpty)
+        XCTAssertTrue(notifications.sentIDs.isEmpty)
+    }
+
+    private func startWorkoutQuery() async -> Task<Void, Never> {
+        let task = Task { await model.refreshActivitySuggestions() }
+        await workouts.waitForQueries(1)
+        return task
+    }
+
+    private func startMindfulQuery() async -> Task<Void, Never> {
+        let task = await startWorkoutQuery()
+        await workouts.complete(0, with: .success(0))
+        await mindful.waitForQueries(1)
+        return task
+    }
+
+    private func assertDiscardedBeforeMindful() async {
+        assertNoSuggestionOrNotification()
+        let count = await mindful.queryCount
+        XCTAssertEqual(count, 0, "An invalidated result must not start the next Health query")
+    }
+
+    private func assertNoSuggestionOrNotification() {
+        XCTAssertTrue(model.pendingActivitySuggestions.isEmpty)
+        XCTAssertTrue(model.pendingWorkoutSuggestions.isEmpty)
+        XCTAssertTrue(notifications.sentIDs.isEmpty)
+    }
+
+    private func workout(_ type: HKWorkoutActivityType) -> DetectedWorkout {
+        DetectedWorkout(id: UUID(), activityType: type.rawValue,
+                        startDate: .now.addingTimeInterval(-1_800), endDate: .now,
+                        durationMinutes: 30, caloriesBurned: nil, distance: nil)
+    }
+}
+
+private final class SuggestionNotificationRecorder: NotificationServiceProtocol {
+    private(set) var sentIDs: [String] = []
+    func sendActivityDetectedNotification(for suggestion: ActivitySuggestion) { sentIDs.append(suggestion.id) }
+    func removeActivityDetectedNotifications(suggestionIds: [String]) {}
+    func requestPermission() async throws {}
+    func sendTimeExpiredNotification() {}
+    func sendUnblockNotification(remainingMinutes: Int) {}
+    func sendRemainingTimeNotification(remainingMinutes: Int) {}
+    func sendMinuteModeSummary(bundleId: String, minutesUsed: Int, stepsCharged: Int) {}
+    func sendTestNotification() {}
+    func sendAccessWindowReminder(remainingSeconds: Int, bundleId: String) {}
+    func scheduleAccessWindowStatus(remainingSeconds: Int, bundleId: String) {}
 }

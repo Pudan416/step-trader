@@ -79,7 +79,10 @@ extension AppModel {
 
     @MainActor
     @discardableResult
-    func handlePayGatePaymentForGroup(groupId: String, window: AccessWindow, costOverride: Int?) async -> Bool {
+    func handlePayGatePaymentForGroup(
+        groupId: String, window: AccessWindow, costOverride: Int?, recoveryOnly: Bool = false
+    ) async -> Bool {
+        guard !isHistoryWorkSuspended else { return false }
         // Checked before anything else, including whether the group exists: without
         // Screen Time access every ManagedSettingsStore write below is inert, so the
         // purchase cannot succeed no matter what else is true. The cached flag only
@@ -101,16 +104,26 @@ extension AppModel {
         let store = UserDefaults.nowhere()
         if let session = UsageBudgetSession.load(from: store, groupId: groupId),
            session.expiresAt > .now {
-            if ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: store, groupId: groupId),
-               let failure = startUsageBudgetMonitoring(groupId: groupId) {
-                payGateError = failure.userFacingMessage
+            if ShieldRebuildHelper.hasRecoverableUsageBudget(defaults: store, groupId: groupId) {
+                if let failure = startUsageBudgetMonitoring(groupId: groupId) {
+                    payGateError = failure.userFacingMessage
+                    dismissPayGate(reason: .programmatic)
+                    return false
+                }
+                ShieldRebuildHelper.rebuild()
+                rebuildFamilyControlsShield()
                 dismissPayGate(reason: .programmatic)
-                return false
+                return recoveryOnly
             }
             ShieldRebuildHelper.rebuild()
             rebuildFamilyControlsShield()
             dismissPayGate(reason: .programmatic)
             payGateError = String(localized: "This group is already unlocked")
+            return false
+        }
+
+        guard !recoveryOnly else {
+            payGateError = String(localized: "No paid time available to resume")
             return false
         }
 

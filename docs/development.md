@@ -36,6 +36,13 @@ python3 Scripts/check_canvas_audio_bundle.py \
   /tmp/nowhere-release/Build/Products/Release-iphoneos/Nowhere.app
 python3 -m unittest discover -s Scripts -p 'test_usage_budget_*.py'
 python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
+python3 -m unittest discover -s Scripts -p 'test_apple_identity_link.py'
+
+python3 Scripts/test_account_history_vault.py
+python3 Scripts/test_economy_write_barrier.py
+python3 Scripts/test_account_model_work.py
+python3 Scripts/test_widget_account_authorization.py
+python3 Scripts/test_legacy_device_history.py
 bash Scripts/check-secrets-config.sh
 ```
 
@@ -50,6 +57,17 @@ callbacks and failed-purchase rollback. Paid selections also override overlappin
 group blockers and remain exceptions to category shields. The palette rollover contract executes
 Gallery's actual close/reset methods, including the explorer and survey draft.
 These checks do not validate Screen Time delivery timing on a physical iPhone.
+
+The Apple identity fixture executes the production request, response handling
+and anonymous-session preparation with an isolated session store and HTTP double.
+Anonymous upgrades explicitly send `link_identity=true` with a refreshed owner
+bearer and require the successful response to retain that UID. Only HTTP 422
+`identity_already_exists` falls back to ordinary Apple sign-in; refresh, transport
+and other link errors retain the original local session. This prevents a new
+anonymous upgrade from forking its owner. It does not migrate existing histories
+between accounts or repair previously stranded happening rows.
+Sign-in fails closed while startup is initializing. A stored anonymous session
+remains authoritative if its UI state was not published by an interrupted restore.
 
 The unsigned Release command verifies compilation and resources; it does not make
 an installable signed build. For device installation follow [AGENTS.md](../AGENTS.md):
@@ -122,3 +140,27 @@ first and retrieve a specific old document only when the question requires it.
 Update existing maintained pages rather than adding a new report for each change.
 Never commit personal chat archives or machine-specific output paths. Do not rewrite
 shared Git history or delete dirty worktrees to reclaim disk space.
+
+## Backend migration regression
+
+`python3 supabase/tests/migration-replay.py` requires a localhost PostgreSQL
+server, `psql`/`createdb`/`dropdb` on PATH and Supabase CLI 2.121.0 (`supabase`,
+or set `SUPABASE_CLI`). Set `PGPORT`, `PGUSER` and `PGPASSWORD` for that local
+server as needed. The script creates/drops its own databases and refuses
+non-local hosts. CI runs PostgreSQL 17 and the pinned CLI.
+
+The real CLI applies every active migration against minimal Supabase-owned
+auth/storage fixtures. Tests cover a fresh baseline and both historical names
+for the recorded `20260711` version, check trigger-function permissions and
+profile synchronization, and preserve the existing ledger. This tests public
+SQL and CLI history handling, not the complete Supabase stack or production
+schema parity.
+
+Supabase keys migration history by numeric prefix. Both historical
+`20260711_*` files therefore collided (`schema_migrations_pkey`, 23505).
+Their complete security operation now lives under the retained
+`20260711_drop_public_leaderboard_read_policy.sql` identity; the original second
+file remains in `archive/`. A separate forward migration repeats both effects
+idempotently for projects that already recorded either name under `20260711`.
+No deployed migration-history repair is required. The obsolete auth helper is
+only locked down when present; fresh databases never recreate it.

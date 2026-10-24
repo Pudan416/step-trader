@@ -22,6 +22,7 @@ class TimedAccessCallbackContractTests(unittest.TestCase):
                                 monitor_source.index("    private func reloadWidgets")]
         source = r'''
 import Foundation
+struct FamilyActivitySelection {}
 struct DeviceActivityEvent { struct Name { let rawValue: String; init(_ s: String) { rawValue = s } } }
 struct DeviceActivityName: Equatable {
     let rawValue: String
@@ -51,6 +52,7 @@ enum ShieldRebuildHelper {
         FamilyActivitySelection()
     }
     static func withUsageBudgetLock<T>(_ body: () throws -> T) rethrows -> T { try body() }
+    static func clearLegacyUsageBudgets(defaults: UserDefaults) {}
 ''' + predicates + r'''
 }
 final class MonitorHarness {
@@ -64,7 +66,7 @@ final class MonitorHarness {
 let defaults = SharedKeys.defaults
 defer { defaults.removePersistentDomain(forName: SharedKeys.suite) }
 let monitor = MonitorHarness()
-let now = Date.now
+let now = Date.now.addingTimeInterval(-10)
 var active = UsageBudgetSession(minutes: 10, startedAt: now,
                                 expiresAt: now.addingTimeInterval(900))
 active.save(to: defaults, groupId: "G")
@@ -74,7 +76,7 @@ for callback in ["usageBudgetTick_G_30", "usageBudgetDone_G", "timedAccess_tick"
            "A stale or threshold callback must leave an active timed pass alone")
     assert(monitor.rebuilds == 0)
 }
-active.expiresAt = now.addingTimeInterval(-1)
+active.expiresAt = now.addingTimeInterval(1)
 active.save(to: defaults, groupId: "G")
 monitor.dispatch("timedAccess_end")
 assert(UsageBudgetSession.load(from: defaults, groupId: "G") == nil,
@@ -94,7 +96,10 @@ print("PASS: timed access callbacks only reconcile the saved deadline")
         with tempfile.TemporaryDirectory(prefix="nowhere-timed-access-contract-") as directory:
             script = Path(directory) / "main.swift"
             script.write_text(source)
-            result = subprocess.run(["swift", str(script)], capture_output=True, text=True, timeout=30)
+            modules = Path(directory) / "modules"
+            modules.mkdir()
+            result = subprocess.run(["swift", "-module-cache-path", str(modules), str(script)],
+                                    capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PASS:", result.stdout)
 

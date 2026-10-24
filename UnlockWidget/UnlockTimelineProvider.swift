@@ -76,6 +76,7 @@ struct UnlockEntry: TimelineEntry {
         let budgetInitial: Int
         let budgetExpiryDate: Date?
         var identity: AppGroupIdentity? = nil
+        var recoverableMinutes: Int = 0
     }
 
     struct EnergyData {
@@ -269,7 +270,8 @@ struct UnlockTimelineProvider: AppIntentTimelineProvider {
                     budgetMinutes: budgetMinutes,
                     budgetInitial: budgetInitial,
                     budgetExpiryDate: expiryDate,
-                    identity: AppGroupIdentity(name: group.name, templateApp: group.templateApp, selectionData: group.selectionData)
+                    identity: AppGroupIdentity(name: group.name, templateApp: group.templateApp, selectionData: group.selectionData),
+                    recoverableMinutes: ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: g, groupId: group.id, at: date)
                 )
             }
         }
@@ -743,7 +745,8 @@ struct ComboTimelineProvider: AppIntentTimelineProvider {
             budgetMinutes: budgetMinutes,
             budgetInitial: budgetInitial,
             budgetExpiryDate: ShieldRebuildHelper.usageBudgetDisplayExpiry(defaults: g, groupId: group.id, at: date),
-            identity: AppGroupIdentity(name: group.name, templateApp: group.templateApp, selectionData: group.selectionData)
+            identity: AppGroupIdentity(name: group.name, templateApp: group.templateApp, selectionData: group.selectionData),
+            recoverableMinutes: ShieldRebuildHelper.recoverableUsageBudgetMinutes(defaults: g, groupId: group.id, at: date)
         )
     }
 

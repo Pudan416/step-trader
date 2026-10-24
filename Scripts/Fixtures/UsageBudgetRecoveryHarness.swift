@@ -57,6 +57,7 @@ enum ShieldRebuildHelper {
         let selectionData: Data? = Data([1])
     }
     static var rebuildCalls = 0
+    static func rebuild(startPendingBudgets: Bool = true) { rebuildCalls += 1 }
     static let locks = FileManager.default.temporaryDirectory
         .appendingPathComponent("timed-access-locks-" + UUID().uuidString)
     static func usageBudgetLock(named name: String) throws -> UsageBudgetFileLock {

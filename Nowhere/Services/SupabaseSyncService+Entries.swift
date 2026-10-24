@@ -267,7 +267,10 @@ actor OptionEntryIntentAttemptCoordinator {
 extension SupabaseSyncService {
     
     func syncOptionEntries(_ entries: [OptionEntry]) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         let owner = await optionEntryOwnerID()
+        guard syncOperation.isCurrent else { return }
         migrateLegacyOptionEntryIntents()
         let payload = entries.sorted(by: { $0.timestamp < $1.timestamp })
         let canonicalIDs = payload.map {
@@ -285,7 +288,9 @@ extension SupabaseSyncService {
     }
 
     private func sendOptionEntryUpsert(_ entry: OptionEntry, ownerUserID: String?) async -> Bool {
-        guard let auth = await authenticatedContext(),
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return false }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID,
               ownerUserID == nil || ownerUserID == auth.userId else { return false }
         let token = auth.token
         let userId = auth.userId
@@ -312,6 +317,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONEncoder().encode(rows)
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return false }
             if response.statusCode < 400 {
                 AppLogger.network.debug("📡 Option entry synced")
                 return true
@@ -327,10 +333,14 @@ extension SupabaseSyncService {
     }
 
     func performEntriesSyncForFullSync(_ entries: [OptionEntry]) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         let owner = await optionEntryOwnerID()
+        guard syncOperation.isCurrent else { return }
         migrateLegacyOptionEntryIntents()
         let identities = entries.map { recordOptionEntryUpsert($0, ownerUserID: owner).canonicalID }
         for identity in identities {
+            guard syncOperation.isCurrent else { return }
             await reconcileOptionEntryIntent(canonicalID: identity)
         }
     }
@@ -338,7 +348,10 @@ extension SupabaseSyncService {
     /// Syncs one client-identified addition. Upserting by `id` makes retries
     /// idempotent while still allowing the same happening multiple times.
     func syncOptionEntry(_ entry: OptionEntry) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         let owner = await optionEntryOwnerID()
+        guard syncOperation.isCurrent else { return }
         migrateLegacyOptionEntryIntents()
         let intent = recordOptionEntryUpsert(entry, ownerUserID: owner)
         supersedeQueuedOptionEntryDelete(id: entry.id)
@@ -346,7 +359,10 @@ extension SupabaseSyncService {
     }
 
     func deleteOptionEntry(id: String) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         let owner = await optionEntryOwnerID()
+        guard syncOperation.isCurrent else { return }
         migrateLegacyOptionEntryIntents()
         let desired = OptionEntryRetrySupersession.recoveryEntry(
             afterReplayingDeleteID: id,
@@ -359,7 +375,9 @@ extension SupabaseSyncService {
     }
 
     private func sendOptionEntryDelete(id: String, ownerUserID: String?) async -> Bool {
-        guard let auth = await authenticatedContext(),
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return false }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID,
               ownerUserID == nil || ownerUserID == auth.userId else { return false }
         do {
             let cfg = try SupabaseConfig.load()
@@ -375,6 +393,7 @@ extension SupabaseSyncService {
             request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return false }
             guard response.statusCode < 400 else {
                 AppLogger.network.error("📡 Option entry delete failed: HTTP \(response.statusCode)")
                 return false
@@ -389,13 +408,16 @@ extension SupabaseSyncService {
     }
 
     func drainPendingOptionEntryIntents() async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         for canonicalID in optionEntryIntentStore.load().keys.sorted() {
+            guard syncOperation.isCurrent else { return }
             await reconcileOptionEntryIntent(canonicalID: canonicalID)
         }
     }
 
     private func optionEntryOwnerID() async -> String? {
-        await AuthenticationService.shared.waitForInitialization()
+        guard await waitForSyncAuthentication() else { return nil }
         return await AuthenticationService.shared.currentUser?.id
     }
 
@@ -409,7 +431,10 @@ extension SupabaseSyncService {
     /// Replay a durable operation/payload, independent of the current day list.
     /// Versions and the attempt coordinator still settle stale in-flight requests.
     private func reconcileOptionEntryIntent(canonicalID: String) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         for _ in 0..<8 {
+            guard syncOperation.isCurrent else { return }
             guard let intent = optionEntryIntentStore.pending(canonicalID: canonicalID) else { return }
             let desiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
             guard let operation = optionEntryIntentStore.operation(
@@ -428,6 +453,11 @@ extension SupabaseSyncService {
                 succeeded = await sendOptionEntryDelete(id: id, ownerUserID: intent.ownerUserID)
             }
 
+            guard syncOperation.isCurrent else {
+                _ = await optionEntryAttemptCoordinator.finish(token, succeeded: false,
+                    currentVersion: intent.version, operationStillCurrent: false)
+                return
+            }
             let latestIntent = optionEntryIntentStore.pending(canonicalID: canonicalID)
             let latestDesiredEntries = OptionEntryRetrySupersession.persistedDesiredEntries()
             let operationStillCurrent = latestIntent == intent
@@ -441,6 +471,7 @@ extension SupabaseSyncService {
                 currentVersion: latestIntent?.version,
                 operationStillCurrent: operationStillCurrent
             )
+            guard syncOperation.isCurrent else { return }
             switch completion {
             case .acknowledge:
                 _ = optionEntryIntentStore.finishAttempt(
@@ -459,7 +490,9 @@ extension SupabaseSyncService {
     }
     
     func loadOptionEntriesFromServer(dayKey: String) async -> [OptionEntry]? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
         
@@ -481,6 +514,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
             
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard response.statusCode < 400 else { return nil }
             
             let rows = try JSONDecoder().decode([OptionEntryRow].self, from: data)
@@ -503,11 +537,15 @@ extension SupabaseSyncService {
     /// A failed modern read must not be treated as an empty modern day.
     /// Legacy rows are read only after confirmed absence from the new table.
     func loadRestorableOptionEntriesFromServer(dayKey: String) async -> [OptionEntry]? {
-        guard let current = await loadOptionEntriesFromServer(dayKey: dayKey) else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let current = await loadOptionEntriesFromServer(dayKey: dayKey), syncOperation.isCurrent else { return nil }
         guard current.isEmpty else { return current }
         // A saved Canvas is authoritative, including an intentionally cleared
         // day. Never resurrect stale category rows over that saved composition.
-        switch await fetchDayCanvas(for: dayKey) {
+        let savedCanvas = await fetchDayCanvas(for: dayKey)
+        guard syncOperation.isCurrent else { return nil }
+        switch savedCanvas {
         case .found(let canvas):
             return canvas.elements.map {
                 OptionEntry(id: $0.id.uuidString, dayKey: canvas.dayKey, optionId: $0.optionId,
@@ -516,7 +554,7 @@ extension SupabaseSyncService {
         case .failed: return nil
         case .confirmedAbsent: break
         }
-        guard let auth = await authenticatedContext(), let cfg = try? SupabaseConfig.load() else { return nil }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID, let cfg = try? SupabaseConfig.load() else { return nil }
         let query = [
             URLQueryItem(name: "user_id", value: "eq.\(auth.userId)"),
             URLQueryItem(name: "day_key", value: "eq.\(dayKey)"),
@@ -536,6 +574,7 @@ extension SupabaseSyncService {
             request.setValue(cfg.anonKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "authorization")
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard (200..<300).contains(response.statusCode),
                   let modern = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
             if !modern.isEmpty { return [] }
@@ -545,12 +584,14 @@ extension SupabaseSyncService {
                 baseQuery: query + [URLQueryItem(name: "order", value: "created_at.asc,option_id.asc")],
                 pageSize: historicalPageSize
             )
+            guard syncOperation.isCurrent else { return nil }
             if !rows.isEmpty { return rows.map(\.entry) }
             let selections: [DailySelectionsRow] = try await fetchPagedRows(
                 endpoint: cfg.baseURL.appendingPathComponent("rest/v1/user_daily_selections"),
                 token: auth.token, anonKey: cfg.anonKey, baseQuery: query,
                 pageSize: historicalPageSize
             )
+            guard syncOperation.isCurrent else { return nil }
             guard let selected = selections.first else { return [] }
             var seen = Set<String>()
             return (selected.activityIds + selected.restIds + selected.joysIds)

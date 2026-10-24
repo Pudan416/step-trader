@@ -13,6 +13,7 @@ extension AppModel {
 
     /// Adds an occurrence while the requested day has room for another figure.
     func canAddHappening(id: String, on date: Date = .now) -> Bool {
+        guard !isHistoryWorkSuspended else { return false }
         let dayKey = DayBoundary.dayKey(
             for: date,
             dayEndHour: dayEndHour,
@@ -65,20 +66,21 @@ extension AppModel {
         recalculateDailyEnergy()
         persistTodayAdditions()
         if syncToCloud {
-            Task { await SupabaseSyncService.shared.syncOptionEntry(entry) }
-            Task { await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
+            scheduleHistoryWork { [self] in await SupabaseSyncService.shared.syncOptionEntry(entry) }
+            scheduleHistoryWork { [self] in await SupabaseSyncService.shared.syncCustomHappenings(happeningStore.all) }
         }
         return entry
     }
 
     func removeAddition(entryId: String, syncToCloud: Bool = true) {
+        guard !isHistoryWorkSuspended else { return }
         guard let index = todayAdditions.firstIndex(where: { $0.id == entryId }) else { return }
         todayAdditions.remove(at: index)
         locallyRemovedAdditionIDs.insert(OptionEntryCanonicalIdentity.key(for: entryId))
         recalculateDailyEnergy()
         persistTodayAdditions()
         if syncToCloud {
-            Task { await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
+            scheduleHistoryWork { [self] in await SupabaseSyncService.shared.deleteOptionEntry(id: entryId) }
         }
     }
 
@@ -100,9 +102,7 @@ extension AppModel {
         protectedIDs: Set<String> = [],
         selection: [String]? = nil,
         replacingID: String? = nil,
-        syncCustomHappenings: @escaping ([Happening]) -> Void = { happenings in
-            Task { await SupabaseSyncService.shared.syncCustomHappenings(happenings) }
-        }
+        syncCustomHappenings: @escaping ([Happening]) -> Void = { _ in }
     ) throws -> Happening {
         throw HappeningPaletteSelectionError.customCreationUnavailable
     }
@@ -183,7 +183,7 @@ extension AppModel {
         guard didChange else { return }
         persistTodayAdditions()
         let movedEntries = todayAdditions.filter { $0.dayKey == newDayKey }
-        Task { await SupabaseSyncService.shared.syncOptionEntries(movedEntries) }
+        scheduleHistoryWork { [self] in await SupabaseSyncService.shared.syncOptionEntries(movedEntries) }
     }
 
     private func persistTodayAdditions() {
@@ -338,10 +338,14 @@ extension AppModel {
             if let data = g.data(forKey: SharedKeys.pastDaySnapshots),
                let loaded = try? JSONDecoder().decode([String: PastDaySnapshot].self, from: data) {
                 decoded = loaded
-                if let fileData = try? JSONEncoder().encode(decoded) {
-                    try? fileData.write(to: url, options: .atomic)
+                do {
+                    let fileData = try JSONEncoder().encode(decoded)
+                    try fileData.write(to: url, options: .atomic)
+                    g.removeObject(forKey: SharedKeys.pastDaySnapshots)
+                } catch {
+                    // Keep the only durable copy so a later load can retry.
+                    AppLogger.energy.error("Could not migrate past day snapshots: \(error.localizedDescription)")
                 }
-                g.removeObject(forKey: SharedKeys.pastDaySnapshots)
             } else {
                 return [:]
             }
@@ -406,7 +410,7 @@ extension AppModel {
         savePastDaySnapshot(dayKey: dayKeyToSave, daySnapshot)
         
         // Sync day snapshot to Supabase (backup historical data)
-        Task {
+        scheduleHistoryWork { [self] in
             await SupabaseSyncService.shared.syncDaySnapshot(
                 dayKey: dayKeyToSave,
                 snapshot: daySnapshot
@@ -416,7 +420,7 @@ extension AppModel {
         // Save a rendered canvas snapshot for history
         if let oldCanvas = CanvasStorageService.shared.loadCanvas(for: dayKeyToSave),
            !oldCanvas.elements.isEmpty {
-            Task { @MainActor in
+            scheduleHistoryWork { [self] in
                 await CanvasStorageService.shared.saveSnapshot(for: oldCanvas)
             }
         }
@@ -495,6 +499,7 @@ extension AppModel {
     }
 
     func persistDailyEnergyState() {
+        guard !isHistoryWorkSuspended else { return }
         let g = UserDefaults.nowhere()
         persistTodayAdditions()
         g.set(dailySleepHours, forKey: SharedKeys.dailySleepHours)
@@ -604,6 +609,7 @@ extension AppModel {
 
     @MainActor
     func recalculateDailyEnergy() {
+        guard !isHistoryWorkSuspended else { return }
         // Total = activity(20) + sleep(20) + happenings(60) = 100 max
         let stepsForEnergy = stepsForActivityToday
         let stepsPts = activityPointsToday
@@ -651,7 +657,7 @@ extension AppModel {
         guard !isBootstrapping else { return }
         
         let today = Self.dayKey(for: Date.now)
-        Task {
+        scheduleHistoryWork { [self] in
             await SupabaseSyncService.shared.syncDailyStats(
                 dayKey: today,
                 steps: Int(stepsToday),
@@ -671,7 +677,7 @@ extension AppModel {
         guard !isBootstrapping else { return }
         let g = UserDefaults.nowhere()
         let std = UserDefaults.standard
-        Task {
+        scheduleHistoryWork { [self] in
             await SupabaseSyncService.shared.syncUserPreferences(
                 stepsTarget: g.object(forKey: SharedKeys.userStepsTarget) as? Double ?? EnergyDefaults.stepsTarget,
                 sleepTarget: g.object(forKey: SharedKeys.userSleepTarget) as? Double ?? EnergyDefaults.sleepTargetHours,
@@ -710,6 +716,7 @@ extension AppModel {
     // MARK: - Widget Data
 
     func writeWidgetSnapshot() {
+        guard !isHistoryWorkSuspended else { return }
         let g = UserDefaults.nowhere()
         WidgetDataFile.write(WidgetSnapshot(
             balance: stepsBalance + g.integer(forKey: SharedKeys.bonusSteps),
@@ -762,7 +769,7 @@ extension AppModel {
         } catch {
             AppLogger.energy.error("Failed to encode savedRoutines: \(error.localizedDescription)")
         }
-        Task { await SupabaseSyncService.shared.syncSavedRoutines(savedRoutines) }
+        scheduleHistoryWork { [self] in await SupabaseSyncService.shared.syncSavedRoutines(savedRoutines) }
     }
 
     /// Save current selections as a named routine.

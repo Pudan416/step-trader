@@ -7,6 +7,7 @@ extension SupabaseSyncService {
     /// Sync ticket groups to Supabase `shields` table.
     /// Stores each ticket group as a synthetic `bundle_id` (`group:<groupId>`) row.
     func syncTicketGroups(_ groups: [TicketGroup]) {
+        guard acceptsScheduledHistoryWork() else { return }
         let rows = groups
             .map { TicketGroupSyncRow.from(group: $0) }
             .sorted { $0.bundleId < $1.bundleId }
@@ -30,7 +31,9 @@ extension SupabaseSyncService {
     
     /// Delete a single ticket/shield row for current user and bundle id.
     func deleteTicket(bundleId: String) async {
-        guard let auth = await authenticatedContext() else {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Ticket delete skipped: no auth")
             return
         }
@@ -61,6 +64,7 @@ extension SupabaseSyncService {
             request.setValue("return=minimal", forHTTPHeaderField: "prefer")
 
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return }
             if response.statusCode < 400 {
                 AppLogger.network.debug("📡 Ticket deleted for bundleId=\(bundleId)")
             } else {
@@ -75,13 +79,15 @@ extension SupabaseSyncService {
     // MARK: - Perform Ticket Groups Sync
     
     func performTicketGroupsSync(rows: [TicketGroupSyncRow]) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         defer {
-            if pendingTicketGroupsPayload == rows {
+            if syncOperation.isCurrent, pendingTicketGroupsPayload == rows {
                 pendingTicketGroupsPayload = []
             }
         }
 
-        guard let auth = await authenticatedContext() else {
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else {
             AppLogger.network.debug("📡 Ticket groups sync skipped: no auth")
             return
         }
@@ -108,6 +114,7 @@ extension SupabaseSyncService {
                 deleteRequest.setValue("return=minimal", forHTTPHeaderField: "prefer")
 
                 let (_, deleteResponse) = try await network.data(for: deleteRequest)
+                guard syncOperation.isCurrent else { return }
                 if deleteResponse.statusCode < 400 {
                     lastSentTicketGroupsPayload = []
                     AppLogger.network.debug("📡 Ticket groups synced: cleared")
@@ -155,6 +162,7 @@ extension SupabaseSyncService {
             upsertRequest.httpBody = try JSONEncoder().encode(payload)
 
             let (upsertData, upsertResponse) = try await network.data(for: upsertRequest)
+            guard syncOperation.isCurrent else { return }
             if upsertResponse.statusCode < 400 {
                 // Clean up stale rows that no longer exist locally
                 let currentBundleIds = Set(rows.map(\.bundleId))
@@ -164,6 +172,7 @@ extension SupabaseSyncService {
                         await deleteTicket(bundleId: stale.bundleId)
                     }
                 }
+                guard syncOperation.isCurrent else { return }
                 lastSentTicketGroupsPayload = rows
                 AppLogger.network.debug("📡 Ticket groups synced: \(rows.count) rows (upsert)")
             } else {

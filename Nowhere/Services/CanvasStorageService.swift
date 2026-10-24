@@ -2,6 +2,56 @@ import Foundation
 import SwiftUI
 import os.log
 
+struct CanvasStorageWriteEpoch: Equatable, Sendable {
+    fileprivate let generation: UUID?
+}
+
+/// The app is the sole writer of Canvas JSON/PNG and canvas_today.jpg. The
+/// widget only reads the latter's atomic replacement. This is not a substitute
+/// for the cross-process budget locks used by an account-switch coordinator.
+final class CanvasStorageWriteBarrier: @unchecked Sendable {
+    private let lock = NSLock()
+    private var generation = UUID()
+    private var suspended = false
+
+    func capture() -> CanvasStorageWriteEpoch {
+        lock.lock()
+        defer { lock.unlock() }
+        // Work created during a swap must remain invalid after resume.
+        return .init(generation: suspended ? nil : generation)
+    }
+
+    func allows(_ epoch: CanvasStorageWriteEpoch) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !suspended && epoch.generation == generation
+    }
+
+    @discardableResult
+    func performWrite(epoch: CanvasStorageWriteEpoch, _ write: () throws -> Void) rethrows -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !suspended, epoch.generation == generation else { return false }
+        try write()
+        return true
+    }
+
+    /// Acquiring the same lock drains any active disk write before returning.
+    /// Suspended GPU renders may finish later, but their epoch cannot write.
+    func suspend() {
+        lock.lock()
+        defer { lock.unlock() }
+        generation = UUID()
+        suspended = true
+    }
+
+    func resume() {
+        lock.lock()
+        defer { lock.unlock() }
+        suspended = false
+    }
+}
+
 // MARK: - Canvas Storage Service
 
 /// Manages persistence of DayCanvas data and snapshot images.
@@ -18,6 +68,7 @@ final class CanvasStorageService {
 
     private let storageDirectory: URL
     private let snapshotDirectory: URL
+    private let writeBarrier = CanvasStorageWriteBarrier()
 
     private init() {
         let fm = FileManager.default
@@ -45,31 +96,54 @@ final class CanvasStorageService {
 
     // MARK: - Canvas CRUD
 
+    func captureWriteEpoch() -> CanvasStorageWriteEpoch { writeBarrier.capture() }
+
+    /// Dormant until the account coordinator calls it before rotating files.
+    /// Do not await GPU completion: invalid epochs reject their eventual writes.
+    @MainActor
+    func invalidatePendingWritesForAccountSwitch() async {
+        writeBarrier.suspend()
+        Self.widgetSnapshotQueue.cancelPendingExports()
+    }
+
+    @MainActor
+    func resumeWritesAfterAccountSwitch() { writeBarrier.resume() }
+
     @discardableResult
     func saveCanvas(_ canvas: DayCanvas) -> Bool {
         writeCanvas(canvas, markForCloudUpload: true)
     }
 
+    /// Async callers keep the epoch captured before their first suspension.
+    /// Preserve the one-argument overload for existing persistence closures.
     @discardableResult
-    private func writeCanvas(_ canvas: DayCanvas, markForCloudUpload: Bool) -> Bool {
-        var canvas = canvas
-        canvas.freezeNativeBackgroundIfNeeded()
-        let url = canvasFileURL(for: canvas.dayKey)
-        if canvas.localCloudOwnerID == nil,
-           let existingData = try? Data(contentsOf: url),
-           let existing = try? JSONDecoder().decode(DayCanvas.self, from: existingData) {
-            // The UI can still hold a guest draft when recovery binds its file
-            // to an account. A subsequent UI save must retain that binding.
-            canvas.localCloudOwnerID = existing.localCloudOwnerID
-        }
-        if markForCloudUpload, canvas.localCloudOwnerID != nil {
-            canvas.pendingCloudUpload = true
-        }
+    func saveCanvas(_ canvas: DayCanvas, expectedEpoch: CanvasStorageWriteEpoch?) -> Bool {
+        writeCanvas(canvas, markForCloudUpload: true, expectedEpoch: expectedEpoch)
+    }
+
+    @discardableResult
+    private func writeCanvas(_ canvas: DayCanvas, markForCloudUpload: Bool, expectedEpoch: CanvasStorageWriteEpoch? = nil) -> Bool {
+        let epoch = expectedEpoch ?? captureWriteEpoch()
         do {
-            let data = try JSONEncoder().encode(canvas)
-            try data.write(to: url, options: .atomic)
-            NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: canvas.dayKey)
-            return true
+            let written = try writeBarrier.performWrite(epoch: epoch) {
+                var canvas = canvas
+                canvas.freezeNativeBackgroundIfNeeded()
+                let url = canvasFileURL(for: canvas.dayKey)
+                if canvas.localCloudOwnerID == nil,
+                   let existingData = try? Data(contentsOf: url),
+                   let existing = try? JSONDecoder().decode(DayCanvas.self, from: existingData) {
+                    // Retain a cloud owner's binding when UI still has its guest draft.
+                    canvas.localCloudOwnerID = existing.localCloudOwnerID
+                }
+                if markForCloudUpload, canvas.localCloudOwnerID != nil {
+                    canvas.pendingCloudUpload = true
+                }
+                let data = try JSONEncoder().encode(canvas)
+                try data.write(to: url, options: .atomic)
+            }
+            // Observers may read/write Canvas storage; never notify under its lock.
+            if written { NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: canvas.dayKey) }
+            return written
         } catch {
             Self.log.error("Failed to save canvas for \(canvas.dayKey): \(error.localizedDescription)")
             return false
@@ -116,10 +190,12 @@ final class CanvasStorageService {
     /// in flight participate in the merge. MainActor serializes this commit
     /// with Gallery edits; a failed atomic write keeps the journal on disk.
     @MainActor
-    func resolvePendingCanvas(for dayKey: String, remote: DayCanvasFetchResult) -> DayCanvas? {
+    func resolvePendingCanvas(for dayKey: String, remote: DayCanvasFetchResult, expectedEpoch: CanvasStorageWriteEpoch? = nil) -> DayCanvas? {
+        let epoch = expectedEpoch ?? captureWriteEpoch()
+        guard writeBarrier.allows(epoch) else { return nil }
         guard let local = loadCanvas(for: dayKey), local.needsRemoteHydration,
               let resolved = CanvasDraftRecovery.resolve(local: local, remote: remote),
-              saveCanvas(resolved) else { return nil }
+              saveCanvas(resolved, expectedEpoch: epoch) else { return nil }
         return resolved
     }
 
@@ -134,16 +210,20 @@ final class CanvasStorageService {
     /// need a durable intent before debounce/admission can defer their upload.
     /// Loading or caching a remote poster does not create this intent.
     @MainActor
-    func recordCloudUploadIntent(for dayKey: String, currentUserID: String?) {
+    func recordCloudUploadIntent(for dayKey: String, currentUserID: String?, expectedEpoch: CanvasStorageWriteEpoch? = nil) {
+        let epoch = expectedEpoch ?? captureWriteEpoch()
+        guard writeBarrier.allows(epoch) else { return }
         guard var local = loadCanvas(for: dayKey),
               local.localCloudOwnerID == nil || local.localCloudOwnerID == currentUserID else { return }
         local.pendingCloudUpload = true
-        saveCanvas(local)
+        saveCanvas(local, expectedEpoch: epoch)
     }
 
     /// A late response must never clear a newer local version's upload marker.
     @MainActor
-    func acknowledgeCloudUpload(dayKey: String, uploadedJSON: Data) {
+    func acknowledgeCloudUpload(dayKey: String, uploadedJSON: Data, expectedEpoch: CanvasStorageWriteEpoch? = nil) {
+        let epoch = expectedEpoch ?? captureWriteEpoch()
+        guard writeBarrier.allows(epoch) else { return }
         guard var local = loadCanvas(for: dayKey), !local.needsRemoteHydration,
               local.pendingCloudUpload == true,
               let uploaded = try? JSONDecoder().decode(DayCanvas.self, from: uploadedJSON),
@@ -151,7 +231,7 @@ final class CanvasStorageService {
               let uploadedData = try? Self.sortedEncoder.encode(uploaded.cloudSnapshot),
               localData == uploadedData else { return }
         local.pendingCloudUpload = nil
-        writeCanvas(local, markForCloudUpload: false)
+        writeCanvas(local, markForCloudUpload: false, expectedEpoch: epoch)
     }
 
     private static var sortedEncoder: JSONEncoder {
@@ -161,9 +241,15 @@ final class CanvasStorageService {
     }
 
     func deleteCanvas(for dayKey: String) {
+        deleteCanvas(for: dayKey, expectedEpoch: captureWriteEpoch())
+    }
+
+    func deleteCanvas(for dayKey: String, expectedEpoch: CanvasStorageWriteEpoch) {
         let url = canvasFileURL(for: dayKey)
-        try? fileManager.removeItem(at: url)
-        NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: dayKey)
+        let removed = writeBarrier.performWrite(epoch: expectedEpoch) {
+            try? fileManager.removeItem(at: url)
+        }
+        if removed { NotificationCenter.default.post(name: .todayCanvasStorageDidChange, object: dayKey) }
     }
 
     /// Moves the current session to a key produced by a day-end preference
@@ -171,6 +257,8 @@ final class CanvasStorageService {
     /// removed, so a failed write leaves the original canvas recoverable.
     @discardableResult
     func rekeyCanvas(from oldDayKey: String, to newDayKey: String) -> Bool {
+        let epoch = captureWriteEpoch()
+        guard writeBarrier.allows(epoch) else { return false }
         guard oldDayKey != newDayKey else { return true }
         guard var source = loadCanvas(for: oldDayKey) else { return true }
 
@@ -192,8 +280,8 @@ final class CanvasStorageService {
             if destination.pendingCloudUpload == true { source.pendingCloudUpload = true }
         }
 
-        guard saveCanvas(source) else { return false }
-        deleteCanvas(for: oldDayKey)
+        guard saveCanvas(source, expectedEpoch: epoch) else { return false }
+        deleteCanvas(for: oldDayKey, expectedEpoch: epoch)
         return true
     }
 
@@ -202,8 +290,12 @@ final class CanvasStorageService {
     @MainActor
     func saveSnapshot(
         for canvas: DayCanvas,
-        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
+        expectedEpoch: CanvasStorageWriteEpoch? = nil
     ) async {
+        guard !Task.isCancelled else { return }
+        let epoch = expectedEpoch ?? captureWriteEpoch()
+        guard writeBarrier.allows(epoch) else { return }
         if let image = await renderedSnapshot(
             canvas: canvas,
             size: CGSize(width: 390, height: 500),
@@ -213,7 +305,7 @@ final class CanvasStorageService {
            let data = image.pngData() {
             let url = snapshotURL(for: canvas.dayKey)
             do {
-                try data.write(to: url, options: .atomic)
+                try writeBarrier.performWrite(epoch: epoch) { try data.write(to: url, options: .atomic) }
             } catch {
                 Self.log.error("Failed to save snapshot for \(canvas.dayKey): \(error.localizedDescription)")
             }
@@ -227,6 +319,7 @@ final class CanvasStorageService {
 
     @MainActor
     func scheduleWidgetSnapshot(for canvas: DayCanvas, paletteCategories: Set<ModernPaletteCategory>) {
+        guard !Task.isCancelled, writeBarrier.allows(captureWriteEpoch()) else { return }
         Self.widgetSnapshotQueue.submit(canvas, categories: paletteCategories)
     }
 
@@ -236,8 +329,14 @@ final class CanvasStorageService {
     @MainActor
     func saveWidgetSnapshot(
         for canvas: DayCanvas,
-        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
+        paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all,
+        expectedEpoch: CanvasStorageWriteEpoch? = nil
     ) async {
+        // The queue can be canceled while its async export closure is hopping
+        // here. Do not let that old work acquire the incoming account's epoch.
+        guard !Task.isCancelled else { return }
+        let epoch = expectedEpoch ?? captureWriteEpoch()
+        guard writeBarrier.allows(epoch) else { return }
         guard let rendered = await renderedSnapshot(
             canvas: canvas,
             size: CGSize(width: 200, height: 200),
@@ -255,20 +354,19 @@ final class CanvasStorageService {
         }
 
         let fm = self.fileManager
+        let barrier = writeBarrier
         await Task.detached(priority: .utility) {
             guard let containerURL = fm.containerURL(
                 forSecurityApplicationGroupIdentifier: SharedKeys.appGroupId
             ) else { return }
 
             let dir = containerURL.appending(path: "widget_snapshots", directoryHint: .isDirectory)
-            do {
-                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-            } catch {
-                Self.log.error("Failed to create widget snapshot directory: \(error.localizedDescription)")
-            }
             let url = dir.appending(path: "canvas_today.jpg")
             do {
-                try data.write(to: url, options: .atomic)
+                try barrier.performWrite(epoch: epoch) {
+                    try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                    try data.write(to: url, options: .atomic)
+                }
             } catch {
                 Self.log.error("Failed to save widget snapshot: \(error.localizedDescription)")
             }
@@ -385,6 +483,7 @@ final class CanvasWidgetSnapshotQueue {
     private let debounce: Duration
     private var pending: (DayCanvas, Set<ModernPaletteCategory>)?
     private var worker: Task<Void, Never>?
+    private var generation = UUID()
 
     init(debounce: Duration = .milliseconds(300), export: @escaping Export) {
         self.debounce = debounce
@@ -394,15 +493,24 @@ final class CanvasWidgetSnapshotQueue {
     func submit(_ canvas: DayCanvas, categories: Set<ModernPaletteCategory>) {
         pending = (canvas, categories)
         guard worker == nil else { return }
+        let generation = self.generation
         worker = Task { @MainActor [weak self] in
             guard let self else { return }
-            while self.pending != nil {
+            defer { if self.generation == generation { self.worker = nil } }
+            while self.pending != nil, self.generation == generation, !Task.isCancelled {
                 try? await Task.sleep(for: self.debounce)
+                guard self.generation == generation, !Task.isCancelled else { return }
                 guard let request = self.pending else { break }
                 self.pending = nil
                 await self.export(request.0, request.1)
             }
-            self.worker = nil
         }
+    }
+
+    func cancelPendingExports() {
+        generation = UUID()
+        pending = nil
+        worker?.cancel()
+        worker = nil
     }
 }

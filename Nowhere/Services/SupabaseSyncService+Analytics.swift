@@ -8,6 +8,8 @@ extension SupabaseSyncService {
     /// Queue analytics event for KPI tracking.
     /// Uses best-effort delivery to `user_analytics_events` with local queue fallback.
     func trackAnalyticsEvent(name: String, properties: [String: String] = [:], dedupeKey: String? = nil) async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         #if DEBUG
         guard !CanvasTourAnalyticsGate.shared.isSuppressed else { return }
         #endif
@@ -19,6 +21,7 @@ extension SupabaseSyncService {
             return
         }
 
+        guard syncOperation.isCurrent, identity.userId == syncOperation.ownerID else { return }
         if let dedupeKey {
             let scopedKey = "\(identity.userId):\(dedupeKey)"
             if analyticsDedupeKeys.contains(scopedKey) { return }
@@ -46,13 +49,14 @@ extension SupabaseSyncService {
         if pendingAnalyticsEvents.count > 250 {
             pendingAnalyticsEvents = Array(pendingAnalyticsEvents.suffix(250))
         }
-        persistAnalyticsQueueToDefaults()
+        await persistAnalyticsQueueToDefaults(syncOperation: syncOperation)
         scheduleAnalyticsFlush()
     }
     
     // MARK: - Private Analytics Helpers
     
     private func scheduleAnalyticsFlush() {
+        guard acceptsScheduledHistoryWork() else { return }
         analyticsFlushTask?.cancel()
         analyticsFlushTask = Task {
             try? await Task.sleep(for: .seconds(1))
@@ -68,9 +72,11 @@ extension SupabaseSyncService {
     }
     
     private func flushAnalyticsEvents() async {
+        guard let syncOperation = await beginSyncOperation(writing: true) else { return }
+        defer { syncOperation.finish() }
         guard !pendingAnalyticsEvents.isEmpty else { return }
         
-        guard let auth = await authenticatedContext() else { return }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return }
         let token = auth.token
         let userId = auth.userId
 
@@ -78,7 +84,7 @@ extension SupabaseSyncService {
         let ownedEvents = pendingAnalyticsEvents.filter { $0.userId != nil }
         if ownedEvents.count != pendingAnalyticsEvents.count {
             pendingAnalyticsEvents = ownedEvents
-            persistAnalyticsQueueToDefaults()
+            await persistAnalyticsQueueToDefaults(syncOperation: syncOperation)
         }
         let eventsForCurrentUser: [(event: AnalyticsEventPayload, userId: String)] = ownedEvents.compactMap { event in
             guard let eventUserId = event.userId, eventUserId == userId else { return nil }
@@ -88,7 +94,10 @@ extension SupabaseSyncService {
         
         do {
             let cfg = try SupabaseConfig.load()
+            // Event IDs are unique within an account. The server-generated
+            // numeric primary key cannot identify a replay after a lost ACK.
             let endpoint = cfg.baseURL.appendingPathComponent("rest/v1/user_analytics_events")
+                .appending(queryItems: [URLQueryItem(name: "on_conflict", value: "user_id,event_id")])
             let rows = eventsForCurrentUser.map { ownedEvent in
                 let event = ownedEvent.event
                 return AnalyticsEventInsertRow(
@@ -118,23 +127,33 @@ extension SupabaseSyncService {
             request.httpBody = try JSONEncoder().encode(rows)
             
             let (_, response) = try await network.data(for: request, policy: NetworkClient.RetryPolicy.none)
+            guard syncOperation.isCurrent else { return }
             guard response.statusCode < 400 else {
                 AppLogger.network.error("📡 Analytics flush failed: HTTP \(response.statusCode)")
                 return
             }
             
             let sentIDs = Set(eventsForCurrentUser.map { $0.event.id })
-            pendingAnalyticsEvents.removeAll { sentIDs.contains($0.id) }
-            persistAnalyticsQueueToDefaults()
+            pendingAnalyticsEvents.removeAll { $0.userId == userId && sentIDs.contains($0.id) }
+            await persistAnalyticsQueueToDefaults(syncOperation: syncOperation)
             AppLogger.network.debug("📡 Analytics flushed: \(rows.count) events")
         } catch {
             AppLogger.network.error("📡 Analytics flush error: \(error.localizedDescription)")
         }
     }
     
-    private func persistAnalyticsQueueToDefaults() {
+    /// Only called after all producers/leases drain and before the vault rotates.
+    func persistAnalyticsSnapshotForAccountSwitch() async {
         guard let data = try? JSONEncoder().encode(pendingAnalyticsEvents) else { return }
-        Task { @MainActor in
+        await MainActor.run {
+            UserDefaults.nowhere().set(data, forKey: SharedKeys.analyticsEventsQueue)
+        }
+    }
+
+    private func persistAnalyticsQueueToDefaults(syncOperation: SupabaseSyncOperation) async {
+        guard syncOperation.isCurrent, let data = try? JSONEncoder().encode(pendingAnalyticsEvents) else { return }
+        await MainActor.run {
+            guard syncOperation.isCurrent else { return }
             UserDefaults.nowhere().set(data, forKey: SharedKeys.analyticsEventsQueue)
         }
     }

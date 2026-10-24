@@ -27,6 +27,7 @@ final class BlockingStore: ObservableObject {
     private var persistAndRebuildTask: Task<Void, Never>?
     private var saveAppSelectionTask: Task<Void, Never>?
     private var lastSavedAppSelection: FamilyActivitySelection?
+    private var persistenceSuspended = false
     private var cancellables = Set<AnyCancellable>()
     
     // Constants
@@ -43,6 +44,41 @@ final class BlockingStore: ObservableObject {
         }
     }
     
+    /// Drain every delayed app-side shield/selection writer before the
+    /// coordinator enters the shared registration/state lock boundary.
+    func suspendPersistence() async throws {
+        persistenceSuspended = true
+        let selection = appSelection
+        let tasks = [rebuildBlockTask, persistAndRebuildTask, saveAppSelectionTask].compactMap { $0 }
+        rebuildBlockTask = nil
+        persistAndRebuildTask = nil
+        saveAppSelectionTask = nil
+        for task in tasks { task.cancel() }
+        for task in tasks { await task.value }
+        try Task.checkCancellation()
+        let data = try JSONEncoder().encode(selection)
+        let defaults = UserDefaults.nowhere()
+        defaults.set(data, forKey: SharedKeys.appSelection)
+        defaults.set(Date.now, forKey: SharedKeys.appSelectionSavedDate)
+    }
+
+    func resumePersistence() {
+        persistenceSuspended = false
+    }
+
+    /// The paused coordinator reloads selection without scheduling old debounces.
+    func reloadAfterAccountSwitch() {
+        precondition(persistenceSuspended)
+        lastSavedAppSelection = nil
+        appUnlockSettings = [:]
+        isBlocked = false
+        let data = UserDefaults.nowhere().data(forKey: SharedKeys.appSelection)
+        appSelection = data.flatMap { try? JSONDecoder().decode(FamilyActivitySelection.self, from: $0) }
+            ?? FamilyActivitySelection()
+        lastSavedAppSelection = appSelection
+        loadTicketGroups()
+    }
+
     // MARK: - Authorization
     var isAuthorized: Bool {
         familyControlsService.isAuthorized
@@ -63,6 +99,7 @@ final class BlockingStore: ObservableObject {
     
     // MARK: - App Selection Logic
     private func handleAppSelectionChange(oldValue: FamilyActivitySelection) {
+        guard !persistenceSuspended else { return }
         let hasChanges = appSelection.applicationTokens != oldValue.applicationTokens
             || appSelection.categoryTokens != oldValue.categoryTokens
         
@@ -96,6 +133,7 @@ final class BlockingStore: ObservableObject {
     }
     
     private func saveAppSelection() {
+        guard !persistenceSuspended else { return }
         let defaults = UserDefaults.nowhere()
         if let data = try? JSONEncoder().encode(appSelection) {
             defaults.set(data, forKey: SharedKeys.appSelection)
@@ -131,6 +169,7 @@ final class BlockingStore: ObservableObject {
     }
 
     func persistTicketGroups() {
+        guard !persistenceSuspended else { return }
         let startTime = CFAbsoluteTimeGetCurrent()
         let g = UserDefaults.nowhere()
         do {
@@ -232,6 +271,7 @@ final class BlockingStore: ObservableObject {
     }
 
     func saveTimeAccessSelection(_ selection: FamilyActivitySelection, for bundleId: String) {
+        guard !persistenceSuspended else { return }
         let g = UserDefaults.nowhere()
         #if canImport(FamilyControls)
         if let data = try? JSONEncoder().encode(selection) {
@@ -241,6 +281,7 @@ final class BlockingStore: ObservableObject {
     }
     
     func rebuildFamilyControlsShield() {
+        guard !persistenceSuspended else { return }
         rebuildBlockTask?.cancel()
 
         rebuildBlockTask = Task { @MainActor in

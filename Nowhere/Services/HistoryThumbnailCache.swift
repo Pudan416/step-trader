@@ -15,6 +15,7 @@ extension Notification.Name {
 /// save path posting `.historyThumbnailNeedsRefresh`).
 @MainActor
 final class HistoryThumbnailCache {
+    typealias Render = @MainActor (DayCanvas, CGSize, Date, AppTheme, Set<ModernPaletteCategory>) async -> UIImage?
     static let shared = HistoryThumbnailCache()
 
     private static let log = Logger(
@@ -29,10 +30,15 @@ final class HistoryThumbnailCache {
     private let diskCacheURL: URL
     private let fileManager = FileManager.default
     private var observer: NSObjectProtocol?
+    private let renderOverride: Render?
+    private var accountEpoch = UUID()
+    private var accountSwitchSuspended = false
+    private var inFlight: [UUID: Task<UIImage?, Never>] = [:]
 
-    private init() {
+    init(directory: URL? = nil, render: Render? = nil) {
         let cachesDir = URL.cachesDirectory
-        diskCacheURL = cachesDir.appending(path: "HistoryThumbnails", directoryHint: .isDirectory)
+        diskCacheURL = directory ?? cachesDir.appending(path: "HistoryThumbnails", directoryHint: .isDirectory)
+        renderOverride = render
         do {
             try fileManager.createDirectory(at: diskCacheURL, withIntermediateDirectories: true)
         } catch {
@@ -69,6 +75,8 @@ final class HistoryThumbnailCache {
         theme: AppTheme,
         paletteCategories: Set<ModernPaletteCategory> = ModernPaletteSelection.all
     ) async -> UIImage? {
+        guard !accountSwitchSuspended, !Task.isCancelled else { return nil }
+        let epoch = accountEpoch
         let key = cacheKey(
             dayKey: dayKey,
             style: canvas.resolvedVisualStyle,
@@ -84,13 +92,15 @@ final class HistoryThumbnailCache {
             return onDisk
         }
 
-        let image = await renderThumbnail(
-            canvas: canvas,
-            size: size,
-            fixedTime: fixedTime,
-            theme: theme,
-            paletteCategories: paletteCategories
-        )
+        let id = UUID()
+        let render = Task { @MainActor in
+            await self.renderThumbnail(canvas: canvas, size: size, fixedTime: fixedTime,
+                                       theme: theme, paletteCategories: paletteCategories)
+        }
+        inFlight[id] = render
+        let image = await render.value
+        inFlight.removeValue(forKey: id)
+        guard accountEpoch == epoch, !accountSwitchSuspended, !Task.isCancelled else { return nil }
 
         if let image {
             insertLRU(key, image: image)
@@ -115,12 +125,33 @@ final class HistoryThumbnailCache {
 
     /// Drops all style-dependent thumbnails after a global appearance change.
     func invalidateAll() {
+        accountEpoch = UUID()
+        for task in inFlight.values { task.cancel() }
         memCache.removeAll()
         accessOrder.removeAll()
         guard let files = try? fileManager.contentsOfDirectory(atPath: diskCacheURL.path) else { return }
         for file in files {
             try? fileManager.removeItem(at: diskCacheURL.appending(path: file))
         }
+    }
+
+    func suspendForAccountSwitch() async throws {
+        accountSwitchSuspended = true
+        accountEpoch = UUID()
+        let tasks = Array(inFlight.values)
+        for task in tasks { task.cancel() }
+        for task in tasks { _ = await task.value }
+        inFlight.removeAll()
+        memCache.removeAll()
+        accessOrder.removeAll()
+        guard fileManager.fileExists(atPath: diskCacheURL.path) else { return }
+        for url in try fileManager.contentsOfDirectory(at: diskCacheURL, includingPropertiesForKeys: nil) {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
+    func resumeAfterAccountSwitch() {
+        accountSwitchSuspended = false
     }
 
     /// Manually warms the memory cache for callers that already rendered a frame.
@@ -131,6 +162,7 @@ final class HistoryThumbnailCache {
         size: CGSize,
         theme: AppTheme
     ) {
+        guard !accountSwitchSuspended, !Task.isCancelled else { return }
         let key = cacheKey(dayKey: dayKey, style: style, size: size, theme: theme)
         insertLRU(key, image: image)
         saveToDisk(image, key: key)
@@ -161,6 +193,9 @@ final class HistoryThumbnailCache {
         theme: AppTheme,
         paletteCategories: Set<ModernPaletteCategory>
     ) async -> UIImage? {
+        if let renderOverride {
+            return await renderOverride(canvas, size, fixedTime, theme, paletteCategories)
+        }
         if CanvasExportRoute(canvas: canvas) == .editorialMetal {
             return await DayObjectsImageRenderer.image(
                 input: EditorialCanvasInputFactory.make(

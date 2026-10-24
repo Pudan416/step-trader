@@ -5,7 +5,9 @@ import os.log
 extension SupabaseSyncService {
 
     func syncSavedRoutines(_ routines: [EnergyRoutine]) {
-        Task {
+        guard acceptsScheduledHistoryWork() else { return }
+        routinesSyncTask?.cancel()
+        routinesSyncTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             await performSavedRoutinesSync(routines)
@@ -13,7 +15,9 @@ extension SupabaseSyncService {
     }
 
     private func performSavedRoutinesSync(_ routines: [EnergyRoutine]) async {
-        guard let auth = await authenticatedContext() else {
+        guard let operation = await beginSyncOperation(writing: true) else { return }
+        defer { operation.finish() }
+        guard let auth = await authenticatedContext(), operation.isCurrent, auth.userId == operation.ownerID else {
             AppLogger.network.debug("📡 Routines sync skipped: no auth")
             return
         }
@@ -35,6 +39,7 @@ extension SupabaseSyncService {
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
 
                 let (_, response) = try await network.data(for: request)
+                guard operation.isCurrent else { return }
                 if response.statusCode < 400 {
                     AppLogger.network.debug("📡 Routines cleared on server")
                 }
@@ -68,6 +73,7 @@ extension SupabaseSyncService {
             request.httpBody = try JSONSerialization.data(withJSONObject: rows)
 
             let (data, response) = try await network.data(for: request)
+            guard operation.isCurrent else { return }
             if response.statusCode < 400 {
                 // Delete stale routines no longer in local set
                 let currentIds = Set(routines.map(\.id))
@@ -99,7 +105,9 @@ extension SupabaseSyncService {
     // MARK: - Restore
 
     func loadSavedRoutinesFromServer() async -> [EnergyRoutine]? {
-        guard let auth = await authenticatedContext() else { return nil }
+        guard let syncOperation = await beginSyncOperation(writing: false) else { return nil }
+        defer { syncOperation.finish() }
+        guard let auth = await authenticatedContext(), syncOperation.isCurrent, auth.userId == syncOperation.ownerID else { return nil }
         let token = auth.token
         let userId = auth.userId
 
@@ -120,6 +128,7 @@ extension SupabaseSyncService {
             request.setValue("application/json", forHTTPHeaderField: "accept")
 
             let (data, response) = try await network.data(for: request)
+            guard syncOperation.isCurrent else { return nil }
             guard response.statusCode < 400 else { return nil }
 
             let rows = try JSONDecoder().decode([RoutineRow].self, from: data)

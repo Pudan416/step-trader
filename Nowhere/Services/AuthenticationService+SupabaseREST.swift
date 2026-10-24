@@ -28,6 +28,9 @@ extension AuthenticationService {
     }
 
     func supabaseSignInWithApple(idToken: String, nonce: String) async throws -> SupabaseSessionResponse {
+        let generation = sessionGeneration
+        let linkContext = try await anonymousAppleLinkContext()
+        try checkSessionGeneration(generation)
         let cfg = try SupabaseConfig.load()
         AppLogger.auth.debug("🔐 supabaseSignInWithApple — posting to \(cfg.baseURL.host ?? "?")/auth/v1/token?grant_type=id_token")
 
@@ -41,17 +44,33 @@ extension AuthenticationService {
             throw AuthError.supabaseError("Failed to construct auth URL")
         }
 
-        let payload = SupabaseIdTokenGrantRequest(provider: "apple", idToken: idToken, nonce: nonce)
-        let body = try JSONEncoder().encode(payload)
-        // Use existing session token (anonymous or otherwise) so GoTrue can
-        // link the Apple identity to the current anonymous user.
-        let authToken = self.accessToken ?? cfg.anonKey
-        let (data, http) = try await makeJSONRequest(
-            url: finalURL,
-            method: "POST",
-            headers: ["apikey": cfg.anonKey, "authorization": "Bearer \(authToken)"],
-            body: body
-        )
+        func exchange(linkIdentity: Bool) async throws -> (Data, HTTPURLResponse) {
+            let payload = SupabaseIdTokenGrantRequest(
+                provider: "apple", idToken: idToken, nonce: nonce,
+                linkIdentity: linkIdentity ? true : nil
+            )
+            guard let bearer = linkIdentity ? linkContext?.token : cfg.anonKey else {
+                throw AuthError.sessionExpired
+            }
+            return try await makeJSONRequest(
+                url: finalURL, method: "POST",
+                headers: ["apikey": cfg.anonKey, "authorization": "Bearer \(bearer)"],
+                body: JSONEncoder().encode(payload)
+            )
+        }
+
+        var (data, http) = try await exchange(linkIdentity: linkContext != nil)
+        try checkSessionGeneration(generation)
+        var linkedOwnerID = linkContext?.userID
+        if linkContext != nil, http.statusCode == 422,
+           let error = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           error["code"] as? String == "identity_already_exists" {
+            // An Apple identity already attached to an account signs into that
+            // account normally. Other failures must not silently fork the guest.
+            (data, http) = try await exchange(linkIdentity: false)
+            try checkSessionGeneration(generation)
+            linkedOwnerID = nil
+        }
 
         AppLogger.auth.debug("🔐 supabaseSignInWithApple — response status: \(http.statusCode), body size: \(data.count) bytes")
 
@@ -61,7 +80,11 @@ extension AuthenticationService {
             throw AuthError.supabaseError(msg)
         }
 
-        return try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
+        let session = try supabaseDecoder.decode(SupabaseSessionResponse.self, from: data)
+        if let linkedOwnerID, session.user.id != linkedOwnerID {
+            throw AuthError.supabaseError("Apple identity linking changed the anonymous account")
+        }
+        return session
     }
 
     func ensureValidSession(_ session: SupabaseSessionResponse) async throws -> SupabaseSessionResponse {

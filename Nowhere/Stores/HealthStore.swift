@@ -31,6 +31,8 @@ final class HealthStore: ObservableObject {
     private var stepsQueryID: UUID?
     private var sleepQueryID: UUID?
     private var stepsObservationID: UUID?
+    /// The AppModel suggestion orchestrator shares this Health lifecycle token.
+    var activitySuggestionsQueryID: UUID?
     
     init(healthKitService: any HealthKitServiceProtocol, defaults: UserDefaults = .nowhere()) {
         self.healthKitService = healthKitService
@@ -40,6 +42,19 @@ final class HealthStore: ObservableObject {
         loadCachedSleepToday()
     }
     
+    /// Reload only after account storage has been replaced and old producers drained.
+    /// Query identities invalidate callbacks even when HealthKit ignores cancellation.
+    func reloadAfterAccountSwitch() {
+        stopObservingSteps()
+        stepsToday = 0
+        dailySleepHours = 0
+        baseEnergyToday = 0
+        hasStepsData = false
+        hasSleepData = false
+        loadCachedStepsToday()
+        loadCachedSleepToday()
+    }
+
     func requestAuthorization() async throws {
         do {
             try await healthKitService.requestAuthorization()
@@ -253,6 +268,7 @@ final class HealthStore: ObservableObject {
         stepsObservationID = nil
         stepsQueryID = nil
         sleepQueryID = nil
+        activitySuggestionsQueryID = nil
         stepsQueryOutcome = .idle
         sleepQueryOutcome = .idle
         healthKitService.stopObservingSteps()
