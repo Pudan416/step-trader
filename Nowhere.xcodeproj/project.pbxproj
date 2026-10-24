@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A13C40012F5000010018004E /* AccountHistoryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C40022F5000010018004E /* AccountHistoryCoordinator.swift */; };
 		A13C10042F5000010018004E /* LegacyDeviceHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20042F5000010018004E /* LegacyDeviceHistoryView.swift */; };
 		A13C10032F5000010018004E /* LegacyDeviceHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20032F5000010018004E /* LegacyDeviceHistory.swift */; };
 		A13C30022F5000010018004E /* AccountHistoryStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13C20022F5000010018004E /* AccountHistoryStorage.swift */; };
@@ -669,6 +670,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A13C40022F5000010018004E /* AccountHistoryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Services/AccountHistoryCoordinator.swift; sourceTree = SOURCE_ROOT; };
 		A13C20042F5000010018004E /* LegacyDeviceHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Views/Settings/LegacyDeviceHistoryView.swift; sourceTree = SOURCE_ROOT; };
 		A13C20032F5000010018004E /* LegacyDeviceHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Models/LegacyDeviceHistory.swift; sourceTree = SOURCE_ROOT; };
 		A13C20022F5000010018004E /* AccountHistoryStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Nowhere/Services/AccountHistoryStorage.swift; sourceTree = SOURCE_ROOT; };
@@ -1730,6 +1732,7 @@
 				A13C20042F5000010018004E /* LegacyDeviceHistoryView.swift */,
 				A13C20032F5000010018004E /* LegacyDeviceHistory.swift */,
 				A13C20022F5000010018004E /* AccountHistoryStorage.swift */,
+				A13C40022F5000010018004E /* AccountHistoryCoordinator.swift */,
 				20DIAG022F5000010018004E /* Nowhere/Services/DiagnosticsManager.swift */,
 				2061ED012F277010009FEC25 /* Nowhere/Services/ErrorManager.swift */,
 				2061ECF92F277010009FEC24 /* PayGateSession.swift */,
@@ -2910,6 +2913,7 @@
 				A13C10042F5000010018004E /* LegacyDeviceHistoryView.swift in Sources */,
 				A13C10032F5000010018004E /* LegacyDeviceHistory.swift in Sources */,
 				A13C30022F5000010018004E /* AccountHistoryStorage.swift in Sources */,
+				A13C40012F5000010018004E /* AccountHistoryCoordinator.swift in Sources */,
 				20DIAG012F5000010018004E /* Nowhere/Services/DiagnosticsManager.swift in Sources */,
 				2061ED002F277010009FEC25 /* Nowhere/Services/ErrorManager.swift in Sources */,
 				2061ECF82F277010009FEC24 /* PayGateSession.swift in Sources */,

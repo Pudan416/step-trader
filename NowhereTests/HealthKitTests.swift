@@ -629,6 +629,41 @@ final class HealthStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    func testAccountReloadClearsAbsentIncomingHealthValues() {
+        store.stepsToday = 12_000
+        store.dailySleepHours = 8
+        store.baseEnergyToday = 180
+        store.hasStepsData = true
+        store.hasSleepData = true
+
+        store.reloadAfterAccountSwitch()
+
+        XCTAssertEqual(store.stepsToday, 0)
+        XCTAssertEqual(store.dailySleepHours, 0)
+        XCTAssertEqual(store.baseEnergyToday, 0)
+        XCTAssertFalse(store.hasStepsData)
+        XCTAssertFalse(store.hasSleepData)
+        XCTAssertEqual(store.stepsQueryOutcome, .idle)
+        XCTAssertEqual(store.sleepQueryOutcome, .idle)
+    }
+
+    func testAccountReloadRejectsDelayedOutgoingQueryAndKeepsIncomingCache() async {
+        let queries = PendingHealthQueries()
+        mock.stepsFetch = { _, _ in try await queries.fetch() }
+        let outgoing = Task { await store.refreshStepsIfAuthorized() }
+        await queries.waitForQueries(1)
+        defaults.set(70, forKey: SharedKeys.cachedStepsToday)
+        defaults.set(true, forKey: SharedKeys.hasStepsData)
+        store.reloadAfterAccountSwitch()
+        await queries.complete(0, with: .success(12_000))
+        await outgoing.value
+
+        XCTAssertEqual(store.stepsToday, 70)
+        XCTAssertEqual(defaults.double(forKey: SharedKeys.cachedStepsToday), 70)
+        XCTAssertTrue(store.hasStepsData)
+        XCTAssertEqual(store.stepsQueryOutcome, .idle)
+    }
+
     func testOlderStepSuccessCannotReplaceNewerResultOrCache() async {
         let queries = PendingHealthQueries()
         mock.stepsFetch = { _, _ in try await queries.fetch() }

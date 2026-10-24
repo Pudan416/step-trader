@@ -555,6 +555,67 @@ final class AppModel: ObservableObject {
         await task.value
     }
 
+    func restartAccountHistoryWork() {
+        resumeHistoryWork()
+        scheduleDayBoundaryTimer()
+        // Publish incoming derived state before any Health query can suspend.
+        writeWidgetSnapshot()
+        WidgetCenter.shared.reloadAllTimelines()
+        ShieldRebuildHelper.rebuild(startPendingBudgets: false)
+        ensureUsageBudgetMonitoringForActiveGroups()
+        scheduleHistoryWork { [self] in
+            await refreshStepsIfAuthorized()
+            await refreshSleepIfAuthorized()
+            writeWidgetSnapshot()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
+    /// Reuse the local loaders against the incoming account while every writer
+    /// remains paused. Missing keys must clear A's in-memory values for fresh B.
+    func reloadAccountHistory() async {
+        precondition(isHistoryWorkSuspended)
+        let dayEnd = Self.storedDayEnd()
+        dayEndHour = dayEnd.hour
+        dayEndMinute = dayEnd.minute
+        lastDayKey = Self.dayKey(for: .now)
+        lastDayBoundaryCheck = nil
+        todayAdditions = []
+        locallyRemovedAdditionIDs.removeAll()
+        savedRoutines = []
+        _pendingWorkoutSuggestions = []
+        _pendingActivitySuggestions = []
+        handoffToken = nil
+        showHandoffProtection = false
+        showQuickStatusPage = false
+        userEconomyStore.showPayGate = false
+        userEconomyStore.payGateTargetGroupId = nil
+        userEconomyStore.payGateSessions.removeAll()
+        userEconomyStore.currentPayGateSessionId = nil
+        userEconomyStore.payGateError = nil
+        userEconomyStore.dayPassGrants = [:]
+        userEconomyStore.stepsBalance = 0
+        userEconomyStore.spentSteps = 0
+        userEconomyStore.bonusSteps = UserDefaults.nowhere().integer(forKey: SharedKeys.bonusSteps)
+        blockingStore.reloadAfterAccountSwitch()
+        loadTicketGroups() // Also clears the bundle-ID → group lookup cache.
+        loadAppUnlockSettings()
+        healthStore.reloadAfterAccountSwitch()
+        frequentHappeningStore.reloadAfterAccountSwitch()
+        budgetEngine.reloadFromStorage()
+        let rawTariff = UserDefaults.nowhere().string(forKey: SharedKeys.selectedTariff) ?? Tariff.medium.rawValue
+        budgetEngine.updateTariff(Tariff(rawValue: rawTariff) ?? .medium)
+        entryCostSteps = budgetEngine.tariff.entryCostSteps
+        await userEconomyStore.loadAppStepsSpentToday()
+        await userEconomyStore.loadAppStepsSpentLifetime()
+        loadDayPassGrants()
+        loadDailyEnergyState()
+        loadSavedRoutines()
+        loadSpentStepsBalance()
+        hadLocalStateBeforeInitialization = false
+        objectWillChange.send()
+    }
+
     func bootstrap(
         requestPermissions: Bool,
         waitForAuthentication: @MainActor () async -> Void = {

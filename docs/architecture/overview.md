@@ -220,3 +220,5 @@ and analytics persistence is awaited. After draining, pause commits the final ou
 analytics snapshot before files rotate, preserving events whose normal persistence was
 invalidated. Resuming re-reads the incoming queue; owner readiness schedules its flush. Device-token
 registration and captured-bearer APNs teardown are outside the history barrier.
+
+`AccountHistoryCoordinator` composes the existing pause/drain APIs without activating itself yet. Its serialized transition invalidates sync admission both when queued and when it begins, drains producers/caches, invalidates outgoing and restored budget identities inside existing locks, and reloads incoming model values while paused. It validates auth generation, durably commits the vault, then publishes credentials/user synchronously without an intervening await. Storage failures retain credentials and expose retry; safe unchanged outgoing accounts resume. Initial hydration happens after auth initialization; a failed restore keeps uploads closed. On process interruption between credential and vault domains, the next startup binds storage to the credential UID before opening UI/sync.
