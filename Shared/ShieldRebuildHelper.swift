@@ -330,6 +330,21 @@ enum ShieldRebuildHelper {
             || !usageSelectionMatches(defaults: defaults, groupId: groupId, session: session)
     }
 
+    /// The free action is available only while the paid budget can be registered
+    /// against an active, nonempty selection. Views and purchase entry points
+    /// share this check; an archived widget snapshot is never purchase authority.
+    static func recoverableUsageBudgetMinutes(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Int {
+        #if canImport(FamilyControls)
+        guard hasRecoverableUsageBudget(defaults: defaults, groupId: groupId, at: now),
+              let data = loadGroups(defaults: defaults).first(where: { $0.id == groupId && $0.active })?.selectionData,
+              let selection = cachedSelection(for: groupId, data: data),
+              !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else { return 0 }
+        return remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
+        #else
+        return 0
+        #endif
+    }
+
     private static func shouldSkipShieldingDueToActiveUsageBudget(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Bool {
         guard remainingUsageBudget(defaults: defaults, groupId: groupId, at: now) > 0 else { return false }
         guard let session = UsageBudgetSession.load(from: defaults, groupId: groupId) else { return true }
