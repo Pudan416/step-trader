@@ -111,6 +111,11 @@ struct DeviceActivityCenter { func stopMonitoring(_ names: [DeviceActivityName])
     func invalidatePendingWritesForAccountSwitch() async {}
     func resumeWritesAfterAccountSwitch() {}
 }
+@MainActor final class TodayCanvasBackdropStore {
+    static let shared = TodayCanvasBackdropStore()
+    func suspendForAccountSwitch() async {}
+    func resumeAfterAccountSwitch() {}
+}
 @MainActor final class MePosterCanvasLoadCoordinator {
     static let shared = MePosterCanvasLoadCoordinator()
     func suspendForAccountSwitch() async {}

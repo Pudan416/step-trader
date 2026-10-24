@@ -186,9 +186,7 @@ struct TodayCanvasUnlockFill: View {
 @MainActor
 final class TodayCanvasBackdropStore: ObservableObject {
     static let shared = TodayCanvasBackdropStore(onRenderedCanvas: { canvas, categories in
-        Task { @MainActor in
-            _ = await MePosterSnapshotCache.shared.image(for: canvas, categories: categories)
-        }
+        _ = await MePosterSnapshotCache.shared.image(for: canvas, categories: categories)
     }, onChromeChange: { chrome, dayKey in
         DailyInterfaceColors.shared.update(chrome, dayKey: dayKey)
     })
@@ -219,6 +217,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
     private weak var sourceRenderer: DayObjectsRenderer?
 
     func registerSource(_ view: MTKView, renderer: DayObjectsRenderer) {
+        guard !isSuspended else { return }
         sourceView = view
         sourceRenderer = renderer
     }
@@ -230,8 +229,9 @@ final class TodayCanvasBackdropStore: ObservableObject {
     }
 
     func captureVisibleFrame() async {
-        guard let view = sourceView, view.window != nil, !view.isPaused,
+        guard !isSuspended, let view = sourceView, view.window != nil, !view.isPaused,
               let renderer = sourceRenderer else { return }
+        let generation = generation
         let rect = view.convert(view.bounds, to: nil)
         let size = view.bounds.size
         let scale = view.contentScaleFactor
@@ -244,7 +244,8 @@ final class TodayCanvasBackdropStore: ObservableObject {
             }
         }
         defer { renderer.configureAnimation(view, requestsStaticFrame: false) }
-        guard !Task.isCancelled, sourceView === view, sourceRenderer === renderer,
+        guard !Task.isCancelled, !isSuspended, generation == self.generation,
+              sourceView === view, sourceRenderer === renderer,
               appearance == requested?.appearance, let texture,
               let image = DayObjectsImageRenderer.makeImage(texture: texture, scale: scale) else { return }
         visibleFrame = VisibleFrame(image: image, windowRect: rect)
@@ -254,11 +255,37 @@ final class TodayCanvasBackdropStore: ObservableObject {
     private var requested: Request?
     private var completed: Request?
     private var worker: Task<Void, Never>?
+    private var generation = UUID()
+    private var isSuspended = false
+
+    /// Drain this producer before pausing/purging the poster caches it warms.
+    func suspendForAccountSwitch() async {
+        isSuspended = true
+        generation = UUID()
+        let outgoing = worker
+        outgoing?.cancel()
+        sourceView = nil
+        sourceRenderer = nil
+        requested = nil
+        completed = nil
+        sourceData = nil
+        image = nil
+        visibleFrame = nil
+        dayKey = nil
+        let neutral = TodayCanvasUnlockPalette(colors: [])
+        unlockPalette = neutral
+        feedPalette = neutral
+        chromePalette = CanvasChromePalette.resolve(backgroundColors: [])
+        await outgoing?.value
+        worker = nil
+    }
+
+    func resumeAfterAccountSwitch() { isSuspended = false }
     private let load: (String) -> DayCanvas?
     private let render: (DayCanvas, Set<ModernPaletteCategory>) async -> UIImage?
     private let debounce: Duration
     private let onChromeChange: (CanvasChromePalette, String) -> Void
-    private let onRenderedCanvas: (DayCanvas, Set<ModernPaletteCategory>) -> Void
+    private let onRenderedCanvas: (DayCanvas, Set<ModernPaletteCategory>) async -> Void
 
     init(
         debounce: Duration = .milliseconds(180),
@@ -269,7 +296,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
                 paletteCategories: categories
             )
         },
-        onRenderedCanvas: @escaping (DayCanvas, Set<ModernPaletteCategory>) -> Void = { _, _ in },
+        onRenderedCanvas: @escaping (DayCanvas, Set<ModernPaletteCategory>) async -> Void = { _, _ in },
         onChromeChange: @escaping (CanvasChromePalette, String) -> Void = { _, _ in }
     ) {
         self.onChromeChange = onChromeChange
@@ -285,6 +312,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
     }
 
     func refresh(_ appearance: TodayCanvasAppearance, reload: Bool = false) {
+        guard !isSuspended, !Task.isCancelled else { return }
         // The minute timer and unrelated model updates often deliver an
         // identical appearance. Skip palette and JSON work when its image is
         // already current (or a worker is already preparing it). A failed
@@ -314,18 +342,23 @@ final class TodayCanvasBackdropStore: ObservableObject {
         if image == nil, unlockPalette != nextPalette { unlockPalette = nextPalette }
         requested = Request(appearance: appearance, sourceData: sourceData)
         guard requested != completed, worker == nil else { return }
+        let generation = generation
         worker = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer { if generation == self.generation { self.worker = nil } }
             // Coalesce bursts of preference / Health / persistence updates. A single
             // worker also prevents simultaneous GPU exports if input changes mid-render.
-            while self.requested != self.completed {
+            while !Task.isCancelled, !self.isSuspended, generation == self.generation,
+                  self.requested != self.completed {
                 if self.image != nil { try? await Task.sleep(for: self.debounce) }
-                guard let request = self.requested else { break }
+                guard !Task.isCancelled, !self.isSuspended, generation == self.generation,
+                      let request = self.requested else { break }
                 let saved = request.sourceData.flatMap { try? JSONDecoder().decode(DayCanvas.self, from: $0) }
                 let canvas = request.appearance.canvas(from: saved)
                 let rendered = await self.render(
                     canvas, ModernPaletteSelection.decode(request.appearance.categories)
                 )
+                guard !Task.isCancelled, !self.isSuspended, generation == self.generation else { break }
                 if let rendered {
                     self.completed = request
                     if request == self.requested {
@@ -333,7 +366,7 @@ final class TodayCanvasBackdropStore: ObservableObject {
                             ?? TodayCanvasUnlockPalette.make(appearance: request.appearance, canvas: canvas)
                         self.image = rendered
                         // Rejected, obsolete exports must never warm the poster cache.
-                        self.onRenderedCanvas(canvas, ModernPaletteSelection.decode(request.appearance.categories))
+                        await self.onRenderedCanvas(canvas, ModernPaletteSelection.decode(request.appearance.categories))
                     }
                 } else if request == self.requested {
                     // Keep the last successful frame. An identical later refresh
@@ -341,7 +374,6 @@ final class TodayCanvasBackdropStore: ObservableObject {
                     break
                 }
             }
-            self.worker = nil
         }
     }
 }
