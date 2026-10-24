@@ -370,6 +370,38 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+  backend-migrations:
+    name: PostgreSQL migration replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-replay-only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: local-replay-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+      - name: Install Supabase CLI
+        run: npm install --prefix "$RUNNER_TEMP/supabase-cli" supabase@2.121.0
+      - name: Set CLI path
+        run: echo "$RUNNER_TEMP/supabase-cli/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Replay active SQL with fresh and legacy auth schemas
+        run: python3 supabase/tests/migration-replay.py
+
   edge-functions:
     name: Edge Functions unit tests
     runs-on: ubuntu-latest

@@ -29,21 +29,36 @@ extension AppModel {
         #if DEBUG
         if activitySuggestionUITestFixtures != nil { return }
         #endif
-        let alreadyAdded = Set(todayAdditions.map(\.optionId))
-        let dismissed = dismissedSuggestionIds
-
-        var suggestions: [ActivitySuggestion] = []
+        guard !Task.isCancelled else { return }
+        let queryID = UUID()
+        healthStore.activitySuggestionsQueryID = queryID
+        let dayStart = currentDayStart(for: .now)
+        defer {
+            if healthStore.activitySuggestionsQueryID == queryID {
+                healthStore.activitySuggestionsQueryID = nil
+            }
+        }
 
         // 1. Workouts from HealthKit
         let workouts = await healthStore.fetchTodayWorkouts()
+        guard !Task.isCancelled, healthStore.activitySuggestionsQueryID == queryID,
+              currentDayStart(for: .now) == dayStart else { return }
+
+        // 2. Mindful minutes from HealthKit
+        let mindfulMinutes = await healthStore.fetchTodayMindfulMinutes()
+        guard !Task.isCancelled, healthStore.activitySuggestionsQueryID == queryID,
+              currentDayStart(for: .now) == dayStart else { return }
+
+        // The user may dismiss or add an event while either query is suspended.
+        let alreadyAdded = Set(todayAdditions.map(\.optionId))
+        let dismissed = dismissedSuggestionIds
+        var suggestions: [ActivitySuggestion] = []
         let workoutSuggestions = buildWorkoutSuggestions(
             workouts,
             dismissed: dismissed
         )
         suggestions.append(contentsOf: workoutSuggestions)
 
-        // 2. Mindful minutes from HealthKit
-        let mindfulMinutes = await healthStore.fetchTodayMindfulMinutes()
         if mindfulMinutes >= 3,
            !dismissed.contains("mindful_\(Int(mindfulMinutes))") {
             suggestions.append(.fromMindfulMinutes(mindfulMinutes))
@@ -66,13 +81,11 @@ extension AppModel {
         let removedIds = Array(
             previousIds.subtracting(currentIds).union(satisfiedSuggestionIds)
         )
-        (notificationService as? NotificationManager)?
-            .removeActivityDetectedNotifications(suggestionIds: removedIds)
+        notificationService.removeActivityDetectedNotifications(suggestionIds: removedIds)
 
         let newSuggestions = suggestions.filter { !previousIds.contains($0.id) }
         for suggestion in newSuggestions where suggestion.source.isWorkout {
-            (notificationService as? NotificationManager)?
-                .sendActivityDetectedNotification(for: suggestion)
+            notificationService.sendActivityDetectedNotification(for: suggestion)
         }
 
         pendingActivitySuggestions = suggestions
@@ -260,6 +273,7 @@ extension AppModel {
 
     /// Called on day boundary reset.
     func clearDismissedWorkouts() {
+        healthStore.activitySuggestionsQueryID = nil
         UserDefaults.nowhere().removeObject(forKey: Self.dismissedSuggestionsKey)
         pendingActivitySuggestions = []
         _pendingWorkoutSuggestions = []

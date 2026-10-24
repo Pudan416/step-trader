@@ -338,10 +338,14 @@ extension AppModel {
             if let data = g.data(forKey: SharedKeys.pastDaySnapshots),
                let loaded = try? JSONDecoder().decode([String: PastDaySnapshot].self, from: data) {
                 decoded = loaded
-                if let fileData = try? JSONEncoder().encode(decoded) {
-                    try? fileData.write(to: url, options: .atomic)
+                do {
+                    let fileData = try JSONEncoder().encode(decoded)
+                    try fileData.write(to: url, options: .atomic)
+                    g.removeObject(forKey: SharedKeys.pastDaySnapshots)
+                } catch {
+                    // Keep the only durable copy so a later load can retry.
+                    AppLogger.energy.error("Could not migrate past day snapshots: \(error.localizedDescription)")
                 }
-                g.removeObject(forKey: SharedKeys.pastDaySnapshots)
             } else {
                 return [:]
             }

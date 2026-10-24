@@ -9,4 +9,11 @@ protocol NotificationServiceProtocol {
     func sendTestNotification()
     func sendAccessWindowReminder(remainingSeconds: Int, bundleId: String)
     func scheduleAccessWindowStatus(remainingSeconds: Int, bundleId: String)
+    func sendActivityDetectedNotification(for suggestion: ActivitySuggestion)
+    func removeActivityDetectedNotifications(suggestionIds: [String])
+}
+
+extension NotificationServiceProtocol {
+    func sendActivityDetectedNotification(for suggestion: ActivitySuggestion) {}
+    func removeActivityDetectedNotifications(suggestionIds: [String]) {}
 }
