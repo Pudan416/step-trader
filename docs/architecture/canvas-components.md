@@ -223,6 +223,27 @@ before Metal is ready and does not replay it when preparation finishes.
 
 ## Rendering ownership
 
+`CanvasStorageService` exposes a dormant account-switch write barrier. A future
+coordinator must first quiesce producers, then await
+`invalidatePendingWritesForAccountSwitch()` before rotating working files, and
+call `resumeWritesAfterAccountSwitch()` only after the incoming account is ready.
+Invalidation drains actual locked disk writes, cancels pending widget exports,
+and rejects old render completions without waiting for the GPU. Work captured
+while suspended remains invalid after resume.
+
+Async producers capture `captureWriteEpoch()` before suspension and pass it to
+the `expectedEpoch` write overloads. An already-stale external callback that
+starts a new one-argument save after switching cannot be recognized automatically;
+Gallery/cloud lifecycle wiring must supply its original epoch. The existing
+one-argument `saveCanvas` persistence closure remains available. Notifications
+run outside the write lock to allow reentrant observers.
+
+This barrier covers app-written Canvas JSON, history PNG and the detached
+`canvas_today.jpg` export; the widget reads atomic replacements. It does not
+replace shared Screen Time locks or quiesce the separate wallpaper Intent's
+`wallpaper_bg.jpg` / `wallpaper_v2.plist` producers. A coordinator rotating their
+shared folder must handle those separately. No coordinator is activated here.
+
 Canvas command buffers report their first GPU failure and stop further live and
 offscreen submissions from that renderer. The display link pauses while keeping
 the last drawable; a new renderer starts with a healthy state. Internal builds

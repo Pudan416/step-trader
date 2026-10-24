@@ -91,6 +91,9 @@ jobs:
       - name: Verify Canvas palette rollover contract
         run: python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
 
+      - name: Verify Canvas account write barrier
+        run: python3 -m unittest discover -s Scripts -p 'test_canvas_write_epoch.py'
+
       - name: Verify analytics replay and ownership
         run: python3 -m unittest discover -s Scripts -p 'test_analytics_flush.py'
 
