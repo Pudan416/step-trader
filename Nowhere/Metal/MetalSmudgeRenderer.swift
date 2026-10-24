@@ -662,8 +662,12 @@ final class MetalSmudgeRenderer: NSObject, MTKViewDelegate {
 
         var dispatchOrigin = SIMD2<UInt32>(UInt32(minX), UInt32(minY))
         encoder.setBytes(&dispatchOrigin, length: MemoryLayout<SIMD2<UInt32>>.stride, index: 1)
-        encoder.dispatchThreads(
-            MTLSize(width: maxX - minX, height: maxY - minY, depth: 1),
+        // Uniform groups also work on devices without non-uniform dispatch.
+        // The kernel clips padded threads at the texture edge; the blit below
+        // publishes only the requested stroke region.
+        encoder.dispatchThreadgroups(
+            MTLSize(width: (maxX - minX + 15) / 16,
+                    height: (maxY - minY + 15) / 16, depth: 1),
             threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1)
         )
         encoder.endEncoding()

@@ -25,6 +25,26 @@ jobs:
       - name: Verify sync operation admission and drain
         run: python3 Scripts/test_sync_transition.py
 
+  analytics-postgres:
+    name: Analytics replay SQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture-password
+          POSTGRES_DB: analytics_fixture
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify duplicate replay and RLS with production schema
+        env:
+          NOWHERE_TEST_PG_DSN: postgresql://postgres:fixture-password@localhost:5432/analytics_fixture
+        run: python3 Scripts/test_analytics_postgres.py
+
   economy-write-barrier:
     name: Economy write barrier regressions
     runs-on: macos-26
@@ -83,6 +103,15 @@ jobs:
       - name: Verify Canvas account write barrier
         run: python3 -m unittest discover -s Scripts -p 'test_canvas_write_epoch.py'
 
+      - name: Verify analytics replay and ownership
+        run: python3 -m unittest discover -s Scripts -p 'test_analytics_flush.py'
+
+      - name: Verify anonymous Apple identity linking
+        run: python3 -m unittest discover -s Scripts -p 'test_apple_identity_link.py'
+
+      - name: Verify Canvas GPU failure contract
+        run: python3 -m unittest discover -s Scripts -p 'test_canvas_gpu_failure.py'
+
       - name: Verify host audio output
         # Simulator RemoteIO depends on the runner's virtual CoreAudio device.
         # Configure Debug live-audio tests too; an unconfigured route can hang
@@ -123,11 +152,23 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/HealthZeroDataUI.xcresult" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/HealthZeroDataUI.log"
 
+      - name: Verify Smudge with Metal API Validation
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+          xcodebuild test -project Nowhere.xcodeproj -scheme NowhereMetalAPIValidation \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            -parallel-testing-enabled NO \
+            -only-testing:NowhereTests/SmudgeRegionSequenceTests \
+            -only-testing:NowhereTests/SmudgePreparationTests/testPreparedSmudgeContainsColorToDisplaceInDistributionBuilds \
+            -resultBundlePath "$RUNNER_TEMP/MetalAPIValidation.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/MetalAPIValidation.log"
+
       - name: Run NowhereTests
         # The live 100-remix deadline test and two heavy real-audio lifecycle
-        # scenarios run in the required optimized Release job below. All other
-        # tests stay in Debug; two live allocation scenarios run in fresh Debug hosts
-        # below, retaining every original assertion and three required repetitions.
+        # scenarios run in the required optimized Release job below. The two
+        # remaining live allocation tests run in fresh Debug hosts immediately
+        # after this bulk suite; all original assertions remain required.
         timeout-minutes: 80
         # The HealthStoreTests observer flake (a fixed-sleep wait on a MainActor
         # hop) was fixed by polling deterministically, so the global
@@ -215,6 +256,8 @@ jobs:
           path: |
             ${{ runner.temp }}/HealthZeroDataUI.xcresult
             ${{ runner.temp }}/HealthZeroDataUI.log
+            ${{ runner.temp }}/MetalAPIValidation.xcresult
+            ${{ runner.temp }}/MetalAPIValidation.log
             ${{ runner.temp }}/NowhereTests.xcresult
             ${{ runner.temp }}/NowhereTests.log
             ${{ runner.temp }}/DebugAudioIsolation.xcresult
@@ -376,6 +419,38 @@ jobs:
             ~/Library/Logs/DiagnosticReports
           retention-days: 7
           if-no-files-found: warn
+
+  backend-migrations:
+    name: PostgreSQL migration replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-replay-only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: local-replay-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+      - name: Install Supabase CLI
+        run: npm install --prefix "$RUNNER_TEMP/supabase-cli" supabase@2.121.0
+      - name: Set CLI path
+        run: echo "$RUNNER_TEMP/supabase-cli/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Replay active SQL with fresh and legacy auth schemas
+        run: python3 supabase/tests/migration-replay.py
 
   edge-functions:
     name: Edge Functions unit tests
