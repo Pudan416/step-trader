@@ -329,6 +329,20 @@ enum ShieldRebuildHelper {
         #endif
     }
 
+    /// Widget recovery is offered only when the live group still has a usable
+    /// selection. The archived widget snapshot cannot grant a pass on its own.
+    static func recoverableUsageBudgetMinutes(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Int {
+        #if canImport(FamilyControls)
+        guard hasRecoverableUsageBudget(defaults: defaults, groupId: groupId, at: now),
+              let data = loadGroups(defaults: defaults).first(where: { $0.id == groupId && $0.active })?.selectionData,
+              let selection = cachedSelection(for: groupId, data: data),
+              !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty else { return 0 }
+        return remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
+        #else
+        return 0
+        #endif
+    }
+
     private static func shouldSkipShieldingDueToActiveUsageBudget(defaults: UserDefaults, groupId: String, at now: Date = Date()) -> Bool {
         guard UsageBudgetAccountBoundary.accepts(UsageBudgetAccountBoundary.epoch(in: defaults), in: defaults) else {
             return false
