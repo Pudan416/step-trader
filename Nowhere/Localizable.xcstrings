@@ -1149,12 +1149,6 @@
             "state" : "translated",
             "value" : "Add a happening to earn colors, or continue without an unlock."
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавь хэппенинг, чтобы заработать цвета, или продолжи без разблокировки."
-          }
         }
       }
     },
@@ -3656,12 +3650,6 @@
             "state" : "translated",
             "value" : "This group is already unlocked"
           }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Эта группа уже открыта"
-          }
         }
       }
     },
@@ -3731,12 +3719,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Try %1$lld minutes. You'll spend real colors. The timer starts after payment and runs even when you aren't using the apps."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Попробуй на %1$lld минут. Ты потратишь настоящие цвета. Таймер запустится после оплаты и будет идти, даже если ты не пользуешься приложениями."
           }
         }
       }
