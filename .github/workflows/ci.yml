@@ -71,6 +71,9 @@ jobs:
       - name: Verify Canvas palette rollover contract
         run: python3 -m unittest discover -s Scripts -p 'test_palette_rollover.py'
 
+      - name: Verify anonymous Apple identity linking
+        run: python3 -m unittest discover -s Scripts -p 'test_apple_identity_link.py'
+
       - name: Verify Canvas GPU failure contract
         run: python3 -m unittest discover -s Scripts -p 'test_canvas_gpu_failure.py'
 
