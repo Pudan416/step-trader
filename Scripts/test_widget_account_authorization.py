@@ -22,6 +22,28 @@ def declaration(source, marker):
 
 @unittest.skipUnless(shutil.which("swiftc"), "Swift is required")
 class WidgetAccountAuthorizationTests(unittest.TestCase):
+    def test_root_deeplink_authorization_cannot_charge_incoming_account_or_reset_its_purchase(self):
+        with tempfile.TemporaryDirectory(prefix="nowhere-root-widget-account-") as directory:
+            folder = Path(directory)
+            root_source = Path(os.environ.get("NOWHERE_ROOT_AUTHORIZATION_SOURCE", ROOT / "Nowhere/NowhereApp.swift")).read_text()
+            method = declaration(root_source, "private func processPendingWidgetUnlock()")
+            # SwiftUI State is a reference boundary; the fixture uses a class.
+            # An explicit self capture adapts that boundary without changing logic.
+            method = method.replace("Task { @MainActor in", "Task { @MainActor [self] in")
+            model = (ROOT / "Nowhere/AppModel.swift").read_text()
+            common = (ROOT / "Scripts/Fixtures/WidgetAccountAuthorizationHarness.swift").read_text().split("struct UnlockGroupWidgetIntent", 1)[0]
+            common = common.replace("var historyWorkGeneration = UUID()", "var didCompleteBootstrap = true\n    var historyWorkGeneration = UUID()")
+            common = common.replace("/*__CURRENT__*/", declaration(model, "func isHistoryWorkCurrent("))
+            reset = declaration((ROOT / "Nowhere/NowhereApp.swift").read_text(), "private func resetWidgetUnlockProcessing()")
+            harness = common + (ROOT / "Scripts/Fixtures/RootWidgetAccountAuthorizationHarness.swift").read_text().replace("/*__ROOT__*/", method).replace("/*__RESET__*/", reset)
+            script = folder / "Harness.swift"
+            script.write_text(harness)
+            binary = folder / "root-widget"
+            build = subprocess.run(["swiftc", "-parse-as-library", "-module-cache-path", str(folder / "modules"), str(script), "-o", str(binary)], capture_output=True, text=True, timeout=60)
+            self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_delayed_authorization_cannot_charge_the_incoming_account(self):
         with tempfile.TemporaryDirectory(prefix="nowhere-widget-account-") as directory:
             folder = Path(directory)

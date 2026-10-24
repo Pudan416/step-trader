@@ -78,6 +78,10 @@ struct GalleryView: View {
     @State private var activeDayKey: String = AppModel.dayKey(for: Date.now)
     /// Local editing is ready once a durable file (complete or provisional)
     /// has loaded. The file's hydration journal separately gates cloud authority.
+    @State private var canvasWriteEpoch = CanvasStorageService.shared.captureWriteEpoch()
+    private var hasCurrentCanvasEpoch: Bool {
+        !model.isHistoryWorkSuspended && canvasWriteEpoch == CanvasStorageService.shared.captureWriteEpoch()
+    }
     @State private var canvasLoaded = false
     @State private var loadTask: Task<Void, Never>? = nil
     /// Invalidates cached palette render input after local artwork edits.
@@ -2434,6 +2438,7 @@ struct GalleryView: View {
     }
 
     private func loadCanvas() {
+        guard hasCurrentCanvasEpoch else { return }
         let dayKey = AppModel.dayKey(for: Date.now)
         // Unit tests run inside the application host. Keep the host Gallery
         // inert so it cannot race persistence tests through the shared canvas
@@ -2469,7 +2474,7 @@ struct GalleryView: View {
         var draft = makeNewCanvas(dayKey: dayKey)
         draft.pendingRemoteHydration = CanvasPendingRemoteHydration()
         draft.localCloudOwnerID = AuthenticationService.shared.currentUser?.id
-        guard CanvasStorageService.shared.saveCanvas(draft) else {
+        guard CanvasStorageService.shared.saveCanvas(draft, expectedEpoch: canvasWriteEpoch) else {
             canvasLoaded = false
             return
         }
@@ -2480,16 +2485,20 @@ struct GalleryView: View {
 
     private func retryPendingCanvasRecovery() {
         guard !isUnitTestHost, !usesTask7UITestFixture, loadTask == nil else { return }
+        let syncEpoch = SupabaseSyncService.shared.captureSyncEpoch()
         loadTask = Task {
-            await SupabaseSyncService.shared.recoverPendingDayCanvases()
-            guard !Task.isCancelled else { return }
+            guard hasCurrentCanvasEpoch else { return }
+            await SupabaseSyncService.$historySyncEpoch.withValue(syncEpoch) {
+                await SupabaseSyncService.shared.recoverPendingDayCanvases()
+            }
+            guard !Task.isCancelled, hasCurrentCanvasEpoch else { return }
             applyRecoveredCanvasIfAvailable()
             loadTask = nil
         }
     }
 
     private func applyRecoveredCanvasIfAvailable() {
-        guard dayCanvas.needsRemoteHydration,
+        guard hasCurrentCanvasEpoch, dayCanvas.needsRemoteHydration,
               let saved = CanvasStorageService.shared.loadCanvas(for: activeDayKey),
               !saved.needsRemoteHydration else { return }
         // Native controls and an active drag can have visible edits not yet
@@ -2501,7 +2510,7 @@ struct GalleryView: View {
         let migrated = migratedLoadedCanvas(merged)
         let previous = dayCanvas
         dayCanvas = migrated.canvas
-        guard CanvasStorageService.shared.saveCanvas(dayCanvas) else {
+        guard CanvasStorageService.shared.saveCanvas(dayCanvas, expectedEpoch: canvasWriteEpoch) else {
             dayCanvas = previous
             return
         }
@@ -2516,6 +2525,7 @@ struct GalleryView: View {
     /// that state cache in sync at this assignment boundary rather than during
     /// a SwiftUI body evaluation.
     private func applyEditableCanvas(_ canvas: DayCanvas) {
+        guard hasCurrentCanvasEpoch else { return }
         dayCanvas = canvas
         canvasLoaded = true
         if !isUnitTestHost {
@@ -2552,6 +2562,7 @@ struct GalleryView: View {
 
     @MainActor
     private func refreshWidgetSnapshot() {
+        guard hasCurrentCanvasEpoch else { return }
         let canvas = dayCanvas
         let categories = ModernPaletteSelection.decode(modernPaletteCategoriesRaw)
         CanvasStorageService.shared.scheduleWidgetSnapshot(
@@ -2560,7 +2571,7 @@ struct GalleryView: View {
     }
 
     private func syncCanvasWithModel() {
-        guard canvasLoaded, !model.isBootstrapping else { return }
+        guard hasCurrentCanvasEpoch, canvasLoaded, !model.isBootstrapping else { return }
         model.checkDayBoundary()
         guard activeDayKey == dayCanvas.dayKey,
               dayCanvas.dayKey == AppModel.dayKey(for: .now) else { return }
@@ -2603,7 +2614,7 @@ struct GalleryView: View {
 
     @discardableResult
     private func saveCanvasLocally() -> Bool {
-        guard !isUnitTestHost else { return false }
+        guard !isUnitTestHost, hasCurrentCanvasEpoch else { return false }
         // Gate on canvasLoaded — NOT on `!elements.isEmpty`. The previous
         // empty-skip silently dropped legitimate "deleted last element"
         // saves, so the deletion failed to persist and the element came back
@@ -2613,10 +2624,10 @@ struct GalleryView: View {
         if !dayCanvas.needsRemoteHydration && dayCanvas.pendingCloudUpload != true
             && dayCanvas.localCloudOwnerID == nil
             && dayCanvas.elements.isEmpty && dayCanvas.artworkRecipe == nil && dayCanvas.remixSeed == nil {
-            CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey)
+            CanvasStorageService.shared.deleteCanvas(for: dayCanvas.dayKey, expectedEpoch: canvasWriteEpoch)
             didPersist = true
         } else {
-            didPersist = CanvasStorageService.shared.saveCanvas(dayCanvas)
+            didPersist = CanvasStorageService.shared.saveCanvas(dayCanvas, expectedEpoch: canvasWriteEpoch)
         }
         guard didPersist else { return false }
         publishCanvasPersistence(dayCanvas)
@@ -2624,8 +2635,9 @@ struct GalleryView: View {
     }
 
     private func publishCanvasPersistence(_ canvas: DayCanvas) {
-        Task { await SupabaseSyncService.shared.syncDayCanvas(canvas) }
-        Task { @MainActor in refreshWidgetSnapshot() }
+        guard hasCurrentCanvasEpoch else { return }
+        model.scheduleHistoryWork { await SupabaseSyncService.shared.syncDayCanvas(canvas) }
+        model.scheduleHistoryWork { [self] in refreshWidgetSnapshot() }
         NotificationCenter.default.post(
             name: .historyThumbnailNeedsRefresh,
             object: canvas.dayKey
@@ -2691,7 +2703,7 @@ struct GalleryView: View {
             persist: { canvas in
                 usesTask7UITestFixture
                     ? true
-                    : CanvasStorageService.shared.saveCanvas(canvas)
+                    : CanvasStorageService.shared.saveCanvas(canvas, expectedEpoch: canvasWriteEpoch)
             }
         ) else {
             CanvasTour.shared.endOperation(tourOperation, error: "Happening was not saved; choose an available moment or continue with the existing day")
@@ -2745,7 +2757,7 @@ struct GalleryView: View {
                 if usesTask7UITestFixture { return true }
                 return CanvasHappeningRemovalPersistence.persist(
                     canvas,
-                    save: CanvasStorageService.shared.saveCanvas
+                    save: { CanvasStorageService.shared.saveCanvas($0, expectedEpoch: canvasWriteEpoch) }
                 )
             }
         ) else {
@@ -2792,7 +2804,7 @@ struct GalleryView: View {
     private func remixCanvas() {
         guard canvasLoaded, CanvasFullScreenRemixPresentation.isVisible(in: presentation) else { return }
         guard let result = remixHistory.commitRemix(canvas: dayCanvas, paletteCategories: ModernPaletteSelection.decode(modernPaletteCategoriesRaw), persist: {
-            CanvasStorageService.shared.saveCanvas($0)
+            CanvasStorageService.shared.saveCanvas($0, expectedEpoch: canvasWriteEpoch)
         }) else { return }
         withAnimation(.easeInOut(duration: 0.3)) {
             dayCanvas = result.canvas
@@ -2816,7 +2828,7 @@ struct GalleryView: View {
     private func undoCanvasRemix() {
         guard canvasLoaded, CanvasFullScreenRemixPresentation.isVisible(in: presentation),
               let restored = remixHistory.commitUndo(into: dayCanvas, persist: {
-                  CanvasStorageService.shared.saveCanvas($0)
+                  CanvasStorageService.shared.saveCanvas($0, expectedEpoch: canvasWriteEpoch)
               }) else { return }
         withAnimation(.easeInOut(duration: 0.3)) { dayCanvas = restored }
         localMutationCounter &+= 1

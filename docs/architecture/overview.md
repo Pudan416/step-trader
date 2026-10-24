@@ -25,32 +25,31 @@ Test names live in `NowhereTests/` unless stated otherwise.
 ## Ownership and compatibility
 
 - `AccountHistoryStorage` defines the explicit defaults/file scope shared by
-  future account transitions and the legacy viewer. Settings > Account exposes
+  account transitions and the legacy viewer. Settings > Account exposes
   `legacy-unattributed` through a read-only previous-device-history sheet. It
   reads saved dates, original titles, previews and spending without activating
   an archive or fetching/uploading cloud data; owned account archives are not
   offered in that viewer. Unreadable Canvas files stay preserved and dated.
-- `AccountHistoryVault` is an additive, local-only archive primitive. It is not
-  wired into authentication yet. Before calling `activate`, an account-transition
-  coordinator must suspend app and extension writers, invalidate stale asynchronous
-  callbacks, and provide explicit history defaults/file locations. Legacy history
-  is archived as `legacy-unattributed`; it must have a recoverable local access path
-  before runtime activation is enabled. Archives preserve file/UUID bytes and use a
+- `AccountHistoryVault` stores local account archives. Authentication uses
+  `AccountHistoryCoordinator` to suspend app and extension writers, invalidate stale
+  asynchronous callbacks, and prepare the explicit history defaults/file locations
+  before publishing an incoming identity. Legacy history is archived as
+  `legacy-unattributed` and remains available in the read-only Settings viewer. Archives preserve file/UUID bytes and use a
   recovery journal; files are copied individually instead of loading PNG history into
   memory. Credentials, diagnostics and lock files must never enter the working set.
 - `UserEconomyStore.suspendPersistence()` pauses scalar/JSON writers, cancels
   and awaits their pending tasks, and flushes the latest outgoing state before
   storage rotation. It throws if that state cannot be preserved. Its caller must
   separately finish local loaders/migrations, suspend other app/extension writers,
-  and reload the incoming account before `resumePersistence()`. These transition
-  hooks are not wired into authentication yet.
+  and reload the incoming account before `resumePersistence()`. The account coordinator
+  applies these hooks before publishing authentication changes.
 - `AppModel.scheduleHistoryWork` retains asynchronous history producers and
   carries their original sync epoch across suspension. Account transitions stop
   admission, cancel and await producers plus local loaders before storage changes.
   Deferred day/health tasks and BlockingStore selection/shield tasks share this
   pause boundary. App-hosted widget authorization captures the model generation,
-  so an old permission prompt cannot spend from a subsequent account. These
-  lifecycle hooks remain dormant until the account coordinator adopts them.
+  so an old permission prompt cannot spend from a subsequent account. The
+  account coordinator applies this boundary on authentication changes.
 - `AppModel` coordinates the existing stores; `DIContainer.applicationModel` is shared by
   foreground UI and app intents. Avoid creating a second independent purchase model.
 - `HappeningDefaults.builtIns` derives the fixed 106 choices from `HappeningEventTree.all`.
@@ -143,9 +142,9 @@ Test names live in `NowhereTests/` unless stated otherwise.
 - Me canvas loads, poster bitmaps and history thumbnails expose an account-switch
   pause: close admission, invalidate old results, drain render/write tasks, then
   clear derived memory/disk caches. Resume only after the incoming history is ready.
-  Thumbnail-wide invalidation also rejects older GPU completions. These APIs are
-  preparatory until the runtime account coordinator calls them; cancellation alone
-  does not stop a GPU completion or a detached disk write.
+  Thumbnail-wide invalidation also rejects older GPU completions. The account coordinator
+  drains these caches before changing storage; cancellation alone does not stop a
+  GPU completion or a detached disk write.
 - `DetectedWorkout.suggestedOptionId` and `ActivitySuggestion.isSatisfied` own
   Health-to-catalog identity and equivalence. Views log the resolved catalog ID;
   a generic workout must not satisfy a specific run or swim.
@@ -160,7 +159,7 @@ Test names live in `NowhereTests/` unless stated otherwise.
   callbacks during synchronous account-history replacement. Its body must not
   await, call DeviceActivity or rebuild shields. Keep both lock files outside
   archived paths; stop obsolete monitors and rebuild only after releasing them.
-  This additive transition hook is not wired into authentication yet.
+  The account coordinator uses this lock for storage replacement during authentication changes.
 - `DayCanvas` and versioned recipes are durable data. Older render paths and textures are
   still required by saved artwork and export. Preserve decoder defaults, stable IDs, random
   consumption order and Metal uniform layouts. See [Canvas components](canvas-components.md).
@@ -197,7 +196,7 @@ Do not replace these strings during naming cleanup. Keep current persisted keys,
 Codable keys, widget kinds and enum raw values unless a separate migration is tested.
 
 The account coordinator uses the vault's two-phase activation: `prepareActivation` retains the outgoing recovery journal while the incoming model is loaded, then `commitActivation` completes it after validating the incoming authentication generation, immediately before publishing authentication without an intervening await. A receipt can undo only its own still-pending switch through `rollbackActivation`; this includes the original unattributed working set without exposing normal activation/import of legacy history. Restart before commit also restores the outgoing archive. Existing `activate` remains the immediate prepare/commit convenience.
-Usage budget account transitions use `UsageBudgetAccountBoundary` inside the registration/state lock boundary. Its device-level `accountHistoryBudgetEpoch_v1` and `accountHistoryBudgetSuspended_v1` keys are excluded from account storage. Suspend invalidates measurement identities without changing paid minutes and returns monitor names for stopping outside locks. Apply suspend to incoming restored sessions before resume; normal recovery then registers a fresh identity. Callback continuations retain their original epoch, so a delayed outgoing callback cannot recover the incoming account's budget. The hooks remain dormant until the account coordinator adopts them.
+Usage budget account transitions use `UsageBudgetAccountBoundary` inside the registration/state lock boundary. Its device-level `accountHistoryBudgetEpoch_v1` and `accountHistoryBudgetSuspended_v1` keys are excluded from account storage. Suspend invalidates measurement identities without changing paid minutes and returns monitor names for stopping outside locks. Apply suspend to incoming restored sessions before resume; normal recovery then registers a fresh identity. Callback continuations retain their original epoch, so a delayed outgoing callback cannot recover the incoming account's budget. The account coordinator applies this fence before replacing account storage.
 
 ### Cloud work during account transitions
 
@@ -221,7 +220,7 @@ analytics snapshot before files rotate, preserving events whose normal persisten
 invalidated. Resuming re-reads the incoming queue; owner readiness schedules its flush. Device-token
 registration and captured-bearer APNs teardown are outside the history barrier.
 
-`AccountHistoryCoordinator` composes the existing pause/drain APIs without activating itself yet. Its serialized transition invalidates sync admission both when queued and when it begins, drains producers/caches, invalidates outgoing and restored budget identities inside existing locks, and reloads incoming model values while paused. It validates auth generation, durably commits the vault, then publishes credentials/user synchronously without an intervening await. Storage failures retain credentials and expose retry; safe unchanged outgoing accounts resume. Initial hydration happens after auth initialization; a failed restore keeps uploads closed. On process interruption between credential and vault domains, the next startup binds storage to the credential UID before opening UI/sync.
+`AccountHistoryCoordinator` prepares account storage before authentication publishes an incoming identity or completes sign-out. Its serialized transition invalidates sync admission both when queued and when it begins, drains producers/caches, invalidates outgoing and restored budget identities inside existing locks, and reloads incoming model values while paused. It validates auth generation, durably commits the vault, then publishes credentials/user synchronously without an intervening await. Storage failures retain credentials and expose retry; safe unchanged outgoing accounts resume. Initial hydration happens after auth initialization; a failed restore keeps uploads closed. On process interruption between credential and vault domains, the next startup binds storage to the credential UID before opening UI/sync.
 
 `TodayCanvasBackdropStore` closes refresh/capture admission, drains its render and poster-warming worker, and clears the outgoing image/source/palettes during an account transition. The coordinator drains it before purging Me poster caches; resuming forces even the same logical date to load the incoming Canvas again. Poster warming stays inside the tracked worker instead of creating an untracked task.
 
