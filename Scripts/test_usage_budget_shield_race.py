@@ -39,6 +39,9 @@ class UsageBudgetShieldRaceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PASS:", result.stdout)
 
+    def test_account_history_rotation_excludes_registration_and_extension_writers(self):
+        self.run_case("transition-lock")
+
     def test_every_shield_writer_uses_the_shared_rebuild(self):
         for relative in ["Nowhere/Stores/BlockingStore.swift",
                          "DeviceActivityMonitor/DeviceActivityMonitorExtension.swift"]:

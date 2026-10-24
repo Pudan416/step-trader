@@ -137,6 +137,52 @@ struct UsageBudgetSession: Codable, Equatable {
     }
 }
 
+/// Device-level fence: these keys must never be archived with an account.
+/// Call suspend/resume only inside the registration → state transition locks.
+enum UsageBudgetAccountBoundary {
+    static let epochKey = "accountHistoryBudgetEpoch_v1"
+    static let suspendedKey = "accountHistoryBudgetSuspended_v1"
+
+    static func epoch(in defaults: UserDefaults) -> String {
+        defaults.string(forKey: epochKey) ?? ""
+    }
+
+    static func accepts(_ epoch: String, in defaults: UserDefaults) -> Bool {
+        !defaults.bool(forKey: suspendedKey) && Self.epoch(in: defaults) == epoch
+    }
+
+    static func require(_ epoch: String, in defaults: UserDefaults) throws {
+        guard accepts(epoch, in: defaults) else {
+            throw NSError(domain: "Nowhere.AccountHistory", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Your account changed. Try again after it finishes loading."])
+        }
+    }
+
+    /// Preserve confirmed unspent minutes, but never restore an old daemon identity.
+    /// The caller stops returned activity names outside both file locks.
+    static func suspend(defaults: UserDefaults, now: Date = Date()) -> [String] {
+        defaults.set(true, forKey: suspendedKey)
+        defaults.set(UUID().uuidString, forKey: epochKey)
+        var names: [String] = []
+        let prefix = "usageBudgetSession_v2_"
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            let groupId = String(key.dropFirst(prefix.count))
+            guard var session = UsageBudgetSession.load(from: defaults, groupId: groupId) else { continue }
+            names += [session.activityName(groupId: groupId), session.legacyActivityName(groupId: groupId)]
+            session.invalidatedAt = session.invalidatedAt ?? now
+            session.monitoringFailed = true
+            session.save(to: defaults, groupId: groupId)
+        }
+        defaults.synchronize()
+        return names
+    }
+
+    static func resume(defaults: UserDefaults) {
+        defaults.set(false, forKey: suspendedKey)
+        defaults.synchronize()
+    }
+}
+
 /// A small `flock` wrapper shared by the app and Screen Time extension.
 /// Each operation opens its own descriptor so independent processes contend
 /// on the same kernel lock rather than relying on in-process synchronization.
@@ -161,6 +207,17 @@ struct UsageBudgetFileLock: Sendable {
 /// Screen Time daemon call. DeviceActivity callbacks need the state lock and
 /// can run synchronously while `startMonitoring` is waiting to return.
 enum UsageBudgetRegistrationCoordinator {
+    /// Storage rotation must exclude both a registration waiting on the daemon
+    /// and callbacks committing budget state. Match registration's lock order.
+    /// The body must stay synchronous and must not call Screen Time/rebuild APIs.
+    static func withAccountHistoryTransition<T>(
+        stateLock: UsageBudgetFileLock,
+        registrationLock: UsageBudgetFileLock,
+        body: () throws -> T
+    ) throws -> T {
+        try registrationLock.withLock { try stateLock.withLock(body) }
+    }
+
     static func perform<Prepared>(
         stateLock: UsageBudgetFileLock,
         registrationLock: UsageBudgetFileLock,
@@ -496,6 +553,16 @@ enum ShieldRebuildHelper {
         try usageBudgetLock(named: "usage-budget.lock").withLock(body)
     }
 
+    /// Hold only across synchronous App Group snapshot/key replacement. Lock
+    /// files stay outside the account's archived paths and are never replaced.
+    static func withAccountHistoryTransitionLock<T>(_ body: () throws -> T) throws -> T {
+        try UsageBudgetRegistrationCoordinator.withAccountHistoryTransition(
+            stateLock: usageBudgetLock(named: "usage-budget.lock"),
+            registrationLock: usageBudgetLock(named: "usage-budget-registration.lock"),
+            body: body
+        )
+    }
+
     static func usageEvents(selection: FamilyActivitySelection, session: UsageBudgetSession) -> [DeviceActivityEvent.Name: DeviceActivityEvent] {
         // Each event fires once at its cumulative threshold. No repeating tick
         // assumption and no stop/start chain while this segment is in use.
@@ -527,6 +594,7 @@ enum ShieldRebuildHelper {
         defaults: UserDefaults,
         groupId: String,
         now: Date,
+        accountEpoch: String,
         makeSession: () throws -> UsageBudgetSession?
     ) throws {
         let stateLock = try usageBudgetLock(named: "usage-budget.lock")
@@ -539,6 +607,7 @@ enum ShieldRebuildHelper {
                 registrationLock: registrationLock,
                 prepare: { () throws -> PreparedUsageBudgetRegistration? in
                     defaults.synchronize()
+                    try UsageBudgetAccountBoundary.require(accountEpoch, in: defaults)
                     guard let session = try makeSession() else { return nil }
                     guard let schedule = usageBudgetSchedule(endingAt: session.expiresAt, anchoredAt: now),
                           let data = loadGroups(defaults: defaults).first(where: { $0.id == groupId && $0.active })?.selectionData,
@@ -646,10 +715,13 @@ enum ShieldRebuildHelper {
     static func purchaseUsageBudget(defaults: UserDefaults, groupId: String, minutes: Int, now: Date = Date()) throws {
         guard minutes > 0 else { throw NSError(domain: "Nowhere.UsageBudget", code: 3) }
 
-        let candidate = try withUsageBudgetLock {
+        let snapshot = try withUsageBudgetLock {
             defaults.synchronize()
-            return UsageBudgetSession.load(from: defaults, groupId: groupId)
+            let epoch = UsageBudgetAccountBoundary.epoch(in: defaults)
+            try UsageBudgetAccountBoundary.require(epoch, in: defaults)
+            return (session: UsageBudgetSession.load(from: defaults, groupId: groupId), epoch: epoch)
         }
+        let candidate = snapshot.session
         let hasRegisteredFinalEvent: Bool
         if let candidate {
             hasRegisteredFinalEvent = DeviceActivityCenter()
@@ -663,6 +735,7 @@ enum ShieldRebuildHelper {
         let didTopUp = try withUsageBudgetLock {
             defaults.synchronize()
             defer { defaults.synchronize() }
+            try UsageBudgetAccountBoundary.require(snapshot.epoch, in: defaults)
             if var session = UsageBudgetSession.load(from: defaults, groupId: groupId),
                session.generation == candidate?.generation,
                session.expiresAt > now, session.remainingMinutes > 0,
@@ -677,7 +750,7 @@ enum ShieldRebuildHelper {
         }
         guard !didTopUp else { return }
 
-        try register(defaults: defaults, groupId: groupId, now: now) {
+        try register(defaults: defaults, groupId: groupId, now: now, accountEpoch: snapshot.epoch) {
             let deadline = DayBoundary.purchaseExpiry(minutes: minutes,
                 dayEndHour: defaults.integer(forKey: SharedKeys.dayEndHour),
                 dayEndMinute: defaults.integer(forKey: SharedKeys.dayEndMinute), now: now)
@@ -688,14 +761,16 @@ enum ShieldRebuildHelper {
 
     /// Recovery runs only when the registered interval/events are missing. It
     /// retains confirmed unspent minutes, never subtracts elapsed clock time.
-    static func startUsageBudgetMonitoring(defaults: UserDefaults, groupId: String, now: Date = Date()) throws {
-        let snapshot = try withUsageBudgetLock { () -> (deadline: Date, session: UsageBudgetSession?) in
+    static func startUsageBudgetMonitoring(defaults: UserDefaults, groupId: String, now: Date = Date(), expectedAccountEpoch: String? = nil) throws {
+        let snapshot = try withUsageBudgetLock { () -> (deadline: Date, session: UsageBudgetSession?, epoch: String) in
             defaults.synchronize()
+            let epoch = expectedAccountEpoch ?? UsageBudgetAccountBoundary.epoch(in: defaults)
+            try UsageBudgetAccountBoundary.require(epoch, in: defaults)
             let remaining = remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
             guard remaining > 0, let deadline = usageBudgetDeadline(defaults: defaults, groupId: groupId) else {
                 throw NSError(domain: "Nowhere.UsageBudget", code: 1)
             }
-            return (deadline, UsageBudgetSession.load(from: defaults, groupId: groupId))
+            return (deadline, UsageBudgetSession.load(from: defaults, groupId: groupId), epoch)
         }
 
         let center = DeviceActivityCenter()
@@ -711,7 +786,7 @@ enum ShieldRebuildHelper {
         }
 
         do {
-            try register(defaults: defaults, groupId: groupId, now: now) {
+            try register(defaults: defaults, groupId: groupId, now: now, accountEpoch: snapshot.epoch) {
                 // Another purchase/recovery may have completed while this caller
                 // waited for registration. Never replace its newer generation.
                 let current = UsageBudgetSession.load(from: defaults, groupId: groupId)
@@ -726,6 +801,7 @@ enum ShieldRebuildHelper {
         } catch {
             try withUsageBudgetLock {
                 defaults.synchronize()
+                guard UsageBudgetAccountBoundary.accepts(snapshot.epoch, in: defaults) else { return }
                 let current = UsageBudgetSession.load(from: defaults, groupId: groupId)
                 let remaining = remainingUsageBudget(defaults: defaults, groupId: groupId, at: now)
                 if current?.generation == snapshot.session?.generation, remaining > 0,
@@ -745,14 +821,16 @@ enum ShieldRebuildHelper {
 
     @discardableResult
     static func recordUsageThreshold(defaults: UserDefaults, groupId: String, event: String, now: Date = Date()) throws -> Bool {
-        let result = try withUsageBudgetLock { () -> (changed: Bool, needsContinuation: Bool) in
+        let result = try withUsageBudgetLock { () -> (changed: Bool, needsContinuation: Bool, epoch: String) in
             defaults.synchronize()
             defer { defaults.synchronize() }
+            let epoch = UsageBudgetAccountBoundary.epoch(in: defaults)
+            guard UsageBudgetAccountBoundary.accepts(epoch, in: defaults) else { return (false, false, epoch) }
             guard var session = UsageBudgetSession.load(from: defaults, groupId: groupId),
-                  session.expiresAt > now else { return (false, false) }
+                  session.expiresAt > now else { return (false, false, epoch) }
             switch session.record(event: event, at: now) {
             case .ignored:
-                return (false, false)
+                return (false, false, epoch)
             case .implausible:
                 // Fail closed without re-entering the daemon from its callback.
                 // The app/widget can recover this paid balance with a fresh
@@ -764,17 +842,20 @@ enum ShieldRebuildHelper {
                 session.invalidatedAt = now
                 session.monitoringFailed = true
                 session.save(to: defaults, groupId: groupId)
-                return (true, false)
+                return (true, false, epoch)
             case .recorded:
                 session.save(to: defaults, groupId: groupId)
             }
             // During registration the coordinator owns the registration lock.
             // Do not re-enter it from a synchronous daemon callback. The saved
             // queue remains recoverable if a very slow registration finishes it.
-            return (true, session.needsNextSegment && !session.monitoringFailed)
+            return (true, session.needsNextSegment && !session.monitoringFailed, epoch)
         }
         if result.needsContinuation {
-            try startUsageBudgetMonitoring(defaults: defaults, groupId: groupId, now: now)
+            // A delayed outgoing continuation must not recover a new account's group.
+            guard UsageBudgetAccountBoundary.accepts(result.epoch, in: defaults) else { return result.changed }
+            try startUsageBudgetMonitoring(defaults: defaults, groupId: groupId, now: now,
+                                           expectedAccountEpoch: result.epoch)
         }
         return result.changed
     }
