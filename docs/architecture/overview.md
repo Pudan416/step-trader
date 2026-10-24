@@ -35,7 +35,9 @@ Test names live in `NowhereTests/` unless stated otherwise.
   asynchronous callbacks, and prepare the explicit history defaults/file locations
   before publishing an incoming identity. Legacy history is archived as
   `legacy-unattributed` and remains available in the read-only Settings viewer. Archives preserve file/UUID bytes and use a
-  recovery journal; files are copied individually instead of loading PNG history into
+  recovery journal. Defaults commit only after the explicit writable App Group
+  and app domains synchronize for the current user and any host; inherited
+  search sources are outside this durability boundary. Files are copied individually instead of loading PNG history into
   memory. Credentials, diagnostics and lock files must never enter the working set.
 - `UserEconomyStore.suspendPersistence()` pauses scalar/JSON writers, cancels
   and awaits their pending tasks, and flushes the latest outgoing state before

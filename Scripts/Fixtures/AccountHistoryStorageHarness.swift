@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 @main
 struct AccountHistoryStorageHarness {
@@ -12,7 +13,9 @@ struct AccountHistoryStorageHarness {
             standard.removePersistentDomain(forName: suite + ".standard")
             try? FileManager.default.removeItem(at: root)
         }
-        let domains = AccountHistoryStorage.domains(shared: shared, standard: standard)
+        let domains = AccountHistoryStorage.domains(shared: shared, standard: standard,
+            sharedDomainName: suite, standardDomainName: suite + ".standard")
+        precondition(domains.map(\.persistentDomainName) == [suite, suite + ".standard"], "fixture flush must use its own namespaces")
         let vault = try AccountHistoryVault(root: root, domains: domains, locations: [])
         try vault.activate(owner: "A")
         let markers = ["supabaseHistoryLastFullSync_v1", "supabaseHistoryLastDayKey_v1"]
@@ -38,6 +41,10 @@ struct AccountHistoryStorageHarness {
             precondition(domain.defaults.string(forKey: markers[1]) == "A-day")
             precondition(domain.defaults.string(forKey: fence[0]) == "B-current-epoch")
             precondition(domain.defaults.bool(forKey: fence[1]))
+        }
+        for (index, name) in [suite, suite + ".standard"].enumerated() {
+            let restored = CFPreferencesCopyValue(markers[0] as CFString, name as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? String
+            precondition(restored == "A-full", "domain \(index) must durably flush its own restored marker")
         }
         print("PASS account history freshness is scoped; device budget fence does not rotate")
     }

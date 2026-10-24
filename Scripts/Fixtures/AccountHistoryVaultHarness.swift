@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 func expect(_ condition: @autoclosure () throws -> Bool, _ message: String) throws {
     if try !condition() { fatalError(message) }
@@ -13,6 +14,10 @@ final class FailingFileManager: FileManager, @unchecked Sendable {
         }
         try super.removeItem(at: URL)
     }
+}
+
+final class UnflushableSearchSourcesDefaults: UserDefaults, @unchecked Sendable {
+    override func synchronize() -> Bool { false }
 }
 
 @main
@@ -41,7 +46,58 @@ struct AccountHistoryVaultHarness {
         }
         let vault = try makeVault()
         let mode = CommandLine.arguments[1]
-        if mode == "commitWriteFailure" {
+        if mode == "explicitDomainSync" {
+            // A nonwritable search source must not prevent the actual writable
+            // app domain from being flushed and isolated durably.
+            let defaultsWithSearchSourceFailure = UnflushableSearchSourcesDefaults(suiteName: suite)!
+            try expect(!defaultsWithSearchSourceFailure.synchronize(), "fixture must reproduce full-source synchronization failure")
+            let scoped = try AccountHistoryVault(root: archive,
+                domains: [.init(defaults: defaultsWithSearchSourceFailure, keys: ["history"], persistentDomainName: suite)],
+                locations: [.init(name: "canvases", url: canvas.deletingLastPathComponent(), isDirectory: true)])
+            do {
+                try scoped.activate(owner: "account-A")
+                defaultsWithSearchSourceFailure.set(historyBytes, forKey: "history")
+                try scoped.activate(owner: "account-B")
+                try expect(defaultsWithSearchSourceFailure.data(forKey: "history") == nil, "B must not see A defaults")
+                try scoped.activate(owner: "account-A")
+            } catch {
+                fatalError("explicit writable-domain flush must succeed despite unrelated search-source failure: \(error)")
+            }
+            try expect(scoped.activeOwner == "account-A", "A must be published only after its domain flush")
+            let persisted = CFPreferencesCopyValue("history" as CFString, suite as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Data
+            try expect(persisted == historyBytes, "exact writable namespace must contain restored A bytes")
+            try expect(defaultsWithSearchSourceFailure.string(forKey: "device") == "device-preference", "device settings must survive")
+        } else if mode == "unnamedDomainFlushFailure" {
+            let failingDefaults = UnflushableSearchSourcesDefaults(suiteName: suite)!
+            let scoped = try AccountHistoryVault(root: archive,
+                domains: [.init(defaults: failingDefaults, keys: ["history"])],
+                locations: [.init(name: "canvases", url: canvas.deletingLastPathComponent(), isDirectory: true)])
+            do { try scoped.activate(owner: "account-A"); fatalError("unnamed domain synchronization failure must reject activation") }
+            catch AccountHistoryVault.VaultError.defaultsWriteFailed {}
+            try expect(scoped.activeOwner == AccountHistoryVault.legacyOwner, "unnamed-domain failure must retain outgoing owner")
+            let journal = try PropertyListSerialization.propertyList(from: Data(contentsOf: archive.appendingPathComponent("manifest.plist")), format: nil) as! [String: Any]
+            try expect(journal["recoveringOwner"] as? String == AccountHistoryVault.legacyOwner, "unnamed-domain failed rollback must keep recovery journal")
+            try expect(defaults.data(forKey: "history") == historyBytes && Data(contentsOf: canvas) == historyBytes, "unnamed-domain rollback must restore outgoing bytes")
+        } else if mode == "explicitDomainFlushFailure" {
+            var failFlush = true
+            var flushedDomains: [String] = []
+            let scoped = try AccountHistoryVault(root: archive,
+                domains: [.init(defaults: defaults, keys: ["history"], persistentDomainName: suite,
+                    persistentDomainSynchronizer: { name in
+                        flushedDomains.append(name)
+                        return !failFlush && CFPreferencesSynchronize(name as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+                    })], locations: [.init(name: "canvases", url: canvas.deletingLastPathComponent(), isDirectory: true)])
+            do { try scoped.activate(owner: "account-A"); fatalError("exact-domain flush failure must reject activation") }
+            catch AccountHistoryVault.VaultError.defaultsWriteFailed {}
+            try expect(!flushedDomains.isEmpty && flushedDomains.allSatisfy { $0 == suite }, "flush must use fixture namespace, never production app/group")
+            try expect(scoped.activeOwner == AccountHistoryVault.legacyOwner, "failed exact flush must retain outgoing owner")
+            let journal = try PropertyListSerialization.propertyList(from: Data(contentsOf: archive.appendingPathComponent("manifest.plist")), format: nil) as! [String: Any]
+            try expect(journal["recoveringOwner"] as? String == AccountHistoryVault.legacyOwner, "failed rollback flush must keep recovery journal")
+            try expect(defaults.data(forKey: "history") == historyBytes && Data(contentsOf: canvas) == historyBytes, "rollback must restore outgoing bytes before returning")
+            failFlush = false
+            try scoped.activate(owner: "account-A")
+            try expect(scoped.activeOwner == "account-A" && defaults.data(forKey: "history") == nil, "successful retry must recover then isolate incoming owner")
+        } else if mode == "commitWriteFailure" {
             enum WriteFailure: Error { case commit }
             var manifestWrites = 0
             let failing = try AccountHistoryVault(root: archive,
